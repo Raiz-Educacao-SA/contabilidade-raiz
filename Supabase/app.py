@@ -5,6 +5,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from supabase import create_client
+from Supabase.reconciliation_page import render as render_reconciliation
 
 st.set_page_config(page_title="Conciliação Bancária", page_icon="🏦", layout="wide")
 
@@ -149,12 +150,14 @@ competencia = f"{int(ano):04d}-{int(mes):02d}"
 
 accounts = list_accounts(empresa_id)
 
-tab1, tab2, tab3 = st.tabs(["Extratos", "Contas bancárias", "Saldos"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["Extratos", "Contas bancárias", "Saldos", "Conciliação"]
+)
 
 with tab2:
     st.subheader("Contas bancárias")
     if len(accounts):
-        st.dataframe(accounts, use_container_width=True, hide_index=True)
+        st.dataframe(accounts, hide_index=True)
     with st.expander("Cadastrar conta"):
         banco = st.text_input("Banco")
         agencia = st.text_input("Agência")
@@ -218,3 +221,14 @@ with tab3:
         if st.button("Salvar saldos", type="primary"):
             save_balance(conta_id, competencia, inicial, final, fixar)
             st.success("Saldos salvos.")
+
+with tab4:
+    render_reconciliation(
+        supabase=supabase,
+        company_id=empresa_id,
+        competence=competencia,
+        accounts=accounts,
+        save_statement=save_statement,
+        get_balance=get_balance,
+        save_balance=save_balance,
+    )
