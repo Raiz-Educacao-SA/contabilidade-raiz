@@ -2,11 +2,18 @@
 
 create table if not exists public.empresas (
   id uuid primary key default gen_random_uuid(),
+  codcoligada text,
   razao_social text not null,
   cnpj text,
   ativa boolean not null default true,
   criado_em timestamptz not null default now()
 );
+
+create unique index if not exists empresas_cnpj_unico
+  on public.empresas (cnpj) where cnpj is not null;
+
+create unique index if not exists empresas_codcoligada_unico
+  on public.empresas (codcoligada) where codcoligada is not null;
 
 create table if not exists public.usuarios_empresas (
   id uuid primary key default gen_random_uuid(),

@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client
 from Supabase.reconciliation_page import render as render_reconciliation
+from Supabase.companies import COMPANY_CODE_BY_CNPJ
 
 st.set_page_config(page_title="Conciliação Bancária", page_icon="🏦", layout="wide")
 
@@ -67,9 +68,17 @@ def list_companies():
         rows.append({
             "empresa_id": item["empresa_id"],
             "razao_social": emp.get("razao_social", ""),
+            "cnpj": emp.get("cnpj", ""),
+            "codigo": COMPANY_CODE_BY_CNPJ.get(emp.get("cnpj", ""), ""),
             "perfil": item.get("perfil", "Consulta"),
         })
-    return pd.DataFrame(rows)
+    companies = pd.DataFrame(rows)
+    if not companies.empty:
+        companies["empresa_label"] = companies.apply(
+            lambda row: f"{row['codigo']} — {row['razao_social']}" if row["codigo"] else row["razao_social"],
+            axis=1,
+        )
+    return companies.sort_values(["codigo", "razao_social"]).reset_index(drop=True)
 
 def list_accounts(company_id):
     resp = (
@@ -153,7 +162,7 @@ if companies.empty:
 
 with st.sidebar:
     st.subheader("Contexto")
-    empresa_nome = st.selectbox("Empresa", companies["razao_social"].tolist())
+    empresa_label = st.selectbox("Empresa", companies["empresa_label"].tolist())
     ano = st.number_input("Ano", 2020, 2100, date.today().year)
     mes = st.selectbox(
         "Mês",
@@ -165,9 +174,9 @@ with st.sidebar:
         ).split()[value - 1],
     )
 
-empresa_id = companies.loc[
-    companies["razao_social"] == empresa_nome, "empresa_id"
-].iloc[0]
+selected_company = companies.loc[companies["empresa_label"] == empresa_label].iloc[0]
+empresa_id = selected_company["empresa_id"]
+empresa_nome = selected_company["razao_social"]
 competencia = f"{int(ano):04d}-{int(mes):02d}"
 
 accounts = list_accounts(empresa_id)
