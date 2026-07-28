@@ -25,10 +25,18 @@ def require_login():
     if "session" not in st.session_state:
         st.session_state.session = None
     if st.session_state.session is None:
-        st.title("🏦 Conciliação Bancária")
-        email = st.text_input("E-mail")
-        senha = st.text_input("Senha", type="password")
-        if st.button("Entrar", type="primary"):
+        st.title("Conciliação bancária", text_alignment="center")
+        st.caption(
+            "Compare extratos e contabilidade com segurança.",
+            text_alignment="center",
+        )
+        email = st.text_input(
+            "E-mail", placeholder="seu.email@empresa.com.br", icon=":material/mail:"
+        )
+        senha = st.text_input("Senha", type="password", icon=":material/lock:")
+        if st.button(
+            "Entrar", type="primary", icon=":material/login:", width="stretch"
+        ):
             try:
                 result = supabase.auth.sign_in_with_password(
                     {"email": email, "password": senha}
@@ -36,8 +44,11 @@ def require_login():
                 st.session_state.session = result.session
                 st.session_state.user = result.user
                 st.rerun()
-            except Exception as exc:
-                st.error(f"Falha no login: {exc}")
+            except Exception:
+                st.error(
+                    "Não foi possível entrar. Confira o e-mail e a senha.",
+                    icon=":material/error:",
+                )
         st.stop()
 
 def user_id():
@@ -128,9 +139,9 @@ def save_balance(account_id, competencia, inicial, final, fixar):
 require_login()
 
 with st.sidebar:
-    st.title("🏦 Conciliação Bancária")
+    st.title("Conciliação bancária")
     st.caption(st.session_state.user.email)
-    if st.button("Sair"):
+    if st.button("Sair", icon=":material/logout:", width="stretch"):
         supabase.auth.sign_out()
         st.session_state.clear()
         st.rerun()
@@ -140,18 +151,37 @@ if companies.empty:
     st.warning("Usuário sem empresa vinculada.")
     st.stop()
 
-empresa_nome = st.selectbox("Empresa", companies["razao_social"].tolist())
-empresa_id = companies.loc[companies["razao_social"] == empresa_nome, "empresa_id"].iloc[0]
+with st.sidebar:
+    st.subheader("Contexto")
+    empresa_nome = st.selectbox("Empresa", companies["razao_social"].tolist())
+    ano = st.number_input("Ano", 2020, 2100, date.today().year)
+    mes = st.selectbox(
+        "Mês",
+        range(1, 13),
+        index=date.today().month - 1,
+        format_func=lambda value: (
+            "Janeiro Fevereiro Março Abril Maio Junho Julho Agosto "
+            "Setembro Outubro Novembro Dezembro"
+        ).split()[value - 1],
+    )
 
-c1, c2 = st.columns(2)
-ano = c1.number_input("Ano", 2020, 2100, date.today().year)
-mes = c2.number_input("Mês", 1, 12, date.today().month)
+empresa_id = companies.loc[
+    companies["razao_social"] == empresa_nome, "empresa_id"
+].iloc[0]
 competencia = f"{int(ano):04d}-{int(mes):02d}"
 
 accounts = list_accounts(empresa_id)
 
+st.title("Conciliação bancária")
+st.caption(f"{empresa_nome}  ·  Competência {int(mes):02d}/{int(ano)}")
+
 tab1, tab2, tab3, tab4 = st.tabs(
-    ["Extratos", "Contas bancárias", "Saldos", "Conciliação"]
+    [
+        ":material/compare_arrows: Conciliação",
+        ":material/account_balance: Contas",
+        ":material/folder: Extratos",
+        ":material/payments: Saldos",
+    ]
 )
 
 with tab2:
@@ -169,7 +199,7 @@ with tab2:
             st.success("Conta cadastrada.")
             st.rerun()
 
-with tab1:
+with tab3:
     st.subheader(f"Extratos — {competencia}")
     if accounts.empty:
         st.info("Cadastre uma conta bancária primeiro.")
@@ -190,7 +220,7 @@ with tab1:
                 save_statement(file, empresa_id, conta_id, competencia)
             st.success(f"{len(files)} extrato(s) armazenado(s).")
 
-with tab3:
+with tab4:
     st.subheader(f"Saldos — {competencia}")
     if accounts.empty:
         st.info("Cadastre uma conta bancária primeiro.")
@@ -222,7 +252,7 @@ with tab3:
             save_balance(conta_id, competencia, inicial, final, fixar)
             st.success("Saldos salvos.")
 
-with tab4:
+with tab1:
     render_reconciliation(
         supabase=supabase,
         company_id=empresa_id,
