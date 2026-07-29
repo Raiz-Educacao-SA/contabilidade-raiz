@@ -7,12 +7,16 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.streamlit/credentials.toml
 dados/
 *.xlsx
 *.xlsm
 *.xls
 *.csv
 *.ofx
+*.log
+.pytest_cache/
+.ruff_cache/
 .DS_Store
 Thumbs.db
 .vscode/

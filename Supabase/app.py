@@ -6,18 +6,25 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client
 from Supabase.reconciliation_page import render as render_reconciliation
-from Supabase.companies import COMPANY_CODE_BY_CNPJ
+from Supabase.companies import COMPANIES, COMPANY_CODE_BY_CNPJ
 
-st.set_page_config(page_title="Conciliação Bancária", page_icon="🏦", layout="wide")
+st.set_page_config(page_title="Conciliação bancária", page_icon=":material/account_balance:", layout="wide")
 
 def get_supabase():
     try:
+        url = st.secrets["SUPABASE_URL"]
+        anon_key = st.secrets["SUPABASE_ANON_KEY"]
+        if not url or not anon_key:
+            raise KeyError("Secrets vazios")
         return create_client(
-            st.secrets["SUPABASE_URL"],
-            st.secrets["SUPABASE_ANON_KEY"],
+            url,
+            anon_key,
         )
-    except Exception:
-        st.error("Configure SUPABASE_URL e SUPABASE_ANON_KEY nos Secrets.")
+    except (KeyError, FileNotFoundError):
+        st.error(
+            "Configuração incompleta. Cadastre SUPABASE_URL e "
+            "SUPABASE_ANON_KEY nos Secrets do Streamlit."
+        )
         st.stop()
 
 supabase = get_supabase()
@@ -26,9 +33,11 @@ def require_login():
     if "session" not in st.session_state:
         st.session_state.session = None
     if st.session_state.session is None:
+        st.space("large")
+        st.badge("DATEND · FINANCE OPS", color="violet")
         st.title("Conciliação bancária", text_alignment="center")
         st.caption(
-            "Compare extratos e contabilidade com segurança.",
+            "Conferência financeira simples, segura e orientada por dados.",
             text_alignment="center",
         )
         email = st.text_input(
@@ -58,7 +67,7 @@ def user_id():
 def list_companies():
     resp = (
         supabase.table("usuarios_empresas")
-        .select("empresa_id, perfil, empresas(id, razao_social, cnpj)")
+        .select("empresa_id, perfil, empresas(id, codcoligada, razao_social, cnpj)")
         .eq("usuario_id", user_id())
         .execute()
     )
@@ -69,15 +78,16 @@ def list_companies():
             "empresa_id": item["empresa_id"],
             "razao_social": emp.get("razao_social", ""),
             "cnpj": emp.get("cnpj", ""),
-            "codigo": COMPANY_CODE_BY_CNPJ.get(emp.get("cnpj", ""), ""),
+            "codigo": emp.get("codcoligada") or COMPANY_CODE_BY_CNPJ.get(emp.get("cnpj", ""), ""),
             "perfil": item.get("perfil", "Consulta"),
         })
     companies = pd.DataFrame(rows)
-    if not companies.empty:
-        companies["empresa_label"] = companies.apply(
-            lambda row: f"{row['codigo']} — {row['razao_social']}" if row["codigo"] else row["razao_social"],
-            axis=1,
-        )
+    if companies.empty:
+        return companies
+    companies["empresa_label"] = companies.apply(
+        lambda row: f"{row['codigo']} — {row['razao_social']}" if row["codigo"] else row["razao_social"],
+        axis=1,
+    )
     return companies.sort_values(["codigo", "razao_social"]).reset_index(drop=True)
 
 def list_accounts(company_id):
@@ -148,8 +158,10 @@ def save_balance(account_id, competencia, inicial, final, fixar):
 require_login()
 
 with st.sidebar:
-    st.title("Conciliação bancária")
-    st.caption(st.session_state.user.email)
+    st.badge("DATEND", color="violet")
+    st.title("Finance ops")
+    st.caption("Conciliação bancária")
+    st.markdown(f":material/account_circle: {st.session_state.user.email}")
     if st.button("Sair", icon=":material/logout:", width="stretch"):
         supabase.auth.sign_out()
         st.session_state.clear()
@@ -161,7 +173,7 @@ if companies.empty:
     st.stop()
 
 with st.sidebar:
-    st.subheader("Contexto")
+    st.subheader("Contexto de trabalho")
     empresa_label = st.selectbox("Empresa", companies["empresa_label"].tolist())
     ano = st.number_input("Ano", 2020, 2100, date.today().year)
     mes = st.selectbox(
@@ -178,38 +190,68 @@ selected_company = companies.loc[companies["empresa_label"] == empresa_label].il
 empresa_id = selected_company["empresa_id"]
 empresa_nome = selected_company["razao_social"]
 competencia = f"{int(ano):04d}-{int(mes):02d}"
+can_write = str(selected_company["perfil"]).strip().lower() != "consulta"
 
 accounts = list_accounts(empresa_id)
 
-st.title("Conciliação bancária")
-st.caption(f"{empresa_nome}  ·  Competência {int(mes):02d}/{int(ano)}")
+with st.container(border=True):
+    st.title("Conciliação bancária")
+    st.caption("Central de conferência de extratos, saldos e lançamentos contábeis.")
+    header = st.columns([2.2, 1.4, 1, 1], vertical_alignment="center")
+    company_code = selected_company["codigo"]
+    header[0].metric("Empresa ativa", f"{company_code} — {empresa_nome}" if company_code else empresa_nome)
+    header[1].metric("CNPJ", selected_company["cnpj"] or "Não informado")
+    header[2].metric("Competência", f"{int(mes):02d}/{int(ano)}")
+    header[3].metric("Contas ativas", len(accounts))
 
-tab1, tab2, tab3, tab4 = st.tabs(
+tab1, tab_companies, tab2, tab3, tab4 = st.tabs(
     [
         ":material/compare_arrows: Conciliação",
+        ":material/domain: Empresas",
         ":material/account_balance: Contas",
-        ":material/folder: Extratos",
+        ":material/upload_file: Extratos",
         ":material/payments: Saldos",
     ]
 )
 
+with tab_companies:
+    st.subheader("Empresas")
+    st.caption("Cadastro mestre do grupo. O acesso operacional respeita os vínculos do seu usuário.")
+    master_companies = pd.DataFrame(COMPANIES).rename(columns={
+        "codigo": "Código", "razao_social": "Razão social", "cnpj": "CNPJ"
+    })
+    authorized_cnpjs = set(companies["cnpj"].dropna())
+    master_companies["Acesso"] = master_companies["CNPJ"].map(
+        lambda cnpj: "Disponível" if cnpj in authorized_cnpjs else "Não vinculado"
+    )
+    metrics = st.columns(3)
+    metrics[0].metric("Empresas cadastradas", len(master_companies))
+    metrics[1].metric("Disponíveis para você", len(companies))
+    metrics[2].metric("Perfil atual", selected_company["perfil"])
+    st.dataframe(master_companies, hide_index=True, width="stretch")
+
 with tab2:
     st.subheader("Contas bancárias")
     if len(accounts):
-        st.dataframe(accounts, hide_index=True)
-    with st.expander("Cadastrar conta"):
+        st.dataframe(accounts.drop(columns=["id", "empresa_id", "ativa"], errors="ignore"), hide_index=True, width="stretch")
+    if not can_write:
+        st.info("Seu perfil permite somente consultar as contas cadastradas.")
+    with st.expander("Cadastrar nova conta", icon=":material/add_circle:"):
         banco = st.text_input("Banco")
         agencia = st.text_input("Agência")
         conta = st.text_input("Conta bancária")
         conta_contabil = st.text_input("Conta contábil")
         descricao = st.text_input("Descrição")
-        if st.button("Salvar conta"):
+        if st.button("Salvar conta", disabled=not can_write):
+            if not banco.strip() or not conta.strip():
+                st.error("Informe pelo menos o banco e a conta bancária.")
+                st.stop()
             save_account(empresa_id, banco, agencia, conta, conta_contabil, descricao)
             st.success("Conta cadastrada.")
             st.rerun()
 
 with tab3:
-    st.subheader(f"Extratos — {competencia}")
+    st.subheader("Importar extratos")
     if accounts.empty:
         st.info("Cadastre uma conta bancária primeiro.")
     else:
@@ -221,16 +263,19 @@ with tab3:
         conta_id = labels[label]
         files = st.file_uploader(
             "Selecione um ou mais extratos",
-            type=["xlsx", "xlsm", "csv", "ofx"],
+            type=["xlsx", "xlsm"],
             accept_multiple_files=True,
+            disabled=not can_write,
         )
-        if st.button("Armazenar extratos", type="primary") and files:
+        if not can_write:
+            st.info("Seu perfil não permite armazenar novos extratos.")
+        if st.button("Armazenar extratos", type="primary", disabled=not can_write) and files:
             for file in files:
                 save_statement(file, empresa_id, conta_id, competencia)
             st.success(f"{len(files)} extrato(s) armazenado(s).")
 
 with tab4:
-    st.subheader(f"Saldos — {competencia}")
+    st.subheader("Saldos bancários")
     if accounts.empty:
         st.info("Cadastre uma conta bancária primeiro.")
     else:
@@ -256,8 +301,11 @@ with tab4:
         fixar = st.checkbox(
             "Fixar saldo final como saldo inicial do mês seguinte",
             value=bool(existing["fixar_mes_seguinte"]) if existing else False,
+            disabled=not can_write,
         )
-        if st.button("Salvar saldos", type="primary"):
+        if not can_write:
+            st.info("Seu perfil permite somente consultar os saldos.")
+        if st.button("Salvar saldos", type="primary", disabled=not can_write):
             save_balance(conta_id, competencia, inicial, final, fixar)
             st.success("Saldos salvos.")
 
@@ -270,4 +318,5 @@ with tab1:
         save_statement=save_statement,
         get_balance=get_balance,
         save_balance=save_balance,
+        can_write=can_write,
     )

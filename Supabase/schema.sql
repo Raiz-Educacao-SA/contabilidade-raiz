@@ -76,16 +76,13 @@ create policy "vinculos do usuario"
 on public.usuarios_empresas for select
 using (usuario_id = auth.uid());
 
-create policy "contas autorizadas"
-on public.contas_bancarias for all
+drop policy if exists "contas autorizadas" on public.contas_bancarias;
+drop policy if exists "leitura de contas autorizadas" on public.contas_bancarias;
+drop policy if exists "alteracao de contas autorizadas" on public.contas_bancarias;
+
+create policy "leitura de contas autorizadas"
+on public.contas_bancarias for select
 using (
-  exists (
-    select 1 from public.usuarios_empresas ue
-    where ue.empresa_id = contas_bancarias.empresa_id
-      and ue.usuario_id = auth.uid()
-  )
-)
-with check (
   exists (
     select 1 from public.usuarios_empresas ue
     where ue.empresa_id = contas_bancarias.empresa_id
@@ -93,7 +90,42 @@ with check (
   )
 );
 
-create policy "saldos autorizados"
+create policy "alteracao de contas autorizadas"
+on public.contas_bancarias for all
+using (
+  exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = contas_bancarias.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(ue.perfil) <> 'consulta'
+  )
+)
+with check (
+  exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = contas_bancarias.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(ue.perfil) <> 'consulta'
+  )
+);
+
+drop policy if exists "saldos autorizados" on public.saldos_bancarios;
+drop policy if exists "leitura de saldos autorizados" on public.saldos_bancarios;
+drop policy if exists "alteracao de saldos autorizados" on public.saldos_bancarios;
+
+create policy "leitura de saldos autorizados"
+on public.saldos_bancarios for select
+using (
+  exists (
+    select 1
+    from public.contas_bancarias cb
+    join public.usuarios_empresas ue on ue.empresa_id = cb.empresa_id
+    where cb.id = saldos_bancarios.conta_bancaria_id
+      and ue.usuario_id = auth.uid()
+  )
+);
+
+create policy "alteracao de saldos autorizados"
 on public.saldos_bancarios for all
 using (
   exists (
@@ -102,6 +134,7 @@ using (
     join public.usuarios_empresas ue on ue.empresa_id = cb.empresa_id
     where cb.id = saldos_bancarios.conta_bancaria_id
       and ue.usuario_id = auth.uid()
+      and lower(ue.perfil) <> 'consulta'
   )
 )
 with check (
@@ -111,16 +144,32 @@ with check (
     join public.usuarios_empresas ue on ue.empresa_id = cb.empresa_id
     where cb.id = saldos_bancarios.conta_bancaria_id
       and ue.usuario_id = auth.uid()
+      and lower(ue.perfil) <> 'consulta'
   )
 );
 
-create policy "arquivos autorizados"
+drop policy if exists "arquivos autorizados" on public.arquivos_importados;
+drop policy if exists "leitura de arquivos autorizados" on public.arquivos_importados;
+drop policy if exists "alteracao de arquivos autorizados" on public.arquivos_importados;
+
+create policy "leitura de arquivos autorizados"
+on public.arquivos_importados for select
+using (
+  exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = arquivos_importados.empresa_id
+      and ue.usuario_id = auth.uid()
+  )
+);
+
+create policy "alteracao de arquivos autorizados"
 on public.arquivos_importados for all
 using (
   exists (
     select 1 from public.usuarios_empresas ue
     where ue.empresa_id = arquivos_importados.empresa_id
       and ue.usuario_id = auth.uid()
+      and lower(ue.perfil) <> 'consulta'
   )
 )
 with check (
@@ -128,6 +177,7 @@ with check (
     select 1 from public.usuarios_empresas ue
     where ue.empresa_id = arquivos_importados.empresa_id
       and ue.usuario_id = auth.uid()
+      and lower(ue.perfil) <> 'consulta'
   )
 );
 
@@ -146,6 +196,7 @@ with check (
     from public.usuarios_empresas ue
     where ue.usuario_id = auth.uid()
       and ue.empresa_id::text = (storage.foldername(name))[1]
+      and lower(ue.perfil) <> 'consulta'
   )
 );
 

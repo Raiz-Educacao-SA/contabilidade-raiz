@@ -23,11 +23,11 @@ from Supabase.reconciliation import (
 def _stored_statements(supabase, company_id, competence):
     response = (
         supabase.table("arquivos_importados")
-        .select("id, conta_bancaria_id, caminho_storage, nome_original, created_at")
+        .select("id, conta_bancaria_id, caminho_storage, nome_original, criado_em")
         .eq("empresa_id", company_id)
         .eq("competencia", competence)
         .eq("tipo_arquivo", "extrato")
-        .order("created_at", desc=True)
+        .order("criado_em", desc=True)
         .execute()
     )
     return response.data or []
@@ -148,8 +148,10 @@ def render(
     save_statement,
     get_balance,
     save_balance,
+    can_write,
 ):
-    st.subheader(f"Conciliação — {competence}")
+    st.subheader("Nova conciliação")
+    st.caption(f"Competência {competence} · Configure as regras, envie os arquivos e valide os vínculos.")
     if accounts.empty:
         st.info("Cadastre uma conta bancária antes de iniciar.")
         return
@@ -174,7 +176,7 @@ def render(
 
     stored = _stored_statements(supabase, company_id, competence)
     stored_by_label = {
-        f"{item['nome_original']} — {str(item.get('created_at', ''))[:16]}": item for item in stored
+        f"{item['nome_original']} — {str(item.get('criado_em', ''))[:16]}": item for item in stored
     }
     selected_stored = st.multiselect(
         "Reutilizar extratos armazenados nesta competência",
@@ -209,7 +211,8 @@ def render(
     account_records = accounts.to_dict("records")
     account_labels = {_account_label(row): row for row in account_records}
     parsed = []
-    st.markdown("#### Vincule os extratos")
+    st.markdown("#### :material/account_tree: Vincule os extratos")
+    st.caption("Confirme a conta correspondente e o saldo inicial de cada arquivo.")
     for index, file in enumerate(bank_files):
         try:
             bank, metadata = parse_bank_file(file)
@@ -226,7 +229,10 @@ def render(
             0,
         )
         with st.container(border=True):
-            st.write(f"**{file.name}** — {len(bank)} movimentações")
+            with st.container(horizontal=True, vertical_alignment="center"):
+                st.badge("EXTRATO", color="blue")
+                st.write(f"**{file.name}**")
+                st.caption(f"{len(bank)} movimentações")
             label = st.selectbox(
                 "Conta bancária e contábil",
                 list(account_labels),
@@ -258,7 +264,10 @@ def render(
         width="stretch",
         key=f"online_run_{company_id}_{competence}",
     ):
-        if st.session_state.get("online_reconciliation_company") == company_id:
+        if (
+            st.session_state.get("online_reconciliation_company") == company_id
+            and st.session_state.get("online_reconciliation_competence") == competence
+        ):
             _result_metrics(
                 st.session_state["online_reconciliation_results"],
                 st.session_state["online_reconciliation_summary"],
@@ -282,9 +291,10 @@ def render(
             daily = build_daily_reconciliation(bank, accounting_rows, result, float(tolerance_value))
             net = round(float(bank["valor"].sum()), 2)
             final_balance = round(float(initial_balance) + net, 2)
-            save_balance(account["id"], competence, initial_balance, final_balance, carry)
-            if not is_stored:
-                save_statement(file, company_id, account["id"], competence)
+            if can_write:
+                save_balance(account["id"], competence, initial_balance, final_balance, carry)
+                if not is_stored:
+                    save_statement(file, company_id, account["id"], competence)
 
             counts = result["status"].value_counts().to_dict()
             bank_only = result.loc[result["status"] == "Somente no banco", "valor_banco"].abs().sum()
@@ -327,7 +337,11 @@ def render(
     if not results:
         return
     st.session_state["online_reconciliation_company"] = company_id
+    st.session_state["online_reconciliation_competence"] = competence
     st.session_state["online_reconciliation_results"] = results
     st.session_state["online_reconciliation_summary"] = summary
-    st.success("Conciliação concluída e extratos/saldos atualizados no Supabase.")
+    if can_write:
+        st.success("Conciliação concluída e extratos/saldos atualizados no Supabase.")
+    else:
+        st.success("Conciliação concluída em modo de consulta, sem alterar dados no Supabase.")
     _result_metrics(results, summary)
