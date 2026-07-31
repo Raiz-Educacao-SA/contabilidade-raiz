@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./logo.css";
+import "./modules.css";
 
 export const metadata: Metadata = { title: "Conciliação Financeira", description: "Gestão financeira segura e orientada por dados" };
 
