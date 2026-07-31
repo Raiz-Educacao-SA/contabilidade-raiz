@@ -17,7 +17,6 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
   const [fileKey, setFileKey] = useState(0);
   const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
   const pending = bankAccounts.filter((account) => !statements.some((statement) => statement.account.code === account.code));
-  const next = pending[0];
   const allRows = useMemo(() => results.flatMap((result) => result.rows), [results]);
 
   useEffect(() => {
@@ -50,18 +49,17 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
       const rows = parseAccounting(await file.arrayBuffer());
       const discovered = accountingBankAccounts(rows);
       setAccounting(rows); setBankAccounts(discovered); setStatements([]); setFileKey((value) => value + 1);
-      setNotice(`${discovered.length} conta(s) bancária(s) encontrada(s). Anexe agora os extratos solicitados, um por vez.`);
+      setNotice(`${discovered.length} conta(s) bancária(s) encontrada(s). Anexe os extratos diretamente em cada conta, na ordem que desejar.`);
     } catch (error) { setNotice((error as Error).message); }
   }
 
-  async function loadStatement(file?: File) {
+  async function loadStatement(expectedAccount: AccountingAccount, file?: File) {
     if (!file || !accounting.length) return;
     try {
       const parsed = parseBank(await file.arrayBuffer());
       const detected = detectAccountingAccount(accounting, parsed.metadata, file.name, accounts);
-      if (!detected) throw new Error(`O extrato ${parsed.metadata.account || file.name} não corresponde de forma única a uma conta da planilha contábil.`);
-      const account = bankAccounts.find((item) => item.code === detected.code);
-      if (!account) throw new Error(`A conta ${detected.code} não está na fila de contas bancárias da planilha.`);
+      if (detected && detected.code !== expectedAccount.code) throw new Error(`Este extrato pertence à conta ${detected.code}, mas foi inserido na conta ${expectedAccount.code}.`);
+      const account = expectedAccount;
       if (statements.some((item) => item.account.code === account.code)) throw new Error(`O extrato da conta ${account.code} já foi anexado.`);
       const updated = [...statements, { fileName: file.name, account, bank: parsed.rows, metadata: parsed.metadata }];
       setStatements(updated); setFileKey((value) => value + 1);
@@ -95,8 +93,7 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
     <div className="panel-title"><div><h2>Conciliação mensal por movimento</h2><p>Concilie cada conta assim que o extrato chegar ou execute todas juntas ao final.</p></div><div className="history-actions"><button className="secondary" disabled={!allRows.length} onClick={() => exportReport(allRows, `conciliacao_mensal_${competence}`)}><Download />Relatório consolidado</button><button className="clear-history" disabled={!results.length} onClick={clearHistory}><Trash2 />Limpar histórico</button></div></div>
     {notice && <div className="notice">{notice}</div>}
     <div className="accounting-upload"><FileSpreadsheet /><label>1. Carregar planilha contábil<input type="file" accept=".xlsx,.xlsm" onChange={(event) => loadAccounting(event.target.files?.[0])} /></label></div>
-    {bankAccounts.length > 0 && <><div className="queue-head"><div><h3>2. Extratos solicitados</h3><p>Anexe um extrato por vez. Cada conta recebida pode ser conciliada imediatamente.</p></div><b>{statements.length}/{bankAccounts.length} recebidos</b></div><div className="account-queue">{bankAccounts.map((account, index) => { const statement = statements.find((item) => item.account.code === account.code); const isNext = next?.code === account.code; const reconciled = results.some((item) => item.account.code === account.code); return <article key={account.code} className={statement ? "received" : isNext ? "requested" : "waiting"}><span>{statement ? <CheckCircle2 /> : <Landmark />}</span><div><b>{account.code} — {account.name}</b><small>{statement ? `${reconciled ? "Conciliação salva" : "Extrato recebido"}: ${statement.fileName}` : isNext ? "Aguardando este extrato" : `Aguardando a conta anterior (${index + 1}ª da fila)`}</small></div>{statement && <button className="reconcile-one" onClick={() => runOne(statement)}><ArrowLeftRight />{reconciled ? "Conciliar novamente" : "Conciliar esta conta"}</button>}</article>; })}</div></>}
-    {next && <div className="statement-request"><Upload /><div><span>PRÓXIMO EXTRATO</span><h3>{next.code} — {next.name}</h3><p>Selecione o arquivo desta conta. Se o arquivo pertencer a outra conta da lista, ele também será reconhecido.</p><input key={fileKey} type="file" accept=".xlsx,.xlsm" onChange={(event) => loadStatement(event.target.files?.[0])} /></div></div>}
+    {bankAccounts.length > 0 && <><div className="queue-head"><div><h3>2. Extratos por conta</h3><p>Anexe os extratos em qualquer ordem. Concilie individualmente ou execute todas ao final.</p></div><b>{statements.length}/{bankAccounts.length} recebidos</b></div><div className="account-queue">{bankAccounts.map((account) => { const statement = statements.find((item) => item.account.code === account.code); const reconciled = results.some((item) => item.account.code === account.code); return <article key={account.code} className={statement ? "received" : "requested"}>{!statement && <label className="inline-upload" title={`Inserir extrato da conta ${account.code}`}><Upload /><span>Inserir extrato</span><input key={`${fileKey}-${account.code}`} type="file" accept=".xlsx,.xlsm" onChange={(event) => loadStatement(account, event.target.files?.[0])} /></label>}<span className="account-state">{statement ? <CheckCircle2 /> : <Landmark />}</span><div><b>{account.code} — {account.name}</b><small>{statement ? `${reconciled ? "Conciliação salva" : "Extrato recebido"}: ${statement.fileName}` : "Aguardando extrato desta conta"}</small></div>{statement && <button className="reconcile-one" onClick={() => runOne(statement)}><ArrowLeftRight />{reconciled ? "Conciliar novamente" : "Conciliar esta conta"}</button>}</article>; })}</div></>}
     {bankAccounts.length > 0 && <button className="primary run-all" disabled={pending.length > 0} onClick={runAll}><ArrowLeftRight />Conciliar todas as contas do mês</button>}
     {results.length > 0 && <div className="saved-history"><div><span>HISTÓRICO MANTIDO</span><h3>Última conciliação — {competence.split("-").reverse().join("/")}</h3><p>Este resultado permanecerá salvo até você clicar em “Limpar histórico”.</p></div></div>}{results.length > 0 && <div className="monthly-results">{results.map((result) => <MonthlyAccountResult key={result.account.code} result={result} companyName={companyName} reconciledBy={reconciledBy} />)}</div>}
   </section>;
