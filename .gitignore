@@ -21,3 +21,7 @@ dados/
 Thumbs.db
 .vscode/
 .idea/
+node_modules/
+.next/
+.npm-cache/
+*.tsbuildinfo
