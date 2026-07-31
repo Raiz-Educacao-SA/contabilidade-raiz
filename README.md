@@ -1,4 +1,4 @@
-# Conciliação Bancária Automática — versão ajustada
+# Conciliação Financeira
 
 Sistema local em Streamlit para importar uma planilha contábil e vários extratos bancários em Excel.
 

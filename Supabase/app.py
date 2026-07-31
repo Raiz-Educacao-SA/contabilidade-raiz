@@ -8,7 +8,7 @@ from supabase import create_client
 from Supabase.reconciliation_page import render as render_reconciliation
 from Supabase.companies import COMPANIES, COMPANY_CODE_BY_CNPJ
 
-st.set_page_config(page_title="Conciliação bancária", page_icon=":material/account_balance:", layout="wide")
+st.set_page_config(page_title="Conciliação Financeira", page_icon=":material/account_balance:", layout="wide")
 
 def get_supabase():
     try:
@@ -35,7 +35,7 @@ def require_login():
     if st.session_state.session is None:
         st.space("large")
         st.badge("DATEND · FINANCE OPS", color="violet")
-        st.title("Conciliação bancária", text_alignment="center")
+        st.title("Conciliação Financeira", text_alignment="center")
         st.caption(
             "Conferência financeira simples, segura e orientada por dados.",
             text_alignment="center",
@@ -188,7 +188,7 @@ require_login()
 with st.sidebar:
     st.badge("DATEND", color="violet")
     st.title("Finance ops")
-    st.caption("Conciliação bancária")
+    st.caption("Conciliação Financeira")
     st.markdown(f":material/account_circle: {st.session_state.user.email}")
     if st.button("Sair", icon=":material/logout:", width="stretch"):
         supabase.auth.sign_out()
@@ -223,7 +223,7 @@ can_write = str(selected_company["perfil"]).strip().lower() != "consulta"
 accounts = list_accounts(empresa_id)
 
 with st.container(border=True):
-    st.title("Conciliação bancária")
+    st.title("Conciliação Financeira")
     st.caption("Central de conferência de extratos, saldos e lançamentos contábeis.")
     header = st.columns([2.2, 1.4, 1, 1], vertical_alignment="center")
     company_code = selected_company["codigo"]
