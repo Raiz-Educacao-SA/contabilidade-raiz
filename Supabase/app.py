@@ -129,7 +129,14 @@ def save_statement(file, company_id, account_id, competencia):
         "usuario_id": user_id(),
     }).execute()
 
-def get_balance(account_id, competencia):
+def previous_competence(competencia):
+    year, month = (int(part) for part in competencia.split("-"))
+    if month == 1:
+        return f"{year - 1:04d}-12"
+    return f"{year:04d}-{month - 1:02d}"
+
+
+def get_balance(account_id, competencia, include_carried=True):
     resp = (
         supabase.table("saldos_bancarios")
         .select("*")
@@ -138,7 +145,28 @@ def get_balance(account_id, competencia):
         .limit(1)
         .execute()
     )
-    return (resp.data or [None])[0]
+    current = (resp.data or [None])[0]
+    if current or not include_carried:
+        return current
+
+    previous = (
+        supabase.table("saldos_bancarios")
+        .select("*")
+        .eq("conta_bancaria_id", account_id)
+        .eq("competencia", previous_competence(competencia))
+        .eq("fixar_mes_seguinte", True)
+        .limit(1)
+        .execute()
+    )
+    carried = (previous.data or [None])[0]
+    if not carried:
+        return None
+    return {
+        "saldo_inicial": carried["saldo_final"],
+        "saldo_final": carried["saldo_final"],
+        "fixar_mes_seguinte": False,
+        "saldo_transportado": True,
+    }
 
 def save_balance(account_id, competencia, inicial, final, fixar):
     payload = {
@@ -149,7 +177,7 @@ def save_balance(account_id, competencia, inicial, final, fixar):
         "fixar_mes_seguinte": bool(fixar),
         "usuario_id": user_id(),
     }
-    existing = get_balance(account_id, competencia)
+    existing = get_balance(account_id, competencia, include_carried=False)
     if existing:
         supabase.table("saldos_bancarios").update(payload).eq("id", existing["id"]).execute()
     else:

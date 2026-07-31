@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+from copy import copy
 import unicodedata
 
 import numpy as np
@@ -334,7 +335,9 @@ def build_export(results, summary):
             worksheet.freeze_panes = "A2"
             worksheet.auto_filter.ref = worksheet.dimensions
             for cell in worksheet[1]:
-                cell.font = cell.font.copy(bold=True)
+                font = copy(cell.font)
+                font.bold = True
+                cell.font = font
             for cells in worksheet.columns:
                 width = min(max(len(str(cell.value or "")) for cell in cells) + 2, 42)
                 worksheet.column_dimensions[cells[0].column_letter].width = max(width, 11)
