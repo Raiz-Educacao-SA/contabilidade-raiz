@@ -1,6 +1,8 @@
 import * as XLSX from "xlsx";
 
 export type BankRow = { id: string; date: Date; description: string; value: number };
+export type BankMetadata = { agency: string; account: string; period: string; name: string };
+export type ParsedBank = { rows: BankRow[]; metadata: BankMetadata };
 export type AccountingRow = { id: string; date: Date; value: number; nature: string; account: string; accountName: string };
 export type MatchRow = {
   status: "Conciliado" | "Possível conciliação" | "Somente no banco" | "Somente na contabilidade";
@@ -50,6 +52,18 @@ function headerIndex(rows: unknown[][], terms: string[]) {
   return score >= 2 ? best : -1;
 }
 
+function bankMetadata(rows: unknown[][]): BankMetadata {
+  const metadata: BankMetadata = { agency: "", account: "", period: "", name: "" };
+  const labels: Record<string, keyof BankMetadata> = { AGENCIA: "agency", CONTA: "account", PERIODO: "period", NOME: "name" };
+  rows.slice(0, 15).forEach((row) => row.forEach((cell, column) => {
+    const key = labels[normalize(cell).replace(/:$/, "")];
+    if (!key || metadata[key]) return;
+    const next = row.slice(column + 1).find((value) => String(primitive(value) ?? "").trim());
+    if (next != null) metadata[key] = String(primitive(next)).trim();
+  }));
+  return metadata;
+}
+
 export function parseAccounting(buffer: ArrayBuffer) {
   const output: AccountingRow[] = [];
   for (const { rows } of rowsFromWorkbook(buffer)) {
@@ -76,7 +90,7 @@ export function parseAccounting(buffer: ArrayBuffer) {
   return output;
 }
 
-export function parseBank(buffer: ArrayBuffer) {
+export function parseBank(buffer: ArrayBuffer): ParsedBank {
   for (const { rows } of rowsFromWorkbook(buffer)) {
     const header = headerIndex(rows, ["DATA", "LANCAMENTO", "VALOR"]);
     if (header < 0) continue;
@@ -92,9 +106,30 @@ export function parseBank(buffer: ArrayBuffer) {
       const ignored = ["SALDO ANTERIOR", "SALDO TOTAL", "SALDO DISPONIVEL", "SALDO DO DIA"].some((term) => normalize(text).includes(term));
       return Number.isNaN(parsedDate.getTime()) || Math.abs(amount) <= 0.004 || ignored ? [] : [{ id: `B${index + 1}`, date: parsedDate, description: text, value: Math.round(amount * 100) / 100 }];
     });
-    if (output.length) return output;
+    if (output.length) return { rows: output, metadata: bankMetadata(rows) };
   }
   throw new Error("Não consegui identificar Data, Lançamento/Histórico e Valor no extrato.");
+}
+
+const digits = (value: unknown) => String(value ?? "").replace(/\D/g, "").replace(/^0+/, "");
+const compatibleDigits = (left: unknown, right: unknown) => {
+  const a = digits(left), b = digits(right);
+  return a.length >= 4 && b.length >= 4 && (a === b || a.endsWith(b) || b.endsWith(a));
+};
+
+export function detectAccountingAccount(
+  accounting: AccountingRow[], metadata: BankMetadata, fileName: string,
+  registered: { agencia?: string; conta_bancaria?: string; conta_contabil?: string }[] = [],
+) {
+  const groups = Array.from(new Map(accounting.map((row) => [row.account, { code: row.account, name: row.accountName }])).values());
+  const registeredMatch = registered.find((item) => compatibleDigits(item.conta_bancaria, metadata.account) && (!metadata.agency || !item.agencia || compatibleDigits(item.agencia, metadata.agency)));
+  if (registeredMatch?.conta_contabil) {
+    const exact = groups.find((item) => digits(item.code) === digits(registeredMatch.conta_contabil));
+    if (exact) return exact;
+  }
+  const hints = [metadata.account, ...Array.from(fileName.matchAll(/\d{4,}/g), (match) => match[0])];
+  const matches = groups.filter((item) => hints.some((hint) => compatibleDigits(item.name, hint)));
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceDays = 3, toleranceValue = 0.01) {
