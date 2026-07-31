@@ -116,7 +116,7 @@ function ReconciliationFormView({ result, companyName, reconciledBy }: { result:
     { key: "E", title: "Créditos identificados no banco não lançados na contabilidade", rows: bankOnly.filter((row) => (row.bankValue ?? 0) > 0) },
     { key: "F", title: "Lançamentos conciliados com diferença de data", rows: dateDifferences },
   ];
-  const visibleSections = sections.filter((section) => section.rows.length > 0);
+  const visibleSections = result.validation.reconciled ? [] : sections.filter((section) => section.rows.length > 0);
   const total = (rows: MatchRow[]) => rows.reduce((sum, row) => sum + Math.abs(row.bankValue ?? row.accountingValue ?? 0), 0);
   const pendingTotal = sections.reduce((sum, section) => sum + total(section.rows), 0);
   const statementBalance = result.metadata.closingBalance;
