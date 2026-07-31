@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 
 export type BankRow = { id: string; date: Date; description: string; value: number };
-export type BankMetadata = { agency: string; account: string; period: string; name: string };
+export type BankMetadata = { agency: string; account: string; period: string; name: string; openingBalance: number | null; closingBalance: number | null };
 export type ParsedBank = { rows: BankRow[]; metadata: BankMetadata };
 export type AccountingRow = { id: string; date: Date; value: number; nature: string; account: string; accountName: string };
 export type MatchRow = {
@@ -9,7 +9,10 @@ export type MatchRow = {
   bankId?: string; bankDate?: Date; description?: string; bankValue?: number;
   accountingId?: string; accountingDate?: Date; nature?: string; accountingValue?: number;
   days?: number; difference?: number;
+  sourceAccount?: string; sourceBank?: string;
 };
+export type AccountingAccount = { code: string; name: string; rows: AccountingRow[] };
+export type MonthlyValidation = { bankCredits: number; bankDebits: number; accountingDebits: number; accountingCredits: number; bankNet: number; accountingNet: number; movementDifference: number; calculatedClosingBalance: number | null; closingBalanceDifference: number | null; missingDays: { date: string; bank: number; accounting: number; difference: number }[]; reconciled: boolean };
 
 const normalize = (value: unknown) => String(value ?? "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const primitive = (value: unknown): unknown => {
@@ -53,14 +56,23 @@ function headerIndex(rows: unknown[][], terms: string[]) {
 }
 
 function bankMetadata(rows: unknown[][]): BankMetadata {
-  const metadata: BankMetadata = { agency: "", account: "", period: "", name: "" };
-  const labels: Record<string, keyof BankMetadata> = { AGENCIA: "agency", CONTA: "account", PERIODO: "period", NOME: "name" };
+  const metadata: BankMetadata = { agency: "", account: "", period: "", name: "", openingBalance: null, closingBalance: null };
+  const labels: Record<string, "agency" | "account" | "period" | "name"> = { AGENCIA: "agency", CONTA: "account", PERIODO: "period", NOME: "name" };
   rows.slice(0, 15).forEach((row) => row.forEach((cell, column) => {
     const key = labels[normalize(cell).replace(/:$/, "")];
     if (!key || metadata[key]) return;
     const next = row.slice(column + 1).find((value) => String(primitive(value) ?? "").trim());
     if (next != null) metadata[key] = String(primitive(next)).trim();
   }));
+  const balanceColumn = rows.slice(0, 40).map((row) => row.map(normalize)).find((row) => row.some((cell) => cell.includes("SALDO")))?.findIndex((cell) => cell.includes("SALDO")) ?? -1;
+  if (balanceColumn >= 0) rows.forEach((row) => {
+    const description = normalize(row.slice(0, balanceColumn).join(" "));
+    const rawBalance = primitive(row[balanceColumn]);
+    if (rawBalance == null || String(rawBalance).trim() === "") return;
+    const balance = asNumber(rawBalance);
+    if (description.includes("SALDO ANTERIOR") && metadata.openingBalance == null) metadata.openingBalance = balance;
+    if (description.includes("SALDO")) metadata.closingBalance = balance;
+  });
   return metadata;
 }
 
@@ -132,6 +144,33 @@ export function detectAccountingAccount(
   return matches.length === 1 ? matches[0] : null;
 }
 
+export function accountingBankAccounts(accounting: AccountingRow[]) {
+  const groups = Array.from(new Map(accounting.map((row) => [row.account, { code: row.account, name: row.accountName, rows: [] as AccountingRow[] }])).values());
+  accounting.forEach((row) => groups.find((item) => item.code === row.account)?.rows.push(row));
+  const bankTerms = /BANCO|ITA[UÚ]|BRADESCO|SANTANDER|CAIXA|SICOOB|SICREDI|NUBANK|CONTA CORRENTE|CONTA BANC[AÁ]RIA|APLICA[CÇ][AÃ]O/iu;
+  const bankGroups = groups.filter((item) => bankTerms.test(item.name));
+  return (bankGroups.length ? bankGroups : groups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
+}
+
+export function validateMonthly(bank: BankRow[], accounting: AccountingRow[], metadata: BankMetadata, tolerance = 0.01): MonthlyValidation {
+  const round = (value: number) => Math.round(value * 100) / 100;
+  const bankCredits = round(bank.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
+  const bankDebits = round(-bank.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
+  const accountingDebits = round(accounting.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
+  const accountingCredits = round(-accounting.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
+  const bankNet = round(bankCredits - bankDebits), accountingNet = round(accountingDebits - accountingCredits);
+  const movementDifference = round(bankNet - accountingNet);
+  const calculatedClosingBalance = metadata.openingBalance == null ? null : round(metadata.openingBalance + bankNet);
+  const closingBalanceDifference = calculatedClosingBalance == null || metadata.closingBalance == null ? null : round(calculatedClosingBalance - metadata.closingBalance);
+  const dates = Array.from(new Set([...bank.map((row) => dayKey(row.date)), ...accounting.map((row) => dayKey(row.date))])).sort();
+  const missingDays = dates.map((date) => {
+    const bankValue = round(bank.filter((row) => dayKey(row.date) === date).reduce((sum, row) => sum + row.value, 0));
+    const accountingValue = round(accounting.filter((row) => dayKey(row.date) === date).reduce((sum, row) => sum + row.value, 0));
+    return { date, bank: bankValue, accounting: accountingValue, difference: round(bankValue - accountingValue) };
+  }).filter((row) => Math.abs(row.difference) > tolerance);
+  return { bankCredits, bankDebits, accountingDebits, accountingCredits, bankNet, accountingNet, movementDifference, calculatedClosingBalance, closingBalanceDifference, missingDays, reconciled: Math.abs(movementDifference) <= tolerance && (closingBalanceDifference == null || Math.abs(closingBalanceDifference) <= tolerance) };
+}
+
 export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceDays = 3, toleranceValue = 0.01) {
   const usedBank = new Set<number>(), usedAccounting = new Set<number>();
   const matches: MatchRow[] = [];
@@ -150,7 +189,7 @@ export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranc
 
 export const brl = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 export function exportReport(rows: MatchRow[], name = "conciliacao") {
-  const data = rows.map((row) => ({ Status: row.status, "Data banco": row.bankDate ? dayKey(row.bankDate) : "", Histórico: row.description ?? "", "Valor banco": row.bankValue ?? "", "Data contábil": row.accountingDate ? dayKey(row.accountingDate) : "", Natureza: row.nature ?? "", "Valor contábil": row.accountingValue ?? "", "Diferença de dias": row.days ?? "", "Diferença de valor": row.difference ?? "" }));
+  const data = rows.map((row) => ({ Banco: row.sourceBank ?? "", "Conta contábil": row.sourceAccount ?? "", Status: row.status, "Data banco": row.bankDate ? dayKey(row.bankDate) : "", Histórico: row.description ?? "", "Valor banco": row.bankValue ?? "", "Data contábil": row.accountingDate ? dayKey(row.accountingDate) : "", Natureza: row.nature ?? "", "Valor contábil": row.accountingValue ?? "", "Diferença de dias": row.days ?? "", "Diferença de valor": row.difference ?? "" }));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data), "Conciliacao");
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.filter((row) => row.Status !== "Conciliado")), "Todas_as_diferencas");
