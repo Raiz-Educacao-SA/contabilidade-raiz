@@ -64,7 +64,13 @@ export async function GET(request: NextRequest) {
     const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
     const records = await query(`CODCOLIGADA=${company};DATAINI_D=${start};DATAFIM_D=${end}`);
     const grouped = new Map<string, { service: string; grossRevenue: number; discounts: number }>();
+    let ignoredCancelled = 0;
     records.forEach((record) => {
+      const status = tag(record, "STATUS");
+      if (normalize(status).includes("CANCEL")) {
+        ignoredCancelled += 1;
+        return;
+      }
       const service = tag(record, "SERVICO") || tag(record, "NOMESERVICO") || tag(record, "DESCSERVICO") || tag(record, "DESCRICAOSERVICO") || "Serviço não informado pela consulta fiscal";
       const current = grouped.get(normalize(service)) || { service, grossRevenue: 0, discounts: 0 };
       current.grossRevenue += number(tag(record, "VALORORIGINAL"));
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest) {
       grouped.set(normalize(service), current);
     });
     const rows = [...grouped.values()].map((row) => ({ ...row, netRevenue: row.grossRevenue - row.discounts, regime: classification[normalize(row.service)] || "" })).sort((a, b) => a.service.localeCompare(b.service, "pt-BR"));
-    return NextResponse.json({ company, competence, rows, records: records.length });
+    return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });
   } catch (cause) {
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
   }

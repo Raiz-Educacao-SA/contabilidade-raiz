@@ -34,6 +34,7 @@ export default function PisCofinsAssessment({
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [classified, setClassified] = useState(false);
+  const [ignoredCancelled, setIgnoredCancelled] = useState(0);
   const [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
 
@@ -48,6 +49,7 @@ export default function PisCofinsAssessment({
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 53.");
       setRows(payload.rows || []);
+      setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(false);
     } catch (cause) {
@@ -140,6 +142,10 @@ export default function PisCofinsAssessment({
         <div className="tax-empty"><Calculator /><b>Base fiscal atualizada</b><span>Clique em Classificar para aplicar a matriz cumulativa e não cumulativa.</span></div>
       ) : (
         <>
+          <div className="tax-view-heading">
+            <div><b>Visão da classificação no sistema</b><span>{rows.length} serviço(s) na competência {competenceLabel}</span></div>
+            <span>{ignoredCancelled} registro(s) cancelado(s) desconsiderado(s)</span>
+          </div>
           {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} serviço(s) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
           <div className="table-wrap tax-table">
             <table>
