@@ -89,7 +89,7 @@ export default function PisCofinsAssessment({
       return {
         Coligada: companyCode,
         Competência: competenceLabel,
-        Serviço: row.service,
+        Descrição: row.service,
         Classificação: row.regime,
         "Receita bruta": row.grossRevenue,
         "Bolsas/Descontos": row.discounts,
@@ -113,7 +113,7 @@ export default function PisCofinsAssessment({
         <div>
           <span className="eyebrow">APURAÇÃO DE PIS E COFINS</span>
           <h2>{companyName}</h2>
-          <p>Planilha.NET 53 · competência {competenceLabel} · classificação por serviço</p>
+          <p>Planilha.NET 53 · competência {competenceLabel} · classificação pelo campo descrição</p>
         </div>
         <div className="tax-actions">
           <button className={loaded ? "tax-source-ready" : ""} disabled={loading || !companyCode} onClick={() => void update()}>
@@ -132,24 +132,24 @@ export default function PisCofinsAssessment({
       <div className="tax-summary">
         <article><span>Base cumulativa</span><b>{classified ? brl.format(totals.cumulativeBase) : "Aguardando"}</b><small>PIS 0,65% · COFINS 3%</small></article>
         <article><span>Base não cumulativa</span><b>{classified ? brl.format(totals.nonCumulativeBase) : "Aguardando"}</b><small>PIS 1,65% · COFINS 7,6%</small></article>
-        <article className={classified && totals.unclassifiedBase ? "has-warning" : ""}><span>Sem classificação</span><b>{classified ? brl.format(totals.unclassifiedBase) : "—"}</b><small>{classified ? `${unclassified.length} serviço(s)` : "Aguardando classificação"}</small></article>
+        <article className={classified && totals.unclassifiedBase ? "has-warning" : ""}><span>Sem classificação</span><b>{classified ? brl.format(totals.unclassifiedBase) : "—"}</b><small>{classified ? `${unclassified.length} descrição(ões)` : "Aguardando classificação"}</small></article>
         <article><span>PIS calculado</span><b>{classified ? brl.format(totals.pis) : "—"}</b><small>Antes de créditos</small></article>
         <article><span>COFINS calculada</span><b>{classified ? brl.format(totals.cofins) : "—"}</b><small>Antes de créditos</small></article>
       </div>
       {!loaded ? (
-        <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>As receitas serão agrupadas por serviço e competência.</span></div>
+        <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>As receitas serão agrupadas pelo campo descrição e competência.</span></div>
       ) : !classified ? (
         <div className="tax-empty"><Calculator /><b>Base fiscal atualizada</b><span>Clique em Classificar para aplicar a matriz cumulativa e não cumulativa.</span></div>
       ) : (
         <>
           <div className="tax-view-heading">
-            <div><b>Visão da classificação no sistema</b><span>{rows.length} serviço(s) na competência {competenceLabel}</span></div>
+            <div><b>Visão da classificação no sistema</b><span>{rows.length} descrição(ões) na competência {competenceLabel}</span></div>
             <span>{ignoredCancelled} registro(s) cancelado(s) desconsiderado(s)</span>
           </div>
-          {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} serviço(s) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
+          {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} descrição(ões) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
           <div className="table-wrap tax-table">
             <table>
-              <thead><tr><th>Competência</th><th>Serviço</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
+              <thead><tr><th>Competência</th><th>Descrição</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
               <tbody>{rows.map((row) => {
                 const rate = row.regime ? rates[row.regime] : null;
                 return <tr key={`${row.service}-${row.regime}`}><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;

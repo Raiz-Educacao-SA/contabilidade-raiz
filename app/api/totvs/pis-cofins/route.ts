@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         ignoredCancelled += 1;
         return;
       }
-      const service = tag(record, "SERVICO") || tag(record, "NOMESERVICO") || tag(record, "DESCSERVICO") || tag(record, "DESCRICAOSERVICO") || "Serviço não informado pela consulta fiscal";
+      const service = tag(record, "DESCRICAO") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Descrição não informada pela consulta fiscal";
       const current = grouped.get(normalize(service)) || { service, grossRevenue: 0, discounts: 0 };
       current.grossRevenue += number(tag(record, "VALORORIGINAL"));
       current.discounts += number(tag(record, "BOLSA"));
