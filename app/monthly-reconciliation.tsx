@@ -9,7 +9,7 @@ type Statement = { fileName: string; account: AccountingAccount; bank: BankRow[]
 type AccountResult = Statement & { rows: MatchRow[]; validation: ReturnType<typeof validateMonthly>; competence: string };
 type DriveStatement = { id: string; name: string; path: string; mimeType: string; modifiedTime?: string; size?: string };
 
-export default function MonthlyReconciliationPanel({ accounts, competence, companyId, companyName, reconciledBy }: { accounts: RegisteredAccount[]; competence: string; companyId: string; companyName: string; reconciledBy: string }) {
+export default function MonthlyReconciliationPanel({ accounts, competence, companyId, companyCode, companyName, reconciledBy, accessToken }: { accounts: RegisteredAccount[]; competence: string; companyId: string; companyCode: string; companyName: string; reconciledBy: string; accessToken: string }) {
   const [accounting, setAccounting] = useState<AccountingRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<AccountingAccount[]>([]);
   const [statements, setStatements] = useState<Statement[]>([]);
@@ -52,7 +52,7 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
   async function refreshAccounting() {
     setAccountingBusy(true);
     try {
-      const response = await fetch(`/api/totvs/accounting?company=${encodeURIComponent(companyId)}&competence=${encodeURIComponent(competence)}`, { cache: "no-store" });
+      const response = await fetch(`/api/totvs/accounting?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, { cache: "no-store", headers: { authorization: `Bearer ${accessToken}` } });
       const data = await response.json() as { rows?: AccountingRow[]; error?: string; warning?: string };
       if (!response.ok || data.error) throw new Error(data.error || "Não foi possível consultar a Planilha 18 no TOTVS.");
       const rows = (data.rows || []).map((row) => ({ ...row, date: new Date(row.date) }));
