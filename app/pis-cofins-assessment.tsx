@@ -181,7 +181,7 @@ export default function PisCofinsAssessment({
               onClick={() => void update()}
             >
               <RefreshCw className={loading ? "spin" : ""} />
-              {loading ? "Atualizando..." : "Atualizar base fiscal"}
+              {loading ? "Atualizando..." : "Atualizar base faturamento"}
             </button>
             <button
               className={classified ? "tax-source-ready" : "tax-classify"}
