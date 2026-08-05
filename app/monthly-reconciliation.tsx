@@ -350,7 +350,7 @@ export default function MonthlyReconciliationPanel({
       );
     if (!statements.length)
       return setNotice(
-        "As duas bases estão atualizadas, mas nenhum extrato foi vinculado automaticamente às contas contábeis. Revise os dados de agência e conta dos arquivos encontrados.",
+        "Erro: nenhum extrato foi reconhecido. Revise os dados de agência e conta e confirme se o formato dos arquivos é compatível.",
       );
     const completed = reconcileStatements(statements);
     const reconciled = completed.filter(
@@ -395,7 +395,14 @@ export default function MonthlyReconciliationPanel({
           </button>
         </div>
       </div>
-      {notice && <div className="notice">{notice}</div>}
+      {notice && (
+        <div
+          className={`notice ${notice.startsWith("Erro:") ? "error" : ""}`}
+          role={notice.startsWith("Erro:") ? "alert" : "status"}
+        >
+          {notice}
+        </div>
+      )}
       <div className="source-control">
         <div className="source-control-title">
           <span>ATUALIZAÇÃO DAS FONTES</span>
