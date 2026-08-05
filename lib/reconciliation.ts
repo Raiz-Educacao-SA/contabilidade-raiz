@@ -134,6 +134,68 @@ export function parseBank(buffer: ArrayBuffer): ParsedBank {
   throw new Error("Não consegui identificar Data, Lançamento/Histórico e Valor no extrato.");
 }
 
+export function parseBankText(text: string, fileName = ""): ParsedBank {
+  const normalizedText = text.replace(/\r/g, "");
+  const competenceMatch =
+    normalizedText.match(/PER[IÍ]ODO\D+(\d{2})\/(\d{4})/i) ||
+    fileName.match(/(?:^|\D)(\d{2})[_-](\d{4})(?:\D|$)/);
+  const competenceMonth = competenceMatch?.[1] || "";
+  const competenceYear = competenceMatch?.[2] || "";
+  const agency =
+    normalizedText.match(/(?:AG[EÊ]NCIA|COOP\.?)[^\d]{0,12}([\d.-]+)/i)?.[1] || "";
+  const account =
+    normalizedText.match(/CONTA(?:\s+CORRENTE)?[^\d]{0,12}([\d.-]+)/i)?.[1] ||
+    fileName.match(/\d{4,}/)?.[0] ||
+    "";
+  const period = competenceMonth && competenceYear ? `${competenceMonth}/${competenceYear}` : "";
+  const metadata: BankMetadata = {
+    agency,
+    account,
+    period,
+    name: "",
+    openingBalance: null,
+    closingBalance: null,
+  };
+  const debitTerms = /TARIFA|PIX[. ]?EMIT|PAGAMENTO|PAGTO|D[EÉ]BITO|SAQUE|TRANSFER[EÊ]NCIA\s+(?:ENV|ENVIADA)|TED\s+ENV|DOC\s+ENV|CHEQUE|IMPOSTO|TRIBUTO/i;
+  const ignoredTerms = /SALDO|TOTAL|BLOQ|RESUMO/i;
+  const rows: BankRow[] = [];
+  const linePattern = /^(\d{2})\/(\d{2})(?:\/(\d{2,4}))?\s+(.+?)\s+(-?[\d.]+,\d{2})(?:\s*([CD]))?\s*$/i;
+
+  normalizedText.split("\n").forEach((rawLine, index) => {
+    const line = rawLine.replace(/[—–]/g, " ").replace(/\s+/g, " ").trim();
+    const match = line.match(linePattern);
+    if (!match) return;
+    const description = match[4].trim();
+    const amountText = match[5];
+    const nature = (match[6] || "").toUpperCase();
+    const isBalance = ignoredTerms.test(normalize(description));
+    const amount = Math.abs(asNumber(amountText));
+    if (isBalance) {
+      const signedBalance = nature === "D" ? -amount : amount;
+      if (/ANTERIOR/i.test(description) && metadata.openingBalance == null)
+        metadata.openingBalance = signedBalance;
+      if (/SALDO DO DIA|SALDO FINAL|SALDO DISPON[IÍ]VEL/i.test(description))
+        metadata.closingBalance = signedBalance;
+      return;
+    }
+    if (amount <= 0.004) return;
+    const day = Number(match[1]);
+    const scannedMonth = match[2];
+    const month = competenceMonth || scannedMonth;
+    const rawYear = match[3];
+    const year = competenceYear || (rawYear ? (rawYear.length === 2 ? `20${rawYear}` : rawYear) : "");
+    if (!year || day < 1 || day > 31) return;
+    const parsedDate = new Date(Date.UTC(Number(year), Number(month) - 1, day));
+    if (Number.isNaN(parsedDate.getTime())) return;
+    const value = nature === "D" || (!nature && debitTerms.test(description)) ? -amount : amount;
+    rows.push({ id: `PDF-${index + 1}`, date: parsedDate, description, value: Math.round(value * 100) / 100 });
+  });
+
+  if (!rows.length)
+    throw new Error("O PDF foi lido, mas não encontrei movimentos bancários reconhecíveis.");
+  return { rows, metadata };
+}
+
 const digits = (value: unknown) => String(value ?? "").replace(/\D/g, "").replace(/^0+/, "");
 const compatibleDigits = (left: unknown, right: unknown) => {
   const a = digits(left), b = digits(right);

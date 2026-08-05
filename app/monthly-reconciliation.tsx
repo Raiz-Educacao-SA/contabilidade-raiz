@@ -17,6 +17,7 @@ import {
   BankMetadata,
   BankRow,
   MatchRow,
+  ParsedBank,
   accountingBankAccounts,
   brl,
   detectAccountingAccount,
@@ -84,7 +85,7 @@ export default function MonthlyReconciliationPanel({
     (account) =>
       !statements.some((statement) => statement.account.code === account.code),
   );
-  const driveReady = driveFiles.length > 0;
+  const driveReady = statements.length > 0;
   const accountingReady = accounting.length > 0;
   const reconciliationReady = driveReady && accountingReady;
   const allRows = useMemo(
@@ -182,15 +183,17 @@ export default function MonthlyReconciliationPanel({
       setAccounting(rows);
       setBankAccounts(discovered);
       setStatements([]);
-      if (driveFiles.length)
+      if (driveFiles.length) {
         await identifyStatements(driveFiles, rows, discovered);
+      }
       setAccountingMessage(
         `${discovered.length} conta(s) carregada(s) da Planilha 18`,
       );
-      setNotice(
-        data.warning ||
-          `Base contábil atualizada: ${discovered.length} conta(s) bancária(s) encontrada(s) no TOTVS.`,
-      );
+      if (!driveFiles.length)
+        setNotice(
+          data.warning ||
+            `Base contábil atualizada: ${discovered.length} conta(s) bancária(s) encontrada(s) no TOTVS.`,
+        );
     } catch (error) {
       const message = (error as Error).message;
       setAccountingMessage("Aguardando permissão de leitura no TOTVS");
@@ -225,15 +228,12 @@ export default function MonthlyReconciliationPanel({
           data.warning ||
             `${located.length} arquivo(s) localizado(s). Carregue a base contábil para o sistema identificar as contas automaticamente.`,
         );
-      const identified = await identifyStatements(
+      await identifyStatements(
         located,
         accounting,
         bankAccounts,
       );
-      setNotice(
-        data.warning ||
-          `${located.length} arquivo(s) localizado(s) e ${identified.length} conta(s) identificada(s) automaticamente.`,
-      );
+      if (data.warning) setNotice(data.warning);
     } catch (error) {
       setNotice((error as Error).message);
     } finally {
@@ -247,18 +247,33 @@ export default function MonthlyReconciliationPanel({
     discoveredAccounts: AccountingAccount[],
   ) {
     const groups = new Map<string, Statement>();
+    let processed = 0;
+    let rejected = 0;
     for (const item of located
-      .filter((file) => /\.(xlsx|xls|xlsm|csv|txt)$/i.test(file.name))
+      .filter((file) => /\.(pdf|xlsx|xls|xlsm|csv|txt)$/i.test(file.name))
       .sort((a, b) =>
         a.name.localeCompare(b.name, "pt-BR", { numeric: true }),
       )) {
       try {
+        const isPdf = /\.pdf$/i.test(item.name);
         const fileResponse = await fetch(
-          `/api/drive/statements?fileId=${encodeURIComponent(item.id)}`,
+          `/api/drive/statements?fileId=${encodeURIComponent(item.id)}${isPdf ? `&parse=pdf&fileName=${encodeURIComponent(item.name)}` : ""}`,
           { cache: "no-store" },
         );
-        if (!fileResponse.ok) continue;
-        const parsed = parseBank(await fileResponse.arrayBuffer());
+        if (!fileResponse.ok) {
+          rejected += 1;
+          continue;
+        }
+        const parsed: ParsedBank = isPdf
+          ? await fileResponse.json().then((data: ParsedBank) => ({
+              ...data,
+              rows: data.rows.map((row) => ({
+                ...row,
+                date: new Date(String(row.date)),
+              })),
+            }))
+          : parseBank(await fileResponse.arrayBuffer());
+        processed += 1;
         const detected = detectAccountingAccount(
           accountingRows,
           parsed.metadata,
@@ -304,11 +319,15 @@ export default function MonthlyReconciliationPanel({
           };
         }
       } catch {
+        rejected += 1;
         /* arquivo não reconhecido permanece na lista para revisão */
       }
     }
     const identified = Array.from(groups.values());
     setStatements(identified);
+    setNotice(
+      `${identified.length ? "" : "Erro: "}${located.length} arquivo(s) localizado(s), ${processed} processado(s), ${rejected} rejeitado(s) e ${identified.length} conta(s) identificada(s).`,
+    );
     return identified;
   }
 

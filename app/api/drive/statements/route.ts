@@ -1,7 +1,9 @@
 import { createSign } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { parseBankText } from "@/lib/reconciliation";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const DRIVE_ROOT = process.env.GOOGLE_DRIVE_EXTRATOS_FOLDER_ID || "1wnOtI3NpylWkvY6i6wUlc1sl_CM2Ml7I";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -10,6 +12,27 @@ type DriveItem = { id: string; name: string; mimeType: string; parents?: string[
 type LocatedFile = DriveItem & { path: string };
 
 let tokenCache: { token: string; expiresAt: number } | null = null;
+
+async function parsePdfStatement(buffer: ArrayBuffer, fileName: string) {
+  const [{ pdf }, { createWorker }] = await Promise.all([
+    import("pdf-to-img"),
+    import("tesseract.js"),
+  ]);
+  const document = await pdf(Buffer.from(buffer), { scale: 2 });
+  const worker = await createWorker("por", 1, {
+    cachePath: process.env.VERCEL ? "/tmp" : process.cwd(),
+  });
+  const pages: string[] = [];
+  try {
+    for await (const image of document) {
+      const result = await worker.recognize(image);
+      pages.push(result.data.text);
+    }
+  } finally {
+    await worker.terminate();
+  }
+  return parseBankText(pages.join("\n"), fileName);
+}
 
 function base64url(value: string | Buffer) {
   return Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
@@ -86,6 +109,11 @@ export async function GET(request: NextRequest) {
       const token = await accessToken();
       const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
       if (!response.ok) return NextResponse.json({ error: "Não foi possível baixar o extrato do Drive." }, { status: response.status });
+      if (request.nextUrl.searchParams.get("parse") === "pdf") {
+        const fileName = request.nextUrl.searchParams.get("fileName") || "extrato.pdf";
+        const parsed = await parsePdfStatement(await response.arrayBuffer(), fileName);
+        return NextResponse.json(parsed, { headers: { "cache-control": "private, no-store" } });
+      }
       return new NextResponse(response.body, { headers: { "content-type": response.headers.get("content-type") || "application/octet-stream", "cache-control": "private, no-store" } });
     }
     const company = request.nextUrl.searchParams.get("company")?.trim(); const competence = request.nextUrl.searchParams.get("competence")?.trim();
