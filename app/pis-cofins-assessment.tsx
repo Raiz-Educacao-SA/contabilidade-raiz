@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Calculator, Download, RefreshCw, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx";
 
-type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "Não classificado";
+type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
 type RevenueRow = {
   service: string;
   grossRevenue: number;
@@ -77,11 +77,11 @@ export default function PisCofinsAssessment({
     return result;
   }, [rows]);
 
-  const unclassified = rows.filter((row) => row.regime === "Não classificado");
+  const unclassified = rows.filter((row) => !row.regime);
 
   function exportExcel() {
     const data = rows.map((row) => {
-      const rate = row.regime === "Não classificado" ? null : rates[row.regime];
+      const rate = row.regime ? rates[row.regime] : null;
       return {
         Coligada: companyCode,
         Competência: competenceLabel,
@@ -112,7 +112,7 @@ export default function PisCofinsAssessment({
           <p>Planilha.NET 53 · competência {competenceLabel} · classificação por serviço</p>
         </div>
         <div className="tax-actions">
-          <button disabled={loading || companyCode !== "2"} onClick={() => void update()}>
+          <button className={loaded ? "tax-source-ready" : ""} disabled={loading || companyCode !== "2"} onClick={() => void update()}>
             <RefreshCw className={loading ? "spin" : ""} />
             {loading ? "Atualizando..." : "Atualizar base fiscal"}
           </button>
@@ -134,13 +134,13 @@ export default function PisCofinsAssessment({
         <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>As receitas serão agrupadas por serviço e competência.</span></div>
       ) : (
         <>
-          {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} serviço(s) precisam de classificação</b><span>Nenhum valor sem regra foi incluído no cálculo de PIS ou COFINS.</span></div></div>}
+          {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} serviço(s) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
           <div className="table-wrap tax-table">
             <table>
               <thead><tr><th>Competência</th><th>Serviço</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
               <tbody>{rows.map((row) => {
-                const rate = row.regime === "Não classificado" ? null : rates[row.regime];
-                return <tr key={`${row.service}-${row.regime}`}><td>{competenceLabel}</td><td><b>{row.service}</b></td><td><span className={`tax-badge ${row.regime === "Não classificado" ? "pending" : ""}`}>{row.regime}</span></td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : "—"}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : "—"}</td></tr>;
+                const rate = row.regime ? rates[row.regime] : null;
+                return <tr key={`${row.service}-${row.regime}`}><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;
               })}</tbody>
             </table>
           </div>

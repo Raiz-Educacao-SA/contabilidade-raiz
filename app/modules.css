@@ -1171,10 +1171,11 @@
 .tax-head h2 { margin: 3px 0; font-size: 18px; }
 .tax-head p { font-size: 11px; }
 .tax-actions { display: flex; gap: 8px; }
-.tax-actions button { border: 0; border-radius: 9px; padding: 9px 12px; display: flex; align-items: center; gap: 6px; background: #2b66c4; color: #fff; font-size: 11px; font-weight: 800; }
+.tax-actions button { border: 1px solid #d8dee8; border-radius: 9px; padding: 9px 12px; display: flex; align-items: center; gap: 6px; background: #eef1f5; color: #596579; font-size: 11px; font-weight: 800; }
 .tax-actions button:disabled { opacity: .5; cursor: not-allowed; }
 .tax-actions svg { width: 15px; }
 .tax-actions .tax-export { background: #168657; }
+.tax-actions .tax-source-ready { border-color: #168657; background: #168657; color: #fff; }
 .tax-summary { padding: 10px 18px; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; background: #f8fafc; }
 .tax-summary article { padding: 9px 10px; border: 1px solid #e2e7ee; border-radius: 10px; background: #fff; display: flex; flex-direction: column; gap: 3px; }
 .tax-summary span,.tax-summary small { font-size: 9px; color: var(--muted); }

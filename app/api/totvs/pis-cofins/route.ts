@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       current.discounts += number(tag(record, "BOLSA"));
       grouped.set(normalize(service), current);
     });
-    const rows = [...grouped.values()].map((row) => ({ ...row, netRevenue: row.grossRevenue - row.discounts, regime: classification[normalize(row.service)] || "Não classificado" })).sort((a, b) => a.service.localeCompare(b.service, "pt-BR"));
+    const rows = [...grouped.values()].map((row) => ({ ...row, netRevenue: row.grossRevenue - row.discounts, regime: classification[normalize(row.service)] || "" })).sort((a, b) => a.service.localeCompare(b.service, "pt-BR"));
     return NextResponse.json({ company, competence, rows, records: records.length });
   } catch (cause) {
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
