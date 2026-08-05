@@ -147,6 +147,7 @@ export default function RevenueReconciliation({
   }, [f, c, competenceLabel]);
   const pending = rows.filter((x) => x.status !== "Conciliado"),
     reconciled = rows.length - pending.length,
+    reconciledPercentage = rows.length ? (reconciled / rows.length) * 100 : 0,
     fRev = f.reduce((s, x) => s + x.originalValue, 0),
     cRev = c
       .filter((x) => x.kind === "revenue")
@@ -248,8 +249,12 @@ export default function RevenueReconciliation({
         </article>
         <article>
           <span>Conciliados</span>
-          <b>{fr && cr ? reconciled : "—"}</b>
-          <small>RA sem diferença</small>
+          <b>
+            {fr && cr
+              ? `${reconciledPercentage.toFixed(1).replace(".", ",")}%`
+              : "—"}
+          </b>
+          <small>{fr && cr ? `${reconciled} de ${rows.length} RA` : "RA sem diferença"}</small>
         </article>
         <article className={pending.length ? "has-warning" : ""}>
           <span>Inconsistências</span>
