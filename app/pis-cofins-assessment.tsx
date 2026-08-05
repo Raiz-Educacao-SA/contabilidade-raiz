@@ -71,16 +71,28 @@ export default function PisCofinsAssessment({
       cumulativeCofins: 0,
       nonCumulativePis: 0,
       nonCumulativeCofins: 0,
+      grossRevenue: 0,
+      discounts: 0,
+      nfBase: 0,
+      totalPis: 0,
+      totalCofins: 0,
     };
     rows.forEach((row) => {
+      result.grossRevenue += row.grossRevenue;
+      result.discounts += row.discounts;
+      result.nfBase += row.netRevenue;
       if (row.regime === "Cumulativo") {
         result.cumulativeBase += row.netRevenue;
         result.cumulativePis += row.netRevenue * rates.Cumulativo.pis;
         result.cumulativeCofins += row.netRevenue * rates.Cumulativo.cofins;
+        result.totalPis += row.netRevenue * rates.Cumulativo.pis;
+        result.totalCofins += row.netRevenue * rates.Cumulativo.cofins;
       } else if (row.regime === "Não-Cumulativo") {
         result.nonCumulativeBase += row.netRevenue;
         result.nonCumulativePis += row.netRevenue * rates["Não-Cumulativo"].pis;
         result.nonCumulativeCofins += row.netRevenue * rates["Não-Cumulativo"].cofins;
+        result.totalPis += row.netRevenue * rates["Não-Cumulativo"].pis;
+        result.totalCofins += row.netRevenue * rates["Não-Cumulativo"].cofins;
       } else result.unclassifiedBase += row.netRevenue;
     });
     return result;
@@ -171,6 +183,7 @@ export default function PisCofinsAssessment({
                 const rate = row.regime ? rates[row.regime] : null;
                 return <tr key={row.line}><td>{row.line}</td><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;
               })}</tbody>
+              <tfoot><tr><td colSpan={4}>Subtotal da competência</td><td>{brl.format(totals.grossRevenue)}</td><td>{brl.format(totals.discounts)}</td><td>{brl.format(totals.nfBase)}</td><td>{brl.format(totals.totalPis)}</td><td>{brl.format(totals.totalCofins)}</td></tr></tfoot>
             </table>
           </div>
         </>

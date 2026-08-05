@@ -1200,6 +1200,7 @@
 .tax-table th { position: sticky; top: 0; z-index: 1; padding: 5px; background: #173d68; color: #fff; font-size: 8px; }
 .tax-table td { padding: 4px 5px; }
 .tax-table td:nth-child(n+4) { text-align: right; }
+.tax-table tfoot td { position: sticky; bottom: 0; z-index: 1; padding: 7px 5px; border-top: 2px solid #173d68; background: #eef4fb; color: #102f54; font-weight: 900; }
 .tax-badge { display: inline-block; padding: 4px 7px; border-radius: 999px; background: #e8f7f0; color: #14764d; font-size: 9px; font-weight: 900; }
 .tax-badge.pending { background: #fff0e8; color: #b94f13; }
 .tax-note { margin: 0; padding: 0 18px 14px; font-size: 9px; color: var(--muted); }
