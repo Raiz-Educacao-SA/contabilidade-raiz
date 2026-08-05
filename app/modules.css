@@ -161,6 +161,23 @@
 .accounting-workspace {
   min-height: 280px;
 }
+.book-base-nav {
+  margin: 2px 10px 0;
+}
+.book-base-nav > span {
+  padding: 8px 12px 6px;
+  color: #8f99ad;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.book-base-nav button {
+  width: 100%;
+}
+.book-base-nav button.active {
+  box-shadow: inset 3px 0 #6fc5c0;
+}
 .company-sidebar {
   min-height: 0;
   margin-top: 18px;
@@ -977,6 +994,56 @@
 }
 .book-content .book-table {
   max-height: 680px;
+}
+.book-report-preparation {
+  min-height: 430px;
+  padding: 58px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.book-report-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 17px;
+  color: #fff;
+  background: linear-gradient(135deg, #173d68, #2f668f);
+  box-shadow: 0 14px 30px rgba(23, 61, 104, 0.22);
+}
+.book-report-icon svg {
+  width: 28px;
+  height: 28px;
+}
+.book-report-preparation > small {
+  margin-top: 22px;
+  color: #2f668f;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.book-report-preparation h2 {
+  margin: 7px 0 10px;
+  font-size: 28px;
+}
+.book-report-preparation > p {
+  max-width: 690px;
+  line-height: 1.65;
+}
+.book-report-context {
+  margin: 24px 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.book-report-context span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.book-report-preparation .notice {
+  margin: 0;
 }
 .revenue-panel {
   padding: 0;
