@@ -32,7 +32,8 @@ const classifyService = (value: string): "Cumulativo" | "Não-Cumulativo" | "" =
   if (classification[service]) return classification[service];
   if (["PRE-VESTIBULAR", "PRE VESTIBULAR", "ESCOLINHA", "ATIVIDADE EXTRA", "HIGH SCHOOL", "ORIENTACAO PEDAGOGICA"].some((term) => service.includes(term))) return "Não-Cumulativo";
   if (service.includes("ANUIDADE") && service.includes("HORARIO INTEGRAL")) return "Não-Cumulativo";
-  if (["BERCARIO", "CRECHE", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "HORARIO INTEGRAL"].some((term) => service.includes(term))) return "Cumulativo";
+  if (["BERCARIO", "CRECHE", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "HORARIO INTEGRAL", "MENSALIDADE", "SEMESTRALIDADE"].some((term) => service.includes(term))) return "Cumulativo";
+  if (/^(EI|EFI|EF1|EF2|EM)(\s|\-|$)/.test(service)) return "Cumulativo";
   return "";
 };
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -78,10 +79,10 @@ export async function GET(request: NextRequest) {
         ignoredCancelled += 1;
         return [];
       }
-      const service = tag(record, "SERVICO_ED") || tag(record, "DESCRICAO") || tag(record, "NOMEFANTASIA1") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Serviço não informado pela consulta fiscal";
+      const service = tag(record, "DESCRICAO") || tag(record, "SERVICO_ED") || "Descrição não informada pela consulta fiscal";
       const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
       const discounts = number(tag(record, "BOLSA"));
-      const netRevenue = number(tag(record, "VALORNF"));
+      const netRevenue = number(tag(record, "VLRNF"));
       return [{ line: index + 1, service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
     return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });
