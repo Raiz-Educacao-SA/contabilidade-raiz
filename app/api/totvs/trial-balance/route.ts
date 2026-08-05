@@ -1,0 +1,35 @@
+import { NextRequest, NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+
+const xmlEscape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&apos;");
+const xmlDecode = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+const tag = (xml: string, ...names: string[]) => names.map((name) => xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim()).find(Boolean) || "";
+const number = (value: string) => { const parsed = Number(String(value || "0").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; };
+
+async function authorized(request: NextRequest) {
+  const authorization = request.headers.get("authorization");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!authorization || !url || !key) return false;
+  return (await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" })).ok;
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
+    const company = request.nextUrl.searchParams.get("company")?.trim(); const competence = request.nextUrl.searchParams.get("competence")?.trim();
+    if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência são obrigatórias." }, { status: 400 });
+    const baseUrl = (process.env.TOTVS_WS_PRD_BASE_URL || "https://raizeducacao160286.rm.cloudtotvs.com.br:8051").replace(/\/$/, "");
+    const user = process.env.TOTVS_WS_PRD_USER; const password = process.env.TOTVS_WS_PRD_PASSWORD;
+    if (!user || !password) throw new Error("As credenciais técnicas do TOTVS ainda não foram configuradas na Vercel.");
+    const [year, month] = competence!.split("-").map(Number); const firstDay = `${year}-${String(month).padStart(2, "0")}-01`; const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
+    const parameters = `COLIGDADA_I=${company};DATA_INICIAL_D=${firstDay};DATA_FINAL_D=${lastDay};CONTA_S=%;CONSIDERAFECHAMENTO_S=N`;
+    const envelope = `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CUBO.CTB.002</codSentenca><codColigada>0</codColigada><codSistema>C</codSistema><parameters>${xmlEscape(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+    const response = await fetch(`${baseUrl}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store" });
+    const soap = await response.text();
+    if (!response.ok || soap.includes("<s:Fault>") || soap.includes(":Fault>")) throw new Error(xmlDecode(tag(soap, "faultstring")) || "O TOTVS não conseguiu gerar o balancete.");
+    const resultXml = xmlDecode(tag(soap, "RealizarConsultaSQLResult"));
+    const rows = Array.from(resultXml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match, index) => { const record = match[1]; return { id: tag(record, "ID") || `${company}-${index}`, reduced: tag(record, "Reduzido"), account: xmlDecode(tag(record, "Conta_x0020_Contábil", "Conta_x0020_Contabil", "Conta")), description: xmlDecode(tag(record, "Descrição_x0020_Conta", "Descricao_x0020_Conta", "Descrição", "Descricao")), openingBalance: number(tag(record, "VR_SALDOANT")), debit: number(tag(record, "VR_DEBITO")), credit: number(tag(record, "VR_CREDITO")), movement: number(tag(record, "VR_MOV")), closingBalance: number(tag(record, "Saldo")) }; }).filter((row) => row.account);
+    return NextResponse.json({ source: "TOTVS RM — CUBO.CTB.002", company, competence, records: rows.length, rows }, { headers: { "cache-control": "private, no-store" } });
+  } catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 503 }); }
+}
