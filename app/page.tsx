@@ -59,7 +59,24 @@ export default function Home() {
   const company = companies.find((item) => item.empresa_id === companyId);
   const canWrite = (company?.perfil ?? "consulta").toLowerCase() !== "consulta";
 
-  useEffect(() => { supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); }); return supabase.auth.onAuthStateChange((_event, current) => setSession(current)).data.subscription.unsubscribe; }, []);
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      setSession(data.session);
+      if (error) setNotice("Sua autenticação não pôde ser confirmada. Entre novamente para continuar.");
+      setLoading(false);
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, current) => {
+      if (!active) return;
+      setSession(current);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
   useEffect(() => { if (!session) return; (async () => {
     const { data, error } = await supabase.from("usuarios_empresas").select("empresa_id, perfil, empresas(id, codcoligada, razao_social, cnpj)").eq("usuario_id", session.user.id);
     if (error) return setNotice(error.message); const rows = (data ?? []) as unknown as Company[]; setCompanies(rows); if (rows[0]) setCompanyId(rows[0].empresa_id);
@@ -76,7 +93,7 @@ export default function Home() {
   async function saveAccount(event: React.FormEvent) { event.preventDefault(); if (!canWrite) return; setBusy(true); const { error } = await supabase.from("contas_bancarias").insert({ ...newAccount, empresa_id: companyId, ativa: true }); setBusy(false); if (error) return setNotice(error.message); setNotice("Conta cadastrada."); location.reload(); }
   async function storeStatement(file?: File) { if (!file || !selectedAccount || !session) return; setBusy(true); const path = `${companyId}/${competence}/${selectedAccount}/${crypto.randomUUID()}_${file.name.replace(/[^A-Za-z0-9._-]/g, "_")}`; const uploaded = await supabase.storage.from("extratos-bancarios").upload(path, file); if (!uploaded.error) await supabase.from("arquivos_importados").insert({ empresa_id: companyId, competencia: competence, conta_bancaria_id: selectedAccount, tipo_arquivo: "extrato", caminho_storage: path, nome_original: file.name, usuario_id: session.user.id }); setBusy(false); setNotice(uploaded.error?.message ?? "Extrato armazenado com segurança."); }
 
-  if (loading) return <main className="center"><div className="spinner" /></main>;
+  if (loading) return <main className="center"><section className="login-card auth-check"><div className="spinner" /><h1>Verificando autenticação...</h1><p>Aguarde enquanto confirmamos seu acesso ao Contabilidade Raiz.</p></section></main>;
   if (!configured) return <main className="center"><section className="login-card"><h1>Configuração incompleta</h1><p>Cadastre NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY na Vercel.</p></section></main>;
   if (!session) return <main className="center"><form className="login-card" onSubmit={login}><Image className="brand-logo" src="/logo-raiz.png" alt="Raiz Educação" width={118} height={118} priority /><span className="eyebrow">CONTABILIDADE CORPORATIVA</span><h1>Contabilidade Raiz</h1><p>Financeiro, compras, folha de pagamento e fechamento contábil em um único ambiente.</p><label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label><label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>{notice && <div className="notice error">{notice}</div>}<button className="primary" type="submit">Entrar</button></form></main>;
   if (!companies.length) return <main className="center"><section className="login-card"><h1>Usuário sem empresa vinculada</h1><p>Vincule o usuário a uma empresa no Supabase para continuar.</p><button onClick={() => supabase.auth.signOut()}>Sair</button></section></main>;

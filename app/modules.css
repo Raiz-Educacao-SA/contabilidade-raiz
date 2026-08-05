@@ -1205,3 +1205,7 @@
 .tax-note { margin: 0; padding: 0 18px 14px; font-size: 9px; color: var(--muted); }
 @media(max-width:1000px){.tax-head{align-items:flex-start;flex-direction:column}.tax-summary{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){.tax-actions{width:100%;flex-direction:column}.tax-actions button{justify-content:center}.tax-summary{grid-template-columns:1fr}}
+
+.auth-check .spinner { margin: 0 auto 18px; }
+.auth-check h1 { font-size: 22px; }
+.auth-check p { margin-bottom: 0; }
