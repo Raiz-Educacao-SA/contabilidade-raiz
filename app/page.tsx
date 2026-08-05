@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { ArrowLeftRight, Building2, ChevronLeft, Download, FileSpreadsheet, HandCoins, Landmark, LogOut, Pin, Plus, ReceiptText, Save, Upload, WalletCards, X } from "lucide-react";
+import { ArrowLeftRight, Building2, ChevronLeft, Download, FileSpreadsheet, HandCoins, Landmark, LogOut, Pin, Plus, ReceiptText, Save, ShoppingCart, TrendingUp, Upload, UsersRound, WalletCards, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, supabase } from "@/lib/supabase";
 import { AccountingRow, BankMetadata, BankRow, MatchRow, brl, detectAccountingAccount, exportReport, parseAccounting, parseBank, reconcile } from "@/lib/reconciliation";
@@ -11,13 +11,23 @@ import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 type Company = { empresa_id: string; perfil: string; empresas: { id: string; codcoligada: string; razao_social: string; cnpj: string } | null };
 type Account = { id: string; banco: string; agencia: string; conta_bancaria: string; conta_contabil: string; descricao: string };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type Module = "bancaria" | "emprestimos" | "parcelamentos";
+type Area = "financeiro" | "compras" | "folha";
+type Module = "bancaria" | "emprestimos" | "parcelamentos" | "receita" | "compras" | "folha";
 type PinnedReconciliation = { id: string; bankName: string; bankAccount: string; accountCode: string; accountName: string; rows: MatchRow[] };
 
 const modules = {
   bancaria: { title: "Conciliação Bancária", description: "Extratos, saldos e lançamentos contábeis em um único fluxo.", icon: Landmark },
   emprestimos: { title: "Conciliação de Empréstimos", description: "Contratos, parcelas, juros e saldos de empréstimos por empresa.", icon: HandCoins },
   parcelamentos: { title: "Conciliação de Parcelamentos", description: "Parcelamentos fiscais e financeiros, vencimentos e baixas.", icon: ReceiptText },
+  receita: { title: "Conciliação de Receita", description: "Receitas reconhecidas, recebimentos, baixas e diferenças por empresa.", icon: TrendingUp },
+  compras: { title: "Compras", description: "Solicitações, pedidos, fornecedores e acompanhamento das aquisições.", icon: ShoppingCart },
+  folha: { title: "Folha de Pagamento", description: "Conferências, encargos, provisões e rotinas da folha de pagamento.", icon: UsersRound },
+} as const;
+
+const areas = {
+  financeiro: { title: "Financeiro", description: "Conciliações bancárias, receitas, empréstimos, parcelamentos e controles financeiros.", icon: WalletCards },
+  compras: modules.compras,
+  folha: modules.folha,
 } as const;
 
 const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -29,6 +39,7 @@ export default function Home() {
   const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [notice, setNotice] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]); const [companyId, setCompanyId] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]); const [tab, setTab] = useState<Tab>("conciliacao");
+  const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear()); const [month, setMonth] = useState(today.getMonth() + 1);
   const [accounting, setAccounting] = useState<AccountingRow[]>([]); const [bank, setBank] = useState<BankRow[]>([]); const [bankName, setBankName] = useState("");
@@ -60,16 +71,18 @@ export default function Home() {
 
   if (loading) return <main className="center"><div className="spinner" /></main>;
   if (!configured) return <main className="center"><section className="login-card"><h1>Configuração incompleta</h1><p>Cadastre NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY na Vercel.</p></section></main>;
-  if (!session) return <main className="center"><form className="login-card" onSubmit={login}><Image className="brand-logo" src="/logo-raiz.png" alt="Raiz Educação" width={118} height={118} priority /><span className="eyebrow">CENTRAL FINANCEIRA</span><h1>Conciliação Financeira</h1><p>Gestão financeira simples, segura e orientada por dados.</p><label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label><label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>{notice && <div className="notice error">{notice}</div>}<button className="primary" type="submit">Entrar</button></form></main>;
+  if (!session) return <main className="center"><form className="login-card" onSubmit={login}><Image className="brand-logo" src="/logo-raiz.png" alt="Raiz Educação" width={118} height={118} priority /><span className="eyebrow">CONTABILIDADE CORPORATIVA</span><h1>Contabilidade Raiz</h1><p>Financeiro, compras e folha de pagamento em um único ambiente.</p><label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label><label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>{notice && <div className="notice error">{notice}</div>}<button className="primary" type="submit">Entrar</button></form></main>;
   if (!companies.length) return <main className="center"><section className="login-card"><h1>Usuário sem empresa vinculada</h1><p>Vincule o usuário a uma empresa no Supabase para continuar.</p><button onClick={() => supabase.auth.signOut()}>Sair</button></section></main>;
-  if (!selectedModule) return <ModuleHub email={session.user.email ?? ""} onSelect={setSelectedModule} onLogout={() => supabase.auth.signOut()} />;
+  if (!selectedArea) return <AreaHub email={session.user.email ?? ""} onSelect={(area) => { setSelectedArea(area); setSelectedModule(area === "financeiro" ? null : area); }} onLogout={() => supabase.auth.signOut()} />;
+  if (selectedArea === "financeiro" && !selectedModule) return <FinancialHub email={session.user.email ?? ""} onSelect={setSelectedModule} onBack={() => setSelectedArea(null)} onLogout={() => supabase.auth.signOut()} />;
+  if (!selectedModule) return null;
 
   const activeModule = modules[selectedModule];
   const ActiveModuleIcon = activeModule.icon;
 
   return <div className="shell">
-    <aside><div className="logo"><Image className="logo-image" src="/logo-raiz.png" alt="Raiz Educação" width={54} height={54} priority /><div><b>RAIZ</b><span>Educação</span></div></div><button className="module-back" onClick={() => setSelectedModule(null)}><ChevronLeft />Trocar módulo</button><div className="current-module"><ActiveModuleIcon /><span>{activeModule.title}</span></div>{selectedModule === "bancaria" && <nav>{([{ id: "conciliacao", label: "Conciliação", icon: ArrowLeftRight }, { id: "contas", label: "Contas", icon: WalletCards }, { id: "extratos", label: "Extratos", icon: Upload }, { id: "saldos", label: "Saldos", icon: FileSpreadsheet }] as const).map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}><Icon />{label}</button>)}</nav>}<div className="company-sidebar"><span>Empresas</span><div className="company-list">{companies.map((item) => <button key={item.empresa_id} className={companyId === item.empresa_id ? "selected" : ""} onClick={() => setCompanyId(item.empresa_id)}><b>{item.empresas?.codcoligada}</b><span>{item.empresas?.razao_social}</span></button>)}</div><div className="period"><label>Ano<input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} /></label><label>Mês<select value={month} onChange={(e) => setMonth(Number(e.target.value))}>{months.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label></div></div><button className="logout" onClick={() => supabase.auth.signOut()}><LogOut />Sair</button></aside>
-    <main className="content"><header><div><span className="eyebrow">CENTRAL FINANCEIRA</span><h1>{activeModule.title}</h1><p>{activeModule.description}</p></div><div className="user-chip">{session.user.email}</div></header>
+    <aside><div className="logo"><Image className="logo-image" src="/logo-raiz.png" alt="Raiz Educação" width={54} height={54} priority /><div><b>CONTABILIDADE</b><span>Raiz Educação</span></div></div><button className="module-back" onClick={() => { if (selectedArea === "financeiro") setSelectedModule(null); else { setSelectedArea(null); setSelectedModule(null); } }}><ChevronLeft />{selectedArea === "financeiro" ? "Voltar ao Financeiro" : "Voltar aos módulos"}</button><div className="current-module"><ActiveModuleIcon /><span>{activeModule.title}</span></div>{selectedModule === "bancaria" && <nav>{([{ id: "conciliacao", label: "Conciliação", icon: ArrowLeftRight }, { id: "contas", label: "Contas", icon: WalletCards }, { id: "extratos", label: "Extratos", icon: Upload }, { id: "saldos", label: "Saldos", icon: FileSpreadsheet }] as const).map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}><Icon />{label}</button>)}</nav>}<div className="company-sidebar"><span>Empresas</span><div className="company-list">{companies.map((item) => <button key={item.empresa_id} className={companyId === item.empresa_id ? "selected" : ""} onClick={() => setCompanyId(item.empresa_id)}><b>{item.empresas?.codcoligada}</b><span>{item.empresas?.razao_social}</span></button>)}</div><div className="period"><label>Ano<input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} /></label><label>Mês<select value={month} onChange={(e) => setMonth(Number(e.target.value))}>{months.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label></div></div><button className="logout" onClick={() => supabase.auth.signOut()}><LogOut />Sair</button></aside>
+    <main className="content"><header><div><span className="eyebrow">CONTABILIDADE RAIZ</span><h1>{activeModule.title}</h1><p>{activeModule.description}</p></div><div className="user-chip">{session.user.email}</div></header>
       <section className="metrics"><article><span>Empresa ativa</span><b>{company?.empresas?.codcoligada} — {company?.empresas?.razao_social}</b></article><article><span>Competência</span><b>{String(month).padStart(2, "0")}/{year}</b></article><article><span>Contas ativas</span><b>{accounts.length}</b></article><article><span>Perfil</span><b>{company?.perfil}</b></article></section>
       {notice && <div className="notice">{notice}</div>}
       {selectedModule === "bancaria" && tab === "conciliacao" && <MonthlyReconciliationPanel accounts={accounts} competence={competence} companyId={companyId} companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`} reconciledBy={session.user.email ?? ""} />}
@@ -87,8 +100,13 @@ function ResultBlock({ rows }: { rows: MatchRow[] }) {
   return <><div className="result-metrics"><article><b>{totals["Conciliado"] ?? 0}</b><span>Conciliados</span></article><article><b>{totals["Possível conciliação"] ?? 0}</b><span>Possíveis</span></article><article><b>{totals["Somente no banco"] ?? 0}</b><span>Somente no banco</span></article><article><b>{totals["Somente na contabilidade"] ?? 0}</b><span>Somente na contabilidade</span></article><article><b>{brl(totalDifference)}</b><span>Diferença de conciliação</span></article></div><div className="table-wrap"><table><thead><tr><th>Status</th><th>Data banco</th><th>Histórico</th><th>Valor banco</th><th>Data contábil</th><th>Valor contábil</th></tr></thead><tbody>{rows.map((row, index) => <tr key={index}><td><span className={`status s${row.status.charAt(0)}`}>{row.status}</span></td><td>{row.bankDate?.toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td><td>{row.description}</td><td>{row.bankValue == null ? "" : brl(row.bankValue)}</td><td>{row.accountingDate?.toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td><td>{row.accountingValue == null ? "" : brl(row.accountingValue)}</td></tr>)}</tbody></table></div></>;
 }
 
-function ModuleHub({ email, onSelect, onLogout }: { email: string; onSelect: (module: Module) => void; onLogout: () => void }) {
-  return <main className="module-hub"><header><div className="hub-brand"><Image src="/logo-raiz.png" alt="Raiz Educação" width={78} height={78} priority /><div><span className="eyebrow">CENTRAL FINANCEIRA</span><h1>Como deseja trabalhar hoje?</h1><p>Escolha uma área para acessar as empresas e iniciar a conferência.</p></div></div><div className="hub-user"><span>{email}</span><button onClick={onLogout}><LogOut />Sair</button></div></header><section className="module-grid">{(Object.entries(modules) as [Module, typeof modules[Module]][]).map(([id, item]) => { const Icon = item.icon; return <button key={id} className={`module-card module-${id}`} onClick={() => onSelect(id)}><span className="module-icon"><Icon /></span><span className="module-copy"><b>{item.title}</b><small>{item.description}</small></span><span className="module-enter">Acessar <ArrowLeftRight /></span></button>; })}</section></main>;
+function AreaHub({ email, onSelect, onLogout }: { email: string; onSelect: (area: Area) => void; onLogout: () => void }) {
+  return <main className="module-hub"><header><div className="hub-brand"><Image src="/logo-raiz.png" alt="Raiz Educação" width={78} height={78} priority /><div><span className="eyebrow">CONTABILIDADE CORPORATIVA</span><h1>Contabilidade Raiz</h1><p>Escolha o módulo em que deseja trabalhar.</p></div></div><div className="hub-user"><span>{email}</span><button onClick={onLogout}><LogOut />Sair</button></div></header><section className="module-grid">{(Object.entries(areas) as [Area, typeof areas[Area]][]).map(([id, item]) => { const Icon = item.icon; return <button key={id} className={`module-card area-${id}`} onClick={() => onSelect(id)}><span className="module-icon"><Icon /></span><span className="module-copy"><b>{item.title}</b><small>{item.description}</small></span><span className="module-enter">Acessar módulo <ArrowLeftRight /></span></button>; })}</section></main>;
+}
+
+function FinancialHub({ email, onSelect, onBack, onLogout }: { email: string; onSelect: (module: Module) => void; onBack: () => void; onLogout: () => void }) {
+  const financialIds: Module[] = ["bancaria", "receita", "emprestimos", "parcelamentos"];
+  return <main className="module-hub"><header><div className="hub-brand"><Image src="/logo-raiz.png" alt="Raiz Educação" width={78} height={78} priority /><div><button className="hub-back" onClick={onBack}><ChevronLeft />Contabilidade Raiz</button><span className="eyebrow">MÓDULO FINANCEIRO</span><h1>Como deseja trabalhar?</h1><p>As soluções financeiras atuais estão reunidas neste módulo.</p></div></div><div className="hub-user"><span>{email}</span><button onClick={onLogout}><LogOut />Sair</button></div></header><section className="module-grid">{financialIds.map((id) => { const item = modules[id]; const Icon = item.icon; return <button key={id} className={`module-card module-${id}`} onClick={() => onSelect(id)}><span className="module-icon"><Icon /></span><span className="module-copy"><b>{item.title}</b><small>{item.description}</small></span><span className="module-enter">Acessar <ArrowLeftRight /></span></button>; })}</section></main>;
 }
 
 function previousCompetence(competence: string) {
