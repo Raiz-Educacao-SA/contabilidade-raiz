@@ -73,15 +73,16 @@ export async function GET(request: NextRequest) {
     const records = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`)).filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     let ignoredCancelled = 0;
     const rows = records.flatMap((record, index) => {
-      const status = `${tag(record, "STATUSNF") || tag(record, "STATUS")} ${tag(record, "STATUSMATRICULA")}`;
-      if (normalize(status).includes("CANCEL")) {
+      const fiscalStatus = normalize(tag(record, "STATUSNF") || tag(record, "STATUS"));
+      if (fiscalStatus === "CANCELADA" || fiscalStatus === "CANCELADO") {
         ignoredCancelled += 1;
         return [];
       }
       const service = tag(record, "SERVICO_ED") || tag(record, "DESCRICAO") || tag(record, "NOMEFANTASIA1") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Serviço não informado pela consulta fiscal";
       const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
       const discounts = number(tag(record, "BOLSA"));
-      return [{ line: index + 1, service, grossRevenue, discounts, netRevenue: grossRevenue - discounts, regime: classifyService(service) }];
+      const netRevenue = number(tag(record, "VALORNF") || tag(record, "BASELIQUIDA")) || (grossRevenue - discounts);
+      return [{ line: index + 1, service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
     return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });
   } catch (cause) {
