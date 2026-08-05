@@ -46,6 +46,17 @@ O módulo contém:
 - O código da unidade segue o padrão `CODCOLIGADA.CODFILIAL` quando aplicável.
 - A relação inicial de empresas foi fornecida pela planilha `Resumo_Empresas.xlsx`.
 
+## Conciliação de Receita
+
+- Base fiscal atualizada diretamente pelo TOTVS Gestão de Estoque, Compras e Faturamento.
+- Consulta de leitura criada no TOTVS: `RAIZ.REC.FISCAL`.
+- Base contábil atualizada diretamente pelo TOTVS Contábil, usando o razão das contas do grupo `3.1.1.01.01`.
+- Chave mensal de cruzamento: `RA + competência`.
+- Receita e descontos são conciliados separadamente, com tolerância de R$ 0,01.
+- Lançamentos com complemento `APROPRIAÇÃO RECEITA` são desconsiderados.
+- Estornos são identificados pelo prefixo `ESTORNO:`.
+- A tela apresenta somente divergentes, registros exclusivos do Fiscal e registros exclusivos do Contábil.
+
 ## Book Contábil
 
 O Book Contábil possui uma visão mensal por empresa, usando os mesmos filtros superiores da conciliação.

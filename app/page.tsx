@@ -8,6 +8,7 @@ import { configured, supabase } from "@/lib/supabase";
 import { AccountingRow, BankMetadata, BankRow, MatchRow, brl, detectAccountingAccount, exportReport, parseAccounting, parseBank, reconcile } from "@/lib/reconciliation";
 import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 import BookAccountingPanel from "@/app/book-accounting";
+import RevenueReconciliation from "@/app/revenue-reconciliation";
 
 type Company = { empresa_id: string; perfil: string; empresas: { id: string; codcoligada: string; razao_social: string; cnpj: string } | null };
 type Account = { id: string; banco: string; agencia: string; conta_bancaria: string; conta_contabil: string; descricao: string };
@@ -96,7 +97,8 @@ export default function Home() {
       {selectedModule === "bancaria" && tab === "extratos" && <section className="panel"><h2>Armazenar extratos</h2><p>Os arquivos ficam no bucket privado do Supabase, organizados por empresa e competência.</p><div className="upload-box"><Upload /><label>Selecionar extrato<input type="file" accept=".xlsx,.xlsm" disabled={!canWrite || !selectedAccount || busy} onChange={(e) => storeStatement(e.target.files?.[0])} /></label></div></section>}
       {selectedModule === "bancaria" && tab === "saldos" && <BalancePanel companyId={companyId} competence={competence} accounts={accounts} canWrite={canWrite} userId={session.user.id} onNotice={setNotice} />}
       {selectedModule === "book" && <BookAccountingPanel companyCode={company?.empresas?.codcoligada ?? ""} companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`} competence={competence} accessToken={session.access_token} />}
-      {selectedModule !== "bancaria" && selectedModule !== "book" && <section className="panel module-workspace"><ActiveModuleIcon /><span className="eyebrow">MÓDULO SELECIONADO</span><h2>{activeModule.title}</h2><p>A empresa <b>{company?.empresas?.codcoligada} — {company?.empresas?.razao_social}</b> já está selecionada. Este espaço está preparado para receber as regras, contratos e relatórios deste módulo.</p><div className="coming-next"><Building2 /><div><b>Estrutura pronta para evolução</b><span>Empresa, competência e permissões já compartilham a mesma base da conciliação bancária.</span></div></div></section>}
+      {selectedModule === "receita" && <RevenueReconciliation companyCode={company?.empresas?.codcoligada ?? ""} companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`} competence={competence} accessToken={session.access_token} />}
+      {selectedModule !== "bancaria" && selectedModule !== "book" && selectedModule !== "receita" && <section className="panel module-workspace"><ActiveModuleIcon /><span className="eyebrow">MÓDULO SELECIONADO</span><h2>{activeModule.title}</h2><p>A empresa <b>{company?.empresas?.codcoligada} — {company?.empresas?.razao_social}</b> já está selecionada. Este espaço está preparado para receber as regras, contratos e relatórios deste módulo.</p><div className="coming-next"><Building2 /><div><b>Estrutura pronta para evolução</b><span>Empresa, competência e permissões já compartilham a mesma base da conciliação bancária.</span></div></div></section>}
     </main>
   </div>;
 }
