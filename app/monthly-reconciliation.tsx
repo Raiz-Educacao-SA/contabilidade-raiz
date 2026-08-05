@@ -86,8 +86,7 @@ export default function MonthlyReconciliationPanel({
   );
   const driveReady = driveFiles.length > 0;
   const accountingReady = accounting.length > 0;
-  const reconciliationReady =
-    driveReady && accountingReady && statements.length > 0;
+  const reconciliationReady = driveReady && accountingReady;
   const allRows = useMemo(
     () => results.flatMap((result) => result.rows),
     [results],
@@ -348,6 +347,10 @@ export default function MonthlyReconciliationPanel({
     if (!reconciliationReady)
       return setNotice(
         "Atualize os extratos e a base contábil antes de executar a conciliação.",
+      );
+    if (!statements.length)
+      return setNotice(
+        "As duas bases estão atualizadas, mas nenhum extrato foi vinculado automaticamente às contas contábeis. Revise os dados de agência e conta dos arquivos encontrados.",
       );
     const completed = reconcileStatements(statements);
     const reconciled = completed.filter(

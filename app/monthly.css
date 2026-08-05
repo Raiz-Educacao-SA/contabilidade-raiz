@@ -679,12 +679,12 @@
   color: var(--success);
 }
 .source-steps article button.source-loaded {
-  border-color: var(--success);
-  background: var(--success);
-  color: #fff;
+  border-color: var(--success) !important;
+  background: var(--success) !important;
+  color: #fff !important;
 }
 .source-steps article button.source-loaded:hover {
-  background: #14743d;
+  background: #14743d !important;
 }
 .source-step-number {
   position: absolute;
