@@ -166,7 +166,7 @@ export default function PisCofinsAssessment({
           <div className="spinner" />
           <b>
             {loading
-              ? "Atualizando a base fiscal..."
+              ? "Atualizando a base faturamento..."
               : "Classificando e calculando PIS e COFINS..."}
           </b>
           <span>Aguarde até o processamento ser concluído.</span>
@@ -250,7 +250,7 @@ export default function PisCofinsAssessment({
       ) : !classified ? (
         <div className="tax-empty">
           <Calculator />
-          <b>Base fiscal atualizada</b>
+          <b>Base faturamento atualizada</b>
           <span>
             Clique em Classificar para aplicar a matriz cumulativa e não
             cumulativa.
