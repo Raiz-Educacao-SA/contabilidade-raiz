@@ -33,6 +33,7 @@ export default function PisCofinsAssessment({
 }) {
   const [rows, setRows] = useState<RevenueRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [classified, setClassified] = useState(false);
   const [ignoredCancelled, setIgnoredCancelled] = useState(0);
@@ -84,6 +85,14 @@ export default function PisCofinsAssessment({
 
   const unclassified = rows.filter((row) => !row.regime);
 
+  function classify() {
+    setClassifying(true);
+    window.requestAnimationFrame(() => window.setTimeout(() => {
+      setClassified(true);
+      setClassifying(false);
+    }, 120));
+  }
+
   function exportExcel() {
     const data = rows.map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
@@ -110,7 +119,8 @@ export default function PisCofinsAssessment({
   }
 
   return (
-    <section className="panel tax-panel">
+    <section className={`panel tax-panel ${loading || classifying ? "is-processing" : ""}`}>
+      {(loading || classifying) && <div className="tax-processing"><div className="spinner" /><b>{loading ? "Atualizando a base fiscal..." : "Classificando e calculando PIS e COFINS..."}</b><span>Aguarde até o processamento ser concluído.</span></div>}
       <div className="tax-head">
         <div>
           <span className="eyebrow">APURAÇÃO DE PIS E COFINS</span>
@@ -122,8 +132,8 @@ export default function PisCofinsAssessment({
             <RefreshCw className={loading ? "spin" : ""} />
             {loading ? "Atualizando..." : "Atualizar base fiscal"}
           </button>
-          <button className={classified ? "tax-source-ready" : "tax-classify"} disabled={!loaded || loading} onClick={() => setClassified(true)}>
-            <Calculator /> Classificar
+          <button className={classified ? "tax-source-ready" : "tax-classify"} disabled={!loaded || loading || classifying} onClick={classify}>
+            <Calculator /> {classifying ? "Classificando..." : "Classificar"}
           </button>
           <button className="tax-export" disabled={!classified} onClick={exportExcel}>
             <Download /> Exportar Excel

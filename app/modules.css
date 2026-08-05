@@ -1209,3 +1209,9 @@
 .auth-check .spinner { margin: 0 auto 18px; }
 .auth-check h1 { font-size: 22px; }
 .auth-check p { margin-bottom: 0; }
+
+.tax-panel.is-processing { cursor: progress; }
+.tax-processing { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; background: rgba(245,247,251,.82); backdrop-filter: blur(2px); }
+.tax-processing .spinner { margin-bottom: 6px; }
+.tax-processing b { font-size: 15px; }
+.tax-processing span { font-size: 11px; color: var(--muted); }
