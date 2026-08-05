@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       const service = tag(record, "SERVICO_ED") || tag(record, "DESCRICAO") || tag(record, "NOMEFANTASIA1") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Serviço não informado pela consulta fiscal";
       const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
       const discounts = number(tag(record, "BOLSA"));
-      const netRevenue = number(tag(record, "VALORNF") || tag(record, "BASELIQUIDA")) || (grossRevenue - discounts);
+      const netRevenue = number(tag(record, "VALORNF"));
       return [{ line: index + 1, service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
     return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });

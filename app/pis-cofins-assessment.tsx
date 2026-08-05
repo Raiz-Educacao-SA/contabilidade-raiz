@@ -107,7 +107,7 @@ export default function PisCofinsAssessment({
         Classificação: row.regime,
         "Receita bruta": row.grossRevenue,
         "Bolsas/Descontos": row.discounts,
-        "Base líquida": row.netRevenue,
+        "Base NF (VALORNF)": row.netRevenue,
         "Alíquota PIS": rate?.pis ?? 0,
         PIS: rate ? row.netRevenue * rate.pis : 0,
         "Alíquota COFINS": rate?.cofins ?? 0,
@@ -166,7 +166,7 @@ export default function PisCofinsAssessment({
           {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} descrição(ões) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
           <div className="table-wrap tax-table">
             <table>
-              <thead><tr><th>Linha</th><th>Competência</th><th>Serviço (SERVICO_ED)</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
+              <thead><tr><th>Linha</th><th>Competência</th><th>Serviço (SERVICO_ED)</th><th>Classificação</th><th>Valor original</th><th>Bolsa</th><th>Base NF (VALORNF)</th><th>PIS</th><th>COFINS</th></tr></thead>
               <tbody>{rows.map((row) => {
                 const rate = row.regime ? rates[row.regime] : null;
                 return <tr key={row.line}><td>{row.line}</td><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;
@@ -175,7 +175,7 @@ export default function PisCofinsAssessment({
           </div>
         </>
       )}
-      <p className="tax-note">Cálculo preliminar sobre a receita líquida, antes de créditos, retenções e demais ajustes fiscais. A validação final permanece sob responsabilidade da área fiscal.</p>
+      <p className="tax-note">Cálculo realizado exclusivamente sobre o campo VALORNF da competência selecionada, antes de créditos, retenções e demais ajustes fiscais.</p>
     </section>
   );
 }
