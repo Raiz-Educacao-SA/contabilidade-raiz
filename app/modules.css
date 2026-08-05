@@ -1178,7 +1178,7 @@
 .tax-actions .tax-export { background: #168657; }
 .tax-actions .tax-source-ready { border-color: #168657; background: #168657; color: #fff; }
 .tax-actions .tax-classify:not(:disabled) { border-color: #6554e8; background: #6554e8; color: #fff; }
-.tax-summary { padding: 8px 18px; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 6px; background: #f8fafc; }
+.tax-summary { padding: 8px 18px; display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 6px; background: #f8fafc; }
 .tax-summary article { padding: 7px 9px; border: 1px solid #e2e7ee; border-radius: 9px; background: #fff; display: flex; flex-direction: column; gap: 2px; }
 .tax-summary span,.tax-summary small { font-size: 8px; color: var(--muted); }
 .tax-summary b { font-size: 10px; }

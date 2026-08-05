@@ -70,10 +70,10 @@ export async function GET(request: NextRequest) {
     const [year, month] = competence!.split("-").map(Number);
     const start = `${year}-${String(month).padStart(2, "0")}-01`;
     const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const records = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`)).filter((record) => tag(record, "CODCOLIGADA") === company);
+    const records = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`)).filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     let ignoredCancelled = 0;
     const rows = records.flatMap((record, index) => {
-      const status = tag(record, "STATUSNF") || tag(record, "STATUS");
+      const status = `${tag(record, "STATUSNF") || tag(record, "STATUS")} ${tag(record, "STATUSMATRICULA")}`;
       if (normalize(status).includes("CANCEL")) {
         ignoredCancelled += 1;
         return [];

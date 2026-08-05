@@ -50,6 +50,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 53.");
+      if (!payload.rows?.length) throw new Error("Nenhuma linha foi encontrada para a empresa e competência selecionadas.");
       setRows(payload.rows || []);
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
@@ -66,18 +67,20 @@ export default function PisCofinsAssessment({
       cumulativeBase: 0,
       nonCumulativeBase: 0,
       unclassifiedBase: 0,
-      pis: 0,
-      cofins: 0,
+      cumulativePis: 0,
+      cumulativeCofins: 0,
+      nonCumulativePis: 0,
+      nonCumulativeCofins: 0,
     };
     rows.forEach((row) => {
       if (row.regime === "Cumulativo") {
         result.cumulativeBase += row.netRevenue;
-        result.pis += row.netRevenue * rates.Cumulativo.pis;
-        result.cofins += row.netRevenue * rates.Cumulativo.cofins;
+        result.cumulativePis += row.netRevenue * rates.Cumulativo.pis;
+        result.cumulativeCofins += row.netRevenue * rates.Cumulativo.cofins;
       } else if (row.regime === "Não-Cumulativo") {
         result.nonCumulativeBase += row.netRevenue;
-        result.pis += row.netRevenue * rates["Não-Cumulativo"].pis;
-        result.cofins += row.netRevenue * rates["Não-Cumulativo"].cofins;
+        result.nonCumulativePis += row.netRevenue * rates["Não-Cumulativo"].pis;
+        result.nonCumulativeCofins += row.netRevenue * rates["Não-Cumulativo"].cofins;
       } else result.unclassifiedBase += row.netRevenue;
     });
     return result;
@@ -145,8 +148,10 @@ export default function PisCofinsAssessment({
         <article><span>Base cumulativa</span><b>{classified ? brl.format(totals.cumulativeBase) : "Aguardando"}</b><small>PIS 0,65% · COFINS 3%</small></article>
         <article><span>Base não cumulativa</span><b>{classified ? brl.format(totals.nonCumulativeBase) : "Aguardando"}</b><small>PIS 1,65% · COFINS 7,6%</small></article>
         <article className={classified && totals.unclassifiedBase ? "has-warning" : ""}><span>Sem classificação</span><b>{classified ? brl.format(totals.unclassifiedBase) : "—"}</b><small>{classified ? `${unclassified.length} descrição(ões)` : "Aguardando classificação"}</small></article>
-        <article><span>PIS calculado</span><b>{classified ? brl.format(totals.pis) : "—"}</b><small>Antes de créditos</small></article>
-        <article><span>COFINS calculada</span><b>{classified ? brl.format(totals.cofins) : "—"}</b><small>Antes de créditos</small></article>
+        <article><span>PIS cumulativo</span><b>{classified ? brl.format(totals.cumulativePis) : "—"}</b><small>0,65% da base cumulativa</small></article>
+        <article><span>COFINS cumulativo</span><b>{classified ? brl.format(totals.cumulativeCofins) : "—"}</b><small>3% da base cumulativa</small></article>
+        <article><span>PIS não cumulativo</span><b>{classified ? brl.format(totals.nonCumulativePis) : "—"}</b><small>1,65% da base não cumulativa</small></article>
+        <article><span>COFINS não cumulativo</span><b>{classified ? brl.format(totals.nonCumulativeCofins) : "—"}</b><small>7,6% da base não cumulativa</small></article>
       </div>
       {!loaded ? (
         <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>Cada linha será classificada pelo campo SERVICO_ED e pela competência.</span></div>
