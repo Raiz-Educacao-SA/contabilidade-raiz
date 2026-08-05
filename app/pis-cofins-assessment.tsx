@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
 type RevenueRow = {
+  line: number;
   service: string;
   grossRevenue: number;
   discounts: number;
@@ -88,6 +89,7 @@ export default function PisCofinsAssessment({
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Coligada: companyCode,
+        Linha: row.line,
         Competência: competenceLabel,
         Descrição: row.service,
         Classificação: row.regime,
@@ -102,7 +104,7 @@ export default function PisCofinsAssessment({
     });
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(data);
-    worksheet["!cols"] = [10, 13, 38, 20, 18, 18, 18, 15, 18, 18, 18].map((wch) => ({ wch }));
+    worksheet["!cols"] = [10, 8, 13, 38, 20, 18, 18, 18, 15, 18, 18, 18].map((wch) => ({ wch }));
     XLSX.utils.book_append_sheet(workbook, worksheet, "Apuração PIS COFINS");
     XLSX.writeFile(workbook, `pis-cofins-coligada-${companyCode}-${competence}.xlsx`);
   }
@@ -149,10 +151,10 @@ export default function PisCofinsAssessment({
           {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} descrição(ões) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
           <div className="table-wrap tax-table">
             <table>
-              <thead><tr><th>Competência</th><th>Descrição</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
+              <thead><tr><th>Linha</th><th>Competência</th><th>Descrição</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
               <tbody>{rows.map((row) => {
                 const rate = row.regime ? rates[row.regime] : null;
-                return <tr key={`${row.service}-${row.regime}`}><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;
+                return <tr key={row.line}><td>{row.line}</td><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;
               })}</tbody>
             </table>
           </div>

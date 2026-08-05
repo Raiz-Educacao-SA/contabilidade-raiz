@@ -63,21 +63,18 @@ export async function GET(request: NextRequest) {
     const start = `${year}-${String(month).padStart(2, "0")}-01`;
     const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
     const records = await query(`CODCOLIGADA=${company};DATAINI_D=${start};DATAFIM_D=${end}`);
-    const grouped = new Map<string, { service: string; grossRevenue: number; discounts: number }>();
     let ignoredCancelled = 0;
-    records.forEach((record) => {
-      const status = tag(record, "STATUS");
+    const rows = records.flatMap((record, index) => {
+      const status = tag(record, "STATUSNF") || tag(record, "STATUS");
       if (normalize(status).includes("CANCEL")) {
         ignoredCancelled += 1;
-        return;
+        return [];
       }
-      const service = tag(record, "DESCRICAO") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Descrição não informada pela consulta fiscal";
-      const current = grouped.get(normalize(service)) || { service, grossRevenue: 0, discounts: 0 };
-      current.grossRevenue += number(tag(record, "VALORORIGINAL"));
-      current.discounts += number(tag(record, "BOLSA"));
-      grouped.set(normalize(service), current);
+      const service = tag(record, "DESCRICAO") || tag(record, "NOMEFANTASIA1") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Descrição não informada pela consulta fiscal";
+      const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
+      const discounts = number(tag(record, "BOLSA"));
+      return [{ line: index + 1, service, grossRevenue, discounts, netRevenue: grossRevenue - discounts, regime: classification[normalize(service)] || "" }];
     });
-    const rows = [...grouped.values()].map((row) => ({ ...row, netRevenue: row.grossRevenue - row.discounts, regime: classification[normalize(row.service)] || "" })).sort((a, b) => a.service.localeCompare(b.service, "pt-BR"));
     return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });
   } catch (cause) {
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
