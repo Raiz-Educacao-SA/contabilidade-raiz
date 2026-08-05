@@ -4,7 +4,7 @@ import "./logo.css";
 import "./modules.css";
 import "./monthly.css";
 
-export const metadata: Metadata = { title: "Contabilidade Raiz", description: "Financeiro, compras e folha de pagamento em um único ambiente" };
+export const metadata: Metadata = { title: "Contabilidade Raiz", description: "Financeiro, compras, folha de pagamento e book contábil em um único ambiente" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="pt-BR"><body>{children}</body></html>;

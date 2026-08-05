@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { ArrowLeftRight, Building2, ChevronLeft, Download, FileSpreadsheet, HandCoins, Landmark, LogOut, Pin, Plus, ReceiptText, Save, ShoppingCart, TrendingUp, Upload, UsersRound, WalletCards, X } from "lucide-react";
+import { ArrowLeftRight, BookOpenCheck, Building2, ChevronLeft, Download, FileSpreadsheet, HandCoins, Landmark, LogOut, Pin, Plus, ReceiptText, Save, ShoppingCart, TrendingUp, Upload, UsersRound, WalletCards, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, supabase } from "@/lib/supabase";
 import { AccountingRow, BankMetadata, BankRow, MatchRow, brl, detectAccountingAccount, exportReport, parseAccounting, parseBank, reconcile } from "@/lib/reconciliation";
@@ -11,8 +11,8 @@ import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 type Company = { empresa_id: string; perfil: string; empresas: { id: string; codcoligada: string; razao_social: string; cnpj: string } | null };
 type Account = { id: string; banco: string; agencia: string; conta_bancaria: string; conta_contabil: string; descricao: string };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type Area = "financeiro" | "compras" | "folha";
-type Module = "bancaria" | "emprestimos" | "parcelamentos" | "receita" | "compras" | "folha";
+type Area = "financeiro" | "compras" | "folha" | "book";
+type Module = "bancaria" | "emprestimos" | "parcelamentos" | "receita" | "compras" | "folha" | "book";
 type PinnedReconciliation = { id: string; bankName: string; bankAccount: string; accountCode: string; accountName: string; rows: MatchRow[] };
 
 const modules = {
@@ -22,12 +22,14 @@ const modules = {
   receita: { title: "Conciliação de Receita", description: "Receitas reconhecidas, recebimentos, baixas e diferenças por empresa.", icon: TrendingUp },
   compras: { title: "Compras", description: "Solicitações, pedidos, fornecedores e acompanhamento das aquisições.", icon: ShoppingCart },
   folha: { title: "Folha de Pagamento", description: "Conferências, encargos, provisões e rotinas da folha de pagamento.", icon: UsersRound },
+  book: { title: "Book Contábil", description: "Consolidação dos módulos e visão final para realização do fechamento contábil.", icon: BookOpenCheck },
 } as const;
 
 const areas = {
   financeiro: { title: "Financeiro", description: "Conciliações bancárias, receitas, empréstimos, parcelamentos e controles financeiros.", icon: WalletCards },
   compras: modules.compras,
   folha: modules.folha,
+  book: modules.book,
 } as const;
 
 const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -71,7 +73,7 @@ export default function Home() {
 
   if (loading) return <main className="center"><div className="spinner" /></main>;
   if (!configured) return <main className="center"><section className="login-card"><h1>Configuração incompleta</h1><p>Cadastre NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY na Vercel.</p></section></main>;
-  if (!session) return <main className="center"><form className="login-card" onSubmit={login}><Image className="brand-logo" src="/logo-raiz.png" alt="Raiz Educação" width={118} height={118} priority /><span className="eyebrow">CONTABILIDADE CORPORATIVA</span><h1>Contabilidade Raiz</h1><p>Financeiro, compras e folha de pagamento em um único ambiente.</p><label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label><label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>{notice && <div className="notice error">{notice}</div>}<button className="primary" type="submit">Entrar</button></form></main>;
+  if (!session) return <main className="center"><form className="login-card" onSubmit={login}><Image className="brand-logo" src="/logo-raiz.png" alt="Raiz Educação" width={118} height={118} priority /><span className="eyebrow">CONTABILIDADE CORPORATIVA</span><h1>Contabilidade Raiz</h1><p>Financeiro, compras, folha de pagamento e fechamento contábil em um único ambiente.</p><label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label><label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>{notice && <div className="notice error">{notice}</div>}<button className="primary" type="submit">Entrar</button></form></main>;
   if (!companies.length) return <main className="center"><section className="login-card"><h1>Usuário sem empresa vinculada</h1><p>Vincule o usuário a uma empresa no Supabase para continuar.</p><button onClick={() => supabase.auth.signOut()}>Sair</button></section></main>;
   if (!selectedArea) return <AreaHub email={session.user.email ?? ""} onSelect={(area) => { setSelectedArea(area); setSelectedModule(area === "financeiro" ? null : area); }} onLogout={() => supabase.auth.signOut()} />;
   if (selectedArea === "financeiro" && !selectedModule) return <FinancialHub email={session.user.email ?? ""} onSelect={setSelectedModule} onBack={() => setSelectedArea(null)} onLogout={() => supabase.auth.signOut()} />;
@@ -89,7 +91,8 @@ export default function Home() {
       {selectedModule === "bancaria" && tab === "contas" && <section className="panel"><div className="panel-title"><div><h2>Contas bancárias</h2><p>Cadastre o vínculo entre banco e conta contábil.</p></div></div><div className="cards-list">{accounts.map((item) => <article key={item.id}><Landmark /><div><b>{item.banco} · {item.conta_bancaria}</b><span>Ag. {item.agencia} · Contábil {item.conta_contabil}</span></div></article>)}</div><form className="form-grid account-form" onSubmit={saveAccount}>{Object.keys(newAccount).map((key) => <label key={key}>{key.replaceAll("_", " ")}<input value={newAccount[key as keyof typeof newAccount]} onChange={(e) => setNewAccount({ ...newAccount, [key]: e.target.value })} /></label>)}<button className="primary" disabled={!canWrite || busy}><Plus />Cadastrar conta</button></form></section>}
       {selectedModule === "bancaria" && tab === "extratos" && <section className="panel"><h2>Armazenar extratos</h2><p>Os arquivos ficam no bucket privado do Supabase, organizados por empresa e competência.</p><div className="upload-box"><Upload /><label>Selecionar extrato<input type="file" accept=".xlsx,.xlsm" disabled={!canWrite || !selectedAccount || busy} onChange={(e) => storeStatement(e.target.files?.[0])} /></label></div></section>}
       {selectedModule === "bancaria" && tab === "saldos" && <BalancePanel companyId={companyId} competence={competence} accounts={accounts} canWrite={canWrite} userId={session.user.id} onNotice={setNotice} />}
-      {selectedModule !== "bancaria" && <section className="panel module-workspace"><ActiveModuleIcon /><span className="eyebrow">MÓDULO SELECIONADO</span><h2>{activeModule.title}</h2><p>A empresa <b>{company?.empresas?.codcoligada} — {company?.empresas?.razao_social}</b> já está selecionada. Este espaço está preparado para receber as regras, contratos e relatórios deste módulo.</p><div className="coming-next"><Building2 /><div><b>Estrutura pronta para evolução</b><span>Empresa, competência e permissões já compartilham a mesma base da conciliação bancária.</span></div></div></section>}
+      {selectedModule === "book" && <section className="panel module-workspace book-workspace"><ActiveModuleIcon /><span className="eyebrow">FECHAMENTO CONTÁBIL</span><h2>Book Contábil</h2><p>Esta área consolidará os resultados da empresa <b>{company?.empresas?.codcoligada} — {company?.empresas?.razao_social}</b> para o fechamento da competência selecionada.</p><div className="book-sources"><article><WalletCards /><div><b>Financeiro</b><span>Aguardando resultados das conciliações financeiras</span></div></article><article><ShoppingCart /><div><b>Compras</b><span>Aguardando conferências e posição das compras</span></div></article><article><UsersRound /><div><b>Folha de Pagamento</b><span>Aguardando conferências, provisões e encargos</span></div></article></div><div className="coming-next"><BookOpenCheck /><div><b>Book preparado para consolidação</b><span>Os indicadores e documentos de fechamento serão alimentados automaticamente após a conclusão dos demais módulos.</span></div></div></section>}
+      {selectedModule !== "bancaria" && selectedModule !== "book" && <section className="panel module-workspace"><ActiveModuleIcon /><span className="eyebrow">MÓDULO SELECIONADO</span><h2>{activeModule.title}</h2><p>A empresa <b>{company?.empresas?.codcoligada} — {company?.empresas?.razao_social}</b> já está selecionada. Este espaço está preparado para receber as regras, contratos e relatórios deste módulo.</p><div className="coming-next"><Building2 /><div><b>Estrutura pronta para evolução</b><span>Empresa, competência e permissões já compartilham a mesma base da conciliação bancária.</span></div></div></section>}
     </main>
   </div>;
 }
