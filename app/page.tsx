@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { ArrowLeftRight, BookOpenCheck, Building2, ChevronLeft, Download, FileSpreadsheet, HandCoins, Landmark, LogOut, Pin, Plus, ReceiptText, Save, ShoppingCart, SlidersHorizontal, TrendingUp, Upload, UsersRound, WalletCards, X } from "lucide-react";
+import { ArrowLeftRight, BookOpenCheck, BookText, Building2, ChevronLeft, Download, FileSpreadsheet, HandCoins, Landmark, LogOut, Pin, Plus, ReceiptText, Save, ShoppingCart, SlidersHorizontal, TrendingUp, Upload, UsersRound, WalletCards, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, supabase } from "@/lib/supabase";
 import { AccountingRow, BankMetadata, BankRow, MatchRow, brl, detectAccountingAccount, exportReport, parseAccounting, parseBank, reconcile } from "@/lib/reconciliation";
@@ -12,8 +12,8 @@ import BookAccountingPanel from "@/app/book-accounting";
 type Company = { empresa_id: string; perfil: string; empresas: { id: string; codcoligada: string; razao_social: string; cnpj: string } | null };
 type Account = { id: string; banco: string; agencia: string; conta_bancaria: string; conta_contabil: string; descricao: string };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type Area = "financeiro" | "compras" | "folha" | "book";
-type Module = "bancaria" | "emprestimos" | "parcelamentos" | "receita" | "compras" | "folha" | "book";
+type Area = "financeiro" | "compras" | "folha" | "contabil" | "book";
+type Module = "bancaria" | "emprestimos" | "parcelamentos" | "receita" | "compras" | "folha" | "contabil" | "book";
 type PinnedReconciliation = { id: string; bankName: string; bankAccount: string; accountCode: string; accountName: string; rows: MatchRow[] };
 
 const modules = {
@@ -23,14 +23,16 @@ const modules = {
   receita: { title: "Conciliação de Receita", description: "Receitas reconhecidas, recebimentos, baixas e diferenças por empresa.", icon: TrendingUp },
   compras: { title: "Compras", description: "Solicitações, pedidos, fornecedores e acompanhamento das aquisições.", icon: ShoppingCart },
   folha: { title: "Folha de Pagamento", description: "Conferências, encargos, provisões e rotinas da folha de pagamento.", icon: UsersRound },
+  contabil: { title: "Contábil", description: "Lançamentos, análises, integrações e conferências das rotinas contábeis.", icon: BookText },
   book: { title: "Book Contábil", description: "Consolidação dos módulos e visão final para realização do fechamento contábil.", icon: BookOpenCheck },
 } as const;
 
 const areas = {
-  financeiro: { title: "Financeiro", description: "Conciliações bancárias, receitas, empréstimos, parcelamentos e controles financeiros.", icon: WalletCards },
-  compras: modules.compras,
-  folha: modules.folha,
-  book: modules.book,
+  financeiro: { title: "Módulo Financeiro", description: "Conciliações bancárias, receitas, empréstimos, parcelamentos e controles financeiros.", icon: WalletCards },
+  compras: { ...modules.compras, title: "Módulo Compras" },
+  folha: { ...modules.folha, title: "Módulo Folha de Pagamento" },
+  contabil: { ...modules.contabil, title: "Módulo Contábil" },
+  book: { ...modules.book, title: "Módulo Book Contábil" },
 } as const;
 
 const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
