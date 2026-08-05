@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, CheckCircle2, Download, FileSpreadsheet, Landmark, Trash2, Upload, XCircle } from "lucide-react";
-import { AccountingAccount, AccountingRow, BankMetadata, BankRow, MatchRow, accountingBankAccounts, brl, detectAccountingAccount, exportReport, parseAccounting, parseBank, reconcile, validateMonthly } from "@/lib/reconciliation";
+import { ArrowLeftRight, CheckCircle2, Database, Download, Landmark, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { AccountingAccount, AccountingRow, BankMetadata, BankRow, MatchRow, accountingBankAccounts, brl, detectAccountingAccount, exportReport, parseBank, reconcile, validateMonthly } from "@/lib/reconciliation";
 
 type RegisteredAccount = { agencia: string; conta_bancaria: string; conta_contabil: string };
 type Statement = { fileName: string; account: AccountingAccount; bank: BankRow[]; metadata: BankMetadata };
 type AccountResult = Statement & { rows: MatchRow[]; validation: ReturnType<typeof validateMonthly>; competence: string };
+type DriveStatement = { id: string; name: string; path: string; mimeType: string; modifiedTime?: string; size?: string };
 
 export default function MonthlyReconciliationPanel({ accounts, competence, companyId, companyName, reconciledBy }: { accounts: RegisteredAccount[]; competence: string; companyId: string; companyName: string; reconciledBy: string }) {
   const [accounting, setAccounting] = useState<AccountingRow[]>([]);
@@ -14,10 +15,15 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
   const [statements, setStatements] = useState<Statement[]>([]);
   const [results, setResults] = useState<AccountResult[]>([]);
   const [notice, setNotice] = useState("");
-  const [fileKey, setFileKey] = useState(0);
+  const [driveFiles, setDriveFiles] = useState<DriveStatement[]>([]);
+  const [driveBusy, setDriveBusy] = useState(false);
+  const [accountingBusy, setAccountingBusy] = useState(false);
+  const [accountingMessage, setAccountingMessage] = useState("Aguardando atualização no TOTVS");
   const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
   const pending = bankAccounts.filter((account) => !statements.some((statement) => statement.account.code === account.code));
   const allRows = useMemo(() => results.flatMap((result) => result.rows), [results]);
+  const divergentResults = useMemo(() => results.filter((result) => !result.validation.reconciled), [results]);
+  const reconciledCount = results.length - divergentResults.length;
 
   useEffect(() => {
     const stored = localStorage.getItem(historyKey);
@@ -43,29 +49,58 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
     localStorage.removeItem(historyKey); setResults([]); setNotice("Histórico da última conciliação removido.");
   }
 
-  async function loadAccounting(file?: File) {
-    if (!file) return;
+  async function refreshAccounting() {
+    setAccountingBusy(true);
     try {
-      const rows = parseAccounting(await file.arrayBuffer());
+      const response = await fetch(`/api/totvs/accounting?company=${encodeURIComponent(companyId)}&competence=${encodeURIComponent(competence)}`, { cache: "no-store" });
+      const data = await response.json() as { rows?: AccountingRow[]; error?: string; warning?: string };
+      if (!response.ok || data.error) throw new Error(data.error || "Não foi possível consultar a Planilha 18 no TOTVS.");
+      const rows = (data.rows || []).map((row) => ({ ...row, date: new Date(row.date) }));
       const discovered = accountingBankAccounts(rows);
-      setAccounting(rows); setBankAccounts(discovered); setStatements([]); setFileKey((value) => value + 1);
-      setNotice(`${discovered.length} conta(s) bancária(s) encontrada(s). Anexe os extratos diretamente em cada conta, na ordem que desejar.`);
-    } catch (error) { setNotice((error as Error).message); }
+      setAccounting(rows); setBankAccounts(discovered); setStatements([]);
+      setAccountingMessage(`${discovered.length} conta(s) carregada(s) da Planilha 18`);
+      setNotice(data.warning || `Base contábil atualizada: ${discovered.length} conta(s) bancária(s) encontrada(s) no TOTVS.`);
+    } catch (error) {
+      const message = (error as Error).message;
+      setAccountingMessage("Aguardando permissão de leitura no TOTVS");
+      setNotice(message);
+    } finally { setAccountingBusy(false); }
   }
 
-  async function loadStatement(expectedAccount: AccountingAccount, file?: File) {
-    if (!file || !accounting.length) return;
+  async function scanDrive() {
+    setDriveBusy(true); setDriveFiles([]);
     try {
-      const parsed = parseBank(await file.arrayBuffer());
-      const detected = detectAccountingAccount(accounting, parsed.metadata, file.name, accounts);
-      if (detected && detected.code !== expectedAccount.code) throw new Error(`Este extrato pertence à conta ${detected.code}, mas foi inserido na conta ${expectedAccount.code}.`);
-      const account = expectedAccount;
-      if (statements.some((item) => item.account.code === account.code)) throw new Error(`O extrato da conta ${account.code} já foi anexado.`);
-      const updated = [...statements, { fileName: file.name, account, bank: parsed.rows, metadata: parsed.metadata }];
-      setStatements(updated); setFileKey((value) => value + 1);
-      const remaining = bankAccounts.length - updated.length;
-      setNotice(remaining ? `Extrato da conta ${account.code} carregado. Faltam ${remaining} extrato(s).` : "Todos os extratos foram carregados. Execute a conciliação mensal completa.");
-    } catch (error) { setNotice((error as Error).message); setFileKey((value) => value + 1); }
+      const response = await fetch(`/api/drive/statements?company=${encodeURIComponent(companyName)}&competence=${encodeURIComponent(competence)}`, { cache: "no-store" });
+      const data = await response.json() as { files?: DriveStatement[]; error?: string; warning?: string; companyFolder?: string };
+      if (!response.ok || data.error) throw new Error(data.error || "Não foi possível revisar o Google Drive.");
+      const located = data.files || []; setDriveFiles(located);
+      if (!accounting.length) return setNotice(data.warning || `${located.length} arquivo(s) localizado(s). Carregue a base contábil para o sistema identificar as contas automaticamente.`);
+      const groups = new Map<string, Statement>(); let parsedFiles = 0;
+      for (const item of located.filter((file) => /\.(xlsx|xls|xlsm|csv|txt)$/i.test(file.name)).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { numeric: true }))) {
+        try {
+          const fileResponse = await fetch(`/api/drive/statements?fileId=${encodeURIComponent(item.id)}`, { cache: "no-store" });
+          if (!fileResponse.ok) continue;
+          const parsed = parseBank(await fileResponse.arrayBuffer());
+          const detected = detectAccountingAccount(accounting, parsed.metadata, item.name, accounts);
+          if (!detected) continue;
+          const accountingAccount = bankAccounts.find((account) => account.code === detected.code);
+          if (!accountingAccount) continue;
+          parsedFiles += 1;
+          const current = groups.get(detected.code);
+          if (!current) groups.set(detected.code, { fileName: item.name, account: accountingAccount, bank: parsed.rows, metadata: parsed.metadata });
+          else {
+            const seen = new Set(current.bank.map((row) => `${row.date.toISOString().slice(0, 10)}|${row.value}|${row.description.trim().toUpperCase()}`));
+            const additional = parsed.rows.filter((row) => !seen.has(`${row.date.toISOString().slice(0, 10)}|${row.value}|${row.description.trim().toUpperCase()}`));
+            current.bank.push(...additional); current.bank.sort((a, b) => a.date.getTime() - b.date.getTime());
+            current.fileName = `${current.fileName} + ${item.name}`;
+            current.metadata = { ...current.metadata, agency: current.metadata.agency || parsed.metadata.agency, account: current.metadata.account || parsed.metadata.account, period: parsed.metadata.period || current.metadata.period, closingBalance: parsed.metadata.closingBalance ?? current.metadata.closingBalance };
+          }
+        } catch { /* arquivo não reconhecido permanece na lista para revisão */ }
+      }
+      const identified = Array.from(groups.values()); setStatements(identified);
+      setNotice(data.warning || `${located.length} arquivo(s) localizado(s), ${parsedFiles} planilha(s) processada(s) e ${identified.length} conta(s) identificada(s) automaticamente.`);
+    } catch (error) { setNotice((error as Error).message); }
+    finally { setDriveBusy(false); }
   }
 
   function reconcileStatements(selected: Statement[]) {
@@ -92,10 +127,12 @@ export default function MonthlyReconciliationPanel({ accounts, competence, compa
   return <section className="panel monthly-flow">
     <div className="panel-title"><div><h2>Conciliação mensal por movimento</h2><p>Concilie cada conta assim que o extrato chegar ou execute todas juntas ao final.</p></div><div className="history-actions"><button className="secondary" disabled={!allRows.length} onClick={() => exportReport(allRows, `conciliacao_mensal_${competence}`)}><Download />Relatório consolidado</button><button className="clear-history" disabled={!results.length} onClick={clearHistory}><Trash2 />Limpar histórico</button></div></div>
     {notice && <div className="notice">{notice}</div>}
-    <div className="accounting-upload"><FileSpreadsheet /><label>1. Carregar planilha contábil<input type="file" accept=".xlsx,.xlsm" onChange={(event) => loadAccounting(event.target.files?.[0])} /></label></div>
-    {bankAccounts.length > 0 && <><div className="queue-head"><div><h3>2. Extratos por conta</h3><p>Anexe os extratos em qualquer ordem. Concilie individualmente ou execute todas ao final.</p></div><b>{statements.length}/{bankAccounts.length} recebidos</b></div><div className="account-queue">{bankAccounts.map((account) => { const statement = statements.find((item) => item.account.code === account.code); const reconciled = results.some((item) => item.account.code === account.code); return <article key={account.code} className={statement ? "received" : "requested"}><span className="account-state">{statement ? <CheckCircle2 /> : <Landmark />}</span><div><b>{account.code} — {account.name}</b><small>{statement ? `${reconciled ? "Conciliação salva" : "Extrato recebido"}: ${statement.fileName}` : "Aguardando extrato desta conta"}</small></div>{!statement && <label className="inline-upload" title={`Inserir extrato da conta ${account.code}`}><Upload /><span>Inserir extrato</span><input key={`${fileKey}-${account.code}`} type="file" accept=".xlsx,.xlsm" onChange={(event) => loadStatement(account, event.target.files?.[0])} /></label>}{statement && <button className="reconcile-one" onClick={() => runOne(statement)}><ArrowLeftRight />{reconciled ? "Conciliar novamente" : "Conciliar esta conta"}</button>}</article>; })}</div></>}
-    {bankAccounts.length > 0 && <button className="primary run-all" disabled={pending.length > 0} onClick={runAll}><ArrowLeftRight />Conciliar todas as contas do mês</button>}
-    {results.length > 0 && <div className="saved-history"><div><span>HISTÓRICO MANTIDO</span><h3>Última conciliação — {competence.split("-").reverse().join("/")}</h3><p>Este resultado permanecerá salvo até você clicar em “Limpar histórico”.</p></div></div>}{results.length > 0 && <div className="monthly-results">{results.map((result) => <MonthlyAccountResult key={result.account.code} result={result} companyName={companyName} reconciledBy={reconciledBy} />)}</div>}
+    <div className="source-control"><div className="source-control-title"><span>ATUALIZAÇÃO DAS FONTES</span><h3>Preparar a conciliação</h3><p>Atualize os extratos e a base contábil antes de executar a conferência do mês.</p></div><div className="source-steps"><article className={driveFiles.length ? "ready" : "waiting"}><div className="source-step-number">1</div><Landmark /><div><b>Extratos bancários</b><span>{driveBusy ? "Verificando a pasta oficial..." : driveFiles.length ? `${driveFiles.length} arquivo(s) encontrado(s) no Drive` : "Aguardando atualização do Drive"}</span></div><button className="secondary" disabled={driveBusy} onClick={scanDrive}><RefreshCw className={driveBusy ? "spinning" : ""} />{driveBusy ? "Atualizando..." : "Atualizar extratos"}</button></article><article className={accounting.length ? "ready" : "waiting"}><div className="source-step-number">2</div><Database /><div><b>Base contábil</b><span>{accountingBusy ? "Consultando a Planilha 18..." : accountingMessage}</span></div><button className="secondary" disabled={accountingBusy} onClick={refreshAccounting}><RefreshCw className={accountingBusy ? "spinning" : ""} />{accountingBusy ? "Atualizando..." : "Atualizar contábil"}</button></article><article className={results.length ? "ready reconcile-step" : "waiting reconcile-step"}><div className="source-step-number">3</div><ArrowLeftRight /><div><b>Conciliação automática</b><span>{results.length ? `${reconciledCount} conciliada(s) e ${divergentResults.length} com divergência` : "Compara extrato × contábil por conta e por dia"}</span></div><button className="primary" disabled={!bankAccounts.length || pending.length > 0} onClick={runAll}><ArrowLeftRight />Conciliar agora</button></article></div></div>
+    {driveFiles.length > 0 && <div className="drive-files">{driveFiles.map((file) => <article key={file.id}><Landmark /><div><b>{file.name}</b><span>{file.path}</span></div></article>)}</div>}
+    {bankAccounts.length > 0 && <><div className="queue-head"><div><h3>2. Extratos por conta</h3><p>Os arquivos encontrados no Drive serão identificados e vinculados às contas desta competência.</p></div><b>{statements.length}/{bankAccounts.length} identificados</b></div><div className="account-queue">{bankAccounts.map((account) => { const statement = statements.find((item) => item.account.code === account.code); const reconciled = results.some((item) => item.account.code === account.code); return <article key={account.code} className={statement ? "received" : "requested"}><span className="account-state">{statement ? <CheckCircle2 /> : <Landmark />}</span><div><b>{account.code} — {account.name}</b><small>{statement ? `${reconciled ? "Conciliação salva" : "Extrato identificado"}: ${statement.fileName}` : "Aguardando identificação automática no Drive"}</small></div>{statement && <button className="reconcile-one" onClick={() => runOne(statement)}><ArrowLeftRight />{reconciled ? "Conciliar novamente" : "Conciliar esta conta"}</button>}</article>; })}</div></>}
+    {results.length > 0 && <div className="saved-history"><div><span>HISTÓRICO MANTIDO</span><h3>Última conciliação — {competence.split("-").reverse().join("/")}</h3><p>{reconciledCount} conta(s) conciliada(s). Somente as {divergentResults.length} conta(s) com divergência aparecem abaixo para tratamento.</p></div></div>}
+    {results.length > 0 && divergentResults.length === 0 && <div className="all-reconciled"><CheckCircle2 /><div><b>Todas as contas estão conciliadas</b><span>Nenhuma ficha de tratamento foi aberta para esta competência.</span></div></div>}
+    {divergentResults.length > 0 && <><div className="exceptions-title"><span>TRATAMENTO DE DIVERGÊNCIAS</span><h3>Contas que precisam de análise</h3></div><div className="monthly-results">{divergentResults.map((result) => <MonthlyAccountResult key={result.account.code} result={result} companyName={companyName} reconciledBy={reconciledBy} />)}</div></>}
   </section>;
 }
 

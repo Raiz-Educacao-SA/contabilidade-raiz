@@ -23,9 +23,13 @@ const primitive = (value: unknown): unknown => {
 const asNumber = (raw: unknown) => {
   const value = primitive(raw);
   if (typeof value === "number") return value;
-  const text = String(value ?? "").replace(/\s/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
+  const original = String(value ?? "").trim();
+  const debitSuffix = /D\*?$/i.test(original); const creditSuffix = /C\*?$/i.test(original);
+  const parentheses = /^\(.*\)$/.test(original);
+  const text = original.replace(/[CD*()]/gi, "").replace(/[^\d,.-]/g, "").replace(/\s/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
   const number = Number(text);
-  return Number.isFinite(number) ? number : 0;
+  if (!Number.isFinite(number)) return 0;
+  return debitSuffix || parentheses ? -Math.abs(number) : creditSuffix ? Math.abs(number) : number;
 };
 const asDate = (raw: unknown) => {
   const value = primitive(raw);
@@ -34,6 +38,8 @@ const asDate = (raw: unknown) => {
     const parsed = XLSX.SSF.parse_date_code(value);
     return parsed ? new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d)) : new Date(NaN);
   }
+  const compact = String(value ?? "").replace(/\D/g, "");
+  if (/^\d{8}$/.test(compact) && Number(compact.slice(0, 4)) >= 1900) return new Date(Date.UTC(Number(compact.slice(0, 4)), Number(compact.slice(4, 6)) - 1, Number(compact.slice(6, 8))));
   const parts = String(value ?? "").split(/[\/\-]/).map(Number);
   if (parts.length === 3 && parts[0] <= 31) return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0]));
   return new Date(String(value ?? ""));
@@ -104,18 +110,23 @@ export function parseAccounting(buffer: ArrayBuffer) {
 
 export function parseBank(buffer: ArrayBuffer): ParsedBank {
   for (const { rows } of rowsFromWorkbook(buffer)) {
-    const header = headerIndex(rows, ["DATA", "LANCAMENTO", "VALOR"]);
+    const header = headerIndex(rows, ["DATA", "LANCAMENTO", "HISTORICO", "VALOR", "CREDITO", "DEBITO"]);
     if (header < 0) continue;
     const names = rows[header].map(normalize);
-    const date = names.findIndex((n) => n === "DATA");
+    const date = names.findIndex((n) => n === "DATA" || n.startsWith("DATA ") || n.includes("DATA_MOV"));
     const description = names.findIndex((n) => ["LANCAMENTO", "HISTORICO", "DESCRICAO"].some((term) => n.includes(term)));
     const value = names.findIndex((n) => n.includes("VALOR") && !n.includes("SALDO"));
-    if ([date, description, value].some((index) => index < 0)) continue;
+    const credit = names.findIndex((n) => n.includes("CREDITO"));
+    const debit = names.findIndex((n) => n.includes("DEBITO"));
+    const nature = names.findIndex((n) => n.includes("DEB_CRED") || n === "NATUREZA");
+    if (date < 0 || description < 0 || (value < 0 && credit < 0 && debit < 0)) continue;
     const output = rows.slice(header + 1).flatMap((row, index) => {
       const parsedDate = asDate(row[date]);
-      const amount = asNumber(row[value]);
+      let amount = value >= 0 ? asNumber(row[value]) : Math.abs(asNumber(row[credit])) - Math.abs(asNumber(row[debit]));
+      if (nature >= 0 && normalize(row[nature]).startsWith("D")) amount = -Math.abs(amount);
+      if (nature >= 0 && normalize(row[nature]).startsWith("C")) amount = Math.abs(amount);
       const text = String(row[description] ?? "").trim();
-      const ignored = ["SALDO ANTERIOR", "SALDO TOTAL", "SALDO DISPONIVEL", "SALDO DO DIA"].some((term) => normalize(text).includes(term));
+      const ignored = ["SALDO ANTERIOR", "SALDO TOTAL", "SALDO DISPONIVEL", "SALDO DO DIA", "SALDO INVEST FACIL", "ULTIMOS LANCAMENTOS", "TOTAL"].some((term) => normalize(text).includes(term));
       return Number.isNaN(parsedDate.getTime()) || Math.abs(amount) <= 0.004 || ignored ? [] : [{ id: `B${index + 1}`, date: parsedDate, description: text, value: Math.round(amount * 100) / 100 }];
     });
     if (output.length) return { rows: output, metadata: bankMetadata(rows) };
