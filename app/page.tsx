@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   HandCoins,
   Landmark,
+  ListTree,
   LogOut,
   Pin,
   Plus,
@@ -64,6 +65,7 @@ type Account = {
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "irpj-csll" | "rateio-csc" | "intercompany";
+type BookReport = "balancete" | "razao" | "plano-contas";
 type Area = "financeiro" | "compras" | "folha" | "contabil" | "book";
 type Module =
   | "bancaria"
@@ -172,6 +174,7 @@ export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [tab, setTab] = useState<Tab>("conciliacao");
   const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
+  const [bookReport, setBookReport] = useState<BookReport>("balancete");
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
@@ -560,6 +563,27 @@ export default function Home() {
             ))}
           </nav>
         )}
+        {selectedModule === "book" && (
+          <nav className="book-base-nav">
+            <span>Relatórios Base</span>
+            {(
+              [
+                { id: "balancete", label: "Balancete", icon: FileSpreadsheet },
+                { id: "razao", label: "Razão", icon: BookText },
+                { id: "plano-contas", label: "Plano de Contas", icon: ListTree },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={bookReport === id ? "active" : ""}
+                onClick={() => setBookReport(id)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
         <button className="logout" onClick={() => supabase.auth.signOut()}>
           <LogOut />
           Sair
@@ -732,6 +756,7 @@ export default function Home() {
         )}
         {selectedModule === "book" && (
           <BookAccountingPanel
+            report={bookReport}
             companyCode={company?.empresas?.codcoligada ?? ""}
             companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
             competence={competence}
