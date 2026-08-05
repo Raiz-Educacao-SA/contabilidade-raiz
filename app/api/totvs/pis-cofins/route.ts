@@ -27,6 +27,14 @@ const classification: Record<string, "Cumulativo" | "Não-Cumulativo"> = {
 };
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/ª/g, "A").toUpperCase();
+const classifyService = (value: string): "Cumulativo" | "Não-Cumulativo" | "" => {
+  const service = normalize(value);
+  if (classification[service]) return classification[service];
+  if (["PRE-VESTIBULAR", "PRE VESTIBULAR", "ESCOLINHA", "ATIVIDADE EXTRA", "HIGH SCHOOL", "ORIENTACAO PEDAGOGICA"].some((term) => service.includes(term))) return "Não-Cumulativo";
+  if (service.includes("ANUIDADE") && service.includes("HORARIO INTEGRAL")) return "Não-Cumulativo";
+  if (["BERCARIO", "CRECHE", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "HORARIO INTEGRAL"].some((term) => service.includes(term))) return "Cumulativo";
+  return "";
+};
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const decodeXml = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, name: string) => decodeXml(xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() || "");
@@ -70,10 +78,10 @@ export async function GET(request: NextRequest) {
         ignoredCancelled += 1;
         return [];
       }
-      const service = tag(record, "DESCRICAO") || tag(record, "NOMEFANTASIA1") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Descrição não informada pela consulta fiscal";
+      const service = tag(record, "SERVICO_ED") || tag(record, "DESCRICAO") || tag(record, "NOMEFANTASIA1") || tag(record, "DESCRICAOSERVICO") || tag(record, "DESCSERVICO") || tag(record, "NOMESERVICO") || tag(record, "SERVICO") || "Serviço não informado pela consulta fiscal";
       const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
       const discounts = number(tag(record, "BOLSA"));
-      return [{ line: index + 1, service, grossRevenue, discounts, netRevenue: grossRevenue - discounts, regime: classification[normalize(service)] || "" }];
+      return [{ line: index + 1, service, grossRevenue, discounts, netRevenue: grossRevenue - discounts, regime: classifyService(service) }];
     });
     return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });
   } catch (cause) {

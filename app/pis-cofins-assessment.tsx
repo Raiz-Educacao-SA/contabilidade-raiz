@@ -91,7 +91,7 @@ export default function PisCofinsAssessment({
         Coligada: companyCode,
         Linha: row.line,
         Competência: competenceLabel,
-        Descrição: row.service,
+        "Serviço (SERVICO_ED)": row.service,
         Classificação: row.regime,
         "Receita bruta": row.grossRevenue,
         "Bolsas/Descontos": row.discounts,
@@ -115,7 +115,7 @@ export default function PisCofinsAssessment({
         <div>
           <span className="eyebrow">APURAÇÃO DE PIS E COFINS</span>
           <h2>{companyName}</h2>
-          <p>Planilha.NET 53 · competência {competenceLabel} · classificação pelo campo descrição</p>
+          <p>Planilha.NET 53 · competência {competenceLabel} · classificação pelo campo SERVICO_ED</p>
         </div>
         <div className="tax-actions">
           <button className={loaded ? "tax-source-ready" : ""} disabled={loading || !companyCode} onClick={() => void update()}>
@@ -139,7 +139,7 @@ export default function PisCofinsAssessment({
         <article><span>COFINS calculada</span><b>{classified ? brl.format(totals.cofins) : "—"}</b><small>Antes de créditos</small></article>
       </div>
       {!loaded ? (
-        <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>As receitas serão agrupadas pelo campo descrição e competência.</span></div>
+        <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>Cada linha será classificada pelo campo SERVICO_ED e pela competência.</span></div>
       ) : !classified ? (
         <div className="tax-empty"><Calculator /><b>Base fiscal atualizada</b><span>Clique em Classificar para aplicar a matriz cumulativa e não cumulativa.</span></div>
       ) : (
@@ -151,7 +151,7 @@ export default function PisCofinsAssessment({
           {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} descrição(ões) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}
           <div className="table-wrap tax-table">
             <table>
-              <thead><tr><th>Linha</th><th>Competência</th><th>Descrição</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
+              <thead><tr><th>Linha</th><th>Competência</th><th>Serviço (SERVICO_ED)</th><th>Classificação</th><th>Receita bruta</th><th>Bolsas/Descontos</th><th>Base líquida</th><th>PIS</th><th>COFINS</th></tr></thead>
               <tbody>{rows.map((row) => {
                 const rate = row.regime ? rates[row.regime] : null;
                 return <tr key={row.line}><td>{row.line}</td><td>{competenceLabel}</td><td><b>{row.service}</b></td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td><b>{brl.format(row.netRevenue)}</b></td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td></tr>;
