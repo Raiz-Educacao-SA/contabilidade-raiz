@@ -33,6 +33,7 @@ export default function PisCofinsAssessment({
   const [rows, setRows] = useState<RevenueRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [classified, setClassified] = useState(false);
   const [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
 
@@ -48,6 +49,7 @@ export default function PisCofinsAssessment({
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 53.");
       setRows(payload.rows || []);
       setLoaded(true);
+      setClassified(false);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -112,26 +114,30 @@ export default function PisCofinsAssessment({
           <p>Planilha.NET 53 · competência {competenceLabel} · classificação por serviço</p>
         </div>
         <div className="tax-actions">
-          <button className={loaded ? "tax-source-ready" : ""} disabled={loading || companyCode !== "2"} onClick={() => void update()}>
+          <button className={loaded ? "tax-source-ready" : ""} disabled={loading || !companyCode} onClick={() => void update()}>
             <RefreshCw className={loading ? "spin" : ""} />
             {loading ? "Atualizando..." : "Atualizar base fiscal"}
           </button>
-          <button className="tax-export" disabled={!loaded} onClick={exportExcel}>
+          <button className={classified ? "tax-source-ready" : "tax-classify"} disabled={!loaded || loading} onClick={() => setClassified(true)}>
+            <Calculator /> Classificar
+          </button>
+          <button className="tax-export" disabled={!classified} onClick={exportExcel}>
             <Download /> Exportar Excel
           </button>
         </div>
       </div>
-      {companyCode !== "2" && <div className="notice">O exemplo inicial está habilitado somente para a coligada 02.</div>}
       {error && <div className="notice error">{error}</div>}
       <div className="tax-summary">
-        <article><span>Base cumulativa</span><b>{loaded ? brl.format(totals.cumulativeBase) : "Aguardando"}</b><small>PIS 0,65% · COFINS 3%</small></article>
-        <article><span>Base não cumulativa</span><b>{loaded ? brl.format(totals.nonCumulativeBase) : "Aguardando"}</b><small>PIS 1,65% · COFINS 7,6%</small></article>
-        <article className={totals.unclassifiedBase ? "has-warning" : ""}><span>Sem classificação</span><b>{loaded ? brl.format(totals.unclassifiedBase) : "—"}</b><small>{unclassified.length} serviço(s)</small></article>
-        <article><span>PIS calculado</span><b>{loaded ? brl.format(totals.pis) : "—"}</b><small>Antes de créditos</small></article>
-        <article><span>COFINS calculada</span><b>{loaded ? brl.format(totals.cofins) : "—"}</b><small>Antes de créditos</small></article>
+        <article><span>Base cumulativa</span><b>{classified ? brl.format(totals.cumulativeBase) : "Aguardando"}</b><small>PIS 0,65% · COFINS 3%</small></article>
+        <article><span>Base não cumulativa</span><b>{classified ? brl.format(totals.nonCumulativeBase) : "Aguardando"}</b><small>PIS 1,65% · COFINS 7,6%</small></article>
+        <article className={classified && totals.unclassifiedBase ? "has-warning" : ""}><span>Sem classificação</span><b>{classified ? brl.format(totals.unclassifiedBase) : "—"}</b><small>{classified ? `${unclassified.length} serviço(s)` : "Aguardando classificação"}</small></article>
+        <article><span>PIS calculado</span><b>{classified ? brl.format(totals.pis) : "—"}</b><small>Antes de créditos</small></article>
+        <article><span>COFINS calculada</span><b>{classified ? brl.format(totals.cofins) : "—"}</b><small>Antes de créditos</small></article>
       </div>
       {!loaded ? (
         <div className="tax-empty"><Calculator /><b>Atualize a Planilha.NET 53</b><span>As receitas serão agrupadas por serviço e competência.</span></div>
+      ) : !classified ? (
+        <div className="tax-empty"><Calculator /><b>Base fiscal atualizada</b><span>Clique em Classificar para aplicar a matriz cumulativa e não cumulativa.</span></div>
       ) : (
         <>
           {unclassified.length > 0 && <div className="tax-warning"><TriangleAlert /><div><b>{unclassified.length} serviço(s) sem classificação</b><span>A classificação permanece em branco e esses valores não entram no cálculo de PIS ou COFINS.</span></div></div>}

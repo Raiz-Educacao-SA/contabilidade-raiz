@@ -58,11 +58,11 @@ export async function GET(request: NextRequest) {
     if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
-    if (company !== "2" || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "O exemplo está disponível para a coligada 02 e exige uma competência válida." }, { status: 400 });
+    if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
     const [year, month] = competence!.split("-").map(Number);
     const start = `${year}-${String(month).padStart(2, "0")}-01`;
     const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const records = await query(`CODCOLIGADA=2;DATAINI_D=${start};DATAFIM_D=${end}`);
+    const records = await query(`CODCOLIGADA=${company};DATAINI_D=${start};DATAFIM_D=${end}`);
     const grouped = new Map<string, { service: string; grossRevenue: number; discounts: number }>();
     records.forEach((record) => {
       const service = tag(record, "SERVICO") || tag(record, "NOMESERVICO") || tag(record, "DESCSERVICO") || tag(record, "DESCRICAOSERVICO") || "Serviço não informado pela consulta fiscal";
