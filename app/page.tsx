@@ -63,6 +63,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
+type AccountingTab = "pis-cofins" | "irpj-csll" | "rateio-csc" | "intercompany";
 type Area = "financeiro" | "compras" | "folha" | "contabil" | "book";
 type Module =
   | "bancaria"
@@ -170,6 +171,7 @@ export default function Home() {
   const [companyId, setCompanyId] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [tab, setTab] = useState<Tab>("conciliacao");
+  const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
@@ -537,6 +539,27 @@ export default function Home() {
             ))}
           </nav>
         )}
+        {selectedModule === "contabil" && (
+          <nav className="accounting-nav">
+            {(
+              [
+                { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
+                { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
+                { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
+                { id: "intercompany", label: "Intercompany", icon: Building2 },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={accountingTab === id ? "active" : ""}
+                onClick={() => setAccountingTab(id)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
         <button className="logout" onClick={() => supabase.auth.signOut()}>
           <LogOut />
           Sair
@@ -548,8 +571,22 @@ export default function Home() {
         <header>
           <div>
             <span className="eyebrow">CONTABILIDADE RAIZ</span>
-            <h1>{activeModule.title}</h1>
-            <p>{activeModule.description}</p>
+            <h1>
+              {selectedModule === "contabil"
+                ? accountingTab === "pis-cofins"
+                  ? "PIS e COFINS"
+                  : accountingTab === "irpj-csll"
+                    ? "IRPJ/CSLL"
+                    : accountingTab === "rateio-csc"
+                      ? "Rateio CSC"
+                      : "Intercompany"
+                : activeModule.title}
+            </h1>
+            <p>
+              {selectedModule === "contabil"
+                ? "Apurações, rateios e conferências das rotinas contábeis."
+                : activeModule.description}
+            </p>
           </div>
           <div className="user-chip">{session.user.email}</div>
         </header>
@@ -601,7 +638,7 @@ export default function Home() {
               </label>
             </div>
           </div>
-          {selectedModule === "contabil" && (
+          {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
             <div
               id="pis-cofins-filter-actions"
               className="filter-actions-slot"
@@ -709,12 +746,34 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && (
+        {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
           <PisCofinsAssessment
             companyCode={company?.empresas?.codcoligada ?? ""}
             competence={competence}
             accessToken={session.access_token}
           />
+        )}
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && (
+          <section className="panel module-workspace accounting-workspace">
+            {accountingTab === "irpj-csll" ? (
+              <ReceiptText />
+            ) : accountingTab === "rateio-csc" ? (
+              <ArrowLeftRight />
+            ) : (
+              <Building2 />
+            )}
+            <span className="eyebrow">MÓDULO CONTÁBIL</span>
+            <h2>
+              {accountingTab === "irpj-csll"
+                ? "IRPJ/CSLL"
+                : accountingTab === "rateio-csc"
+                  ? "Rateio CSC"
+                  : "Intercompany"}
+            </h2>
+            <p>
+              Área preparada para receber as regras, bases e conferências desta rotina.
+            </p>
+          </section>
         )}
         {selectedModule !== "bancaria" &&
           selectedModule !== "book" &&
