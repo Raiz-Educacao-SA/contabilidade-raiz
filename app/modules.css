@@ -145,6 +145,22 @@
 .current-module svg {
   color: #6fc5c0;
 }
+.accounting-nav {
+  margin: 0 10px;
+  padding-top: 4px;
+  border-top: 1px solid #28334e;
+}
+.accounting-nav button {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 750;
+}
+.accounting-nav button.active {
+  box-shadow: inset 3px 0 #69beb9;
+}
+.accounting-workspace {
+  min-height: 280px;
+}
 .company-sidebar {
   min-height: 0;
   margin-top: 18px;
