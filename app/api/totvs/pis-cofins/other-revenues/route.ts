@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -60,12 +61,14 @@ const number = (value: string) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const classifyAccount = (rule: AccountRule) => {
-  if (!rule.group) return { classification: "", pisRate: 0, cofinsRate: 0 };
-  if (rule.group.startsWith("6.")) {
-    return { classification: "Receita financeira", pisRate: 0.0065, cofinsRate: 0.04 };
+const classifyAccount = (rule: AccountRule, company: string) => {
+  if (!rule.group || getCompanyTaxRegime(company) !== "Lucro Real") {
+    return { classification: "", pisRate: 0, cofinsRate: 0 };
   }
-  return { classification: "Demais receitas", pisRate: 0.0165, cofinsRate: 0.076 };
+  if (rule.group.startsWith("6.")) {
+    return { classification: "Não-Cumulativo — Receita financeira", pisRate: 0.0065, cofinsRate: 0.04 };
+  }
+  return { classification: "Não-Cumulativo — Outras receitas", pisRate: 0.0165, cofinsRate: 0.076 };
 };
 
 async function authorized(request: NextRequest) {
@@ -122,7 +125,7 @@ export async function GET(request: NextRequest) {
       if (seen.has(key)) return [];
       seen.add(key);
       const value = number(tag(record, "VALOR"));
-      const tax = classifyAccount(rule);
+      const tax = classifyAccount(rule, company);
       const taxBase = tax.classification ? -value : 0;
       return [{
         company: tag(record, "CODCOLIGADA"),
@@ -160,6 +163,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       source: "TOTVS RM — METTA0909 / Razão Completo",
       company,
+      taxRegime: getCompanyTaxRegime(company),
       competence,
       configuredAccounts: accountRules.length,
       accountsWithMovement,
