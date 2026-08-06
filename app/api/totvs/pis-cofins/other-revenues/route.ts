@@ -60,6 +60,14 @@ const number = (value: string) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const classifyAccount = (rule: AccountRule) => {
+  if (!rule.group) return { classification: "", pisRate: 0, cofinsRate: 0 };
+  if (rule.group.startsWith("6.")) {
+    return { classification: "Receita financeira", pisRate: 0.0065, cofinsRate: 0.04 };
+  }
+  return { classification: "Demais receitas", pisRate: 0.0165, cofinsRate: 0.076 };
+};
+
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -113,6 +121,9 @@ export async function GET(request: NextRequest) {
       const key = [tag(record, "CODCOLIGADA"), tag(record, "CODFILIAL"), tag(record, "IDLANCAMENTO"), account, tag(record, "VALOR")].join("|");
       if (seen.has(key)) return [];
       seen.add(key);
+      const value = number(tag(record, "VALOR"));
+      const tax = classifyAccount(rule);
+      const taxBase = tax.classification ? -value : 0;
       return [{
         company: tag(record, "CODCOLIGADA"),
         branch: tag(record, "CODFILIAL"),
@@ -125,7 +136,13 @@ export async function GET(request: NextRequest) {
         account,
         description: tag(record, "DESCRICAO") || rule.description,
         group: rule.group,
-        value: number(tag(record, "VALOR")),
+        value,
+        classification: tax.classification,
+        taxBase,
+        pisRate: tax.pisRate,
+        cofinsRate: tax.cofinsRate,
+        pis: taxBase * tax.pisRate,
+        cofins: taxBase * tax.cofinsRate,
         user: tag(record, "USUARIO"),
         complement: tag(record, "COMPLEMENTO"),
         costCenter: tag(record, "CCUSTO"),
@@ -133,7 +150,13 @@ export async function GET(request: NextRequest) {
     }).sort((a, b) => a.date.localeCompare(b.date) || a.account.localeCompare(b.account) || a.entryId.localeCompare(b.entryId));
 
     const accountsWithMovement = new Set(rows.map((row) => row.account)).size;
-    const total = rows.reduce((sum, row) => sum + row.value, 0);
+    const totals = rows.reduce((result, row) => ({
+      accountingValue: result.accountingValue + row.value,
+      taxBase: result.taxBase + row.taxBase,
+      pis: result.pis + row.pis,
+      cofins: result.cofins + row.cofins,
+      unclassifiedValue: result.unclassifiedValue + (row.classification ? 0 : -row.value),
+    }), { accountingValue: 0, taxBase: 0, pis: 0, cofins: 0, unclassifiedValue: 0 });
     return NextResponse.json({
       source: "TOTVS RM — METTA0909 / Razão Completo",
       company,
@@ -141,7 +164,7 @@ export async function GET(request: NextRequest) {
       configuredAccounts: accountRules.length,
       accountsWithMovement,
       recordsChecked: records.length,
-      total,
+      totals,
       rows,
     }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {

@@ -28,6 +28,12 @@ type OtherRevenueRow = {
   description: string;
   group: string;
   value: number;
+  classification: string;
+  taxBase: number;
+  pisRate: number;
+  cofinsRate: number;
+  pis: number;
+  cofins: number;
   user: string;
   complement: string;
   costCenter: string;
@@ -154,6 +160,34 @@ export default function PisCofinsAssessment({
   }, [rows]);
 
   const unclassified = rows.filter((row) => !row.regime);
+  const otherRevenueTotals = useMemo(() => otherRevenueRows.reduce((result, row) => {
+    result.accountingValue += row.value;
+    result.taxBase += row.taxBase;
+    result.pis += row.pis;
+    result.cofins += row.cofins;
+    if (row.classification === "Receita financeira") {
+      result.financialBase += row.taxBase;
+      result.financialPis += row.pis;
+      result.financialCofins += row.cofins;
+    } else if (row.classification === "Demais receitas") {
+      result.otherBase += row.taxBase;
+      result.otherPis += row.pis;
+      result.otherCofins += row.cofins;
+    } else result.unclassifiedBase += -row.value;
+    return result;
+  }, {
+    accountingValue: 0,
+    taxBase: 0,
+    pis: 0,
+    cofins: 0,
+    financialBase: 0,
+    financialPis: 0,
+    financialCofins: 0,
+    otherBase: 0,
+    otherPis: 0,
+    otherCofins: 0,
+    unclassifiedBase: 0,
+  }), [otherRevenueRows]);
 
   function classify() {
     setClassifying(true);
@@ -239,12 +273,18 @@ export default function PisCofinsAssessment({
       Conta: row.account,
       Descrição: row.description,
       Agrupamento: row.group,
+      Classificação: row.classification,
       "ID lançamento": row.entryId,
       Documento: row.document,
       Sistema: row.sourceSystem,
       Complemento: row.complement,
       "Centro de custo": row.costCenter,
       Valor: row.value,
+      "Base tributável": row.taxBase,
+      "Alíquota PIS": row.pisRate,
+      PIS: row.pis,
+      "Alíquota COFINS": row.cofinsRate,
+      COFINS: row.cofins,
     }));
     const cancelled = cancelledRows.map((row) => ({
       Coligada: companyCode,
@@ -487,14 +527,17 @@ export default function PisCofinsAssessment({
           <>
             <div className="tax-other-summary">
               <article><span>Contas com movimento</span><b>{new Set(otherRevenueRows.map((row) => row.account)).size}</b></article>
-              <article><span>Lançamentos encontrados</span><b>{otherRevenueRows.length}</b></article>
-              <article><span>Saldo da competência</span><b>{brl.format(otherRevenueRows.reduce((sum, row) => sum + row.value, 0))}</b></article>
+              <article><span>Base financeira</span><b>{brl.format(otherRevenueTotals.financialBase)}</b><small>PIS 0,65% · COFINS 4,00%</small></article>
+              <article><span>Base demais receitas</span><b>{brl.format(otherRevenueTotals.otherBase)}</b><small>PIS 1,65% · COFINS 7,60%</small></article>
+              <article><span>PIS apurado</span><b>{brl.format(otherRevenueTotals.pis)}</b><small>{brl.format(otherRevenueTotals.financialPis)} + {brl.format(otherRevenueTotals.otherPis)}</small></article>
+              <article><span>COFINS apurada</span><b>{brl.format(otherRevenueTotals.cofins)}</b><small>{brl.format(otherRevenueTotals.financialCofins)} + {brl.format(otherRevenueTotals.otherCofins)}</small></article>
+              <article className={Math.abs(otherRevenueTotals.unclassifiedBase) > 0.004 ? "has-warning" : ""}><span>Sem classificação</span><b>{brl.format(otherRevenueTotals.unclassifiedBase)}</b><small>Sem cálculo automático</small></article>
             </div>
             <div className="table-wrap tax-other-table">
               <table>
-                <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Agrupamento</th><th>ID lançamento</th><th>Complemento</th><th>Valor</th></tr></thead>
-                <tbody>{otherRevenueRows.map((row, index) => <tr key={`${row.entryId}-${row.account}-${index}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.description}</td><td>{row.group || ""}</td><td>{row.entryId}</td><td>{row.complement}</td><td>{brl.format(row.value)}</td></tr>)}</tbody>
-                <tfoot><tr><td colSpan={8}>Subtotal da competência</td><td>{brl.format(otherRevenueRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot>
+                <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Agrupamento</th><th>Classificação</th><th>Base tributável</th><th>Alíquota PIS</th><th>PIS</th><th>Alíquota COFINS</th><th>COFINS</th><th>ID lançamento</th><th>Complemento</th></tr></thead>
+                <tbody>{otherRevenueRows.map((row, index) => <tr key={`${row.entryId}-${row.account}-${index}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.description}</td><td>{row.group || ""}</td><td>{row.classification ? <span className="tax-badge">{row.classification}</span> : ""}</td><td>{row.classification ? brl.format(row.taxBase) : ""}</td><td>{row.classification ? `${(row.pisRate * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{row.classification ? brl.format(row.pis) : ""}</td><td>{row.classification ? `${(row.cofinsRate * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{row.classification ? brl.format(row.cofins) : ""}</td><td>{row.entryId}</td><td>{row.complement}</td></tr>)}</tbody>
+                <tfoot><tr><td colSpan={7}>Subtotal da competência</td><td>{brl.format(otherRevenueTotals.taxBase)}</td><td></td><td>{brl.format(otherRevenueTotals.pis)}</td><td></td><td>{brl.format(otherRevenueTotals.cofins)}</td><td colSpan={2}></td></tr></tfoot>
               </table>
             </div>
           </>
