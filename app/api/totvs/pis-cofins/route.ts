@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Consulta anual restaurada para preservar o comportamento funcional do faturamento mensal.
+
 const classification: Record<string, "Cumulativo" | "Não-Cumulativo"> = {
   "BERCARIO": "Cumulativo",
   "CRECHE": "Cumulativo",
@@ -47,6 +49,8 @@ const recordCompetence = (value: string) => {
   if (iso) return `${iso[1]}-${iso[2]}`;
   const brazilian = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (brazilian) return `${brazilian[3]}-${brazilian[2]}`;
+  const monthYear = normalized.match(/^(\d{2})\/(\d{4})$/);
+  if (monthYear) return `${monthYear[2]}-${monthYear[1]}`;
   return "";
 };
 
