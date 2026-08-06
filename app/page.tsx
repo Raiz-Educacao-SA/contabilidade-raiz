@@ -44,6 +44,7 @@ import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
 import PisCofinsAssessment from "@/app/pis-cofins-assessment";
+import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 
 type Company = {
   empresa_id: string;
@@ -206,6 +207,7 @@ export default function Home() {
   });
   const competence = `${year}-${String(month).padStart(2, "0")}`;
   const company = companies.find((item) => item.empresa_id === companyId);
+  const companyTaxRegime = getCompanyTaxRegime(company?.empresas?.codcoligada);
   const canWrite = (company?.perfil ?? "consulta").toLowerCase() !== "consulta";
 
   useEffect(() => {
@@ -654,16 +656,19 @@ export default function Home() {
           <div className="filter-fields">
             <label className="company-control">
               <span>Empresa</span>
-              <select
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-              >
-                {companies.map((item) => (
-                  <option key={item.empresa_id} value={item.empresa_id}>
-                    {item.empresas?.codcoligada} — {item.empresas?.razao_social}
-                  </option>
-                ))}
-              </select>
+              <div className="company-select-stack">
+                <select
+                  value={companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                >
+                  {companies.map((item) => (
+                    <option key={item.empresa_id} value={item.empresa_id}>
+                      {item.empresas?.codcoligada} — {item.empresas?.razao_social}
+                    </option>
+                  ))}
+                </select>
+                <small>Regime tributário: {companyTaxRegime}</small>
+              </div>
             </label>
             <div className="competence-control">
               <label>
