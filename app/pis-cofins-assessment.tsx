@@ -14,7 +14,26 @@ type RevenueRow = {
   netRevenue: number;
   regime: TaxRegime;
 };
-type CancelledRow = Omit<RevenueRow, "regime"> & { status: string };
+type CancelledRow = {
+  studentCode: string;
+  student: string;
+  customer: string;
+  invoice: string;
+  rps: string;
+  sourceCompetence: string;
+  entryId: string;
+  company: string;
+  branch: string;
+  movementId: string;
+  movementType: string;
+  issueDate: string;
+  cancellationDate: string;
+  grossValue: number;
+  discountValue: number;
+  netValue: number;
+  history: string;
+  treatment: string;
+};
 type OtherRevenueRow = {
   company: string;
   branch: string;
@@ -69,6 +88,9 @@ export default function PisCofinsAssessment({
   const [otherRevenueLoading, setOtherRevenueLoading] = useState(false);
   const [otherRevenueLoaded, setOtherRevenueLoaded] = useState(false);
   const [otherRevenueError, setOtherRevenueError] = useState("");
+  const [cancelledLoading, setCancelledLoading] = useState(false);
+  const [cancelledLoaded, setCancelledLoaded] = useState(false);
+  const [cancelledError, setCancelledError] = useState("");
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   const competenceLabel = competence.split("-").reverse().join("/");
@@ -86,6 +108,8 @@ export default function PisCofinsAssessment({
     setOtherRevenueRows([]);
     setOtherRevenueLoaded(false);
     setOtherRevenueError("");
+    setCancelledLoaded(false);
+    setCancelledError("");
     setError("");
   }, [companyCode, competence]);
 
@@ -110,7 +134,6 @@ export default function PisCofinsAssessment({
           "Nenhuma linha foi encontrada para a empresa e competência selecionadas.",
         );
       setRows(payload.rows || []);
-      setCancelledRows(payload.cancelledRows || []);
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(false);
@@ -248,6 +271,25 @@ export default function PisCofinsAssessment({
     }
   }
 
+  async function updateCancelledInvoices() {
+    setCancelledLoading(true);
+    setCancelledError("");
+    try {
+      const response = await fetch(
+        `/api/totvs/pis-cofins/cancelled-invoices?company=${companyCode}&competence=${competence}`,
+        { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" },
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 37.");
+      setCancelledRows(payload.rows || []);
+      setCancelledLoaded(true);
+    } catch (cause) {
+      setCancelledError((cause as Error).message);
+    } finally {
+      setCancelledLoading(false);
+    }
+  }
+
   function exportCompleteAssessment() {
     const workbook = XLSX.utils.book_new();
     const monthly = rows.map((row) => {
@@ -287,14 +329,24 @@ export default function PisCofinsAssessment({
       COFINS: row.cofins,
     }));
     const cancelled = cancelledRows.map((row) => ({
-      Coligada: companyCode,
-      Competência: competenceLabel,
-      Descrição: row.service,
-      Status: row.status,
-      "Valor bruto": row.grossRevenue,
-      Descontos: row.discounts,
-      "VALORNF excluído": row.netRevenue,
-      Tratamento: "Excluída da apuração",
+      Coligada: row.company,
+      Filial: row.branch,
+      "Competência da apuração": competenceLabel,
+      "Competência de origem": row.sourceCompetence,
+      "Data do cancelamento": row.cancellationDate,
+      "Data de emissão": row.issueDate,
+      "NF-e municipal": row.invoice,
+      RPS: row.rps,
+      RA: row.studentCode,
+      Aluno: row.student,
+      Cliente: row.customer,
+      "ID movimento": row.movementId,
+      "ID lançamento": row.entryId,
+      "Valor bruto": row.grossValue,
+      Descontos: row.discountValue,
+      "Valor líquido excluído": row.netValue,
+      Histórico: row.history,
+      Tratamento: row.treatment,
     }));
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento mensal");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras receitas");
@@ -304,13 +356,15 @@ export default function PisCofinsAssessment({
 
   return (
     <section
-      className={`panel tax-panel ${loading || classifying || otherRevenueLoading ? "is-processing" : ""}`}
+      className={`panel tax-panel ${loading || classifying || otherRevenueLoading || cancelledLoading ? "is-processing" : ""}`}
     >
-      {(loading || classifying || otherRevenueLoading) && (
+      {(loading || classifying || otherRevenueLoading || cancelledLoading) && (
         <div className="tax-processing">
           <div className="spinner" />
           <b>
-            {otherRevenueLoading
+            {cancelledLoading
+              ? "Atualizando as notas canceladas..."
+              : otherRevenueLoading
               ? "Atualizando as outras receitas..."
               : loading
               ? "Atualizando a base faturamento..."
@@ -544,10 +598,34 @@ export default function PisCofinsAssessment({
         )}
       </section>
       <section className="tax-secondary-section">
-        <div className="tax-section-heading"><b>Notas canceladas</b><span>{cancelledRows.length} registro(s) excluído(s) da apuração</span></div>
-        {cancelledRows.length ? (
-          <div className="table-wrap tax-cancelled-table"><table><thead><tr><th>Competência</th><th>Descrição</th><th>Status</th><th>Valor bruto</th><th>Desconto</th><th>VALORNF excluído</th></tr></thead><tbody>{cancelledRows.map((row) => <tr key={row.line}><td>{competenceLabel}</td><td>{row.service}</td><td>{row.status}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td>{brl.format(row.netRevenue)}</td></tr>)}</tbody></table></div>
-        ) : <div className="tax-source-empty"><span>Nenhuma nota cancelada carregada para esta competência.</span></div>}
+        <div className="tax-section-heading">
+          <div><b>Notas canceladas</b><span>Planilha.NET 37 · NF MUNICIPAIS CANCELADAS</span></div>
+          <button
+            className={cancelledLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
+            disabled={cancelledLoading || !companyCode}
+            onClick={() => void updateCancelledInvoices()}
+          >
+            <RefreshCw className={cancelledLoading ? "spin" : ""} />
+            {cancelledLoading ? "Atualizando..." : "Atualizar notas canceladas"}
+          </button>
+        </div>
+        {cancelledError && <div className="notice error">{cancelledError}</div>}
+        {!cancelledLoaded ? (
+          <div className="tax-source-empty"><Calculator /><span>Atualize para consultar os cancelamentos registrados na competência selecionada.</span></div>
+        ) : cancelledRows.length ? (
+          <>
+            <div className="tax-other-summary">
+              <article><span>Notas canceladas</span><b>{cancelledRows.length}</b><small>Excluídas da apuração</small></article>
+              <article><span>Valor bruto</span><b>{brl.format(cancelledRows.reduce((sum, row) => sum + row.grossValue, 0))}</b></article>
+              <article><span>Descontos</span><b>{brl.format(cancelledRows.reduce((sum, row) => sum + row.discountValue, 0))}</b></article>
+              <article><span>Valor líquido excluído</span><b>{brl.format(cancelledRows.reduce((sum, row) => sum + row.netValue, 0))}</b></article>
+            </div>
+            <div className="table-wrap tax-cancelled-table"><table>
+              <thead><tr><th>Cancelamento</th><th>Competência de origem</th><th>Filial</th><th>NF-e</th><th>RPS</th><th>Aluno</th><th>Histórico</th><th>Valor bruto</th><th>Desconto</th><th>Valor líquido excluído</th></tr></thead>
+              <tbody>{cancelledRows.map((row) => <tr key={`${row.movementId}-${row.entryId}-${row.invoice}`}><td>{row.cancellationDate.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.sourceCompetence.slice(0, 7).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.invoice}</td><td>{row.rps}</td><td>{row.student}</td><td>{row.history}</td><td>{brl.format(row.grossValue)}</td><td>{brl.format(row.discountValue)}</td><td>{brl.format(row.netValue)}</td></tr>)}</tbody>
+            </table></div>
+          </>
+        ) : <div className="tax-source-empty"><Calculator /><b>Sem cancelamentos na competência</b><span>A consulta 37 não retornou notas municipais canceladas no período.</span></div>}
       </section>
     </section>
   );
