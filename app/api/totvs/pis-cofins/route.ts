@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const classification: Record<string, "Cumulativo" | "Não-Cumulativo"> = {
   "BERCARIO": "Cumulativo",
@@ -65,7 +66,7 @@ async function query(parameters: string) {
   // CX_PISCOFINS53 is registered in the global context and returns CODCOLIGADA
   // per row. Company isolation is applied immediately after the SOAP response.
   const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CX_PISCOFINS53</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
-  const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(55_000) });
+  const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
   const soap = await response.text();
   if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 53.");
   const result = decodeXml(tag(soap, "RealizarConsultaSQLResult"));
@@ -78,9 +79,9 @@ export async function GET(request: NextRequest) {
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
     if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
-    const [year, month] = competence!.split("-").map(Number);
-    const start = `${year}-${String(month).padStart(2, "0")}-01`;
-    const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
+    const [year] = competence!.split("-").map(Number);
+    const start = `${year}-01-01`;
+    const end = `${year}-12-31`;
     const sourceCompanyRecords = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = sourceCompanyRecords.filter((record) =>
@@ -97,11 +98,7 @@ export async function GET(request: NextRequest) {
       const service = tag(record, "DESCRICAO") || tag(record, "SERVICO_ED") || "Descrição não informada pela consulta fiscal";
       const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
       const discounts = number(tag(record, "BOLSA"));
-      const reportedNetRevenue = number(tag(record, "VALORNF") || tag(record, "VLRNF"));
-      const calculatedNetRevenue = grossRevenue - discounts;
-      const netRevenue = Math.abs(reportedNetRevenue - calculatedNetRevenue) <= 0.01
-        ? reportedNetRevenue
-        : calculatedNetRevenue;
+      const netRevenue = number(tag(record, "VALORNF") || tag(record, "VLRNF"));
       return [{ line: index + 1, service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
     const totals = rows.reduce((result, row) => ({
