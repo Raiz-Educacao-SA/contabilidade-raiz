@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
 type RevenueRow = {
   line: number;
+  branch: string;
   service: string;
   grossRevenue: number;
   discounts: number;
@@ -461,6 +462,96 @@ export default function PisCofinsAssessment({
     XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 
+  function exportEntriesCsv() {
+    type BranchTotals = {
+      cumulativePis: number;
+      cumulativeCofins: number;
+      nonCumulativePis: number;
+      nonCumulativeCofins: number;
+    };
+    const byBranch = new Map<string, BranchTotals>();
+    const branchTotals = (branch?: string) => {
+      const key = String(branch || companyCode).trim() || companyCode;
+      if (!byBranch.has(key)) byBranch.set(key, {
+        cumulativePis: 0,
+        cumulativeCofins: 0,
+        nonCumulativePis: 0,
+        nonCumulativeCofins: 0,
+      });
+      return byBranch.get(key)!;
+    };
+
+    rows.forEach((row) => {
+      const target = branchTotals(row.branch);
+      if (row.regime === "Cumulativo") {
+        target.cumulativePis += row.netRevenue * rates.Cumulativo.pis;
+        target.cumulativeCofins += row.netRevenue * rates.Cumulativo.cofins;
+      } else if (row.regime === "Não-Cumulativo") {
+        target.nonCumulativePis += row.netRevenue * rates["Não-Cumulativo"].pis;
+        target.nonCumulativeCofins += row.netRevenue * rates["Não-Cumulativo"].cofins;
+      }
+    });
+    otherRevenueRows.forEach((row) => {
+      const target = branchTotals(row.branch);
+      if (row.classification === "Receita financeira") {
+        target.cumulativePis += row.pis;
+        target.cumulativeCofins += row.cofins;
+      } else if (row.classification === "Demais receitas") {
+        target.nonCumulativePis += row.pis;
+        target.nonCumulativeCofins += row.cofins;
+      }
+    });
+    cancelledRows.forEach((row) => {
+      const target = branchTotals(row.branch);
+      const rate = row.regime ? rates[row.regime] : null;
+      if (!rate) return;
+      if (row.regime === "Cumulativo") {
+        target.cumulativePis -= row.netValue * rate.pis;
+        target.cumulativeCofins -= row.netValue * rate.cofins;
+      } else {
+        target.nonCumulativePis -= row.netValue * rate.pis;
+        target.nonCumulativeCofins -= row.netValue * rate.cofins;
+      }
+    });
+
+    const [year, month] = competence.split("-").map(Number);
+    const postingDay = Math.min(30, new Date(year, month, 0).getDate());
+    const postingDate = `${String(postingDay).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+    const formatAmount = (value: number) => new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      useGrouping: true,
+    }).format(Math.abs(value));
+    const csvRows: string[][] = [["M", "99", "IMPORTAÇÃO DE LANÇAMENTOS", postingDate, "", "", "", "", ""]];
+    const postingTypes = [
+      { key: "cumulativePis" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "PIS CUMULATIVO - COD 8109 - N/MÊS" },
+      { key: "cumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS CUMULATIVO - COD 2172 - N/MÊS" },
+      { key: "nonCumulativePis" as const, debit: "3.1.3.01.01.02", credit: "2.1.4.01.01.02", history: "PIS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
+      { key: "nonCumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
+    ];
+    [...byBranch.entries()]
+      .sort(([left], [right]) => Number(left) - Number(right))
+      .forEach(([branch, values]) => postingTypes.forEach((posting) => {
+        const value = values[posting.key];
+        if (Math.abs(value) < 0.005) return;
+        csvRows.push(["*P", "PIS E COFINS", posting.debit, posting.credit, "", formatAmount(value), "71", posting.history, branch]);
+      }));
+
+    const csv = `${csvRows.map((fields) => fields.join(";")).join("\r\n")}\r\n`;
+    const windows1252 = Uint8Array.from(Array.from(csv), (character) => {
+      const code = character.charCodeAt(0);
+      return code <= 255 ? code : 63;
+    });
+    const url = URL.createObjectURL(new Blob([windows1252], { type: "text/csv;charset=windows-1252" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `coligada${companyCode.padStart(2, "0")}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section
       className={`panel tax-panel ${loading || classifying || otherRevenueLoading || cancelledLoading ? "is-processing" : ""}`}
@@ -491,7 +582,7 @@ export default function PisCofinsAssessment({
             >
               <Download /> Apuração completa
             </button>
-            <button className="tax-future-action" disabled title="Função que será desenvolvida na próxima etapa">
+            <button className="tax-future-action" disabled={!completeAssessmentReady} onClick={exportEntriesCsv} title={completeAssessmentReady ? "Gerar CSV para importação dos lançamentos" : "Atualize e processe as três etapas antes de gerar os lançamentos"}>
               <ReceiptText /> Lançamentos
             </button>
             <button className="tax-clear-action" disabled={!hasAssessment} onClick={clearAssessment} title="Apagar a apuração salva desta empresa e competência">
