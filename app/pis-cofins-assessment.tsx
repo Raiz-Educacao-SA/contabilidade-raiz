@@ -251,11 +251,11 @@ export default function PisCofinsAssessment({
     result.taxBase += row.taxBase;
     result.pis += row.pis;
     result.cofins += row.cofins;
-    if (row.classification === "Receita financeira") {
+    if (row.classification.includes("Receita financeira")) {
       result.financialBase += row.taxBase;
       result.financialPis += row.pis;
       result.financialCofins += row.cofins;
-    } else if (row.classification === "Demais receitas") {
+    } else if (row.classification) {
       result.otherBase += row.taxBase;
       result.otherPis += row.pis;
       result.otherCofins += row.cofins;
@@ -311,10 +311,10 @@ export default function PisCofinsAssessment({
   }), [cancelledRows]);
 
   const consolidatedTotals = useMemo(() => ({
-    cumulativePis: totals.cumulativePis + otherRevenueTotals.financialPis - cancelledTotals.cumulativePis,
-    cumulativeCofins: totals.cumulativeCofins + otherRevenueTotals.financialCofins - cancelledTotals.cumulativeCofins,
-    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.otherPis - cancelledTotals.nonCumulativePis,
-    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.otherCofins - cancelledTotals.nonCumulativeCofins,
+    cumulativePis: totals.cumulativePis - cancelledTotals.cumulativePis,
+    cumulativeCofins: totals.cumulativeCofins - cancelledTotals.cumulativeCofins,
+    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis - cancelledTotals.nonCumulativePis,
+    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins - cancelledTotals.nonCumulativeCofins,
   }), [totals, otherRevenueTotals, cancelledTotals]);
 
   function exportExcel() {
@@ -392,7 +392,7 @@ export default function PisCofinsAssessment({
         "Competência": competenceLabel,
         Tributo: "PIS cumulativo",
         "Faturamento mensal": totals.cumulativePis,
-        "Outras receitas": otherRevenueTotals.financialPis,
+        "Outras receitas": 0,
         "Notas canceladas (dedução)": -cancelledTotals.cumulativePis,
         "Total consolidado": consolidatedTotals.cumulativePis,
       },
@@ -401,7 +401,7 @@ export default function PisCofinsAssessment({
         "Competência": competenceLabel,
         Tributo: "COFINS cumulativo",
         "Faturamento mensal": totals.cumulativeCofins,
-        "Outras receitas": otherRevenueTotals.financialCofins,
+        "Outras receitas": 0,
         "Notas canceladas (dedução)": -cancelledTotals.cumulativeCofins,
         "Total consolidado": consolidatedTotals.cumulativeCofins,
       },
@@ -410,7 +410,7 @@ export default function PisCofinsAssessment({
         "Competência": competenceLabel,
         Tributo: "PIS não cumulativo",
         "Faturamento mensal": totals.nonCumulativePis,
-        "Outras receitas": otherRevenueTotals.otherPis,
+        "Outras receitas": otherRevenueTotals.pis,
         "Notas canceladas (dedução)": -cancelledTotals.nonCumulativePis,
         "Total consolidado": consolidatedTotals.nonCumulativePis,
       },
@@ -419,7 +419,7 @@ export default function PisCofinsAssessment({
         "Competência": competenceLabel,
         Tributo: "COFINS não cumulativo",
         "Faturamento mensal": totals.nonCumulativeCofins,
-        "Outras receitas": otherRevenueTotals.otherCofins,
+        "Outras receitas": otherRevenueTotals.cofins,
         "Notas canceladas (dedução)": -cancelledTotals.nonCumulativeCofins,
         "Total consolidado": consolidatedTotals.nonCumulativeCofins,
       },
@@ -536,10 +536,7 @@ export default function PisCofinsAssessment({
     });
     otherRevenueRows.forEach((row) => {
       const target = branchTotals(row.branch);
-      if (row.classification === "Receita financeira") {
-        target.cumulativePis += row.pis;
-        target.cumulativeCofins += row.cofins;
-      } else if (row.classification === "Demais receitas") {
+      if (row.classification) {
         target.nonCumulativePis += row.pis;
         target.nonCumulativeCofins += row.cofins;
       }
