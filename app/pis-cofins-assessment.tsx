@@ -15,6 +15,17 @@ type RevenueRow = {
   netRevenue: number;
   regime: TaxRegime;
 };
+type AnnualFeeAllocationRow = RevenueRow & {
+  company: string;
+  entryId: string;
+  document: string;
+  sourceSystem: string;
+  date: string;
+  reduced: number;
+  account: string;
+  complement: string;
+  costCenter: string;
+};
 type CancelledRow = {
   studentCode: string;
   student: string;
@@ -90,18 +101,23 @@ export default function PisCofinsAssessment({
   const [otherRevenueLoading, setOtherRevenueLoading] = useState(false);
   const [otherRevenueLoaded, setOtherRevenueLoaded] = useState(false);
   const [otherRevenueError, setOtherRevenueError] = useState("");
+  const [annualFeeRows, setAnnualFeeRows] = useState<AnnualFeeAllocationRow[]>([]);
+  const [annualFeeLoading, setAnnualFeeLoading] = useState(false);
+  const [annualFeeLoaded, setAnnualFeeLoaded] = useState(false);
+  const [annualFeeError, setAnnualFeeError] = useState("");
   const [cancelledLoading, setCancelledLoading] = useState(false);
   const [cancelledLoaded, setCancelledLoaded] = useState(false);
   const [cancelledError, setCancelledError] = useState("");
   const [monthlyVisible, setMonthlyVisible] = useState(true);
   const [otherRevenueVisible, setOtherRevenueVisible] = useState(true);
+  const [annualFeeVisible, setAnnualFeeVisible] = useState(true);
   const [cancelledVisible, setCancelledVisible] = useState(true);
   const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   const competenceLabel = competence.split("-").reverse().join("/");
-  const completeAssessmentReady = classified && otherRevenueLoaded && cancelledLoaded;
-  const hasAssessment = loaded || otherRevenueLoaded || cancelledLoaded;
+  const completeAssessmentReady = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
+  const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded;
   const storageKey = `pis-cofins-assessment:${companyCode}:${competence}`;
 
   useEffect(() => {
@@ -111,6 +127,7 @@ export default function PisCofinsAssessment({
   useEffect(() => {
     setStorageReady(false);
     setOtherRevenueError("");
+    setAnnualFeeError("");
     setCancelledError("");
     setError("");
     try {
@@ -123,10 +140,13 @@ export default function PisCofinsAssessment({
       setIgnoredCancelled(Number(assessment?.ignoredCancelled || 0));
       setOtherRevenueRows(assessment?.otherRevenueRows || []);
       setOtherRevenueLoaded(Boolean(assessment?.otherRevenueLoaded));
+      setAnnualFeeRows(assessment?.annualFeeRows || []);
+      setAnnualFeeLoaded(Boolean(assessment?.annualFeeLoaded));
       setCancelledLoaded(Boolean(assessment?.cancelledLoaded));
       setDetailsOpen(Boolean(assessment?.detailsOpen));
       setMonthlyVisible(assessment?.monthlyVisible ?? true);
       setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
+      setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
       setCancelledVisible(assessment?.cancelledVisible ?? true);
     } catch {
       setRows([]);
@@ -136,6 +156,8 @@ export default function PisCofinsAssessment({
       setIgnoredCancelled(0);
       setOtherRevenueRows([]);
       setOtherRevenueLoaded(false);
+      setAnnualFeeRows([]);
+      setAnnualFeeLoaded(false);
       setCancelledLoaded(false);
     } finally {
       setStorageReady(true);
@@ -152,13 +174,16 @@ export default function PisCofinsAssessment({
       ignoredCancelled,
       otherRevenueRows,
       otherRevenueLoaded,
+      annualFeeRows,
+      annualFeeLoaded,
       cancelledLoaded,
       detailsOpen,
       monthlyVisible,
       otherRevenueVisible,
+      annualFeeVisible,
       cancelledVisible,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, cancelledVisible]);
+  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible]);
 
   function clearAssessment() {
     setRows([]);
@@ -168,9 +193,12 @@ export default function PisCofinsAssessment({
     setIgnoredCancelled(0);
     setOtherRevenueRows([]);
     setOtherRevenueLoaded(false);
+    setAnnualFeeRows([]);
+    setAnnualFeeLoaded(false);
     setCancelledLoaded(false);
     setDetailsOpen(false);
     setOtherRevenueError("");
+    setAnnualFeeError("");
     setCancelledError("");
     setError("");
     window.localStorage.removeItem(storageKey);
@@ -275,6 +303,42 @@ export default function PisCofinsAssessment({
     unclassifiedBase: 0,
   }), [otherRevenueRows]);
 
+  const annualFeeTotals = useMemo(() => annualFeeRows.reduce((result, row) => {
+    result.grossRevenue += row.grossRevenue;
+    result.discounts += row.discounts;
+    result.netRevenue += row.netRevenue;
+    const rate = row.regime ? rates[row.regime] : null;
+    if (!rate) {
+      result.unclassifiedBase += row.netRevenue;
+      return result;
+    }
+    if (row.regime === "Cumulativo") {
+      result.cumulativeBase += row.netRevenue;
+      result.cumulativePis += row.netRevenue * rate.pis;
+      result.cumulativeCofins += row.netRevenue * rate.cofins;
+    } else {
+      result.nonCumulativeBase += row.netRevenue;
+      result.nonCumulativePis += row.netRevenue * rate.pis;
+      result.nonCumulativeCofins += row.netRevenue * rate.cofins;
+    }
+    result.pis += row.netRevenue * rate.pis;
+    result.cofins += row.netRevenue * rate.cofins;
+    return result;
+  }, {
+    grossRevenue: 0,
+    discounts: 0,
+    netRevenue: 0,
+    cumulativeBase: 0,
+    nonCumulativeBase: 0,
+    unclassifiedBase: 0,
+    cumulativePis: 0,
+    cumulativeCofins: 0,
+    nonCumulativePis: 0,
+    nonCumulativeCofins: 0,
+    pis: 0,
+    cofins: 0,
+  }), [annualFeeRows]);
+
   const cancelledTotals = useMemo(() => cancelledRows.reduce((result, row) => {
     const rate = row.regime ? rates[row.regime] : null;
     result.gross += row.grossValue;
@@ -311,11 +375,11 @@ export default function PisCofinsAssessment({
   }), [cancelledRows]);
 
   const consolidatedTotals = useMemo(() => ({
-    cumulativePis: totals.cumulativePis - cancelledTotals.cumulativePis,
-    cumulativeCofins: totals.cumulativeCofins - cancelledTotals.cumulativeCofins,
-    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis - cancelledTotals.nonCumulativePis,
-    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins - cancelledTotals.nonCumulativeCofins,
-  }), [totals, otherRevenueTotals, cancelledTotals]);
+    cumulativePis: totals.cumulativePis + annualFeeTotals.cumulativePis - cancelledTotals.cumulativePis,
+    cumulativeCofins: totals.cumulativeCofins + annualFeeTotals.cumulativeCofins - cancelledTotals.cumulativeCofins,
+    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis + annualFeeTotals.nonCumulativePis - cancelledTotals.nonCumulativePis,
+    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins + annualFeeTotals.nonCumulativeCofins - cancelledTotals.nonCumulativeCofins,
+  }), [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals]);
 
   function exportExcel() {
     const data = rows.map((row) => {
@@ -366,6 +430,25 @@ export default function PisCofinsAssessment({
     }
   }
 
+  async function updateAnnualFeeAllocations() {
+    setAnnualFeeLoading(true);
+    setAnnualFeeError("");
+    try {
+      const response = await fetch(
+        `/api/totvs/pis-cofins/annual-fee-allocations?company=${companyCode}&competence=${competence}`,
+        { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" },
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Falha ao consultar os rateios de anuidades no módulo Contábil.");
+      setAnnualFeeRows(payload.rows || []);
+      setAnnualFeeLoaded(true);
+    } catch (cause) {
+      setAnnualFeeError((cause as Error).message);
+    } finally {
+      setAnnualFeeLoading(false);
+    }
+  }
+
   async function updateCancelledInvoices() {
     setCancelledLoading(true);
     setCancelledError("");
@@ -391,36 +474,40 @@ export default function PisCofinsAssessment({
         Coligada: companyCode,
         "Competência": competenceLabel,
         Tributo: "PIS cumulativo",
-        "Faturamento mensal": totals.cumulativePis,
-        "Outras receitas": 0,
-        "Notas canceladas (dedução)": -cancelledTotals.cumulativePis,
+        "Faturamento Mensal": totals.cumulativePis,
+        "Outras Receitas": 0,
+        "Rateios Anuidades": annualFeeTotals.cumulativePis,
+        "Notas Canceladas (dedução)": -cancelledTotals.cumulativePis,
         "Total consolidado": consolidatedTotals.cumulativePis,
       },
       {
         Coligada: companyCode,
         "Competência": competenceLabel,
         Tributo: "COFINS cumulativo",
-        "Faturamento mensal": totals.cumulativeCofins,
-        "Outras receitas": 0,
-        "Notas canceladas (dedução)": -cancelledTotals.cumulativeCofins,
+        "Faturamento Mensal": totals.cumulativeCofins,
+        "Outras Receitas": 0,
+        "Rateios Anuidades": annualFeeTotals.cumulativeCofins,
+        "Notas Canceladas (dedução)": -cancelledTotals.cumulativeCofins,
         "Total consolidado": consolidatedTotals.cumulativeCofins,
       },
       {
         Coligada: companyCode,
         "Competência": competenceLabel,
         Tributo: "PIS não cumulativo",
-        "Faturamento mensal": totals.nonCumulativePis,
-        "Outras receitas": otherRevenueTotals.pis,
-        "Notas canceladas (dedução)": -cancelledTotals.nonCumulativePis,
+        "Faturamento Mensal": totals.nonCumulativePis,
+        "Outras Receitas": otherRevenueTotals.pis,
+        "Rateios Anuidades": annualFeeTotals.nonCumulativePis,
+        "Notas Canceladas (dedução)": -cancelledTotals.nonCumulativePis,
         "Total consolidado": consolidatedTotals.nonCumulativePis,
       },
       {
         Coligada: companyCode,
         "Competência": competenceLabel,
         Tributo: "COFINS não cumulativo",
-        "Faturamento mensal": totals.nonCumulativeCofins,
-        "Outras receitas": otherRevenueTotals.cofins,
-        "Notas canceladas (dedução)": -cancelledTotals.nonCumulativeCofins,
+        "Faturamento Mensal": totals.nonCumulativeCofins,
+        "Outras Receitas": otherRevenueTotals.cofins,
+        "Rateios Anuidades": annualFeeTotals.nonCumulativeCofins,
+        "Notas Canceladas (dedução)": -cancelledTotals.nonCumulativeCofins,
         "Total consolidado": consolidatedTotals.nonCumulativeCofins,
       },
     ];
@@ -428,7 +515,7 @@ export default function PisCofinsAssessment({
 
   function consolidatedWorksheet() {
     const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows());
-    worksheet["!cols"] = [12, 14, 25, 20, 20, 28, 20].map((wch) => ({ wch }));
+    worksheet["!cols"] = [12, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
     return worksheet;
   }
 
@@ -476,6 +563,31 @@ export default function PisCofinsAssessment({
       "Alíquota COFINS": row.cofinsRate,
       COFINS: row.cofins,
     }));
+    const annualFeeAllocations = annualFeeRows.map((row) => {
+      const rate = row.regime ? rates[row.regime] : null;
+      return {
+        Coligada: row.company,
+        Filial: row.branch,
+        Competência: competenceLabel,
+        Data: row.date,
+        "Cód. reduzido": row.reduced,
+        Conta: row.account,
+        Descrição: row.service,
+        Classificação: row.regime,
+        "ID lançamento": row.entryId,
+        Documento: row.document,
+        Sistema: row.sourceSystem,
+        Complemento: row.complement,
+        "Centro de custo": row.costCenter,
+        "Valor bruto": row.grossRevenue,
+        Descontos: row.discounts,
+        "Base tributável": row.netRevenue,
+        "Alíquota PIS": rate?.pis ?? 0,
+        PIS: rate ? row.netRevenue * rate.pis : 0,
+        "Alíquota COFINS": rate?.cofins ?? 0,
+        COFINS: rate ? row.netRevenue * rate.cofins : 0,
+      };
+    });
     const cancelled = cancelledRows.map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
@@ -499,9 +611,10 @@ export default function PisCofinsAssessment({
       Tratamento: row.treatment,
     }));
     XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento mensal");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras receitas");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas canceladas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento Mensal");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras Receitas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas Canceladas");
     XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 
@@ -539,6 +652,18 @@ export default function PisCofinsAssessment({
       if (row.classification) {
         target.nonCumulativePis += row.pis;
         target.nonCumulativeCofins += row.cofins;
+      }
+    });
+    annualFeeRows.forEach((row) => {
+      const target = branchTotals(row.branch);
+      const rate = row.regime ? rates[row.regime] : null;
+      if (!rate) return;
+      if (row.regime === "Cumulativo") {
+        target.cumulativePis += row.netRevenue * rate.pis;
+        target.cumulativeCofins += row.netRevenue * rate.cofins;
+      } else {
+        target.nonCumulativePis += row.netRevenue * rate.pis;
+        target.nonCumulativeCofins += row.netRevenue * rate.cofins;
       }
     });
     cancelledRows.forEach((row) => {
@@ -594,14 +719,16 @@ export default function PisCofinsAssessment({
 
   return (
     <section
-      className={`panel tax-panel ${loading || otherRevenueLoading || cancelledLoading ? "is-processing" : ""}`}
+      className={`panel tax-panel ${loading || otherRevenueLoading || annualFeeLoading || cancelledLoading ? "is-processing" : ""}`}
     >
-      {(loading || otherRevenueLoading || cancelledLoading) && (
+      {(loading || otherRevenueLoading || annualFeeLoading || cancelledLoading) && (
         <div className="tax-processing">
           <div className="spinner" />
           <b>
             {cancelledLoading
               ? "Atualizando as notas canceladas..."
+              : annualFeeLoading
+              ? "Atualizando os rateios de anuidades..."
               : otherRevenueLoading
               ? "Atualizando as outras receitas..."
               : loading
@@ -618,7 +745,7 @@ export default function PisCofinsAssessment({
               className="tax-export"
               disabled={!completeAssessmentReady}
               onClick={exportConsolidatedBase}
-              title={completeAssessmentReady ? "Baixar os quatro totais e a composição do consolidado" : "Atualize as três etapas antes de exportar a base consolidada"}
+              title={completeAssessmentReady ? "Baixar os quatro totais e a composição do consolidado" : "Atualize as quatro etapas antes de exportar a base consolidada"}
             >
               <Download /> Base consolidada
             </button>
@@ -626,11 +753,11 @@ export default function PisCofinsAssessment({
               className="tax-export"
               disabled={!completeAssessmentReady}
               onClick={exportCompleteAssessment}
-              title={completeAssessmentReady ? "Extrair as três bases da apuração" : "Atualize e processe faturamento mensal, outras receitas e notas canceladas"}
+              title={completeAssessmentReady ? "Extrair as quatro bases da apuração" : "Atualize e processe as quatro etapas da apuração"}
             >
               <Download /> Apuração completa
             </button>
-            <button className="tax-future-action" disabled={!completeAssessmentReady} onClick={exportEntriesCsv} title={completeAssessmentReady ? "Gerar CSV para importação dos lançamentos" : "Atualize e processe as três etapas antes de gerar os lançamentos"}>
+            <button className="tax-future-action" disabled={!completeAssessmentReady} onClick={exportEntriesCsv} title={completeAssessmentReady ? "Gerar CSV para importação dos lançamentos" : "Atualize e processe as quatro etapas antes de gerar os lançamentos"}>
               <ReceiptText /> Lançamentos
             </button>
             <button className="tax-clear-action" disabled={!hasAssessment} onClick={clearAssessment} title="Apagar a apuração salva desta empresa e competência">
@@ -642,15 +769,15 @@ export default function PisCofinsAssessment({
       <div className="tax-consolidated-summary">
         <div className="tax-consolidated-title">
           <b>Apuração consolidada</b>
-          <span>Soma do faturamento mensal e outras receitas, com dedução das notas canceladas</span>
+          <span>Soma do Faturamento Mensal, Outras Receitas e Rateios Anuidades, com dedução das Notas Canceladas</span>
         </div>
-        <article><span>PIS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativePis)}</b><small>Faturamento + outras receitas − canceladas</small></article>
-        <article><span>COFINS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativeCofins)}</b><small>Faturamento + outras receitas − canceladas</small></article>
-        <article><span>PIS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas − canceladas</small></article>
-        <article><span>COFINS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas − canceladas</small></article>
+        <article><span>PIS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>COFINS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>PIS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>COFINS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
       </div>
       <div className="tax-section-heading">
-        <div><b>Faturamento mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
+        <div><b>Faturamento Mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
         <button
           className={loaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
           disabled={loading || !companyCode}
@@ -828,7 +955,7 @@ export default function PisCofinsAssessment({
       </div>
       <section className={`tax-secondary-section ${otherRevenueVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
-          <div><b>Outras receitas</b><span>Razão Completo · contas definidas na aba Base contas</span></div>
+          <div><b>Outras Receitas</b><span>Razão Completo · contas definidas na aba Base contas</span></div>
           <button
             className={otherRevenueLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
             disabled={otherRevenueLoading || !companyCode}
@@ -867,9 +994,54 @@ export default function PisCofinsAssessment({
           </>
         )}
       </section>
+      <section className={`tax-secondary-section ${annualFeeVisible ? "" : "is-collapsed"}`}>
+        <div className="tax-section-heading">
+          <div><b>Rateios Anuidades</b><span>RM Contábil · lançamentos RAT-* gerados no RM Saldus</span></div>
+          <button
+            className={annualFeeLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
+            disabled={annualFeeLoading || !companyCode}
+            onClick={() => void updateAnnualFeeAllocations()}
+          >
+            <RefreshCw className={annualFeeLoading ? "spin" : ""} />
+            {annualFeeLoading ? "Atualizando..." : "Atualizar rateios"}
+          </button>
+          <button className="tax-visibility-toggle" onClick={() => setAnnualFeeVisible((visible) => !visible)}>
+            {annualFeeVisible ? <ChevronUp /> : <ChevronDown />}
+            {annualFeeVisible ? "Ocultar" : "Exibir"}
+          </button>
+        </div>
+        {annualFeeError && <div className="notice error">{annualFeeError}</div>}
+        {!annualFeeLoaded ? (
+          <div className="tax-source-empty"><Calculator /><span>Atualize para localizar os lançamentos contábeis de rateio de anuidades da competência.</span></div>
+        ) : annualFeeRows.length === 0 ? (
+          <div className="tax-source-empty"><Calculator /><b>Sem rateios na competência</b><span>Nenhum lançamento RAT-* de anuidades foi encontrado no módulo Contábil.</span></div>
+        ) : (
+          <>
+            <div className="tax-other-summary">
+              <article><span>Lançamentos</span><b>{annualFeeRows.length}</b><small>RM Saldus · RAT-*</small></article>
+              <article><span>Valor bruto</span><b>{brl.format(annualFeeTotals.grossRevenue)}</b></article>
+              <article><span>Descontos</span><b>{brl.format(annualFeeTotals.discounts)}</b></article>
+              <article><span>Base tributável</span><b>{brl.format(annualFeeTotals.netRevenue)}</b></article>
+              <article><span>PIS apurado</span><b>{brl.format(annualFeeTotals.pis)}</b><small>Conforme classificação</small></article>
+              <article><span>COFINS apurada</span><b>{brl.format(annualFeeTotals.cofins)}</b><small>Conforme classificação</small></article>
+              <article className={Math.abs(annualFeeTotals.unclassifiedBase) > 0.004 ? "has-warning" : ""}><span>Sem classificação</span><b>{brl.format(annualFeeTotals.unclassifiedBase)}</b><small>Sem cálculo automático</small></article>
+            </div>
+            <div className="table-wrap tax-other-table">
+              <table>
+                <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Classificação</th><th>Valor bruto</th><th>Desconto</th><th>Base tributável</th><th>Alíquota PIS</th><th>PIS</th><th>Alíquota COFINS</th><th>COFINS</th><th>ID lançamento</th><th>Documento</th><th>Complemento</th></tr></thead>
+                <tbody>{annualFeeRows.map((row) => {
+                  const rate = row.regime ? rates[row.regime] : null;
+                  return <tr key={`${row.entryId}-${row.account}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.service}</td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td>{brl.format(row.netRevenue)}</td><td>{rate ? `${(rate.pis * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? `${(rate.cofins * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td><td>{row.entryId}</td><td>{row.document}</td><td>{row.complement}</td></tr>;
+                })}</tbody>
+                <tfoot><tr><td colSpan={6}>Subtotal da competência</td><td>{brl.format(annualFeeTotals.grossRevenue)}</td><td>{brl.format(annualFeeTotals.discounts)}</td><td>{brl.format(annualFeeTotals.netRevenue)}</td><td></td><td>{brl.format(annualFeeTotals.pis)}</td><td></td><td>{brl.format(annualFeeTotals.cofins)}</td><td colSpan={3}></td></tr></tfoot>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
       <section className={`tax-secondary-section ${cancelledVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
-          <div><b>Notas canceladas</b><span>Planilha.NET 37 · NF MUNICIPAIS CANCELADAS</span></div>
+          <div><b>Notas Canceladas</b><span>Planilha.NET 37 · NF MUNICIPAIS CANCELADAS</span></div>
           <button
             className={cancelledLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
             disabled={cancelledLoading || !companyCode}
