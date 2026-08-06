@@ -87,13 +87,14 @@ export async function GET(request: NextRequest) {
       recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence,
     );
     let ignoredCancelled = 0;
-    const cancelledRows: Array<{ line: number; service: string; grossRevenue: number; discounts: number; netRevenue: number; status: string }> = [];
+    const cancelledRows: Array<{ line: number; branch: string; service: string; grossRevenue: number; discounts: number; netRevenue: number; status: string }> = [];
     const rows = records.flatMap((record, index) => {
       const fiscalStatus = normalize(tag(record, "STATUSNF") || tag(record, "STATUS"));
       if (fiscalStatus.includes("CANCELAD")) {
         ignoredCancelled += 1;
         cancelledRows.push({
           line: index + 1,
+          branch: tag(record, "CODFILIAL"),
           service: tag(record, "DESCRICAO") || tag(record, "SERVICO_ED") || "Descrição não informada",
           grossRevenue: number(tag(record, "VALORORIGINAL")),
           discounts: number(tag(record, "BOLSA")),
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
       const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
       const discounts = number(tag(record, "BOLSA"));
       const netRevenue = number(tag(record, "VALORNF") || tag(record, "VLRNF"));
-      return [{ line: index + 1, service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
+      return [{ line: index + 1, branch: tag(record, "CODFILIAL"), service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
     const totals = rows.reduce((result, row) => ({
       grossRevenue: result.grossRevenue + row.grossRevenue,
