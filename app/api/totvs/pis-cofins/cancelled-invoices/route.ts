@@ -13,6 +13,43 @@ const QUERY = {
   spreadsheetGuid: "ead42866-0978-4ea8-a485-3d57304be049",
 } as const;
 
+type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
+
+const classification: Record<string, Exclude<TaxRegime, "">> = {
+  "BERCARIO": "Cumulativo",
+  "CRECHE": "Cumulativo",
+  "ENSINO INFANTIL": "Cumulativo",
+  "ENSINO FUNDAMENTAL": "Cumulativo",
+  "ENSINO REGULAR": "Cumulativo",
+  "ENSINO MEDIO": "Cumulativo",
+  "PRE-VESTIBULAR - CURSOS": "Não-Cumulativo",
+  "1A COTA ENSINO INFANTIL": "Cumulativo",
+  "1A COTA ENSINO FUNDAMENTAL": "Cumulativo",
+  "1A COTA ENSINO MEDIO": "Cumulativo",
+  "HORARIO INTEGRAL": "Cumulativo",
+  "ESCOLINHAS / ATIVIDADES EXTRAS": "Não-Cumulativo",
+  "HIGH SCHOOL - CURSOS": "Não-Cumulativo",
+  "ORIENTACAO PEDAGOGICA": "Não-Cumulativo",
+  "ANUIDADE - ENSINO FUNDAMENTAL": "Cumulativo",
+  "ANUIDADE - ENSINO MEDIO": "Cumulativo",
+  "ANUIDADE - ENSINO INFANTIL": "Cumulativo",
+  "ANUIDADE - ORIENTACAO PEDAGOGICA": "Não-Cumulativo",
+  "ANUIDADE - HORARIO INTEGRAL": "Não-Cumulativo",
+  "SEMESTRALIDADE - ENSINO FUNDAMENTAL": "Cumulativo",
+  "SEMESTRALIDADE - ENSINO MEDIO": "Cumulativo",
+};
+
+const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/ª/g, "A").toUpperCase();
+const classifyService = (value: string): TaxRegime => {
+  const service = normalize(value);
+  if (classification[service]) return classification[service];
+  if (["PRE-VESTIBULAR", "PRE VESTIBULAR", "ESCOLINHA", "ATIVIDADE EXTRA", "HIGH SCHOOL", "ORIENTACAO PEDAGOGICA"].some((term) => service.includes(term))) return "Não-Cumulativo";
+  if (service.includes("ANUIDADE") && service.includes("HORARIO INTEGRAL")) return "Não-Cumulativo";
+  if (["BERCARIO", "CRECHE", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "HORARIO INTEGRAL", "MENSALIDADE", "SEMESTRALIDADE"].some((term) => service.includes(term))) return "Cumulativo";
+  if (/^(EI|EFI|EF1|EF2|EM)(\s|\-|$)/.test(service)) return "Cumulativo";
+  return "";
+};
+
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const decodeXml = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, name: string) => decodeXml(xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() || "");
@@ -67,6 +104,8 @@ export async function GET(request: NextRequest) {
       const key = `${tag(record, "IDMOV")}|${tag(record, "IDLAN")}|${tag(record, "NUMERONFSE")}`;
       if (seen.has(key)) return [];
       seen.add(key);
+      const history = tag(record, "HISTORICOLONGO");
+      const service = history.split(/\r?\n/).map((part) => part.trim()).find(Boolean) || "Serviço não informado";
       return [{
         studentCode: tag(record, "RA"),
         student: tag(record, "ALUNO"),
@@ -84,7 +123,9 @@ export async function GET(request: NextRequest) {
         grossValue: number(tag(record, "VALOR_NF")),
         discountValue: number(tag(record, "VALOR_BOLSA")),
         netValue: number(tag(record, "VALOR_LIQUIDONF")),
-        history: tag(record, "HISTORICOLONGO"),
+        service,
+        regime: classifyService(service),
+        history,
         treatment: "Excluída da apuração",
       }];
     }).sort((a, b) => a.cancellationDate.localeCompare(b.cancellationDate) || a.invoice.localeCompare(b.invoice));
@@ -92,7 +133,10 @@ export async function GET(request: NextRequest) {
       grossValue: result.grossValue + row.grossValue,
       discountValue: result.discountValue + row.discountValue,
       netValue: result.netValue + row.netValue,
-    }), { grossValue: 0, discountValue: 0, netValue: 0 });
+      cumulativeValue: result.cumulativeValue + (row.regime === "Cumulativo" ? row.netValue : 0),
+      nonCumulativeValue: result.nonCumulativeValue + (row.regime === "Não-Cumulativo" ? row.netValue : 0),
+      unclassifiedValue: result.unclassifiedValue + (!row.regime ? row.netValue : 0),
+    }), { grossValue: 0, discountValue: 0, netValue: 0, cumulativeValue: 0, nonCumulativeValue: 0, unclassifiedValue: 0 });
     return NextResponse.json({ source: QUERY, company, competence, records: rows.length, totals, rows }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {
     console.error("[api/totvs/pis-cofins/cancelled-invoices] consultation failed", { message: (cause as Error).message });
