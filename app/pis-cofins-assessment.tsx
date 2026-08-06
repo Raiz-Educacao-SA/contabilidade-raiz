@@ -6,7 +6,6 @@ import { Calculator, ChevronDown, ChevronUp, Download, RefreshCw, TriangleAlert 
 import * as XLSX from "xlsx";
 
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
-type RevenueView = "faturamento" | "outras-receitas" | "notas-canceladas";
 type RevenueRow = {
   line: number;
   service: string;
@@ -15,6 +14,7 @@ type RevenueRow = {
   netRevenue: number;
   regime: TaxRegime;
 };
+type CancelledRow = Omit<RevenueRow, "regime"> & { status: string };
 
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -35,7 +35,7 @@ export default function PisCofinsAssessment({
   accessToken: string;
 }) {
   const [rows, setRows] = useState<RevenueRow[]>([]);
-  const [revenueView, setRevenueView] = useState<RevenueView>("faturamento");
+  const [cancelledRows, setCancelledRows] = useState<CancelledRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [classifying, setClassifying] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -52,6 +52,7 @@ export default function PisCofinsAssessment({
 
   useEffect(() => {
     setRows([]);
+    setCancelledRows([]);
     setLoaded(false);
     setClassified(false);
     setIgnoredCancelled(0);
@@ -79,6 +80,7 @@ export default function PisCofinsAssessment({
           "Nenhuma linha foi encontrada para a empresa e competência selecionadas.",
         );
       setRows(payload.rows || []);
+      setCancelledRows(payload.cancelledRows || []);
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(false);
@@ -169,6 +171,47 @@ export default function PisCofinsAssessment({
     );
   }
 
+  function exportCompleteAssessment() {
+    const workbook = XLSX.utils.book_new();
+    const monthly = rows.map((row) => {
+      const rate = row.regime ? rates[row.regime] : null;
+      return {
+        Coligada: companyCode,
+        Competência: competenceLabel,
+        Descrição: row.service,
+        Classificação: row.regime,
+        "Valor bruto": row.grossRevenue,
+        Descontos: row.discounts,
+        "Base final (VALORNF)": row.netRevenue,
+        PIS: rate ? row.netRevenue * rate.pis : 0,
+        COFINS: rate ? row.netRevenue * rate.cofins : 0,
+      };
+    });
+    const otherRevenues = [{
+      Coligada: companyCode,
+      Competência: competenceLabel,
+      Descrição: "Base de outras receitas ainda não configurada",
+      Classificação: "",
+      "Base final": 0,
+      PIS: 0,
+      COFINS: 0,
+    }];
+    const cancelled = cancelledRows.map((row) => ({
+      Coligada: companyCode,
+      Competência: competenceLabel,
+      Descrição: row.service,
+      Status: row.status,
+      "Valor bruto": row.grossRevenue,
+      Descontos: row.discounts,
+      "VALORNF excluído": row.netRevenue,
+      Tratamento: "Excluída da apuração",
+    }));
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento mensal");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras receitas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas canceladas");
+    XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
+  }
+
   return (
     <section
       className={`panel tax-panel ${loading || classifying ? "is-processing" : ""}`}
@@ -184,7 +227,7 @@ export default function PisCofinsAssessment({
           <span>Aguarde até o processamento ser concluído.</span>
         </div>
       )}
-      {actionsTarget && revenueView === "faturamento" &&
+      {actionsTarget &&
         createPortal(
           <div className="tax-actions">
             <button
@@ -202,15 +245,14 @@ export default function PisCofinsAssessment({
             >
               <Calculator /> {classifying ? "Classificando..." : "Classificar"}
             </button>
+            <button className="tax-export" disabled={!classified} onClick={exportCompleteAssessment}>
+              <Download /> Exportar apuração completa
+            </button>
           </div>,
           actionsTarget,
         )}
-      <nav className="tax-source-tabs" aria-label="Bases da apuração de PIS e COFINS">
-        <button className={revenueView === "faturamento" ? "active" : ""} onClick={() => setRevenueView("faturamento")}>Faturamento mensal</button>
-        <button className={revenueView === "outras-receitas" ? "active" : ""} onClick={() => setRevenueView("outras-receitas")}>Outras receitas</button>
-        <button className={revenueView === "notas-canceladas" ? "active" : ""} onClick={() => setRevenueView("notas-canceladas")}>Notas canceladas</button>
-      </nav>
-      <div hidden={revenueView !== "faturamento"}>
+      <div className="tax-section-heading"><b>Faturamento mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
+      <div>
       {error && <div className="notice error">{error}</div>}
       <div className="tax-summary">
         <article>
@@ -372,17 +414,16 @@ export default function PisCofinsAssessment({
         fiscais.
       </p>
       </div>
-      {revenueView !== "faturamento" && (
-        <div className="tax-source-empty">
-          <Calculator />
-          <b>{revenueView === "outras-receitas" ? "Outras receitas" : "Notas canceladas"}</b>
-          <span>
-            {revenueView === "outras-receitas"
-              ? "Área preparada para receber, classificar e calcular as demais receitas da competência."
-              : "Área preparada para conferir separadamente as notas canceladas da competência."}
-          </span>
-        </div>
-      )}
+      <section className="tax-secondary-section">
+        <div className="tax-section-heading"><b>Outras receitas</b><span>Classificação complementar da competência</span></div>
+        <div className="tax-source-empty"><Calculator /><span>Área preparada para receber, classificar e calcular as demais receitas.</span></div>
+      </section>
+      <section className="tax-secondary-section">
+        <div className="tax-section-heading"><b>Notas canceladas</b><span>{cancelledRows.length} registro(s) excluído(s) da apuração</span></div>
+        {cancelledRows.length ? (
+          <div className="table-wrap tax-cancelled-table"><table><thead><tr><th>Competência</th><th>Descrição</th><th>Status</th><th>Valor bruto</th><th>Desconto</th><th>VALORNF excluído</th></tr></thead><tbody>{cancelledRows.map((row) => <tr key={row.line}><td>{competenceLabel}</td><td>{row.service}</td><td>{row.status}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td>{brl.format(row.netRevenue)}</td></tr>)}</tbody></table></div>
+        ) : <div className="tax-source-empty"><span>Nenhuma nota cancelada carregada para esta competência.</span></div>}
+      </section>
     </section>
   );
 }

@@ -1342,27 +1342,13 @@
   padding: 0;
   overflow: hidden;
 }
-.tax-source-tabs {
-  display: flex;
-  gap: 5px;
-  padding: 8px 18px;
-  border-bottom: 1px solid var(--line);
-  background: #f8fafc;
-}
-.tax-source-tabs button {
-  padding: 7px 11px;
-  border: 1px solid #dce3ec;
-  border-radius: 8px;
-  background: #fff;
-  color: #667085;
-  font-size: 9px;
-  font-weight: 800;
-}
-.tax-source-tabs button.active {
-  border-color: var(--violet);
-  background: var(--violet);
-  color: #fff;
-}
+.tax-section-heading { padding: 9px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: #f8fafc; }
+.tax-section-heading b { font-size: 11px; }
+.tax-section-heading span { font-size: 8px; color: var(--muted); }
+.tax-secondary-section { border-top: 8px solid var(--bg); }
+.tax-cancelled-table { margin: 10px 18px 16px; max-height: 320px; }
+.tax-cancelled-table table { font-size: 9px; }
+.tax-cancelled-table th,.tax-cancelled-table td { padding: 5px 7px; }
 .tax-source-empty {
   min-height: 260px;
   padding: 48px 20px;
