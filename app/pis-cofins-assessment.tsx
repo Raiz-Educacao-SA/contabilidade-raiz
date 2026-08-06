@@ -6,6 +6,7 @@ import { Calculator, ChevronDown, ChevronUp, Download, RefreshCw, TriangleAlert 
 import * as XLSX from "xlsx";
 
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
+type RevenueView = "faturamento" | "outras-receitas" | "notas-canceladas";
 type RevenueRow = {
   line: number;
   service: string;
@@ -34,6 +35,7 @@ export default function PisCofinsAssessment({
   accessToken: string;
 }) {
   const [rows, setRows] = useState<RevenueRow[]>([]);
+  const [revenueView, setRevenueView] = useState<RevenueView>("faturamento");
   const [loading, setLoading] = useState(false);
   const [classifying, setClassifying] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -182,7 +184,7 @@ export default function PisCofinsAssessment({
           <span>Aguarde até o processamento ser concluído.</span>
         </div>
       )}
-      {actionsTarget &&
+      {actionsTarget && revenueView === "faturamento" &&
         createPortal(
           <div className="tax-actions">
             <button
@@ -203,6 +205,12 @@ export default function PisCofinsAssessment({
           </div>,
           actionsTarget,
         )}
+      <nav className="tax-source-tabs" aria-label="Bases da apuração de PIS e COFINS">
+        <button className={revenueView === "faturamento" ? "active" : ""} onClick={() => setRevenueView("faturamento")}>Faturamento mensal</button>
+        <button className={revenueView === "outras-receitas" ? "active" : ""} onClick={() => setRevenueView("outras-receitas")}>Outras receitas</button>
+        <button className={revenueView === "notas-canceladas" ? "active" : ""} onClick={() => setRevenueView("notas-canceladas")}>Notas canceladas</button>
+      </nav>
+      <div hidden={revenueView !== "faturamento"}>
       {error && <div className="notice error">{error}</div>}
       <div className="tax-summary">
         <article>
@@ -363,6 +371,18 @@ export default function PisCofinsAssessment({
         competência selecionada, antes de créditos, retenções e demais ajustes
         fiscais.
       </p>
+      </div>
+      {revenueView !== "faturamento" && (
+        <div className="tax-source-empty">
+          <Calculator />
+          <b>{revenueView === "outras-receitas" ? "Outras receitas" : "Notas canceladas"}</b>
+          <span>
+            {revenueView === "outras-receitas"
+              ? "Área preparada para receber, classificar e calcular as demais receitas da competência."
+              : "Área preparada para conferir separadamente as notas canceladas da competência."}
+          </span>
+        </div>
+      )}
     </section>
   );
 }
