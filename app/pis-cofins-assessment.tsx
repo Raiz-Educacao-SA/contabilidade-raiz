@@ -286,6 +286,13 @@ export default function PisCofinsAssessment({
     if (rate) {
       result.pis += row.netValue * rate.pis;
       result.cofins += row.netValue * rate.cofins;
+      if (row.regime === "Cumulativo") {
+        result.cumulativePis += row.netValue * rate.pis;
+        result.cumulativeCofins += row.netValue * rate.cofins;
+      } else {
+        result.nonCumulativePis += row.netValue * rate.pis;
+        result.nonCumulativeCofins += row.netValue * rate.cofins;
+      }
     }
     return result;
   }, {
@@ -297,13 +304,18 @@ export default function PisCofinsAssessment({
     unclassifiedBase: 0,
     pis: 0,
     cofins: 0,
+    cumulativePis: 0,
+    cumulativeCofins: 0,
+    nonCumulativePis: 0,
+    nonCumulativeCofins: 0,
   }), [cancelledRows]);
 
   const consolidatedTotals = useMemo(() => ({
-    taxableBase: totals.nfBase + otherRevenueTotals.taxBase,
-    pis: totals.totalPis + otherRevenueTotals.pis,
-    cofins: totals.totalCofins + otherRevenueTotals.cofins,
-  }), [totals, otherRevenueTotals]);
+    cumulativePis: totals.cumulativePis + otherRevenueTotals.financialPis - cancelledTotals.cumulativePis,
+    cumulativeCofins: totals.cumulativeCofins + otherRevenueTotals.financialCofins - cancelledTotals.cumulativeCofins,
+    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.otherPis - cancelledTotals.nonCumulativePis,
+    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.otherCofins - cancelledTotals.nonCumulativeCofins,
+  }), [totals, otherRevenueTotals, cancelledTotals]);
 
   function classify() {
     setClassifying(true);
@@ -491,15 +503,12 @@ export default function PisCofinsAssessment({
       <div className="tax-consolidated-summary">
         <div className="tax-consolidated-title">
           <b>Apuração consolidada</b>
-          <span>Faturamento mensal + outras receitas; notas canceladas demonstradas separadamente</span>
+          <span>Soma do faturamento mensal e outras receitas, com dedução das notas canceladas</span>
         </div>
-        <article><span>Base faturamento</span><b>{loaded ? brl.format(totals.nfBase) : "Aguardando"}</b></article>
-        <article><span>Base outras receitas</span><b>{otherRevenueLoaded ? brl.format(otherRevenueTotals.taxBase) : "Aguardando"}</b></article>
-        <article><span>Base consolidada</span><b>{loaded && otherRevenueLoaded ? brl.format(consolidatedTotals.taxableBase) : "Aguardando"}</b></article>
-        <article><span>PIS consolidado</span><b>{loaded && otherRevenueLoaded ? brl.format(consolidatedTotals.pis) : "Aguardando"}</b></article>
-        <article><span>COFINS consolidada</span><b>{loaded && otherRevenueLoaded ? brl.format(consolidatedTotals.cofins) : "Aguardando"}</b></article>
-        <article><span>PIS cancelado</span><b>{cancelledLoaded ? brl.format(cancelledTotals.pis) : "Aguardando"}</b><small>Excluído da apuração</small></article>
-        <article><span>COFINS cancelada</span><b>{cancelledLoaded ? brl.format(cancelledTotals.cofins) : "Aguardando"}</b><small>Excluída da apuração</small></article>
+        <article><span>PIS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativePis)}</b><small>Faturamento + outras receitas − canceladas</small></article>
+        <article><span>COFINS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativeCofins)}</b><small>Faturamento + outras receitas − canceladas</small></article>
+        <article><span>PIS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas − canceladas</small></article>
+        <article><span>COFINS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas − canceladas</small></article>
       </div>
       <div className="tax-section-heading">
         <div><b>Faturamento mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
