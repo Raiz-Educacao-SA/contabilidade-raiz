@@ -179,6 +179,7 @@ export default function Home() {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [filterStorageReady, setFilterStorageReady] = useState(false);
   const [accounting, setAccounting] = useState<AccountingRow[]>([]);
   const [bank, setBank] = useState<BankRow[]>([]);
   const [bankName, setBankName] = useState("");
@@ -206,6 +207,19 @@ export default function Home() {
   const competence = `${year}-${String(month).padStart(2, "0")}`;
   const company = companies.find((item) => item.empresa_id === companyId);
   const canWrite = (company?.perfil ?? "consulta").toLowerCase() !== "consulta";
+
+  useEffect(() => {
+    const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
+    const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
+    if (savedYear >= 2000 && savedYear <= 2100) setYear(savedYear);
+    if (savedMonth >= 1 && savedMonth <= 12) setMonth(savedMonth);
+    setFilterStorageReady(true);
+  }, []);
+  useEffect(() => {
+    if (!filterStorageReady) return;
+    window.localStorage.setItem("contabilidade-raiz:year", String(year));
+    window.localStorage.setItem("contabilidade-raiz:month", String(month));
+  }, [filterStorageReady, year, month]);
 
   useEffect(() => {
     let active = true;
@@ -242,9 +256,18 @@ export default function Home() {
       if (error) return setNotice(error.message);
       const rows = (data ?? []) as unknown as Company[];
       setCompanies(rows);
-      if (rows[0]) setCompanyId(rows[0].empresa_id);
+      setCompanyId((current) => {
+        if (rows.some((row) => row.empresa_id === current)) return current;
+        const saved = window.localStorage.getItem("contabilidade-raiz:company-id");
+        if (saved && rows.some((row) => row.empresa_id === saved)) return saved;
+        return rows[0]?.empresa_id ?? "";
+      });
     })();
   }, [session]);
+  useEffect(() => {
+    if (!companyId) return;
+    window.localStorage.setItem("contabilidade-raiz:company-id", companyId);
+  }, [companyId]);
   useEffect(() => {
     if (!companyId) return;
     supabase
