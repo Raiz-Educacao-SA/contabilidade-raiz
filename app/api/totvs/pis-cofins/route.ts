@@ -63,9 +63,8 @@ async function query(parameters: string) {
   const user = process.env.TOTVS_WS_PRD_USER;
   const password = process.env.TOTVS_WS_PRD_PASSWORD;
   if (!user || !password) throw new Error("Credenciais técnicas do TOTVS não configuradas.");
-  // Sentença técnica cadastrada para a integração da Planilha.NET 53.
-  // A consulta retorna CODCOLIGADA por linha; o isolamento é aplicado em seguida.
-  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CX_PISCOFINS53</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  // Planilha.NET 53 — sentença oficial "ANALISE NF COM CONTA".
+  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA.108090</codSentenca><codColigada>10</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
   const soap = await response.text();
   if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 53.");
@@ -82,16 +81,15 @@ export async function GET(request: NextRequest) {
     const [year] = competence!.split("-").map(Number);
     const start = `${year}-01-01`;
     const end = `${year}-12-31`;
-    const sourceCompanyRecords = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`))
+    const sourceCompanyRecords = (await query(`CODCOLIGADA=${company};COMP_INI_D=${start};COMP_FIM_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = sourceCompanyRecords.filter((record) =>
       recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence,
     );
     let ignoredCancelled = 0;
-    const acceptedStatuses = new Set(["AUTORIZADA", "REJEITADA", "NAO ENVIADA"]);
     const rows = records.flatMap((record, index) => {
       const fiscalStatus = normalize(tag(record, "STATUSNF") || tag(record, "STATUS"));
-      if (!acceptedStatuses.has(fiscalStatus)) {
+      if (fiscalStatus.includes("CANCELAD")) {
         ignoredCancelled += 1;
         return [];
       }
