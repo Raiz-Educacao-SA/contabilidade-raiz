@@ -15,6 +15,23 @@ type RevenueRow = {
   regime: TaxRegime;
 };
 type CancelledRow = Omit<RevenueRow, "regime"> & { status: string };
+type OtherRevenueRow = {
+  company: string;
+  branch: string;
+  entryId: string;
+  document: string;
+  integrationKey: string;
+  sourceSystem: string;
+  date: string;
+  reduced: number;
+  account: string;
+  description: string;
+  group: string;
+  value: number;
+  user: string;
+  complement: string;
+  costCenter: string;
+};
 
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -42,6 +59,10 @@ export default function PisCofinsAssessment({
   const [classified, setClassified] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [ignoredCancelled, setIgnoredCancelled] = useState(0);
+  const [otherRevenueRows, setOtherRevenueRows] = useState<OtherRevenueRow[]>([]);
+  const [otherRevenueLoading, setOtherRevenueLoading] = useState(false);
+  const [otherRevenueLoaded, setOtherRevenueLoaded] = useState(false);
+  const [otherRevenueError, setOtherRevenueError] = useState("");
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   const competenceLabel = competence.split("-").reverse().join("/");
@@ -56,6 +77,9 @@ export default function PisCofinsAssessment({
     setLoaded(false);
     setClassified(false);
     setIgnoredCancelled(0);
+    setOtherRevenueRows([]);
+    setOtherRevenueLoaded(false);
+    setOtherRevenueError("");
     setError("");
   }, [companyCode, competence]);
 
@@ -171,6 +195,25 @@ export default function PisCofinsAssessment({
     );
   }
 
+  async function updateOtherRevenues() {
+    setOtherRevenueLoading(true);
+    setOtherRevenueError("");
+    try {
+      const response = await fetch(
+        `/api/totvs/pis-cofins/other-revenues?company=${companyCode}&competence=${competence}`,
+        { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" },
+      );
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Falha ao consultar as outras receitas no Razão Completo.");
+      setOtherRevenueRows(payload.rows || []);
+      setOtherRevenueLoaded(true);
+    } catch (cause) {
+      setOtherRevenueError((cause as Error).message);
+    } finally {
+      setOtherRevenueLoading(false);
+    }
+  }
+
   function exportCompleteAssessment() {
     const workbook = XLSX.utils.book_new();
     const monthly = rows.map((row) => {
@@ -187,15 +230,22 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const otherRevenues = [{
-      Coligada: companyCode,
+    const otherRevenues = otherRevenueRows.map((row) => ({
+      Coligada: row.company,
+      Filial: row.branch,
       Competência: competenceLabel,
-      Descrição: "Base de outras receitas ainda não configurada",
-      Classificação: "",
-      "Base final": 0,
-      PIS: 0,
-      COFINS: 0,
-    }];
+      Data: row.date,
+      "Cód. reduzido": row.reduced,
+      Conta: row.account,
+      Descrição: row.description,
+      Agrupamento: row.group,
+      "ID lançamento": row.entryId,
+      Documento: row.document,
+      Sistema: row.sourceSystem,
+      Complemento: row.complement,
+      "Centro de custo": row.costCenter,
+      Valor: row.value,
+    }));
     const cancelled = cancelledRows.map((row) => ({
       Coligada: companyCode,
       Competência: competenceLabel,
@@ -214,13 +264,15 @@ export default function PisCofinsAssessment({
 
   return (
     <section
-      className={`panel tax-panel ${loading || classifying ? "is-processing" : ""}`}
+      className={`panel tax-panel ${loading || classifying || otherRevenueLoading ? "is-processing" : ""}`}
     >
-      {(loading || classifying) && (
+      {(loading || classifying || otherRevenueLoading) && (
         <div className="tax-processing">
           <div className="spinner" />
           <b>
-            {loading
+            {otherRevenueLoading
+              ? "Atualizando as outras receitas..."
+              : loading
               ? "Atualizando a base faturamento..."
               : "Classificando e calculando PIS e COFINS..."}
           </b>
@@ -415,8 +467,38 @@ export default function PisCofinsAssessment({
       </p>
       </div>
       <section className="tax-secondary-section">
-        <div className="tax-section-heading"><b>Outras receitas</b><span>Classificação complementar da competência</span></div>
-        <div className="tax-source-empty"><Calculator /><span>Área preparada para receber, classificar e calcular as demais receitas.</span></div>
+        <div className="tax-section-heading">
+          <div><b>Outras receitas</b><span>Razão Completo · contas definidas na aba Base contas</span></div>
+          <button
+            className={otherRevenueLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
+            disabled={otherRevenueLoading || !companyCode}
+            onClick={() => void updateOtherRevenues()}
+          >
+            <RefreshCw className={otherRevenueLoading ? "spin" : ""} />
+            {otherRevenueLoading ? "Atualizando..." : "Atualizar outras receitas"}
+          </button>
+        </div>
+        {otherRevenueError && <div className="notice error">{otherRevenueError}</div>}
+        {!otherRevenueLoaded ? (
+          <div className="tax-source-empty"><Calculator /><span>Atualize para carregar todos os movimentos das contas configuradas na competência selecionada.</span></div>
+        ) : otherRevenueRows.length === 0 ? (
+          <div className="tax-source-empty"><Calculator /><b>Sem movimento na competência</b><span>Nenhuma das contas da aba Base contas apresentou movimentação.</span></div>
+        ) : (
+          <>
+            <div className="tax-other-summary">
+              <article><span>Contas com movimento</span><b>{new Set(otherRevenueRows.map((row) => row.account)).size}</b></article>
+              <article><span>Lançamentos encontrados</span><b>{otherRevenueRows.length}</b></article>
+              <article><span>Saldo da competência</span><b>{brl.format(otherRevenueRows.reduce((sum, row) => sum + row.value, 0))}</b></article>
+            </div>
+            <div className="table-wrap tax-other-table">
+              <table>
+                <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Agrupamento</th><th>ID lançamento</th><th>Complemento</th><th>Valor</th></tr></thead>
+                <tbody>{otherRevenueRows.map((row, index) => <tr key={`${row.entryId}-${row.account}-${index}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.description}</td><td>{row.group || ""}</td><td>{row.entryId}</td><td>{row.complement}</td><td>{brl.format(row.value)}</td></tr>)}</tbody>
+                <tfoot><tr><td colSpan={8}>Subtotal da competência</td><td>{brl.format(otherRevenueRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot>
+              </table>
+            </div>
+          </>
+        )}
       </section>
       <section className="tax-secondary-section">
         <div className="tax-section-heading"><b>Notas canceladas</b><span>{cancelledRows.length} registro(s) excluído(s) da apuração</span></div>

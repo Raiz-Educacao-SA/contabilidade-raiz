@@ -620,7 +620,11 @@ export default function Home() {
               <SlidersHorizontal />
             </span>
             <div>
-              <b>Filtros da análise</b>
+              <b>
+                {selectedModule === "contabil" && accountingTab === "pis-cofins"
+                  ? "Filtros"
+                  : "Filtros da análise"}
+              </b>
               <small>Selecione a empresa e a competência</small>
             </div>
           </div>
