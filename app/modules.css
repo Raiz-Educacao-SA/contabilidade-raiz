@@ -1634,6 +1634,41 @@
 .tax-processing .spinner {
   margin-bottom: 6px;
 }
+
+/* Tema azul claro do Contabilidade Raiz */
+:root {
+  --navy: #3f83ad;
+  --violet: #3a8fc4;
+  --violet-dark: #2875a5;
+  --bg: #f2f8fc;
+}
+aside {
+  background: linear-gradient(180deg, #4a91bc 0%, #34779f 100%);
+}
+.current-module,
+.sidebar-context select,
+.sidebar-context input {
+  background: rgba(24, 83, 121, 0.72);
+}
+nav button,
+.logout,
+.module-back {
+  color: #e2f2fb;
+}
+nav button:hover,
+nav button.active {
+  background: rgba(255, 255, 255, 0.16);
+}
+.accounting-nav,
+.sidebar-context,
+.company-sidebar {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.tax-table th,
+.book-table th,
+.revenue-table th {
+  background: #397fa9;
+}
 .tax-processing b {
   font-size: 15px;
 }
