@@ -63,9 +63,9 @@ async function query(parameters: string) {
   const user = process.env.TOTVS_WS_PRD_USER;
   const password = process.env.TOTVS_WS_PRD_PASSWORD;
   if (!user || !password) throw new Error("Credenciais técnicas do TOTVS não configuradas.");
-  // Sentença original do RM: "53 - ANÁLISE NF MENSALIDADES (COM CONTÁBIL)".
+  // Sentença técnica cadastrada para a integração da Planilha.NET 53.
   // A consulta retorna CODCOLIGADA por linha; o isolamento é aplicado em seguida.
-  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>53</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CX_PISCOFINS53</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
   const soap = await response.text();
   if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 53.");
