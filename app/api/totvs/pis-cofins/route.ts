@@ -57,12 +57,14 @@ async function authorized(request: NextRequest) {
   return (await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" })).ok;
 }
 
-async function query(company: string, parameters: string) {
+async function query(parameters: string) {
   const base = (process.env.TOTVS_WS_PRD_BASE_URL || "https://raizeducacao160286.rm.cloudtotvs.com.br:8051").replace(/\/$/, "");
   const user = process.env.TOTVS_WS_PRD_USER;
   const password = process.env.TOTVS_WS_PRD_PASSWORD;
   if (!user || !password) throw new Error("Credenciais técnicas do TOTVS não configuradas.");
-  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CX_PISCOFINS53</codSentenca><codColigada>${escapeXml(company)}</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  // CX_PISCOFINS53 is registered in the global context and returns CODCOLIGADA
+  // per row. Company isolation is applied immediately after the SOAP response.
+  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CX_PISCOFINS53</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store" });
   const soap = await response.text();
   if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 53.");
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
     const [year] = competence!.split("-").map(Number);
     const start = `${year}-01-01`;
     const end = `${year}-12-31`;
-    const annualCompanyRecords = (await query(company, `PLN_B2_D=${start};PLN_B3_D=${end}`))
+    const annualCompanyRecords = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = annualCompanyRecords.filter((record) =>
       recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence,
@@ -122,6 +124,9 @@ export async function GET(request: NextRequest) {
       rows,
     });
   } catch (cause) {
+    console.error("[api/totvs/pis-cofins] consultation failed", {
+      message: (cause as Error).message,
+    });
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
   }
 }
