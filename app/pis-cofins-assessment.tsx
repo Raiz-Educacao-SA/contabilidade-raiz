@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Calculator, Download, RefreshCw, TriangleAlert } from "lucide-react";
+import { Calculator, ChevronDown, ChevronUp, Download, RefreshCw, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
@@ -38,6 +38,7 @@ export default function PisCofinsAssessment({
   const [classifying, setClassifying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [classified, setClassified] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [ignoredCancelled, setIgnoredCancelled] = useState(0);
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
@@ -71,6 +72,7 @@ export default function PisCofinsAssessment({
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(false);
+      setDetailsOpen(false);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {
@@ -190,13 +192,6 @@ export default function PisCofinsAssessment({
             >
               <Calculator /> {classifying ? "Classificando..." : "Classificar"}
             </button>
-            <button
-              className="tax-export"
-              disabled={!classified}
-              onClick={exportExcel}
-            >
-              <Download /> Exportar Excel
-            </button>
           </div>,
           actionsTarget,
         )}
@@ -268,6 +263,19 @@ export default function PisCofinsAssessment({
             <span>
               {ignoredCancelled} registro(s) cancelado(s) desconsiderado(s)
             </span>
+            <div className="tax-detail-actions">
+              <button
+                className="tax-detail-toggle"
+                aria-expanded={detailsOpen}
+                onClick={() => setDetailsOpen((open) => !open)}
+              >
+                {detailsOpen ? <ChevronUp /> : <ChevronDown />}
+                {detailsOpen ? "Ocultar detalhamento" : "Abrir detalhamento"}
+              </button>
+              <button className="tax-detail-export" onClick={exportExcel}>
+                <Download /> Exportar Excel
+              </button>
+            </div>
           </div>
           {unclassified.length > 0 && (
             <div className="tax-warning">
@@ -281,7 +289,7 @@ export default function PisCofinsAssessment({
               </div>
             </div>
           )}
-          <div className="table-wrap tax-table">
+          {detailsOpen && <div className="table-wrap tax-table">
             <table>
               <thead>
                 <tr>
@@ -339,7 +347,7 @@ export default function PisCofinsAssessment({
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </div>}
         </>
       )}
       <p className="tax-note">
