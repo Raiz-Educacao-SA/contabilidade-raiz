@@ -82,7 +82,6 @@ export default function PisCofinsAssessment({
   const [rows, setRows] = useState<RevenueRow[]>([]);
   const [cancelledRows, setCancelledRows] = useState<CancelledRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [classifying, setClassifying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [classified, setClassified] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -120,7 +119,7 @@ export default function PisCofinsAssessment({
       setRows(assessment?.rows || []);
       setCancelledRows(assessment?.cancelledRows || []);
       setLoaded(Boolean(assessment?.loaded));
-      setClassified(Boolean(assessment?.classified));
+      setClassified(Boolean(assessment?.loaded));
       setIgnoredCancelled(Number(assessment?.ignoredCancelled || 0));
       setOtherRevenueRows(assessment?.otherRevenueRows || []);
       setOtherRevenueLoaded(Boolean(assessment?.otherRevenueLoaded));
@@ -200,7 +199,7 @@ export default function PisCofinsAssessment({
       setRows(payload.rows || []);
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
-      setClassified(false);
+      setClassified(true);
       setDetailsOpen(false);
     } catch (cause) {
       setError((cause as Error).message);
@@ -317,16 +316,6 @@ export default function PisCofinsAssessment({
     nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.otherPis - cancelledTotals.nonCumulativePis,
     nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.otherCofins - cancelledTotals.nonCumulativeCofins,
   }), [totals, otherRevenueTotals, cancelledTotals]);
-
-  function classify() {
-    setClassifying(true);
-    window.requestAnimationFrame(() =>
-      window.setTimeout(() => {
-        setClassified(true);
-        setClassifying(false);
-      }, 120),
-    );
-  }
 
   function exportExcel() {
     const data = rows.map((row) => {
@@ -554,9 +543,9 @@ export default function PisCofinsAssessment({
 
   return (
     <section
-      className={`panel tax-panel ${loading || classifying || otherRevenueLoading || cancelledLoading ? "is-processing" : ""}`}
+      className={`panel tax-panel ${loading || otherRevenueLoading || cancelledLoading ? "is-processing" : ""}`}
     >
-      {(loading || classifying || otherRevenueLoading || cancelledLoading) && (
+      {(loading || otherRevenueLoading || cancelledLoading) && (
         <div className="tax-processing">
           <div className="spinner" />
           <b>
@@ -614,13 +603,6 @@ export default function PisCofinsAssessment({
         <button className="tax-visibility-toggle" onClick={() => setMonthlyVisible((visible) => !visible)}>
           {monthlyVisible ? <ChevronUp /> : <ChevronDown />}
           {monthlyVisible ? "Ocultar" : "Exibir"}
-        </button>
-        <button
-          className={classified ? "tax-secondary-update is-ready" : "tax-secondary-update"}
-          disabled={!loaded || loading || classifying}
-          onClick={classify}
-        >
-          <Calculator /> {classifying ? "Classificando..." : "Classificar"}
         </button>
       </div>
       <div hidden={!monthlyVisible}>
