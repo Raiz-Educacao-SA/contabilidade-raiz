@@ -385,6 +385,59 @@ export default function PisCofinsAssessment({
     }
   }
 
+  function consolidatedExportRows() {
+    return [
+      {
+        Coligada: companyCode,
+        "Competência": competenceLabel,
+        Tributo: "PIS cumulativo",
+        "Faturamento mensal": totals.cumulativePis,
+        "Outras receitas": otherRevenueTotals.financialPis,
+        "Notas canceladas (dedução)": -cancelledTotals.cumulativePis,
+        "Total consolidado": consolidatedTotals.cumulativePis,
+      },
+      {
+        Coligada: companyCode,
+        "Competência": competenceLabel,
+        Tributo: "COFINS cumulativo",
+        "Faturamento mensal": totals.cumulativeCofins,
+        "Outras receitas": otherRevenueTotals.financialCofins,
+        "Notas canceladas (dedução)": -cancelledTotals.cumulativeCofins,
+        "Total consolidado": consolidatedTotals.cumulativeCofins,
+      },
+      {
+        Coligada: companyCode,
+        "Competência": competenceLabel,
+        Tributo: "PIS não cumulativo",
+        "Faturamento mensal": totals.nonCumulativePis,
+        "Outras receitas": otherRevenueTotals.otherPis,
+        "Notas canceladas (dedução)": -cancelledTotals.nonCumulativePis,
+        "Total consolidado": consolidatedTotals.nonCumulativePis,
+      },
+      {
+        Coligada: companyCode,
+        "Competência": competenceLabel,
+        Tributo: "COFINS não cumulativo",
+        "Faturamento mensal": totals.nonCumulativeCofins,
+        "Outras receitas": otherRevenueTotals.otherCofins,
+        "Notas canceladas (dedução)": -cancelledTotals.nonCumulativeCofins,
+        "Total consolidado": consolidatedTotals.nonCumulativeCofins,
+      },
+    ];
+  }
+
+  function consolidatedWorksheet() {
+    const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows());
+    worksheet["!cols"] = [12, 14, 25, 20, 20, 28, 20].map((wch) => ({ wch }));
+    return worksheet;
+  }
+
+  function exportConsolidatedBase() {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
+    XLSX.writeFile(workbook, `base-consolidada-pis-cofins-${companyCode}-${competence}.xlsx`);
+  }
+
   function exportCompleteAssessment() {
     const workbook = XLSX.utils.book_new();
     const monthly = rows.map((row) => {
@@ -445,6 +498,7 @@ export default function PisCofinsAssessment({
       Histórico: row.history,
       Tratamento: row.treatment,
     }));
+    XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento mensal");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras receitas");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas canceladas");
@@ -563,6 +617,14 @@ export default function PisCofinsAssessment({
       {actionsTarget &&
         createPortal(
           <div className="tax-actions">
+            <button
+              className="tax-export"
+              disabled={!completeAssessmentReady}
+              onClick={exportConsolidatedBase}
+              title={completeAssessmentReady ? "Baixar os quatro totais e a composição do consolidado" : "Atualize as três etapas antes de exportar a base consolidada"}
+            >
+              <Download /> Base consolidada
+            </button>
             <button
               className="tax-export"
               disabled={!completeAssessmentReady}
