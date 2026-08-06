@@ -481,6 +481,22 @@
   min-width: 0;
   font-weight: 750;
 }
+.company-select-stack {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+}
+.company-select-stack select {
+  width: 100%;
+  height: 24px;
+}
+.company-select-stack small {
+  padding-left: 8px;
+  font-size: 8px;
+  line-height: 1.1;
+  color: #68758a;
+  white-space: nowrap;
+}
 .competence-control {
   display: grid;
   grid-template-columns: 120px 180px;
