@@ -1342,6 +1342,49 @@
   padding: 0;
   overflow: hidden;
 }
+.tax-source-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+}
+.tax-source-tabs button {
+  padding: 7px 11px;
+  border: 1px solid #dce3ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #667085;
+  font-size: 9px;
+  font-weight: 800;
+}
+.tax-source-tabs button.active {
+  border-color: var(--violet);
+  background: var(--violet);
+  color: #fff;
+}
+.tax-source-empty {
+  min-height: 260px;
+  padding: 48px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  text-align: center;
+  color: var(--muted);
+}
+.tax-source-empty svg {
+  width: 28px;
+  color: var(--violet);
+}
+.tax-source-empty b {
+  color: var(--text);
+}
+.tax-source-empty span {
+  max-width: 520px;
+  font-size: 11px;
+}
 .tax-actions {
   display: flex;
   gap: 8px;
