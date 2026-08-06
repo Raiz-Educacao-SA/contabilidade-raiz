@@ -40,6 +40,14 @@ const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, 
 const decodeXml = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, name: string) => decodeXml(xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() || "");
 const number = (value: string) => { const direct = Number(value); if (Number.isFinite(direct)) return direct; const parsed = Number(value.replace(/\./g, "").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; };
+const recordCompetence = (value: string) => {
+  const normalized = value.trim();
+  const iso = normalized.match(/^(\d{4})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  const brazilian = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (brazilian) return `${brazilian[3]}-${brazilian[2]}`;
+  return "";
+};
 
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
@@ -68,14 +76,18 @@ export async function GET(request: NextRequest) {
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
     if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
-    const [year, month] = competence!.split("-").map(Number);
-    const start = `${year}-${String(month).padStart(2, "0")}-01`;
-    const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const records = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`)).filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
+    const [year] = competence!.split("-").map(Number);
+    const start = `${year}-01-01`;
+    const end = `${year}-12-31`;
+    const annualCompanyRecords = (await query(`PLN_B2_D=${start};PLN_B3_D=${end}`))
+      .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
+    const records = annualCompanyRecords.filter((record) =>
+      recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence,
+    );
     let ignoredCancelled = 0;
     const rows = records.flatMap((record, index) => {
       const fiscalStatus = normalize(tag(record, "STATUSNF") || tag(record, "STATUS"));
-      if (fiscalStatus === "CANCELADA" || fiscalStatus === "CANCELADO") {
+      if (fiscalStatus.includes("CANCELAD")) {
         ignoredCancelled += 1;
         return [];
       }
@@ -85,7 +97,14 @@ export async function GET(request: NextRequest) {
       const netRevenue = number(tag(record, "VLRNF"));
       return [{ line: index + 1, service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
-    return NextResponse.json({ company, competence, rows, records: records.length, ignoredCancelled });
+    return NextResponse.json({
+      company,
+      competence,
+      annualRecordsChecked: annualCompanyRecords.length,
+      records: records.length,
+      ignoredCancelled,
+      rows,
+    });
   } catch (cause) {
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
   }
