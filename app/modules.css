@@ -1532,6 +1532,10 @@
 }
 .tax-view-heading {
   margin: 9px 18px 6px;
+  padding: 9px 10px;
+  border: 1px solid #dbe3ec;
+  border-radius: 10px;
+  background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1548,6 +1552,35 @@
 .tax-view-heading span {
   font-size: 8px;
   color: var(--muted);
+}
+.tax-view-heading .tax-detail-actions {
+  margin-left: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.tax-detail-actions button {
+  min-height: 32px;
+  padding: 6px 9px;
+  border: 1px solid #ccd6e2;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff;
+  color: #173d68;
+  font-size: 9px;
+  font-weight: 800;
+}
+.tax-detail-actions button svg {
+  width: 14px;
+  height: 14px;
+}
+.tax-detail-actions .tax-detail-export {
+  border-color: #168657;
+  background: #168657;
+  color: #fff;
 }
 .tax-table {
   margin: 0 18px 12px;
@@ -1625,6 +1658,18 @@
   }
   .tax-summary {
     grid-template-columns: 1fr;
+  }
+  .tax-view-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .tax-view-heading .tax-detail-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .tax-detail-actions button {
+    flex: 1;
+    justify-content: center;
   }
 }
 
