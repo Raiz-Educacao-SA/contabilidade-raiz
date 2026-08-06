@@ -48,6 +48,14 @@ export default function PisCofinsAssessment({
     setActionsTarget(document.getElementById("pis-cofins-filter-actions"));
   }, []);
 
+  useEffect(() => {
+    setRows([]);
+    setLoaded(false);
+    setClassified(false);
+    setIgnoredCancelled(0);
+    setError("");
+  }, [companyCode, competence]);
+
   async function update() {
     setLoading(true);
     setError("");
