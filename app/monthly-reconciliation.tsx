@@ -248,22 +248,38 @@ export default function MonthlyReconciliationPanel({
   ) {
     const groups = new Map<string, Statement>();
     const structuredAccountCodes = new Set<string>();
-    const structuredAccountHints = new Set<string>();
+    const rejectedFiles: string[] = [];
     let processed = 0;
     let rejected = 0;
     let skippedPdf = 0;
     const accountHint = (name: string) =>
       Array.from(name.matchAll(/\d{4,}/g), (match) => match[0]).at(-1) || "";
-    for (const item of located
-      .filter((file) => /\.(pdf|xlsx|xls|xlsm|csv|txt)$/i.test(file.name))
+    const eligibleFiles = located
+      .filter((file) => /\.(pdf|xlsx|xls|xlsm)$/i.test(file.name))
       .sort((a, b) => {
         const formatPriority = Number(/\.pdf$/i.test(a.name)) - Number(/\.pdf$/i.test(b.name));
         return formatPriority || a.name.localeCompare(b.name, "pt-BR", { numeric: true });
-      })) {
+      });
+    const structuredAccountHints = new Set(
+      eligibleFiles
+        .filter((file) => /\.(xlsx|xls|xlsm)$/i.test(file.name))
+        .map((file) => accountHint(file.name))
+        .filter(Boolean),
+    );
+    const structuredFileStems = new Set(
+      eligibleFiles
+        .filter((file) => /\.(xlsx|xls|xlsm)$/i.test(file.name))
+        .map((file) => file.path.replace(/\.[^.\/]+$/i, "").toUpperCase()),
+    );
+    for (const item of eligibleFiles) {
       try {
         const isPdf = /\.pdf$/i.test(item.name);
         const hint = accountHint(item.name);
-        if (isPdf && hint && structuredAccountHints.has(hint)) {
+        const stem = item.path.replace(/\.[^.\/]+$/i, "").toUpperCase();
+        if (
+          isPdf &&
+          (structuredFileStems.has(stem) || (hint && structuredAccountHints.has(hint)))
+        ) {
           skippedPdf += 1;
           continue;
         }
@@ -273,6 +289,7 @@ export default function MonthlyReconciliationPanel({
         );
         if (!fileResponse.ok) {
           rejected += 1;
+          rejectedFiles.push(`${item.name}: falha ao baixar`);
           continue;
         }
         const parsed: ParsedBank = isPdf
@@ -291,19 +308,28 @@ export default function MonthlyReconciliationPanel({
           item.name,
           accounts,
         );
-        if (!detected) continue;
+        if (!detected) {
+          rejected += 1;
+          rejectedFiles.push(
+            `${item.name}: conta bancária ${parsed.metadata.account || "não informada"} sem vínculo com a Planilha 18`,
+          );
+          continue;
+        }
         if (isPdf && structuredAccountCodes.has(detected.code)) {
           skippedPdf += 1;
           continue;
         }
         if (!isPdf) {
           structuredAccountCodes.add(detected.code);
-          if (hint) structuredAccountHints.add(hint);
         }
         const accountingAccount = discoveredAccounts.find(
           (account) => account.code === detected.code,
         );
-        if (!accountingAccount) continue;
+        if (!accountingAccount) {
+          rejected += 1;
+          rejectedFiles.push(`${item.name}: conta contábil ${detected.code} não carregada`);
+          continue;
+        }
         const current = groups.get(detected.code);
         if (!current)
           groups.set(detected.code, {
@@ -337,15 +363,15 @@ export default function MonthlyReconciliationPanel({
               parsed.metadata.closingBalance ?? current.metadata.closingBalance,
           };
         }
-      } catch {
+      } catch (error) {
         rejected += 1;
-        /* arquivo não reconhecido permanece na lista para revisão */
+        rejectedFiles.push(`${item.name}: ${(error as Error).message}`);
       }
     }
     const identified = Array.from(groups.values());
     setStatements(identified);
     setNotice(
-      `${identified.length ? "" : "Erro: "}${located.length} arquivo(s) localizado(s), ${processed} processado(s), ${skippedPdf} PDF(s) dispensado(s) por existir arquivo estruturado, ${rejected} rejeitado(s) e ${identified.length} conta(s) identificada(s).`,
+      `${identified.length ? "" : "Erro: "}${located.length} arquivo(s) localizado(s), ${processed} processado(s), ${skippedPdf} PDF(s) dispensado(s) por existir Excel/arquivo estruturado, ${rejected} rejeitado(s) e ${identified.length} conta(s) identificada(s).${rejectedFiles.length ? ` Revisar: ${rejectedFiles.slice(0, 3).join("; ")}.` : ""}`,
     );
     return identified;
   }

@@ -76,7 +76,9 @@ async function findCompanyFolder(company: string) {
   const companyCode = company.match(/^\s*(\d+)/)?.[1]?.replace(/^0+/, "");
   const terms = words(company);
   const groups = (await listChildren(DRIVE_ROOT)).filter((item) => item.mimeType === FOLDER_MIME);
-  const candidates: DriveItem[] = [];
+  // Algumas operações (como Sarah) organizam os extratos diretamente por banco
+  // dentro da pasta do grupo, sem uma pasta intermediária para a empresa.
+  const candidates: DriveItem[] = [...groups];
   for (const group of groups) candidates.push(...(await listChildren(group.id)).filter((item) => item.mimeType === FOLDER_MIME));
   const scored = candidates.map((item) => {
     const name = normalized(item.name); const folderCode = name.match(/^\s*(\d+)/)?.[1]?.replace(/^0+/, "");
