@@ -374,6 +374,25 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .workflow-start {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+.workflow-date {
+  display: grid;
+  gap: 3px;
+}
+.workflow-date span {
+  color: #64748b;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.workflow-date input {
+  width: 140px;
+  height: 34px;
+  border-color: #b9d5ea;
+  font-size: 10px;
+}
+.workflow-start {
   border: 1px solid #abd2ef;
   background: linear-gradient(120deg, #eef8ff 0%, #ffffff 70%);
   box-shadow: 0 16px 40px rgba(39, 121, 189, 0.12);
@@ -430,6 +449,8 @@
   color: #c9dcf0;
 }
 .workflow-action {
+  border: 0;
+  background: transparent;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -493,6 +514,7 @@
 @media (max-width: 620px) {
   .workflow-start,
   .workflow-final { grid-template-columns: auto 1fr; padding: 17px; }
+  .workflow-date { grid-column: 2; }
   .workflow-action { grid-column: 2; }
   .workflow-modules { grid-template-columns: 1fr; }
 }
@@ -1801,7 +1823,7 @@
   border-radius: 12px;
   background: #fff;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 100px;
+  grid-template-columns: 36px minmax(0, 1fr) 90px 78px;
   align-items: center;
   gap: 12px;
 }
@@ -1868,12 +1890,56 @@
 .schedule-final-stage .schedule-stage-icon {
   background: #173d68;
 }
+.schedule-ok {
+  min-height: 30px;
+  border: 1px solid #168657;
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: #168657;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+}
+.schedule-ok:disabled {
+  border-color: #b8c6d5;
+  background: #e8eef4;
+  color: #64748b;
+  cursor: default;
+}
+.schedule-stage-done {
+  border-color: #173d68 !important;
+  background: #173d68 !important;
+  color: #fff;
+}
+.schedule-stage-done .schedule-stage-icon {
+  color: #173d68;
+  background: #fff;
+}
+.schedule-stage-done .schedule-progress > span {
+  width: 100% !important;
+  background: #74c8bc;
+}
+.schedule-stage-done .schedule-stage-copy div > span,
+.schedule-stage-done .schedule-stage-copy small,
+.schedule-stage-done .schedule-deadline span,
+.schedule-stage-done .schedule-deadline b {
+  color: #dce9f5;
+}
+.schedule-error {
+  padding: 8px 11px;
+  border: 1px solid #f0b4ad;
+  border-radius: 9px;
+  background: #fff3f1;
+  color: #b42318;
+  font-size: 10px;
+}
 @media (max-width: 700px) {
   .schedule-overview { align-items: flex-start; flex-direction: column; }
   .schedule-window { text-align: left; }
   .schedule-filters .competence-control { grid-template-columns: 1fr 1.3fr; }
-  .schedule-stages article { grid-template-columns: 34px minmax(0, 1fr); }
+  .schedule-stages article { grid-template-columns: 34px minmax(0, 1fr) auto; }
   .schedule-deadline { grid-column: 2; align-items: flex-start; }
+  .schedule-ok { grid-column: 3; grid-row: 1; }
 }
 .tax-content .filter-heading {
   min-width: 0;
@@ -1903,6 +1969,32 @@
 .tax-content .top-context label {
   height: 40px;
   padding: 3px 7px;
+}
+.tax-content .company-control {
+  min-width: 0;
+  overflow: hidden;
+}
+.tax-content .company-select-stack {
+  min-width: 0;
+  height: 32px;
+  grid-template-rows: 20px 10px;
+  align-content: center;
+  overflow: hidden;
+}
+.tax-content .company-select-stack select {
+  height: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.tax-content .company-select-stack small {
+  display: block;
+  max-width: 100%;
+  padding-left: 8px;
+  overflow: hidden;
+  font-size: 7px;
+  line-height: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tax-content .top-context input,
 .tax-content .top-context select {

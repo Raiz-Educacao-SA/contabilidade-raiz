@@ -1,0 +1,65 @@
+create table if not exists public.cronograma_entregas (
+  id uuid primary key default gen_random_uuid(),
+  competencia text not null check (competencia ~ '^\d{4}-\d{2}$'),
+  modulo text not null,
+  setor text not null,
+  status text not null default 'pendente' check (status in ('pendente', 'concluido')),
+  confirmado_por uuid references auth.users(id) on delete set null,
+  confirmado_email text,
+  confirmado_em timestamptz,
+  criado_em timestamptz not null default now(),
+  unique (competencia, modulo)
+);
+
+alter table public.cronograma_entregas enable row level security;
+
+drop policy if exists "cronograma leitura autenticada" on public.cronograma_entregas;
+create policy "cronograma leitura autenticada"
+on public.cronograma_entregas for select
+to authenticated
+using (true);
+
+drop policy if exists "cronograma confirmacao autenticada" on public.cronograma_entregas;
+create policy "cronograma confirmacao autenticada"
+on public.cronograma_entregas for insert
+to authenticated
+with check (confirmado_por = auth.uid());
+
+drop policy if exists "cronograma atualizacao autenticada" on public.cronograma_entregas;
+create policy "cronograma atualizacao autenticada"
+on public.cronograma_entregas for update
+to authenticated
+using (true)
+with check (confirmado_por = auth.uid());
+
+create index if not exists cronograma_entregas_competencia_idx
+  on public.cronograma_entregas (competencia);
+
+create table if not exists public.cronograma_configuracoes (
+  competencia text primary key check (competencia ~ '^\d{4}-\d{2}$'),
+  data_fechamento date not null,
+  atualizado_por uuid references auth.users(id) on delete set null,
+  atualizado_email text,
+  atualizado_em timestamptz not null default now()
+);
+
+alter table public.cronograma_configuracoes enable row level security;
+
+drop policy if exists "configuracao cronograma leitura autenticada" on public.cronograma_configuracoes;
+create policy "configuracao cronograma leitura autenticada"
+on public.cronograma_configuracoes for select
+to authenticated
+using (true);
+
+drop policy if exists "configuracao cronograma gravacao autenticada" on public.cronograma_configuracoes;
+create policy "configuracao cronograma gravacao autenticada"
+on public.cronograma_configuracoes for insert
+to authenticated
+with check (atualizado_por = auth.uid());
+
+drop policy if exists "configuracao cronograma atualizacao autenticada" on public.cronograma_configuracoes;
+create policy "configuracao cronograma atualizacao autenticada"
+on public.cronograma_configuracoes for update
+to authenticated
+using (true)
+with check (atualizado_por = auth.uid());

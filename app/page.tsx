@@ -172,6 +172,8 @@ const months = [
   "Dezembro",
 ];
 const today = new Date();
+const defaultClosingDate = new Date(today.getFullYear(), today.getMonth() + 1, 10);
+const defaultClosingDateValue = `${defaultClosingDate.getFullYear()}-${String(defaultClosingDate.getMonth() + 1).padStart(2, "0")}-${String(defaultClosingDate.getDate()).padStart(2, "0")}`;
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
@@ -189,6 +191,7 @@ export default function Home() {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [closingDate, setClosingDate] = useState(defaultClosingDateValue);
   const [filterStorageReady, setFilterStorageReady] = useState(false);
   const [accounting, setAccounting] = useState<AccountingRow[]>([]);
   const [bank, setBank] = useState<BankRow[]>([]);
@@ -222,8 +225,10 @@ export default function Home() {
   useEffect(() => {
     const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
     const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
+    const savedClosingDate = window.localStorage.getItem("contabilidade-raiz:closing-date");
     if (savedYear >= 2000 && savedYear <= 2100) setYear(savedYear);
     if (savedMonth >= 1 && savedMonth <= 12) setMonth(savedMonth);
+    if (savedClosingDate && /^\d{4}-\d{2}-\d{2}$/.test(savedClosingDate)) setClosingDate(savedClosingDate);
     setFilterStorageReady(true);
   }, []);
   useEffect(() => {
@@ -231,6 +236,38 @@ export default function Home() {
     window.localStorage.setItem("contabilidade-raiz:year", String(year));
     window.localStorage.setItem("contabilidade-raiz:month", String(month));
   }, [filterStorageReady, year, month]);
+  useEffect(() => {
+    if (!filterStorageReady) return;
+    window.localStorage.setItem("contabilidade-raiz:closing-date", closingDate);
+  }, [filterStorageReady, closingDate]);
+
+  useEffect(() => {
+    if (!session || !filterStorageReady) return;
+    let active = true;
+    void supabase
+      .from("cronograma_configuracoes")
+      .select("data_fechamento")
+      .eq("competencia", competence)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        setClosingDate(data?.data_fechamento || formatDateInput(addBusinessDays(lastBusinessDay(year, month), 10)));
+      });
+    return () => { active = false; };
+  }, [session, filterStorageReady, competence, year, month]);
+
+  async function updateClosingDate(value: string) {
+    setClosingDate(value);
+    if (!session || !value) return;
+    const { error } = await supabase.from("cronograma_configuracoes").upsert({
+      competencia: competence,
+      data_fechamento: value,
+      atualizado_por: session.user.id,
+      atualizado_email: session.user.email ?? "",
+      atualizado_em: new Date().toISOString(),
+    }, { onConflict: "competencia" });
+    if (error) setNotice("A data foi alterada nesta tela, mas não pôde ser compartilhada com os demais setores.");
+  }
 
   useEffect(() => {
     let active = true;
@@ -494,6 +531,8 @@ export default function Home() {
     return (
       <AreaHub
         email={session.user.email ?? ""}
+        closingDate={closingDate}
+        onClosingDateChange={(date) => void updateClosingDate(date)}
         onSelect={(area) => {
           setSelectedArea(area);
           setSelectedModule(area === "financeiro" ? null : area);
@@ -844,7 +883,13 @@ export default function Home() {
           </section>
         )}
         {selectedModule === "cronograma" && (
-          <ClosingSchedule year={year} month={month} />
+          <ClosingSchedule
+            year={year}
+            month={month}
+            closingDate={closingDate}
+            userId={session.user.id}
+            userEmail={session.user.email ?? ""}
+          />
         )}
         {selectedModule !== "bancaria" &&
           selectedModule !== "book" &&
@@ -966,14 +1011,18 @@ function ResultBlock({ rows }: { rows: MatchRow[] }) {
 
 function AreaHub({
   email,
+  closingDate,
+  onClosingDateChange,
   onSelect,
   onLogout,
 }: {
   email: string;
+  closingDate: string;
+  onClosingDateChange: (date: string) => void;
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
-  const executionAreas: Area[] = ["financeiro", "compras", "folha", "contabil"];
+  const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"];
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
   return (
@@ -1002,15 +1051,19 @@ function AreaHub({
         </div>
       </header>
       <section className="closing-workflow" aria-label="Fluxo do fechamento contábil">
-        <button className="workflow-start" onClick={() => onSelect("cronograma")}>
+        <div className="workflow-start">
           <span className="workflow-icon"><ScheduleIcon /></span>
           <span className="workflow-copy">
             <small>INÍCIO DO PROCESSO</small>
             <b>Cronograma de Fechamento</b>
             <span>Comece por aqui: acompanhe prazos, responsáveis e o andamento de todas as etapas.</span>
           </span>
-          <span className="workflow-action">Abrir cronograma <ArrowLeftRight /></span>
-        </button>
+          <label className="workflow-date">
+            <span>Data do fechamento</span>
+            <input type="date" value={closingDate} onChange={(event) => onClosingDateChange(event.target.value)} />
+          </label>
+          <button className="workflow-action" onClick={() => onSelect("cronograma")}>Abrir cronograma <ArrowLeftRight /></button>
+        </div>
 
         <div className="workflow-divider"><span>ETAPAS DE EXECUÇÃO</span></div>
         <div className="workflow-modules">
@@ -1127,14 +1180,26 @@ function FinancialHub({
   );
 }
 
-function ClosingSchedule({ year, month }: { year: number; month: number }) {
+type ScheduleConfirmation = {
+  modulo: string;
+  setor: string;
+  confirmado_email: string;
+  confirmado_em: string;
+};
+
+function ClosingSchedule({ year, month, closingDate, userId, userEmail }: { year: number; month: number; closingDate: string; userId: string; userEmail: string }) {
+  const scheduleCompetence = `${year}-${String(month).padStart(2, "0")}`;
+  const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [confirmingModule, setConfirmingModule] = useState("");
+  const [scheduleError, setScheduleError] = useState("");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
-    { name: "Módulo Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
-    { name: "Módulo Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
-    { name: "Módulo Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
-    { name: "Módulo Contábil", detail: "Consolidar análises e concluir o fechamento", deadline: addBusinessDays(monthEnd, 10), milestone: "D+10", icon: BookText },
-    { name: "Book Contábil", detail: "Disponibilizar o produto final do fechamento", deadline: addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
+    { key: "compras", name: "Módulo Compras", sector: "Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
+    { key: "financeiro", name: "Módulo Financeiro", sector: "Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
+    { key: "folha", name: "Módulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
+    { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
+    { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Disponibilizar o produto final do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
   ];
   const start = new Date(year, month - 1, 1);
   const finalDeadline = stages.at(-1)!.deadline;
@@ -1142,6 +1207,44 @@ function ClosingSchedule({ year, month }: { year: number; month: number }) {
   const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
   const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+  useEffect(() => {
+    let active = true;
+    setScheduleLoading(true);
+    setScheduleError("");
+    void supabase
+      .from("cronograma_entregas")
+      .select("modulo, setor, confirmado_email, confirmado_em")
+      .eq("competencia", scheduleCompetence)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setScheduleError("Não foi possível carregar as confirmações compartilhadas.");
+        else setConfirmations((data ?? []) as ScheduleConfirmation[]);
+        setScheduleLoading(false);
+      });
+    return () => { active = false; };
+  }, [scheduleCompetence]);
+
+  async function confirmStage(stage: (typeof stages)[number]) {
+    setConfirmingModule(stage.key);
+    setScheduleError("");
+    const confirmedAt = new Date().toISOString();
+    const { error } = await supabase.from("cronograma_entregas").upsert({
+      competencia: scheduleCompetence,
+      modulo: stage.key,
+      setor: stage.sector,
+      status: "concluido",
+      confirmado_por: userId,
+      confirmado_email: userEmail,
+      confirmado_em: confirmedAt,
+    }, { onConflict: "competencia,modulo" });
+    if (error) setScheduleError("O OK não pôde ser registrado. Tente novamente.");
+    else setConfirmations((current) => [
+      ...current.filter((item) => item.modulo !== stage.key),
+      { modulo: stage.key, setor: stage.sector, confirmado_email: userEmail, confirmado_em: confirmedAt },
+    ]);
+    setConfirmingModule("");
+  }
 
   return (
     <section className="closing-schedule">
@@ -1162,20 +1265,32 @@ function ClosingSchedule({ year, month }: { year: number; month: number }) {
         <span style={{ width: `${overallProgress}%` }} />
       </div>
 
+      {scheduleError && <div className="schedule-error">{scheduleError}</div>}
+
       <div className="schedule-stages">
         {stages.map((stage, index) => {
           const Icon = stage.icon;
           const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
           const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
+          const confirmation = confirmations.find((item) => item.modulo === stage.key);
           return (
-            <article key={stage.name} className={index === stages.length - 1 ? "schedule-final-stage" : ""}>
+            <article key={stage.name} className={`${index === stages.length - 1 ? "schedule-final-stage" : ""} ${confirmation ? "schedule-stage-done" : ""}`}>
               <span className="schedule-stage-icon"><Icon /></span>
               <div className="schedule-stage-copy">
-                <div><b>{stage.name}</b><span>{stage.detail}</span></div>
+                <div><b>{stage.name}</b><span>Responsável: {stage.sector} · {stage.detail}</span></div>
                 <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
-                <small>Prazo decorrido: {progress}%</small>
+                <small>{confirmation
+                  ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
+                  : `Prazo decorrido: ${progress}%`}</small>
               </div>
               <div className="schedule-deadline"><span>{stage.milestone}</span><b>{formatDate(stage.deadline)}</b></div>
+              <button
+                className="schedule-ok"
+                disabled={Boolean(confirmation) || scheduleLoading || confirmingModule === stage.key}
+                onClick={() => void confirmStage(stage)}
+              >
+                {confirmation ? "✓ OK" : confirmingModule === stage.key ? "Salvando..." : "Dar OK"}
+              </button>
             </article>
           );
         })}
@@ -1198,6 +1313,10 @@ function addBusinessDays(date: Date, amount: number) {
     if (result.getDay() !== 0 && result.getDay() !== 6) added += 1;
   }
   return result;
+}
+
+function formatDateInput(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function previousCompetence(competence: string) {
