@@ -109,8 +109,22 @@ export async function GET(request: NextRequest) {
     const fileId = request.nextUrl.searchParams.get("fileId");
     if (fileId) {
       const token = await accessToken();
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
-      if (!response.ok) return NextResponse.json({ error: "Não foi possível baixar o extrato do Drive." }, { status: response.status });
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
+      if (!response.ok) {
+        const driveResponse = await response.text();
+        let driveReason = "acesso ao conteúdo negado pelo Google Drive";
+        try {
+          const parsed = JSON.parse(driveResponse) as { error?: { message?: string; errors?: { reason?: string }[] } };
+          driveReason = parsed.error?.errors?.[0]?.reason || parsed.error?.message || driveReason;
+        } catch { /* mantém a mensagem segura */ }
+        console.error("[drive/statements] download recusado", {
+          fileId,
+          status: response.status,
+          reason: driveReason,
+          technicalAccount: process.env.GOOGLE_DRIVE_CLIENT_EMAIL,
+        });
+        return NextResponse.json({ error: `O Google Drive recusou o download do extrato (${driveReason}).` }, { status: response.status });
+      }
       if (request.nextUrl.searchParams.get("parse") === "pdf") {
         const fileName = request.nextUrl.searchParams.get("fileName") || "extrato.pdf";
         const parsed = await parsePdfStatement(await response.arrayBuffer(), fileName);

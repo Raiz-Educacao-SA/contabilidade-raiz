@@ -289,7 +289,8 @@ export default function MonthlyReconciliationPanel({
         );
         if (!fileResponse.ok) {
           rejected += 1;
-          rejectedFiles.push(`${item.name}: falha ao baixar`);
+          const failure = await fileResponse.json().catch(() => null) as { error?: string } | null;
+          rejectedFiles.push(`${item.name}: ${failure?.error || "falha ao baixar"}`);
           continue;
         }
         const parsed: ParsedBank = isPdf
