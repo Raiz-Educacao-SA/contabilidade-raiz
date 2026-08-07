@@ -379,9 +379,10 @@
 .trial-content .filter-fields { grid-template-columns: minmax(230px, 380px) auto; }
 .trial-view-tabs { display: flex; gap: 3px; padding: 6px 14px 0; border-bottom: 1px solid var(--line); background: #f8fafc; }
 .trial-view-tabs button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; color: #667085; font-size: 9px; font-weight: 800; }
-.trial-view-tabs button.active { background: white; border-color: var(--line); color: #173d68; }
+.trial-view-tabs button.active { background: #173d68; border-color: #173d68; color: #fff; box-shadow: 0 -2px 0 #69beb9 inset; }
 .trial-view-tabs svg { width: 13px; height: 13px; }
 .trial-view-tabs span { min-width: 18px; padding: 2px 5px; border-radius: 999px; background: #e9eef6; font-size: 8px; text-align: center; }
+.trial-view-tabs button.active span { background: rgba(255,255,255,.18); color: #fff; }
 .trial-view-content { min-height: calc(100vh - 330px); }
 .trial-view-content .book-toolbar { margin: 8px 14px; }
 .trial-content .panel.trial-analysis { padding: 0; }
