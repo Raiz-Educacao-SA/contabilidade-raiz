@@ -366,7 +366,7 @@
 .trial-summary article, .trial-category-summary article { min-width: 0; border: 1px solid var(--line); background: white; border-radius: 12px; padding: 10px 12px; }
 .trial-summary span, .trial-category-summary span { display: block; color: var(--muted); font-size: .72rem; }
 .trial-summary b, .trial-category-summary b { display: block; margin-top: 4px; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.trial-table { margin: 0 26px 14px; max-height: 470px; }
+.trial-table { margin: 0 14px 10px; max-height: calc(100vh - 360px); min-height: 360px; }
 .trial-table table { font-size: .74rem; }
 .trial-flags { display: flex; flex-wrap: wrap; gap: 4px; }
 .trial-flags span { border-radius: 999px; background: #fff1e7; color: #a64b00; padding: 3px 7px; font-size: .65rem; font-weight: 800; white-space: nowrap; }
@@ -375,6 +375,14 @@
 .trial-content .top-context, .trial-content .trial-analysis { width: 100%; }
 .trial-content .trial-analysis { border-radius: 14px; }
 .trial-content .filter-fields { grid-template-columns: minmax(260px, 520px) auto; }
+.trial-view-tabs { display: flex; gap: 3px; padding: 6px 14px 0; border-bottom: 1px solid var(--line); background: #f8fafc; }
+.trial-view-tabs button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; color: #667085; font-size: 9px; font-weight: 800; }
+.trial-view-tabs button.active { background: white; border-color: var(--line); color: #173d68; }
+.trial-view-tabs svg { width: 13px; height: 13px; }
+.trial-view-tabs span { min-width: 18px; padding: 2px 5px; border-radius: 999px; background: #e9eef6; font-size: 8px; text-align: center; }
+.trial-view-content { min-height: calc(100vh - 330px); }
+.trial-view-content .book-toolbar { margin: 8px 14px; }
+.trial-content .panel.trial-analysis { padding: 0; }
 .trial-footnote { display: flex; align-items: center; gap: 7px; margin: 0; padding: 0 26px 18px; color: var(--muted); font-size: .72rem; }
 .trial-footnote svg { width: 15px; }
 @media (max-width: 1150px) { .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
