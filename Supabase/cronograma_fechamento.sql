@@ -23,14 +23,40 @@ drop policy if exists "cronograma confirmacao autenticada" on public.cronograma_
 create policy "cronograma confirmacao autenticada"
 on public.cronograma_entregas for insert
 to authenticated
-with check (confirmado_por = auth.uid());
+with check (
+  confirmado_por = auth.uid()
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.usuario_id = auth.uid()
+      and (
+        lower(ue.perfil) = 'administrador'
+        or (modulo = 'financeiro' and lower(ue.perfil) = 'financeiro')
+        or (modulo = 'compras' and lower(ue.perfil) = 'compras')
+        or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
+        or (modulo in ('contabil', 'book') and lower(ue.perfil) in ('contabil', 'contábil', 'contabilidade'))
+      )
+  )
+);
 
 drop policy if exists "cronograma atualizacao autenticada" on public.cronograma_entregas;
 create policy "cronograma atualizacao autenticada"
 on public.cronograma_entregas for update
 to authenticated
 using (true)
-with check (confirmado_por = auth.uid());
+with check (
+  confirmado_por = auth.uid()
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.usuario_id = auth.uid()
+      and (
+        lower(ue.perfil) = 'administrador'
+        or (modulo = 'financeiro' and lower(ue.perfil) = 'financeiro')
+        or (modulo = 'compras' and lower(ue.perfil) = 'compras')
+        or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
+        or (modulo in ('contabil', 'book') and lower(ue.perfil) in ('contabil', 'contábil', 'contabilidade'))
+      )
+  )
+);
 
 create index if not exists cronograma_entregas_competencia_idx
   on public.cronograma_entregas (competencia);

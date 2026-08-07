@@ -221,6 +221,17 @@ export default function Home() {
   const company = companies.find((item) => item.empresa_id === companyId);
   const companyTaxRegime = getCompanyTaxRegime(company?.empresas?.codcoligada);
   const canWrite = (company?.perfil ?? "consulta").toLowerCase() !== "consulta";
+  const userProfiles = [...new Set(companies.map((item) => item.perfil.trim().toLowerCase()))];
+  const isAdministrator = userProfiles.includes("administrador");
+  const allowedAreas: Area[] = isAdministrator
+    ? ["financeiro", "compras", "folha", "contabil", "book", "cronograma"]
+    : [
+        "cronograma",
+        ...(userProfiles.includes("financeiro") ? ["financeiro" as Area] : []),
+        ...(userProfiles.includes("compras") ? ["compras" as Area] : []),
+        ...(userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") ? ["folha" as Area] : []),
+        ...(userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil") ? ["contabil" as Area, "book" as Area] : []),
+      ];
 
   useEffect(() => {
     const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
@@ -533,6 +544,7 @@ export default function Home() {
         email={session.user.email ?? ""}
         closingDate={closingDate}
         onClosingDateChange={(date) => void updateClosingDate(date)}
+        allowedAreas={allowedAreas}
         onSelect={(area) => {
           setSelectedArea(area);
           setSelectedModule(area === "financeiro" ? null : area);
@@ -889,6 +901,7 @@ export default function Home() {
             closingDate={closingDate}
             userId={session.user.id}
             userEmail={session.user.email ?? ""}
+            userProfiles={userProfiles}
           />
         )}
         {selectedModule !== "bancaria" &&
@@ -1013,16 +1026,18 @@ function AreaHub({
   email,
   closingDate,
   onClosingDateChange,
+  allowedAreas,
   onSelect,
   onLogout,
 }: {
   email: string;
   closingDate: string;
   onClosingDateChange: (date: string) => void;
+  allowedAreas: Area[];
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
-  const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"];
+  const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
   const closingMonth = closingDate.slice(5, 7);
@@ -1111,7 +1126,7 @@ function AreaHub({
           })}
         </div>
 
-        <div className="workflow-path" aria-hidden="true"><span>Conclusão do fechamento</span><ArrowLeftRight /></div>
+        {allowedAreas.includes("book") && <><div className="workflow-path" aria-hidden="true"><span>Conclusão do fechamento</span><ArrowLeftRight /></div>
         <button className="workflow-final" onClick={() => onSelect("book")}>
           <span className="workflow-icon"><BookIcon /></span>
           <span className="workflow-copy">
@@ -1120,7 +1135,7 @@ function AreaHub({
             <span>Consolida os resultados dos módulos e entrega a visão final do fechamento contábil.</span>
           </span>
           <span className="workflow-action">Acessar Book <ArrowLeftRight /></span>
-        </button>
+        </button></>}
       </section>
     </main>
   );
@@ -1207,7 +1222,7 @@ type ScheduleConfirmation = {
   confirmado_em: string;
 };
 
-function ClosingSchedule({ year, month, closingDate, userId, userEmail }: { year: number; month: number; closingDate: string; userId: string; userEmail: string }) {
+function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[] }) {
   const scheduleCompetence = `${year}-${String(month).padStart(2, "0")}`;
   const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
@@ -1293,6 +1308,12 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail }: { year
           const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
           const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
           const confirmation = confirmations.find((item) => item.modulo === stage.key);
+          const canConfirm = userProfiles.includes("administrador") || (
+            stage.sector === "Financeiro" ? userProfiles.includes("financeiro") :
+            stage.sector === "Compras" ? userProfiles.includes("compras") :
+            stage.sector === "Folha de Pagamento" ? userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") :
+            userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil")
+          );
           return (
             <article key={stage.name} className={`${index === stages.length - 1 ? "schedule-final-stage" : ""} ${confirmation ? "schedule-stage-done" : ""}`}>
               <span className="schedule-stage-icon"><Icon /></span>
@@ -1306,8 +1327,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail }: { year
               <div className="schedule-deadline"><span>{stage.milestone}</span><b>{formatDate(stage.deadline)}</b></div>
               <button
                 className="schedule-ok"
-                disabled={Boolean(confirmation) || scheduleLoading || confirmingModule === stage.key}
+                disabled={!canConfirm || Boolean(confirmation) || scheduleLoading || confirmingModule === stage.key}
                 onClick={() => void confirmStage(stage)}
+                title={canConfirm ? "Liberar fechamento deste módulo" : `Liberação exclusiva do setor ${stage.sector}`}
               >
                 {confirmation ? "✓ OK" : confirmingModule === stage.key ? "Salvando..." : "OK"}
               </button>
