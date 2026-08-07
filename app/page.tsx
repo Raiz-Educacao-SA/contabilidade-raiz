@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   ArrowLeftRight,
+  BarChart3,
   BookOpenCheck,
   BookText,
   Building2,
@@ -45,6 +46,7 @@ import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
 import PisCofinsAssessment from "@/app/pis-cofins-assessment";
+import TrialBalanceAnalysis from "@/app/trial-balance-analysis";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 
 type Company = {
@@ -66,7 +68,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "irpj-csll" | "rateio-csc" | "intercompany";
+type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = "financeiro" | "compras" | "folha" | "contabil" | "book" | "cronograma";
@@ -634,6 +636,7 @@ export default function Home() {
             {(
               [
                 { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
+                { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
                 { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
@@ -696,6 +699,8 @@ export default function Home() {
               {selectedModule === "contabil"
                 ? accountingTab === "pis-cofins"
                   ? "PIS e COFINS"
+                  : accountingTab === "analise-balancete"
+                    ? "Análise de Balancete"
                   : accountingTab === "irpj-csll"
                     ? "IRPJ/CSLL"
                     : accountingTab === "rateio-csc"
@@ -884,7 +889,14 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && (
+        {selectedModule === "contabil" && accountingTab === "analise-balancete" && (
+          <TrialBalanceAnalysis
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "irpj-csll" ? (
               <ReceiptText />

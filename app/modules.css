@@ -351,6 +351,28 @@
 .area-book .module-icon {
   background: #173d68;
 }
+
+.trial-analysis { overflow: hidden; }
+.trial-analysis-actions { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 26px; background: linear-gradient(120deg, #f4fbf8, #fffaf0); border-bottom: 1px solid var(--line); }
+.trial-analysis-actions small { color: var(--purple); font-weight: 900; letter-spacing: .12em; }
+.trial-analysis-actions h2 { margin: 4px 0; font-size: 1.35rem; }
+.trial-analysis-actions p { margin: 0; color: var(--muted); font-size: .88rem; }
+.trial-action-buttons { display: flex; gap: 10px; flex-shrink: 0; }
+.trial-action-buttons button { display: inline-flex; align-items: center; gap: 8px; }
+.trial-summary, .trial-category-summary { display: grid; gap: 10px; padding: 14px 26px; background: #f7f9fc; }
+.trial-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.trial-category-summary { grid-template-columns: repeat(7, minmax(0, 1fr)); background: white; border-top: 1px solid var(--line); }
+.trial-summary article, .trial-category-summary article { min-width: 0; border: 1px solid var(--line); background: white; border-radius: 12px; padding: 10px 12px; }
+.trial-summary span, .trial-category-summary span { display: block; color: var(--muted); font-size: .72rem; }
+.trial-summary b, .trial-category-summary b { display: block; margin-top: 4px; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trial-table { margin: 0 26px 14px; max-height: 470px; }
+.trial-table table { font-size: .74rem; }
+.trial-flags { display: flex; flex-wrap: wrap; gap: 4px; }
+.trial-flags span { border-radius: 999px; background: #fff1e7; color: #a64b00; padding: 3px 7px; font-size: .65rem; font-weight: 800; white-space: nowrap; }
+.trial-footnote { display: flex; align-items: center; gap: 7px; margin: 0; padding: 0 26px 18px; color: var(--muted); font-size: .72rem; }
+.trial-footnote svg { width: 15px; }
+@media (max-width: 1150px) { .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 760px) { .trial-analysis-actions { align-items: stretch; flex-direction: column; } .trial-action-buttons { flex-direction: column; } .trial-summary, .trial-category-summary { grid-template-columns: repeat(2, 1fr); } }
 .area-cronograma .module-icon {
   background: #2779bd;
 }
