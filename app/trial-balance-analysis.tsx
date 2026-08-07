@@ -176,12 +176,17 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
     </div>
     {message && <div className={`notice ${!base.length && !generating ? "error" : ""}`}>{message}</div>}
     <div className="trial-summary">
-      <article><span>Contas analisadas</span><b>{analysis.length.toLocaleString("pt-BR")}</b></article>
+      <article><span>{analysis.length ? "Contas analisadas" : "Contas geradas"}</span><b>{(analysis.length || base.length).toLocaleString("pt-BR")}</b></article>
       <article><span>Variações relevantes</span><b>{analysis.filter((row) => row.relevantVariation).length}</b></article>
       <article><span>Possíveis erros</span><b>{analysis.filter((row) => row.possibleError).length}</b></article>
       <article><span>Contas viradas</span><b>{analysis.filter((row) => row.reversedAccount).length}</b></article>
       <article><span>Lucro/Prejuízo</span><b className={summary.result < 0 ? "negative" : ""}>{money.format(summary.result)}</b></article>
     </div>
+    {base.length > 0 && analysis.length === 0 && <>
+      <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conta ou descrição no balancete" /></label><span>{base.filter((row) => !search.trim() || normalize(`${row.account} ${row.reduced} ${row.description}`).includes(normalize(search))).length} conta(s)</span></div>
+      <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th></tr></thead><tbody>{base.filter((row) => !search.trim() || normalize(`${row.account} ${row.reduced} ${row.description}`).includes(normalize(search))).map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td></tr>)}</tbody></table></div>
+      <p className="trial-footnote"><FileSpreadsheet /> Balancete gerado. Clique em Analisar balancete para aplicar as críticas contábeis.</p>
+    </>}
     {analysis.length > 0 && <>
       <div className="trial-category-summary">{["Ativo", "Passivo", "Patrimônio Líquido", "Receita", "Custo", "Despesa", "Outros"].map((item) => <article key={item}><span>{item}</span><b>{money.format(summary.totals.get(item) || 0)}</b></article>)}</div>
       <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conta ou descrição no balancete" /></label><span>{filtered.length} conta(s) · {inconsistencies.length} divergência(s)</span></div>
