@@ -7,6 +7,7 @@ import {
   BookOpenCheck,
   BookText,
   Building2,
+  CalendarDays,
   ChevronLeft,
   Download,
   FileSpreadsheet,
@@ -67,7 +68,7 @@ type Account = {
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "irpj-csll" | "rateio-csc" | "intercompany";
 type BookReport = "balancete" | "razao" | "plano-contas";
-type Area = "financeiro" | "compras" | "folha" | "contabil" | "book";
+type Area = "financeiro" | "compras" | "folha" | "contabil" | "book" | "cronograma";
 type Module =
   | "bancaria"
   | "emprestimos"
@@ -76,7 +77,8 @@ type Module =
   | "compras"
   | "folha"
   | "contabil"
-  | "book";
+  | "book"
+  | "cronograma";
 type PinnedReconciliation = {
   id: string;
   bankName: string;
@@ -133,6 +135,12 @@ const modules = {
       "Consolidação dos módulos e visão final para realização do fechamento contábil.",
     icon: BookOpenCheck,
   },
+  cronograma: {
+    title: "Cronograma Fechamento",
+    description:
+      "Organização das etapas, responsáveis, prazos e andamento do fechamento contábil.",
+    icon: CalendarDays,
+  },
 } as const;
 
 const areas = {
@@ -146,6 +154,7 @@ const areas = {
   folha: { ...modules.folha, title: "Módulo Folha de Pagamento" },
   contabil: { ...modules.contabil, title: "Módulo Contábil" },
   book: { ...modules.book, title: "Módulo Book Contábil" },
+  cronograma: { ...modules.cronograma, title: "Cronograma Fechamento" },
 } as const;
 
 const months = [

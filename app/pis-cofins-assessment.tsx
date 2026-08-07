@@ -265,6 +265,28 @@ export default function PisCofinsAssessment({
   const filteredOtherRevenueRows = useMemo(() => otherRevenueRows.filter((row) => otherRevenueBranches.includes(String(row.branch || "").trim())), [otherRevenueRows, otherRevenueBranches]);
   const filteredAnnualFeeRows = useMemo(() => annualFeeRows.filter((row) => annualFeeBranches.includes(String(row.branch || "").trim())), [annualFeeRows, annualFeeBranches]);
   const filteredCancelledRows = useMemo(() => cancelledRows.filter((row) => cancelledBranches.includes(String(row.branch || "").trim())), [cancelledRows, cancelledBranches]);
+  const allBranches = useMemo(() => branchValues([...rows, ...otherRevenueRows, ...annualFeeRows, ...cancelledRows]), [rows, otherRevenueRows, annualFeeRows, cancelledRows]);
+
+  function branchSelectedEverywhere(branch: string) {
+    const sources = [
+      { available: branchValues(rows), selected: monthlyBranches },
+      { available: branchValues(otherRevenueRows), selected: otherRevenueBranches },
+      { available: branchValues(annualFeeRows), selected: annualFeeBranches },
+      { available: branchValues(cancelledRows), selected: cancelledBranches },
+    ];
+    return sources.every((source) => !source.available.includes(branch) || source.selected.includes(branch));
+  }
+
+  function toggleGlobalBranch(branch: string, checked: boolean) {
+    const update = (available: string[], selected: string[], setter: (branches: string[]) => void) => {
+      if (!available.includes(branch)) return;
+      setter(checked ? [...new Set([...selected, branch])] : selected.filter((item) => item !== branch));
+    };
+    update(branchValues(rows), monthlyBranches, setMonthlyBranches);
+    update(branchValues(otherRevenueRows), otherRevenueBranches, setOtherRevenueBranches);
+    update(branchValues(annualFeeRows), annualFeeBranches, setAnnualFeeBranches);
+    update(branchValues(cancelledRows), cancelledBranches, setCancelledBranches);
+  }
   const totals = useMemo(() => {
     const result = {
       cumulativeBase: 0,
@@ -772,14 +794,15 @@ export default function PisCofinsAssessment({
       {actionsTarget &&
         createPortal(
           <div className="tax-actions">
-            <button
-              className="tax-export"
-              disabled={!completeAssessmentReady}
-              onClick={exportConsolidatedBase}
-              title={completeAssessmentReady ? "Baixar os quatro totais e a composição do consolidado" : "Atualize as quatro etapas antes de exportar a base consolidada"}
-            >
-              <Download /> Base consolidada
-            </button>
+            <details className="tax-top-branches">
+              <summary>Filiais {allBranches.length ? `(${allBranches.filter(branchSelectedEverywhere).length}/${allBranches.length})` : ""}</summary>
+              <div>
+                {allBranches.length ? allBranches.map((branch) => <label key={branch}>
+                  <input type="checkbox" checked={branchSelectedEverywhere(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
+                  Filial {branch}
+                </label>) : <span>Atualize uma das bases para listar as filiais.</span>}
+              </div>
+            </details>
             <button
               className="tax-export"
               disabled={!completeAssessmentReady}

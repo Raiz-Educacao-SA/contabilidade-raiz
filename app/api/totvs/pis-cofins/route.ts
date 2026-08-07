@@ -82,9 +82,10 @@ export async function GET(request: NextRequest) {
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
     if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
-    const [year] = competence!.split("-").map(Number);
-    const start = `${year}-01-01`;
-    const end = `${year}-12-31`;
+    const [year, month] = competence!.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const start = `${competence}-01`;
+    const end = `${competence}-${String(lastDay).padStart(2, "0")}`;
     const sourceCompanyRecords = (await query(`CODCOLIGADA=${company};COMP_INI_D=${start};COMP_FIM_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = sourceCompanyRecords.filter((record) =>

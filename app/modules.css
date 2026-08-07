@@ -351,6 +351,9 @@
 .area-book .module-icon {
   background: #173d68;
 }
+.area-cronograma .module-icon {
+  background: #2779bd;
+}
 .hub-back {
   width: max-content;
   margin: 0 0 12px;
@@ -1428,6 +1431,49 @@
   display: flex;
   gap: 8px;
 }
+.tax-top-branches {
+  position: relative;
+  min-width: 92px;
+}
+.tax-top-branches summary {
+  min-height: 34px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+.tax-top-branches summary::-webkit-details-marker { display: none; }
+.tax-top-branches > div {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(30, 41, 59, 0.18);
+}
+.tax-top-branches label,
+.tax-top-branches span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tax-top-branches input { accent-color: #168657; }
 .tax-actions button {
   min-height: 34px;
   border: 1px solid #d8dee8;
