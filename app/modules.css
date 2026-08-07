@@ -386,10 +386,11 @@
   font-weight: 900;
   text-transform: uppercase;
 }
-.workflow-date input {
-  width: 140px;
+.workflow-date select {
+  width: 150px;
   height: 34px;
   border-color: #b9d5ea;
+  background: #fff;
   font-size: 10px;
 }
 .workflow-start {

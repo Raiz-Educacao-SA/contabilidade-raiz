@@ -1025,6 +1025,11 @@ function AreaHub({
   const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"];
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
+  const closingPeriods = Array.from({ length: 36 }, (_, index) => {
+    const date = new Date(today.getFullYear() - 1, index, 1);
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    return { value, label: `${months[date.getMonth()]}/${date.getFullYear()}` };
+  });
   return (
     <main className="module-hub">
       <header>
@@ -1060,11 +1065,14 @@ function AreaHub({
           </span>
           <label className="workflow-date">
             <span>Mês/Ano do fechamento</span>
-            <input
-              type="month"
+            <select
               value={closingDate.slice(0, 7)}
               onChange={(event) => onClosingDateChange(event.target.value ? `${event.target.value}-10` : "")}
-            />
+            >
+              {closingPeriods.map((period) => (
+                <option key={period.value} value={period.value}>{period.label}</option>
+              ))}
+            </select>
           </label>
           <button className="workflow-action" onClick={() => onSelect("cronograma")}>Abrir cronograma <ArrowLeftRight /></button>
         </div>
