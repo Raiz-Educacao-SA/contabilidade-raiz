@@ -169,7 +169,7 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
 
   return <section className="panel trial-analysis">
     <div className="trial-analysis-actions">
-      <div><small>MÓDULO CONTÁBIL</small><h2>Análise de Balancete</h2><p>Geração oficial no TOTVS e crítica contábil da competência selecionada.</p></div>
+      <div><h2>Análise de Balancete</h2><p>Geração oficial no TOTVS e crítica contábil da competência selecionada.</p></div>
       <div className="trial-action-buttons">
         <button className={`secondary ${base.length ? "source-loaded" : ""}`} onClick={() => void generate()} disabled={generating}><RefreshCw className={generating ? "spin" : ""} />{generating ? "Gerando..." : "Gerar balancete"}</button>
         <button className={`secondary ${analysis.length ? "source-loaded" : ""}`} onClick={analyze} disabled={!base.length || analyzing}><BarChart3 />{analyzing ? "Analisando..." : "Analisar balancete"}</button>

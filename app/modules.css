@@ -376,7 +376,7 @@
 .trial-content { padding-left: 16px; padding-right: 16px; }
 .trial-content .top-context, .trial-content .trial-analysis { width: 100%; }
 .trial-content .trial-analysis { border-radius: 14px; }
-.trial-content .filter-fields { grid-template-columns: minmax(260px, 520px) auto; }
+.trial-content .filter-fields { grid-template-columns: minmax(230px, 380px) auto; }
 .trial-view-tabs { display: flex; gap: 3px; padding: 6px 14px 0; border-bottom: 1px solid var(--line); background: #f8fafc; }
 .trial-view-tabs button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; background: transparent; color: #667085; font-size: 9px; font-weight: 800; }
 .trial-view-tabs button.active { background: white; border-color: var(--line); color: #173d68; }

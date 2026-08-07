@@ -663,10 +663,10 @@ export default function Home() {
             {(
               [
                 { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
-                { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
                 { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
+                { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
             ).map(({ id, label, icon: Icon }) => (
               <button
