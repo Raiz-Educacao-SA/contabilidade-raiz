@@ -1025,11 +1025,9 @@ function AreaHub({
   const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"];
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
-  const closingPeriods = Array.from({ length: 36 }, (_, index) => {
-    const date = new Date(today.getFullYear() - 1, index, 1);
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    return { value, label: `${months[date.getMonth()]}/${date.getFullYear()}` };
-  });
+  const closingMonth = closingDate.slice(5, 7);
+  const closingYear = closingDate.slice(0, 4);
+  const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
   return (
     <main className="module-hub">
       <header>
@@ -1063,17 +1061,27 @@ function AreaHub({
             <b>Cronograma de Fechamento</b>
             <span>Comece por aqui: acompanhe prazos, responsáveis e o andamento de todas as etapas.</span>
           </span>
-          <label className="workflow-date">
+          <div className="workflow-date">
             <span>Mês/Ano do fechamento</span>
-            <select
-              value={closingDate.slice(0, 7)}
-              onChange={(event) => onClosingDateChange(event.target.value ? `${event.target.value}-10` : "")}
-            >
-              {closingPeriods.map((period) => (
-                <option key={period.value} value={period.value}>{period.label}</option>
-              ))}
-            </select>
-          </label>
+            <div className="workflow-date-fields">
+              <select
+                aria-label="Mês do fechamento"
+                value={closingMonth}
+                onChange={(event) => onClosingDateChange(`${closingYear}-${event.target.value}-10`)}
+              >
+                {months.map((name, index) => (
+                  <option key={name} value={String(index + 1).padStart(2, "0")}>{name}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Ano do fechamento"
+                value={closingYear}
+                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
+              >
+                {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </div>
+          </div>
           <button className="workflow-action" onClick={() => onSelect("cronograma")}>Abrir cronograma <ArrowLeftRight /></button>
         </div>
 
