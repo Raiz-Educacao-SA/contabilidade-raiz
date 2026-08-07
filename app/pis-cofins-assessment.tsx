@@ -88,7 +88,7 @@ function branchValues<T extends { branch: string }>(rows: T[]) {
 
 function BranchSelector({ branches, selected, onChange }: { branches: string[]; selected: string[]; onChange: (branches: string[]) => void }) {
   if (!branches.length) return null;
-  return <fieldset className="tax-branch-selector"><legend>Filiais incluídas</legend>{branches.map((branch) => <label key={branch}><input type="checkbox" checked={selected.includes(branch)} onChange={(event) => onChange(event.target.checked ? [...selected, branch] : selected.filter((item) => item !== branch))} />Filial {branch}</label>)}</fieldset>;
+  return <fieldset className="tax-branch-selector" data-branch-filter="true"><legend>Selecionar filiais</legend>{branches.map((branch) => <label key={branch}><input type="checkbox" checked={selected.includes(branch)} onChange={(event) => onChange(event.target.checked ? [...selected, branch] : selected.filter((item) => item !== branch))} />Filial {branch}</label>)}</fieldset>;
 }
 
 export default function PisCofinsAssessment({
