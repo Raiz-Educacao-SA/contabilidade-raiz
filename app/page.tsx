@@ -68,6 +68,7 @@ type Account = {
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "irpj-csll" | "rateio-csc" | "intercompany";
 type BookReport = "balancete" | "razao" | "plano-contas";
+type ScheduleView = "acompanhamento" | "historico";
 type Area = "financeiro" | "compras" | "folha" | "contabil" | "book" | "cronograma";
 type Module =
   | "bancaria"
@@ -187,6 +188,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("conciliacao");
   const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
+  const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
@@ -669,6 +671,16 @@ export default function Home() {
             ))}
           </nav>
         )}
+        {selectedModule === "cronograma" && (
+          <nav>
+            <button className={scheduleView === "acompanhamento" ? "active" : ""} onClick={() => setScheduleView("acompanhamento")}>
+              <CalendarDays /> Acompanhamento
+            </button>
+            <button className={scheduleView === "historico" ? "active" : ""} onClick={() => setScheduleView("historico")}>
+              <ListTree /> Histórico de entregas
+            </button>
+          </nav>
+        )}
         <button className="logout" onClick={() => supabase.auth.signOut()}>
           <LogOut />
           Sair
@@ -894,7 +906,7 @@ export default function Home() {
             </p>
           </section>
         )}
-        {selectedModule === "cronograma" && (
+        {selectedModule === "cronograma" && scheduleView === "acompanhamento" && (
           <ClosingSchedule
             year={year}
             month={month}
@@ -903,6 +915,9 @@ export default function Home() {
             userEmail={session.user.email ?? ""}
             userProfiles={userProfiles}
           />
+        )}
+        {selectedModule === "cronograma" && scheduleView === "historico" && (
+          <ClosingHistory />
         )}
         {selectedModule !== "bancaria" &&
           selectedModule !== "book" &&
@@ -1218,8 +1233,19 @@ function FinancialHub({
 type ScheduleConfirmation = {
   modulo: string;
   setor: string;
+  status: "pendente" | "concluido";
   confirmado_email: string;
   confirmado_em: string;
+};
+
+type ScheduleHistoryRow = {
+  id: string;
+  competencia: string;
+  modulo: string;
+  setor: string;
+  acao: "liberado" | "reaberto";
+  usuario_email: string;
+  criado_em: string;
 };
 
 function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[] }) {
@@ -1236,7 +1262,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
     { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Disponibilizar o produto final do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
   ];
-  const start = new Date(year, month - 1, 1);
+  const start = new Date(year, month, 1);
   const finalDeadline = stages.at(-1)!.deadline;
   const elapsed = today.getTime() - start.getTime();
   const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
@@ -1249,7 +1275,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     setScheduleError("");
     void supabase
       .from("cronograma_entregas")
-      .select("modulo, setor, confirmado_email, confirmado_em")
+      .select("modulo, setor, status, confirmado_email, confirmado_em")
       .eq("competencia", scheduleCompetence)
       .then(({ data, error }) => {
         if (!active) return;
@@ -1260,7 +1286,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     return () => { active = false; };
   }, [scheduleCompetence]);
 
-  async function confirmStage(stage: (typeof stages)[number]) {
+  async function toggleStage(stage: (typeof stages)[number], checked: boolean) {
     setConfirmingModule(stage.key);
     setScheduleError("");
     const confirmedAt = new Date().toISOString();
@@ -1268,16 +1294,28 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       competencia: scheduleCompetence,
       modulo: stage.key,
       setor: stage.sector,
-      status: "concluido",
+      status: checked ? "concluido" : "pendente",
       confirmado_por: userId,
       confirmado_email: userEmail,
       confirmado_em: confirmedAt,
     }, { onConflict: "competencia,modulo" });
-    if (error) setScheduleError("O OK não pôde ser registrado. Tente novamente.");
-    else setConfirmations((current) => [
-      ...current.filter((item) => item.modulo !== stage.key),
-      { modulo: stage.key, setor: stage.sector, confirmado_email: userEmail, confirmado_em: confirmedAt },
-    ]);
+    if (error) {
+      setScheduleError("O OK não pôde ser registrado. Tente novamente.");
+    } else {
+      const { error: historyError } = await supabase.from("cronograma_historico").insert({
+        competencia: scheduleCompetence,
+        modulo: stage.key,
+        setor: stage.sector,
+        acao: checked ? "liberado" : "reaberto",
+        usuario_id: userId,
+        usuario_email: userEmail,
+      });
+      if (historyError) setScheduleError("O OK foi atualizado, mas o histórico não pôde ser registrado.");
+      setConfirmations((current) => [
+        ...current.filter((item) => item.modulo !== stage.key),
+        { modulo: stage.key, setor: stage.sector, status: checked ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt },
+      ]);
+    }
     setConfirmingModule("");
   }
 
@@ -1307,7 +1345,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
           const Icon = stage.icon;
           const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
           const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
-          const confirmation = confirmations.find((item) => item.modulo === stage.key);
+          const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
           const canConfirm = userProfiles.includes("administrador") || (
             stage.sector === "Financeiro" ? userProfiles.includes("financeiro") :
             stage.sector === "Compras" ? userProfiles.includes("compras") :
@@ -1325,18 +1363,80 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                   : `Prazo decorrido: ${progress}%`}</small>
               </div>
               <div className="schedule-deadline"><span>{stage.milestone}</span><b>{formatDate(stage.deadline)}</b></div>
-              <button
-                className="schedule-ok"
-                disabled={!canConfirm || Boolean(confirmation) || scheduleLoading || confirmingModule === stage.key}
-                onClick={() => void confirmStage(stage)}
-                title={canConfirm ? "Liberar fechamento deste módulo" : `Liberação exclusiva do setor ${stage.sector}`}
+              <label
+                className={`schedule-ok ${!canConfirm ? "is-disabled" : ""}`}
+                title={canConfirm ? "Marcar ou desmarcar a entrega deste módulo" : `Liberação exclusiva do setor ${stage.sector}`}
               >
-                {confirmation ? "✓ OK" : confirmingModule === stage.key ? "Salvando..." : "OK"}
-              </button>
+                <input
+                  type="checkbox"
+                  checked={Boolean(confirmation)}
+                  disabled={!canConfirm || scheduleLoading || confirmingModule === stage.key}
+                  onChange={(event) => void toggleStage(stage, event.target.checked)}
+                />
+                <span>{confirmingModule === stage.key ? "Salvando..." : "OK"}</span>
+              </label>
             </article>
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function ClosingHistory() {
+  const [rows, setRows] = useState<ScheduleHistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from("cronograma_historico")
+      .select("id, competencia, modulo, setor, acao, usuario_email, criado_em")
+      .order("criado_em", { ascending: false })
+      .limit(300)
+      .then(({ data, error: loadError }) => {
+        if (!active) return;
+        if (loadError) setError("Não foi possível carregar o histórico de entregas.");
+        else setRows((data ?? []) as ScheduleHistoryRow[]);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const moduleNames: Record<string, string> = {
+    compras: "Módulo Compras",
+    financeiro: "Módulo Financeiro",
+    folha: "Módulo Folha de Pagamento",
+    contabil: "Módulo Contábil",
+    book: "Book Contábil",
+  };
+
+  return (
+    <section className="closing-history">
+      <header>
+        <div><span>CRONOGRAMA DE FECHAMENTO</span><h2>Histórico de entregas</h2></div>
+        <small>{rows.length} movimentação(ões)</small>
+      </header>
+      {loading ? <p className="history-message">Carregando histórico...</p> : error ? <p className="schedule-error">{error}</p> : rows.length === 0 ? (
+        <p className="history-message">Nenhuma entrega foi registrada ainda.</p>
+      ) : (
+        <div className="history-table-wrap">
+          <table className="history-table">
+            <thead><tr><th>Competência</th><th>Módulo</th><th>Setor</th><th>Ação</th><th>Responsável</th><th>Data e hora</th></tr></thead>
+            <tbody>{rows.map((row) => (
+              <tr key={row.id}>
+                <td>{row.competencia.slice(5, 7)}/{row.competencia.slice(0, 4)}</td>
+                <td><b>{moduleNames[row.modulo] ?? row.modulo}</b></td>
+                <td>{row.setor}</td>
+                <td><span className={`history-action ${row.acao}`}>{row.acao === "liberado" ? "Liberou" : "Reabriu"}</span></td>
+                <td>{row.usuario_email}</td>
+                <td>{new Date(row.criado_em).toLocaleString("pt-BR")}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
