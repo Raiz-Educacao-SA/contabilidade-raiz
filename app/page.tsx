@@ -1059,8 +1059,12 @@ function AreaHub({
             <span>Comece por aqui: acompanhe prazos, responsáveis e o andamento de todas as etapas.</span>
           </span>
           <label className="workflow-date">
-            <span>Data do fechamento</span>
-            <input type="date" value={closingDate} onChange={(event) => onClosingDateChange(event.target.value)} />
+            <span>Mês/Ano do fechamento</span>
+            <input
+              type="month"
+              value={closingDate.slice(0, 7)}
+              onChange={(event) => onClosingDateChange(event.target.value ? `${event.target.value}-10` : "")}
+            />
           </label>
           <button className="workflow-action" onClick={() => onSelect("cronograma")}>Abrir cronograma <ArrowLeftRight /></button>
         </div>
