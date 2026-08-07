@@ -86,6 +86,10 @@ function branchValues<T extends { branch: string }>(rows: T[]) {
     .sort((left, right) => left.localeCompare(right, "pt-BR", { numeric: true }));
 }
 
+function restoredBranches<T extends { branch: string }>(saved: unknown, rows: T[]) {
+  return Array.isArray(saved) && saved.length ? saved.map(String) : branchValues(rows);
+}
+
 function BranchSelector({ branches, selected, onChange }: { branches: string[]; selected: string[]; onChange: (branches: string[]) => void }) {
   if (!branches.length) return null;
   return <fieldset className="tax-branch-selector" data-branch-filter="true"><legend>Selecionar filiais</legend>{branches.map((branch) => <label key={branch}><input type="checkbox" checked={selected.includes(branch)} onChange={(event) => onChange(event.target.checked ? [...selected, branch] : selected.filter((item) => item !== branch))} />Filial {branch}</label>)}</fieldset>;
@@ -162,10 +166,10 @@ export default function PisCofinsAssessment({
       setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
       setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
       setCancelledVisible(assessment?.cancelledVisible ?? true);
-      setMonthlyBranches(assessment?.monthlyBranches ?? branchValues(assessment?.rows || []));
-      setOtherRevenueBranches(assessment?.otherRevenueBranches ?? branchValues(assessment?.otherRevenueRows || []));
-      setAnnualFeeBranches(assessment?.annualFeeBranches ?? branchValues(assessment?.annualFeeRows || []));
-      setCancelledBranches(assessment?.cancelledBranches ?? branchValues(assessment?.cancelledRows || []));
+      setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
+      setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
+      setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
+      setCancelledBranches(restoredBranches(assessment?.cancelledBranches, assessment?.cancelledRows || []));
     } catch {
       setRows([]);
       setCancelledRows([]);
