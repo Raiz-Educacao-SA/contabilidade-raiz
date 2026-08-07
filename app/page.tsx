@@ -312,7 +312,7 @@ export default function Home() {
     if (!session) {
       setCompanies([]);
       setCompanyId("");
-      setCompaniesLoading(false);
+      setCompaniesLoading(true);
       return;
     }
     let active = true;
