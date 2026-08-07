@@ -624,7 +624,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? "tax-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? "tax-content" : selectedModule === "cronograma" ? "schedule-content" : ""}`}
       >
         <header>
           <div>
@@ -648,22 +648,24 @@ export default function Home() {
           </div>
           <div className="user-chip">{session.user.email}</div>
         </header>
-        <section className="top-context">
+        <section className={`top-context ${selectedModule === "cronograma" ? "schedule-filters" : ""}`}>
           <div className="filter-heading">
             <span className="filter-icon">
               <SlidersHorizontal />
             </span>
             <div>
               <b>
-                {selectedModule === "contabil" && accountingTab === "pis-cofins"
+                {selectedModule === "cronograma"
+                  ? "Período"
+                  : selectedModule === "contabil" && accountingTab === "pis-cofins"
                   ? "Filtros"
                   : "Filtros da análise"}
               </b>
-              <small>Selecione a empresa e a competência</small>
+              <small>{selectedModule === "cronograma" ? "Selecione o ano e o mês" : "Selecione a empresa e a competência"}</small>
             </div>
           </div>
           <div className="filter-fields">
-            <label className="company-control">
+            {selectedModule !== "cronograma" && <label className="company-control">
               <span>Empresa</span>
               <div className="company-select-stack">
                 <select
@@ -678,7 +680,7 @@ export default function Home() {
                 </select>
                 <small>Regime tributário: {companyTaxRegime}</small>
               </div>
-            </label>
+            </label>}
             <div className="competence-control">
               <label>
                 <span>Ano</span>
@@ -841,10 +843,14 @@ export default function Home() {
             </p>
           </section>
         )}
+        {selectedModule === "cronograma" && (
+          <ClosingSchedule year={year} month={month} />
+        )}
         {selectedModule !== "bancaria" &&
           selectedModule !== "book" &&
           selectedModule !== "receita" &&
-          selectedModule !== "contabil" && (
+          selectedModule !== "contabil" &&
+          selectedModule !== "cronograma" && (
             <section className="panel module-workspace">
               <ActiveModuleIcon />
               <span className="eyebrow">MÓDULO SELECIONADO</span>
@@ -1119,6 +1125,79 @@ function FinancialHub({
       </section>
     </main>
   );
+}
+
+function ClosingSchedule({ year, month }: { year: number; month: number }) {
+  const monthEnd = lastBusinessDay(year, month);
+  const stages = [
+    { name: "Módulo Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
+    { name: "Módulo Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
+    { name: "Módulo Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
+    { name: "Módulo Contábil", detail: "Consolidar análises e concluir o fechamento", deadline: addBusinessDays(monthEnd, 10), milestone: "D+10", icon: BookText },
+    { name: "Book Contábil", detail: "Disponibilizar o produto final do fechamento", deadline: addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
+  ];
+  const start = new Date(year, month - 1, 1);
+  const finalDeadline = stages.at(-1)!.deadline;
+  const elapsed = today.getTime() - start.getTime();
+  const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
+  const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
+  const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+  return (
+    <section className="closing-schedule">
+      <div className="schedule-overview">
+        <div>
+          <span>PROJEÇÃO DO FECHAMENTO</span>
+          <b>{months[month - 1]} de {year}</b>
+          <small>Visão geral do processo, sem separação por empresa.</small>
+        </div>
+        <div className="schedule-window">
+          <span>Janela projetada</span>
+          <b>{formatDate(start)} a {formatDate(finalDeadline)}</b>
+          <small>Compras até o último dia útil · Contabilidade até D+10</small>
+        </div>
+      </div>
+
+      <div className="schedule-master-line">
+        <span style={{ width: `${overallProgress}%` }} />
+      </div>
+
+      <div className="schedule-stages">
+        {stages.map((stage, index) => {
+          const Icon = stage.icon;
+          const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
+          const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
+          return (
+            <article key={stage.name} className={index === stages.length - 1 ? "schedule-final-stage" : ""}>
+              <span className="schedule-stage-icon"><Icon /></span>
+              <div className="schedule-stage-copy">
+                <div><b>{stage.name}</b><span>{stage.detail}</span></div>
+                <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
+                <small>Prazo decorrido: {progress}%</small>
+              </div>
+              <div className="schedule-deadline"><span>{stage.milestone}</span><b>{formatDate(stage.deadline)}</b></div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function lastBusinessDay(year: number, month: number) {
+  const date = new Date(year, month, 0);
+  while (date.getDay() === 0 || date.getDay() === 6) date.setDate(date.getDate() - 1);
+  return date;
+}
+
+function addBusinessDays(date: Date, amount: number) {
+  const result = new Date(date);
+  let added = 0;
+  while (added < amount) {
+    result.setDate(result.getDate() + 1);
+    if (result.getDay() !== 0 && result.getDay() !== 6) added += 1;
+  }
+  return result;
 }
 
 function previousCompetence(competence: string) {
