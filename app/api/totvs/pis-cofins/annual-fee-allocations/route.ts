@@ -16,7 +16,7 @@ const classifyService = (value: string): TaxRegime => {
   const service = normalize(value);
   if (["PRE-VESTIBULAR", "PRE VESTIBULAR", "ESCOLINHA", "ATIVIDADE EXTRA", "HIGH SCHOOL", "ORIENTACAO PEDAGOGICA"].some((term) => service.includes(term))) return "Não-Cumulativo";
   if (service.includes("ANUIDADE") && service.includes("HORARIO INTEGRAL")) return "Não-Cumulativo";
-  if (["BERCARIO", "CRECHE", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "EDUCACAO BASICA", "MENSALIDADE", "SEMESTRALIDADE", "1A COTA"].some((term) => service.includes(term))) return "Cumulativo";
+  if (["BERCARIO", "CRECHE", "PRE-ESCOLAR", "PRE ESCOLAR", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "EDUCACAO BASICA", "MENSALIDADE", "SEMESTRALIDADE", "1A COTA"].some((term) => service.includes(term))) return "Cumulativo";
   if (/^(EI|EFI|EF1|EF2|EM)(\s|\-|$)/.test(service)) return "Cumulativo";
   return "";
 };

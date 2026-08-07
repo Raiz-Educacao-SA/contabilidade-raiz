@@ -18,6 +18,7 @@ type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
 const classification: Record<string, Exclude<TaxRegime, "">> = {
   "BERCARIO": "Cumulativo",
   "CRECHE": "Cumulativo",
+  "PRE-ESCOLAR": "Cumulativo",
   "ENSINO INFANTIL": "Cumulativo",
   "ENSINO FUNDAMENTAL": "Cumulativo",
   "ENSINO REGULAR": "Cumulativo",
@@ -45,7 +46,7 @@ const classifyService = (value: string): TaxRegime => {
   if (classification[service]) return classification[service];
   if (["PRE-VESTIBULAR", "PRE VESTIBULAR", "ESCOLINHA", "ATIVIDADE EXTRA", "HIGH SCHOOL", "ORIENTACAO PEDAGOGICA"].some((term) => service.includes(term))) return "Não-Cumulativo";
   if (service.includes("ANUIDADE") && service.includes("HORARIO INTEGRAL")) return "Não-Cumulativo";
-  if (["BERCARIO", "CRECHE", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "HORARIO INTEGRAL", "MENSALIDADE", "SEMESTRALIDADE"].some((term) => service.includes(term))) return "Cumulativo";
+  if (["BERCARIO", "CRECHE", "PRE-ESCOLAR", "PRE ESCOLAR", "ENSINO INFANTIL", "ENSINO FUNDAMENTAL", "ENSINO REGULAR", "ENSINO MEDIO", "HORARIO INTEGRAL", "MENSALIDADE", "SEMESTRALIDADE"].some((term) => service.includes(term))) return "Cumulativo";
   if (/^(EI|EFI|EF1|EF2|EM)(\s|\-|$)/.test(service)) return "Cumulativo";
   return "";
 };
