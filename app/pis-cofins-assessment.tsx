@@ -130,6 +130,8 @@ export default function PisCofinsAssessment({
   const [otherRevenueBranches, setOtherRevenueBranches] = useState<string[]>([]);
   const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
   const [cancelledBranches, setCancelledBranches] = useState<string[]>([]);
+  const [requestedBranches, setRequestedBranches] = useState<string[]>([]);
+  const [branchDraft, setBranchDraft] = useState("");
   const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
@@ -137,6 +139,9 @@ export default function PisCofinsAssessment({
   const completeAssessmentReady = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
   const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded;
   const storageKey = `pis-cofins-assessment:${companyCode}:${competence}`;
+  const branchQuery = requestedBranches.length
+    ? `&branches=${encodeURIComponent(requestedBranches.join(","))}`
+    : "";
 
   useEffect(() => {
     setActionsTarget(document.getElementById("pis-cofins-filter-actions"));
@@ -170,6 +175,7 @@ export default function PisCofinsAssessment({
       setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
       setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
       setCancelledBranches(restoredBranches(assessment?.cancelledBranches, assessment?.cancelledRows || []));
+      setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
     } catch {
       setRows([]);
       setCancelledRows([]);
@@ -182,6 +188,7 @@ export default function PisCofinsAssessment({
       setAnnualFeeLoaded(false);
       setCancelledLoaded(false);
       setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
+      setRequestedBranches([]); setBranchDraft("");
     } finally {
       setStorageReady(true);
     }
@@ -206,8 +213,9 @@ export default function PisCofinsAssessment({
       annualFeeVisible,
       cancelledVisible,
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
+      requestedBranches,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches]);
+  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -221,6 +229,7 @@ export default function PisCofinsAssessment({
     setAnnualFeeLoaded(false);
     setCancelledLoaded(false);
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
+    setRequestedBranches([]); setBranchDraft("");
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
@@ -234,7 +243,7 @@ export default function PisCofinsAssessment({
     setError("");
     try {
       const response = await fetch(
-        `/api/totvs/pis-cofins?company=${companyCode}&competence=${competence}`,
+        `/api/totvs/pis-cofins?company=${companyCode}&competence=${competence}${branchQuery}`,
         {
           headers: { authorization: `Bearer ${accessToken}` },
           cache: "no-store",
@@ -249,7 +258,11 @@ export default function PisCofinsAssessment({
         throw new Error(
           "Nenhuma linha foi encontrada para a empresa e competência selecionadas.",
         );
-      const nextRows = payload.rows || []; setRows(nextRows); setMonthlyBranches(branchValues(nextRows));
+      const nextRows = payload.rows || [];
+      setRows(nextRows);
+      setMonthlyBranches(requestedBranches.length
+        ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch))
+        : branchValues(nextRows));
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(true);
@@ -266,6 +279,34 @@ export default function PisCofinsAssessment({
   const filteredAnnualFeeRows = useMemo(() => annualFeeRows.filter((row) => annualFeeBranches.includes(String(row.branch || "").trim())), [annualFeeRows, annualFeeBranches]);
   const filteredCancelledRows = useMemo(() => cancelledRows.filter((row) => cancelledBranches.includes(String(row.branch || "").trim())), [cancelledRows, cancelledBranches]);
   const allBranches = useMemo(() => branchValues([...rows, ...otherRevenueRows, ...annualFeeRows, ...cancelledRows]), [rows, otherRevenueRows, annualFeeRows, cancelledRows]);
+  const selectableBranches = useMemo(
+    () => [...new Set([...requestedBranches, ...allBranches])].sort((a, b) => Number(a) - Number(b)),
+    [requestedBranches, allBranches],
+  );
+
+  function applyBranchFilter() {
+    const branches = [...new Set(
+      branchDraft.split(/[,;\s]+/).map((value) => value.trim()).filter((value) => /^\d+$/.test(value)),
+    )].sort((a, b) => Number(a) - Number(b));
+    if (!branches.length) {
+      selectAllBranches();
+      return;
+    }
+    setRequestedBranches(branches);
+    setMonthlyBranches(branches.filter((branch) => branchValues(rows).includes(branch)));
+    setOtherRevenueBranches(branches.filter((branch) => branchValues(otherRevenueRows).includes(branch)));
+    setAnnualFeeBranches(branches.filter((branch) => branchValues(annualFeeRows).includes(branch)));
+    setCancelledBranches(branches.filter((branch) => branchValues(cancelledRows).includes(branch)));
+  }
+
+  function selectAllBranches() {
+    setRequestedBranches([]);
+    setBranchDraft("");
+    setMonthlyBranches(branchValues(rows));
+    setOtherRevenueBranches(branchValues(otherRevenueRows));
+    setAnnualFeeBranches(branchValues(annualFeeRows));
+    setCancelledBranches(branchValues(cancelledRows));
+  }
 
   function branchSelectedEverywhere(branch: string) {
     const sources = [
@@ -278,6 +319,12 @@ export default function PisCofinsAssessment({
   }
 
   function toggleGlobalBranch(branch: string, checked: boolean) {
+    setRequestedBranches((current) => {
+      const base = current.length ? current : allBranches;
+      return checked
+        ? [...new Set([...base, branch])].sort((a, b) => Number(a) - Number(b))
+        : base.filter((item) => item !== branch);
+    });
     const update = (available: string[], selected: string[], setter: (branches: string[]) => void) => {
       if (!available.includes(branch)) return;
       setter(checked ? [...new Set([...selected, branch])] : selected.filter((item) => item !== branch));
@@ -468,12 +515,12 @@ export default function PisCofinsAssessment({
     setOtherRevenueError("");
     try {
       const response = await fetch(
-        `/api/totvs/pis-cofins/other-revenues?company=${companyCode}&competence=${competence}`,
+        `/api/totvs/pis-cofins/other-revenues?company=${companyCode}&competence=${competence}${branchQuery}`,
         { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" },
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar as outras receitas no Razão Completo.");
-      const nextRows = payload.rows || []; setOtherRevenueRows(nextRows); setOtherRevenueBranches(branchValues(nextRows));
+      const nextRows = payload.rows || []; setOtherRevenueRows(nextRows); setOtherRevenueBranches(requestedBranches.length ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch)) : branchValues(nextRows));
       setOtherRevenueLoaded(true);
     } catch (cause) {
       setOtherRevenueError((cause as Error).message);
@@ -487,12 +534,12 @@ export default function PisCofinsAssessment({
     setAnnualFeeError("");
     try {
       const response = await fetch(
-        `/api/totvs/pis-cofins/annual-fee-allocations?company=${companyCode}&competence=${competence}`,
+        `/api/totvs/pis-cofins/annual-fee-allocations?company=${companyCode}&competence=${competence}${branchQuery}`,
         { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" },
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar os rateios de anuidades no módulo Contábil.");
-      const nextRows = payload.rows || []; setAnnualFeeRows(nextRows); setAnnualFeeBranches(branchValues(nextRows));
+      const nextRows = payload.rows || []; setAnnualFeeRows(nextRows); setAnnualFeeBranches(requestedBranches.length ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch)) : branchValues(nextRows));
       setAnnualFeeLoaded(true);
     } catch (cause) {
       setAnnualFeeError((cause as Error).message);
@@ -506,12 +553,12 @@ export default function PisCofinsAssessment({
     setCancelledError("");
     try {
       const response = await fetch(
-        `/api/totvs/pis-cofins/cancelled-invoices?company=${companyCode}&competence=${competence}`,
+        `/api/totvs/pis-cofins/cancelled-invoices?company=${companyCode}&competence=${competence}${branchQuery}`,
         { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" },
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 37.");
-      const nextRows = payload.rows || []; setCancelledRows(nextRows); setCancelledBranches(branchValues(nextRows));
+      const nextRows = payload.rows || []; setCancelledRows(nextRows); setCancelledBranches(requestedBranches.length ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch)) : branchValues(nextRows));
       setCancelledLoaded(true);
     } catch (cause) {
       setCancelledError((cause as Error).message);
@@ -795,12 +842,18 @@ export default function PisCofinsAssessment({
         createPortal(
           <div className="tax-actions">
             <details className="tax-top-branches">
-              <summary>Filiais {allBranches.length ? `(${allBranches.filter(branchSelectedEverywhere).length}/${allBranches.length})` : ""}</summary>
+              <summary>Filiais {requestedBranches.length ? `(${requestedBranches.join(", ")})` : "(todas)"}</summary>
               <div>
-                {allBranches.length ? allBranches.map((branch) => <label key={branch}>
-                  <input type="checkbox" checked={branchSelectedEverywhere(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
+                <div className="tax-branch-entry">
+                  <input value={branchDraft} onChange={(event) => setBranchDraft(event.target.value)} placeholder="Ex.: 1, 2, 6" aria-label="Filiais" />
+                  <button type="button" onClick={applyBranchFilter}>Aplicar</button>
+                  <button type="button" onClick={selectAllBranches}>Todas</button>
+                </div>
+                {selectableBranches.map((branch) => <label key={branch}>
+                  <input type="checkbox" checked={requestedBranches.length ? requestedBranches.includes(branch) : branchSelectedEverywhere(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
                   Filial {branch}
-                </label>) : <span>Atualize uma das bases para listar as filiais.</span>}
+                </label>)}
+                {!selectableBranches.length && <span>Informe uma ou mais filiais antes de atualizar as bases.</span>}
               </div>
             </details>
             <button

@@ -105,6 +105,7 @@ export async function GET(request: NextRequest) {
     if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
+    const requestedBranches = new Set((request.nextUrl.searchParams.get("branches") || "").split(",").map((value) => value.trim()).filter(Boolean));
     if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
 
     const [year, month] = competence!.split("-").map(Number);
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
       query(company, firstDay, lastDay, "3.1.1.01"),
       query(company, firstDay, lastDay, "4.2.1.11"),
       query(company, firstDay, lastDay, "4.2.1.12"),
-    ])).flat();
+    ])).flat().filter((record) => !requestedBranches.size || requestedBranches.has(tag(record, "CODFILIAL").trim()));
     const ruleByAccount = new Map(accountRules.map((rule) => [rule.account, rule]));
     const seen = new Set<string>();
     const rows = records.flatMap((record) => {

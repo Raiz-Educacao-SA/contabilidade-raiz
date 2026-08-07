@@ -64,12 +64,14 @@ export async function GET(request: NextRequest) {
     if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
+    const requestedBranches = new Set((request.nextUrl.searchParams.get("branches") || "").split(",").map((value) => value.trim()).filter(Boolean));
     if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
 
     const [year, month] = competence!.split("-").map(Number);
     const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
     const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const records = await query(company, firstDay, lastDay);
+    const records = (await query(company, firstDay, lastDay))
+      .filter((record) => !requestedBranches.size || requestedBranches.has(tag(record, "CODFILIAL").trim()));
     const seen = new Set<string>();
     const rows = records.flatMap((record, index) => {
       const sourceSystem = tag(record, "NOMESISTEMA");

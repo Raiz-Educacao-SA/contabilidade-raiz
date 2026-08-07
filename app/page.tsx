@@ -967,6 +967,9 @@ function AreaHub({
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
+  const executionAreas: Area[] = ["financeiro", "compras", "folha", "contabil"];
+  const ScheduleIcon = areas.cronograma.icon;
+  const BookIcon = areas.book.icon;
   return (
     <main className="module-hub">
       <header>
@@ -981,7 +984,7 @@ function AreaHub({
           <div>
             <span className="eyebrow">CONTABILIDADE CORPORATIVA</span>
             <h1>Contabilidade Raiz</h1>
-            <p>Escolha o módulo em que deseja trabalhar.</p>
+            <p>Acompanhe o cronograma, execute as etapas e conclua o fechamento no Book Contábil.</p>
           </div>
         </div>
         <div className="hub-user">
@@ -992,9 +995,21 @@ function AreaHub({
           </button>
         </div>
       </header>
-      <section className="module-grid">
-        {(Object.entries(areas) as [Area, (typeof areas)[Area]][]).map(
-          ([id, item]) => {
+      <section className="closing-workflow" aria-label="Fluxo do fechamento contábil">
+        <button className="workflow-start" onClick={() => onSelect("cronograma")}>
+          <span className="workflow-icon"><ScheduleIcon /></span>
+          <span className="workflow-copy">
+            <small>INÍCIO DO PROCESSO</small>
+            <b>Cronograma de Fechamento</b>
+            <span>Comece por aqui: acompanhe prazos, responsáveis e o andamento de todas as etapas.</span>
+          </span>
+          <span className="workflow-action">Abrir cronograma <ArrowLeftRight /></span>
+        </button>
+
+        <div className="workflow-divider"><span>ETAPAS DE EXECUÇÃO</span></div>
+        <div className="workflow-modules">
+          {executionAreas.map((id) => {
+            const item = areas[id];
             const Icon = item.icon;
             return (
               <button
@@ -1014,8 +1029,19 @@ function AreaHub({
                 </span>
               </button>
             );
-          },
-        )}
+          })}
+        </div>
+
+        <div className="workflow-path" aria-hidden="true"><span>Conclusão do fechamento</span><ArrowLeftRight /></div>
+        <button className="workflow-final" onClick={() => onSelect("book")}>
+          <span className="workflow-icon"><BookIcon /></span>
+          <span className="workflow-copy">
+            <small>PRODUTO FINAL</small>
+            <b>Book Contábil</b>
+            <span>Consolida os resultados dos módulos e entrega a visão final do fechamento contábil.</span>
+          </span>
+          <span className="workflow-action">Acessar Book <ArrowLeftRight /></span>
+        </button>
       </section>
     </main>
   );

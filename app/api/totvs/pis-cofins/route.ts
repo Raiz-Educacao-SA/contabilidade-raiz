@@ -81,6 +81,7 @@ export async function GET(request: NextRequest) {
     if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
+    const requestedBranches = new Set((request.nextUrl.searchParams.get("branches") || "").split(",").map((value) => value.trim()).filter(Boolean));
     if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
     const [year, month] = competence!.split("-").map(Number);
     const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -89,7 +90,8 @@ export async function GET(request: NextRequest) {
     const sourceCompanyRecords = (await query(`CODCOLIGADA=${company};COMP_INI_D=${start};COMP_FIM_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = sourceCompanyRecords.filter((record) =>
-      recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence,
+      recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence &&
+      (!requestedBranches.size || requestedBranches.has(tag(record, "CODFILIAL").trim())),
     );
     let ignoredCancelled = 0;
     const cancelledRows: Array<{ line: number; branch: string; service: string; grossRevenue: number; discounts: number; netRevenue: number; status: string }> = [];
