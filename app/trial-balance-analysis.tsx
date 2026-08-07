@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BarChart3, FileSpreadsheet, RefreshCw, Search } from "lucide-react";
+import { BarChart3, Download, FileSpreadsheet, RefreshCw, Search } from "lucide-react";
+import * as XLSX from "xlsx";
 
 type BalanceRow = {
   id: string;
@@ -126,6 +127,35 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
     setMessage("Análise concluída conforme as regras do script Arsenal Contábil.");
   }
 
+  function exportAnalysis() {
+    if (!analysis.length) return;
+    const row = (item: AnalyzedRow) => ({
+      Conta: item.account,
+      "Cód. reduzido": item.reduced,
+      Descrição: item.description,
+      Categoria: item.category,
+      "Saldo anterior": item.balances.at(-2) || 0,
+      "Saldo final": item.balances.at(-1) || 0,
+      "Variação absoluta": item.absoluteVariation,
+      "Variação percentual": item.percentageVariation,
+      "Média histórica": item.historicalAverage,
+      "Variação relevante": item.relevantVariation ? "Sim" : "Não",
+      "Possível erro": item.possibleError ? "Sim" : "Não",
+      "Natureza esperada": item.expectedNature,
+      "Sinal atual": item.currentSign,
+      "Conta virada": item.reversedAccount ? "Sim" : "Não",
+    });
+    const summaryRows = Array.from(summary.totals, ([Categoria, Saldo]) => ({ Categoria, Saldo }));
+    summaryRows.push({ Categoria: summary.result >= 0 ? "Lucro Contábil do Período" : "Prejuízo Líquido do Período", Saldo: summary.result });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Resumo");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.filter((item) => item.relevantVariation).map(row)), "Variacoes Relevantes");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.filter((item) => item.possibleError).map(row)), "Erros Contabeis");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.filter((item) => item.reversedAccount).map(row)), "Contas Viradas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.map(row)), "Base Tratada");
+    XLSX.writeFile(workbook, `${String(companyCode).padStart(2, "0")}_Analise_Balancete_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
+  }
+
   const summary = useMemo(() => {
     const totals = new Map<string, number>();
     analysis.forEach((row) => totals.set(row.category, (totals.get(row.category) || 0) + (row.balances.at(-1) || 0)));
@@ -133,7 +163,7 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
     return { totals, result: revenue - cost - expense };
   }, [analysis]);
   const inconsistencies = useMemo(() => analysis.filter((row) => row.relevantVariation || row.possibleError || row.reversedAccount), [analysis]);
-  const filtered = useMemo(() => { const term = normalize(search); return term ? inconsistencies.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description}`).includes(term)) : inconsistencies; }, [inconsistencies, search]);
+  const filtered = useMemo(() => { const term = normalize(search); return term ? analysis.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description}`).includes(term)) : analysis; }, [analysis, search]);
 
   return <section className="panel trial-analysis">
     <div className="trial-analysis-actions">
@@ -141,6 +171,7 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
       <div className="trial-action-buttons">
         <button className={`secondary ${base.length ? "source-loaded" : ""}`} onClick={() => void generate()} disabled={generating}><RefreshCw className={generating ? "spin" : ""} />{generating ? "Gerando..." : "Gerar balancete"}</button>
         <button className={`secondary ${analysis.length ? "source-loaded" : ""}`} onClick={analyze} disabled={!base.length || analyzing}><BarChart3 />{analyzing ? "Analisando..." : "Analisar balancete"}</button>
+        <button className="secondary" onClick={exportAnalysis} disabled={!analysis.length}><Download />Exportar análise</button>
       </div>
     </div>
     {message && <div className={`notice ${!base.length && !generating ? "error" : ""}`}>{message}</div>}
@@ -153,8 +184,8 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
     </div>
     {analysis.length > 0 && <>
       <div className="trial-category-summary">{["Ativo", "Passivo", "Patrimônio Líquido", "Receita", "Custo", "Despesa", "Outros"].map((item) => <article key={item}><span>{item}</span><b>{money.format(summary.totals.get(item) || 0)}</b></article>)}</div>
-      <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar divergência por conta ou descrição" /></label><span>{filtered.length} divergência(s)</span></div>
-      <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Categoria</th><th>Saldo anterior</th><th>Saldo final</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{row.category}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.possibleError && <span>Saldo novo</span>}{row.reversedAccount && <span>Conta virada</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma divergência encontrada pelas regras atuais.</td></tr>}</tbody></table></div>
+      <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conta ou descrição no balancete" /></label><span>{filtered.length} conta(s) · {inconsistencies.length} divergência(s)</span></div>
+      <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Categoria</th><th>Saldo anterior</th><th>Saldo final</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{row.category}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.possibleError && <span>Saldo novo</span>}{row.reversedAccount && <span>Conta virada</span>}{!row.relevantVariation && !row.possibleError && !row.reversedAccount && <em>Sem crítica</em>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma conta encontrada no balancete.</td></tr>}</tbody></table></div>
       <p className="trial-footnote"><FileSpreadsheet /> Período histórico: {competences.map((item) => `${item.slice(5)}/${item.slice(0, 4)}`).join(" · ")}</p>
     </>}
   </section>;

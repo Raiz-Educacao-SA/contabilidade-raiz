@@ -369,6 +369,10 @@
 .trial-table table { font-size: .74rem; }
 .trial-flags { display: flex; flex-wrap: wrap; gap: 4px; }
 .trial-flags span { border-radius: 999px; background: #fff1e7; color: #a64b00; padding: 3px 7px; font-size: .65rem; font-weight: 800; white-space: nowrap; }
+.trial-flags em { color: #748096; font-size: .68rem; font-style: normal; }
+.trial-content { padding-left: 16px; padding-right: 16px; }
+.trial-content .top-context, .trial-content .trial-analysis { width: 100%; }
+.trial-content .trial-analysis { border-radius: 14px; }
 .trial-footnote { display: flex; align-items: center; gap: 7px; margin: 0; padding: 0 26px 18px; color: var(--muted); font-size: .72rem; }
 .trial-footnote svg { width: 15px; }
 @media (max-width: 1150px) { .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
