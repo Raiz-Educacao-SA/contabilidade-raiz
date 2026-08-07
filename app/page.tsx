@@ -1053,11 +1053,34 @@ function AreaHub({
   onLogout: () => void;
 }) {
   const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
+  const [completedAreas, setCompletedAreas] = useState<string[]>([]);
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
   const closingMonth = closingDate.slice(5, 7);
   const closingYear = closingDate.slice(0, 4);
+  const scheduleCompetence = `${closingYear}-${closingMonth}`;
   const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
+
+  useEffect(() => {
+    let active = true;
+    const loadCompletedAreas = async () => {
+      const { data } = await supabase
+        .from("cronograma_entregas")
+        .select("modulo")
+        .eq("competencia", scheduleCompetence)
+        .eq("status", "concluido");
+      if (active) setCompletedAreas((data ?? []).map((row) => row.modulo));
+    };
+    void loadCompletedAreas();
+    const channel = supabase
+      .channel(`cronograma-principal-${scheduleCompetence}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${scheduleCompetence}` }, () => void loadCompletedAreas())
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [scheduleCompetence]);
   return (
     <main className="module-hub">
       <header>
@@ -1123,7 +1146,7 @@ function AreaHub({
             return (
               <button
                 key={id}
-                className={`module-card area-${id}`}
+                className={`module-card area-${id} ${completedAreas.includes(id) ? "workflow-module-done" : ""}`}
                 onClick={() => onSelect(id)}
               >
                 <span className="module-icon">

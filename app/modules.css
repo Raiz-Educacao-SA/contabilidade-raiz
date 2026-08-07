@@ -503,6 +503,22 @@
 .workflow-modules .module-copy b { font-size: 16px; }
 .workflow-modules .module-copy small { font-size: 11px; line-height: 1.35; }
 .workflow-modules .module-enter { font-size: 10px; }
+.workflow-modules .workflow-module-done {
+  border-color: #173d68;
+  background: linear-gradient(120deg, #102d50 0%, #1f507f 100%);
+  color: #fff;
+  box-shadow: 0 18px 45px rgba(23, 61, 104, 0.22);
+}
+.workflow-modules .workflow-module-done .module-icon {
+  color: #173d68;
+  background: #fff;
+}
+.workflow-modules .workflow-module-done .module-copy small {
+  color: #c9dcf0;
+}
+.workflow-modules .workflow-module-done .module-enter {
+  color: #fff;
+}
 .workflow-path {
   display: flex;
   justify-content: center;
