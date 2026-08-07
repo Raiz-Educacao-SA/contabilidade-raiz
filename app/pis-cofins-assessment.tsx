@@ -131,7 +131,6 @@ export default function PisCofinsAssessment({
   const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
   const [cancelledBranches, setCancelledBranches] = useState<string[]>([]);
   const [requestedBranches, setRequestedBranches] = useState<string[]>([]);
-  const [branchDraft, setBranchDraft] = useState("");
   const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
@@ -188,7 +187,7 @@ export default function PisCofinsAssessment({
       setAnnualFeeLoaded(false);
       setCancelledLoaded(false);
       setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
-      setRequestedBranches([]); setBranchDraft("");
+      setRequestedBranches([]);
     } finally {
       setStorageReady(true);
     }
@@ -229,7 +228,7 @@ export default function PisCofinsAssessment({
     setAnnualFeeLoaded(false);
     setCancelledLoaded(false);
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
-    setRequestedBranches([]); setBranchDraft("");
+    setRequestedBranches([]);
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
@@ -278,52 +277,24 @@ export default function PisCofinsAssessment({
   const filteredOtherRevenueRows = useMemo(() => otherRevenueRows.filter((row) => otherRevenueBranches.includes(String(row.branch || "").trim())), [otherRevenueRows, otherRevenueBranches]);
   const filteredAnnualFeeRows = useMemo(() => annualFeeRows.filter((row) => annualFeeBranches.includes(String(row.branch || "").trim())), [annualFeeRows, annualFeeBranches]);
   const filteredCancelledRows = useMemo(() => cancelledRows.filter((row) => cancelledBranches.includes(String(row.branch || "").trim())), [cancelledRows, cancelledBranches]);
-  const allBranches = useMemo(() => branchValues([...rows, ...otherRevenueRows, ...annualFeeRows, ...cancelledRows]), [rows, otherRevenueRows, annualFeeRows, cancelledRows]);
   const selectableBranches = useMemo(
-    () => [...new Set([...requestedBranches, ...allBranches])].sort((a, b) => Number(a) - Number(b)),
-    [requestedBranches, allBranches],
+    () => Array.from({ length: 15 }, (_, index) => String(index + 1)),
+    [],
   );
-
-  function applyBranchFilter() {
-    const branches = [...new Set(
-      branchDraft.split(/[,;\s]+/).map((value) => value.trim()).filter((value) => /^\d+$/.test(value)),
-    )].sort((a, b) => Number(a) - Number(b));
-    if (!branches.length) {
-      selectAllBranches();
-      return;
-    }
-    setRequestedBranches(branches);
-    setMonthlyBranches(branches.filter((branch) => branchValues(rows).includes(branch)));
-    setOtherRevenueBranches(branches.filter((branch) => branchValues(otherRevenueRows).includes(branch)));
-    setAnnualFeeBranches(branches.filter((branch) => branchValues(annualFeeRows).includes(branch)));
-    setCancelledBranches(branches.filter((branch) => branchValues(cancelledRows).includes(branch)));
-  }
 
   function selectAllBranches() {
     setRequestedBranches([]);
-    setBranchDraft("");
     setMonthlyBranches(branchValues(rows));
     setOtherRevenueBranches(branchValues(otherRevenueRows));
     setAnnualFeeBranches(branchValues(annualFeeRows));
     setCancelledBranches(branchValues(cancelledRows));
   }
 
-  function branchSelectedEverywhere(branch: string) {
-    const sources = [
-      { available: branchValues(rows), selected: monthlyBranches },
-      { available: branchValues(otherRevenueRows), selected: otherRevenueBranches },
-      { available: branchValues(annualFeeRows), selected: annualFeeBranches },
-      { available: branchValues(cancelledRows), selected: cancelledBranches },
-    ];
-    return sources.every((source) => !source.available.includes(branch) || source.selected.includes(branch));
-  }
-
   function toggleGlobalBranch(branch: string, checked: boolean) {
     setRequestedBranches((current) => {
-      const base = current.length ? current : allBranches;
       return checked
-        ? [...new Set([...base, branch])].sort((a, b) => Number(a) - Number(b))
-        : base.filter((item) => item !== branch);
+        ? [...new Set([...current, branch])].sort((a, b) => Number(a) - Number(b))
+        : current.filter((item) => item !== branch);
     });
     const update = (available: string[], selected: string[], setter: (branches: string[]) => void) => {
       if (!available.includes(branch)) return;
@@ -844,16 +815,15 @@ export default function PisCofinsAssessment({
             <details className="tax-top-branches">
               <summary>Filiais {requestedBranches.length ? `(${requestedBranches.join(", ")})` : "(todas)"}</summary>
               <div>
-                <div className="tax-branch-entry">
-                  <input value={branchDraft} onChange={(event) => setBranchDraft(event.target.value)} placeholder="Ex.: 1, 2, 6" aria-label="Filiais" />
-                  <button type="button" onClick={applyBranchFilter}>Aplicar</button>
+                <div className="tax-branch-toolbar">
+                  <span>Marque uma ou mais filiais</span>
                   <button type="button" onClick={selectAllBranches}>Todas</button>
                 </div>
                 {selectableBranches.map((branch) => <label key={branch}>
-                  <input type="checkbox" checked={requestedBranches.length ? requestedBranches.includes(branch) : branchSelectedEverywhere(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
+                  <input type="checkbox" checked={requestedBranches.includes(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
                   Filial {branch}
                 </label>)}
-                {!selectableBranches.length && <span>Informe uma ou mais filiais antes de atualizar as bases.</span>}
+                {!requestedBranches.length && <span>Nenhuma marcada: todas as filiais serão consultadas.</span>}
               </div>
             </details>
             <button

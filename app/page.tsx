@@ -1065,6 +1065,13 @@ function AreaHub({
             <span>Mês/Ano do fechamento</span>
             <div className="workflow-date-fields">
               <select
+                aria-label="Ano do fechamento"
+                value={closingYear}
+                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
+              >
+                {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+              <select
                 aria-label="Mês do fechamento"
                 value={closingMonth}
                 onChange={(event) => onClosingDateChange(`${closingYear}-${event.target.value}-10`)}
@@ -1072,13 +1079,6 @@ function AreaHub({
                 {months.map((name, index) => (
                   <option key={name} value={String(index + 1).padStart(2, "0")}>{name}</option>
                 ))}
-              </select>
-              <select
-                aria-label="Ano do fechamento"
-                value={closingYear}
-                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
-              >
-                {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </div>
           </div>
