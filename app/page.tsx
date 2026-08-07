@@ -1309,7 +1309,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail }: { year
                 disabled={Boolean(confirmation) || scheduleLoading || confirmingModule === stage.key}
                 onClick={() => void confirmStage(stage)}
               >
-                {confirmation ? "✓ OK" : confirmingModule === stage.key ? "Salvando..." : "Dar OK"}
+                {confirmation ? "✓ OK" : confirmingModule === stage.key ? "Salvando..." : "OK"}
               </button>
             </article>
           );
