@@ -185,6 +185,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [tab, setTab] = useState<Tab>("conciliacao");
@@ -308,7 +309,16 @@ export default function Home() {
     };
   }, []);
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      setCompanies([]);
+      setCompanyId("");
+      setCompaniesLoading(false);
+      return;
+    }
+    let active = true;
+    setCompaniesLoading(true);
+    setCompanies([]);
+    setCompanyId("");
     (async () => {
       const { data, error } = await supabase
         .from("usuarios_empresas")
@@ -316,7 +326,12 @@ export default function Home() {
           "empresa_id, perfil, empresas(id, codcoligada, razao_social, cnpj)",
         )
         .eq("usuario_id", session.user.id);
-      if (error) return setNotice(error.message);
+      if (!active) return;
+      if (error) {
+        setNotice("Não foi possível carregar as empresas vinculadas. Atualize a página para tentar novamente.");
+        setCompaniesLoading(false);
+        return;
+      }
       const rows = (data ?? []) as unknown as Company[];
       setCompanies(rows);
       setCompanyId((current) => {
@@ -325,7 +340,9 @@ export default function Home() {
         if (saved && rows.some((row) => row.empresa_id === saved)) return saved;
         return rows[0]?.empresa_id ?? "";
       });
+      setCompaniesLoading(false);
     })();
+    return () => { active = false; };
   }, [session]);
   useEffect(() => {
     if (!companyId) return;
@@ -530,6 +547,16 @@ export default function Home() {
             Entrar
           </button>
         </form>
+      </main>
+    );
+  if (companiesLoading)
+    return (
+      <main className="center">
+        <section className="login-card auth-check">
+          <div className="spinner" />
+          <h1>Carregando empresas...</h1>
+          <p>Aguarde enquanto confirmamos os vínculos do seu usuário.</p>
+        </section>
       </main>
     );
   if (!companies.length)
