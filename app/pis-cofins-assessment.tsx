@@ -81,6 +81,16 @@ const rates = {
   "Não-Cumulativo": { pis: 0.0165, cofins: 0.076 },
 } as const;
 
+function branchValues<T extends { branch: string }>(rows: T[]) {
+  return [...new Set(rows.map((row) => String(row.branch || "").trim()).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, "pt-BR", { numeric: true }));
+}
+
+function BranchSelector({ branches, selected, onChange }: { branches: string[]; selected: string[]; onChange: (branches: string[]) => void }) {
+  if (!branches.length) return null;
+  return <fieldset className="tax-branch-selector"><legend>Filiais incluídas</legend>{branches.map((branch) => <label key={branch}><input type="checkbox" checked={selected.includes(branch)} onChange={(event) => onChange(event.target.checked ? [...selected, branch] : selected.filter((item) => item !== branch))} />Filial {branch}</label>)}</fieldset>;
+}
+
 export default function PisCofinsAssessment({
   companyCode,
   competence,
@@ -112,6 +122,10 @@ export default function PisCofinsAssessment({
   const [otherRevenueVisible, setOtherRevenueVisible] = useState(true);
   const [annualFeeVisible, setAnnualFeeVisible] = useState(true);
   const [cancelledVisible, setCancelledVisible] = useState(true);
+  const [monthlyBranches, setMonthlyBranches] = useState<string[]>([]);
+  const [otherRevenueBranches, setOtherRevenueBranches] = useState<string[]>([]);
+  const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
+  const [cancelledBranches, setCancelledBranches] = useState<string[]>([]);
   const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState("");
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
@@ -148,6 +162,10 @@ export default function PisCofinsAssessment({
       setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
       setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
       setCancelledVisible(assessment?.cancelledVisible ?? true);
+      setMonthlyBranches(assessment?.monthlyBranches ?? branchValues(assessment?.rows || []));
+      setOtherRevenueBranches(assessment?.otherRevenueBranches ?? branchValues(assessment?.otherRevenueRows || []));
+      setAnnualFeeBranches(assessment?.annualFeeBranches ?? branchValues(assessment?.annualFeeRows || []));
+      setCancelledBranches(assessment?.cancelledBranches ?? branchValues(assessment?.cancelledRows || []));
     } catch {
       setRows([]);
       setCancelledRows([]);
@@ -159,6 +177,7 @@ export default function PisCofinsAssessment({
       setAnnualFeeRows([]);
       setAnnualFeeLoaded(false);
       setCancelledLoaded(false);
+      setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     } finally {
       setStorageReady(true);
     }
@@ -182,8 +201,9 @@ export default function PisCofinsAssessment({
       otherRevenueVisible,
       annualFeeVisible,
       cancelledVisible,
+      monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible]);
+  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -196,6 +216,7 @@ export default function PisCofinsAssessment({
     setAnnualFeeRows([]);
     setAnnualFeeLoaded(false);
     setCancelledLoaded(false);
+    setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
@@ -224,7 +245,7 @@ export default function PisCofinsAssessment({
         throw new Error(
           "Nenhuma linha foi encontrada para a empresa e competência selecionadas.",
         );
-      setRows(payload.rows || []);
+      const nextRows = payload.rows || []; setRows(nextRows); setMonthlyBranches(branchValues(nextRows));
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(true);
@@ -236,6 +257,10 @@ export default function PisCofinsAssessment({
     }
   }
 
+  const filteredRows = useMemo(() => rows.filter((row) => monthlyBranches.includes(String(row.branch || "").trim())), [rows, monthlyBranches]);
+  const filteredOtherRevenueRows = useMemo(() => otherRevenueRows.filter((row) => otherRevenueBranches.includes(String(row.branch || "").trim())), [otherRevenueRows, otherRevenueBranches]);
+  const filteredAnnualFeeRows = useMemo(() => annualFeeRows.filter((row) => annualFeeBranches.includes(String(row.branch || "").trim())), [annualFeeRows, annualFeeBranches]);
+  const filteredCancelledRows = useMemo(() => cancelledRows.filter((row) => cancelledBranches.includes(String(row.branch || "").trim())), [cancelledRows, cancelledBranches]);
   const totals = useMemo(() => {
     const result = {
       cumulativeBase: 0,
@@ -251,7 +276,7 @@ export default function PisCofinsAssessment({
       totalPis: 0,
       totalCofins: 0,
     };
-    rows.forEach((row) => {
+    filteredRows.forEach((row) => {
       result.grossRevenue += row.grossRevenue;
       result.discounts += row.discounts;
       result.nfBase += row.netRevenue;
@@ -271,10 +296,10 @@ export default function PisCofinsAssessment({
       } else result.unclassifiedBase += row.netRevenue;
     });
     return result;
-  }, [rows]);
+  }, [filteredRows]);
 
-  const unclassified = rows.filter((row) => !row.regime);
-  const otherRevenueTotals = useMemo(() => otherRevenueRows.reduce((result, row) => {
+  const unclassified = filteredRows.filter((row) => !row.regime);
+  const otherRevenueTotals = useMemo(() => filteredOtherRevenueRows.reduce((result, row) => {
     result.accountingValue += row.value;
     result.taxBase += row.taxBase;
     result.pis += row.pis;
@@ -301,9 +326,9 @@ export default function PisCofinsAssessment({
     otherPis: 0,
     otherCofins: 0,
     unclassifiedBase: 0,
-  }), [otherRevenueRows]);
+  }), [filteredOtherRevenueRows]);
 
-  const annualFeeTotals = useMemo(() => annualFeeRows.reduce((result, row) => {
+  const annualFeeTotals = useMemo(() => filteredAnnualFeeRows.reduce((result, row) => {
     result.grossRevenue += row.grossRevenue;
     result.discounts += row.discounts;
     result.netRevenue += row.netRevenue;
@@ -337,9 +362,9 @@ export default function PisCofinsAssessment({
     nonCumulativeCofins: 0,
     pis: 0,
     cofins: 0,
-  }), [annualFeeRows]);
+  }), [filteredAnnualFeeRows]);
 
-  const cancelledTotals = useMemo(() => cancelledRows.reduce((result, row) => {
+  const cancelledTotals = useMemo(() => filteredCancelledRows.reduce((result, row) => {
     const rate = row.regime ? rates[row.regime] : null;
     result.gross += row.grossValue;
     result.discounts += row.discountValue;
@@ -372,7 +397,7 @@ export default function PisCofinsAssessment({
     cumulativeCofins: 0,
     nonCumulativePis: 0,
     nonCumulativeCofins: 0,
-  }), [cancelledRows]);
+  }), [filteredCancelledRows]);
 
   const consolidatedTotals = useMemo(() => ({
     cumulativePis: totals.cumulativePis + annualFeeTotals.cumulativePis - cancelledTotals.cumulativePis,
@@ -382,10 +407,11 @@ export default function PisCofinsAssessment({
   }), [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals]);
 
   function exportExcel() {
-    const data = rows.map((row) => {
+    const data = filteredRows.map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Coligada: companyCode,
+        Filial: row.branch,
         Linha: row.line,
         Competência: competenceLabel,
         Descrição: row.service,
@@ -421,7 +447,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar as outras receitas no Razão Completo.");
-      setOtherRevenueRows(payload.rows || []);
+      const nextRows = payload.rows || []; setOtherRevenueRows(nextRows); setOtherRevenueBranches(branchValues(nextRows));
       setOtherRevenueLoaded(true);
     } catch (cause) {
       setOtherRevenueError((cause as Error).message);
@@ -440,7 +466,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar os rateios de anuidades no módulo Contábil.");
-      setAnnualFeeRows(payload.rows || []);
+      const nextRows = payload.rows || []; setAnnualFeeRows(nextRows); setAnnualFeeBranches(branchValues(nextRows));
       setAnnualFeeLoaded(true);
     } catch (cause) {
       setAnnualFeeError((cause as Error).message);
@@ -459,7 +485,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 37.");
-      setCancelledRows(payload.rows || []);
+      const nextRows = payload.rows || []; setCancelledRows(nextRows); setCancelledBranches(branchValues(nextRows));
       setCancelledLoaded(true);
     } catch (cause) {
       setCancelledError((cause as Error).message);
@@ -527,9 +553,10 @@ export default function PisCofinsAssessment({
 
   function exportCompleteAssessment() {
     const workbook = XLSX.utils.book_new();
-    const monthly = rows.map((row) => {
+    const monthly = filteredRows.map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
+        Filial: row.branch,
         Coligada: companyCode,
         Competência: competenceLabel,
         Descrição: row.service,
@@ -541,7 +568,7 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const otherRevenues = otherRevenueRows.map((row) => ({
+    const otherRevenues = filteredOtherRevenueRows.map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
       Competência: competenceLabel,
@@ -563,7 +590,7 @@ export default function PisCofinsAssessment({
       "Alíquota COFINS": row.cofinsRate,
       COFINS: row.cofins,
     }));
-    const annualFeeAllocations = annualFeeRows.map((row) => {
+    const annualFeeAllocations = filteredAnnualFeeRows.map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Coligada: row.company,
@@ -588,7 +615,7 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const cancelled = cancelledRows.map((row) => ({
+    const cancelled = filteredCancelledRows.map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
       "Competência da apuração": competenceLabel,
@@ -637,7 +664,7 @@ export default function PisCofinsAssessment({
       return byBranch.get(key)!;
     };
 
-    rows.forEach((row) => {
+    filteredRows.forEach((row) => {
       const target = branchTotals(row.branch);
       if (row.regime === "Cumulativo") {
         target.cumulativePis += row.netRevenue * rates.Cumulativo.pis;
@@ -647,14 +674,14 @@ export default function PisCofinsAssessment({
         target.nonCumulativeCofins += row.netRevenue * rates["Não-Cumulativo"].cofins;
       }
     });
-    otherRevenueRows.forEach((row) => {
+    filteredOtherRevenueRows.forEach((row) => {
       const target = branchTotals(row.branch);
       if (row.classification) {
         target.nonCumulativePis += row.pis;
         target.nonCumulativeCofins += row.cofins;
       }
     });
-    annualFeeRows.forEach((row) => {
+    filteredAnnualFeeRows.forEach((row) => {
       const target = branchTotals(row.branch);
       const rate = row.regime ? rates[row.regime] : null;
       if (!rate) return;
@@ -666,7 +693,7 @@ export default function PisCofinsAssessment({
         target.nonCumulativeCofins += row.netRevenue * rate.cofins;
       }
     });
-    cancelledRows.forEach((row) => {
+    filteredCancelledRows.forEach((row) => {
       const target = branchTotals(row.branch);
       const rate = row.regime ? rates[row.regime] : null;
       if (!rate) return;
@@ -792,6 +819,7 @@ export default function PisCofinsAssessment({
         </button>
       </div>
       <div hidden={!monthlyVisible}>
+      <BranchSelector branches={branchValues(rows)} selected={monthlyBranches} onChange={setMonthlyBranches} />
       {error && <div className="notice error">{error}</div>}
       <div className="tax-summary">
         <article>
@@ -891,6 +919,7 @@ export default function PisCofinsAssessment({
               <thead>
                 <tr>
                   <th>Linha</th>
+                  <th>Filial</th>
                   <th>Competência</th>
                   <th>Descrição</th>
                   <th>Classificação</th>
@@ -902,11 +931,12 @@ export default function PisCofinsAssessment({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
+                {filteredRows.map((row) => {
                   const rate = row.regime ? rates[row.regime] : null;
                   return (
                     <tr key={row.line}>
                       <td>{row.line}</td>
+                      <td>{row.branch}</td>
                       <td>{competenceLabel}</td>
                       <td>
                         <b>{row.service}</b>
@@ -935,7 +965,7 @@ export default function PisCofinsAssessment({
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={4}>Subtotal da competência</td>
+                  <td colSpan={5}>Subtotal da competência</td>
                   <td>{brl.format(totals.grossRevenue)}</td>
                   <td>{brl.format(totals.discounts)}</td>
                   <td>{brl.format(totals.nfBase)}</td>
@@ -969,6 +999,7 @@ export default function PisCofinsAssessment({
             {otherRevenueVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
+        <BranchSelector branches={branchValues(otherRevenueRows)} selected={otherRevenueBranches} onChange={setOtherRevenueBranches} />
         {otherRevenueError && <div className="notice error">{otherRevenueError}</div>}
         {!otherRevenueLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para carregar todos os movimentos das contas configuradas na competência selecionada.</span></div>
@@ -977,7 +1008,7 @@ export default function PisCofinsAssessment({
         ) : (
           <>
             <div className="tax-other-summary">
-              <article><span>Contas com movimento</span><b>{new Set(otherRevenueRows.map((row) => row.account)).size}</b></article>
+              <article><span>Contas com movimento</span><b>{new Set(filteredOtherRevenueRows.map((row) => row.account)).size}</b></article>
               <article><span>Base financeira</span><b>{brl.format(otherRevenueTotals.financialBase)}</b><small>PIS 0,65% · COFINS 4,00%</small></article>
               <article><span>Base demais receitas</span><b>{brl.format(otherRevenueTotals.otherBase)}</b><small>PIS 1,65% · COFINS 7,60%</small></article>
               <article><span>PIS apurado</span><b>{brl.format(otherRevenueTotals.pis)}</b><small>{brl.format(otherRevenueTotals.financialPis)} + {brl.format(otherRevenueTotals.otherPis)}</small></article>
@@ -987,7 +1018,7 @@ export default function PisCofinsAssessment({
             <div className="table-wrap tax-other-table">
               <table>
                 <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Agrupamento</th><th>Classificação</th><th>Base tributável</th><th>Alíquota PIS</th><th>PIS</th><th>Alíquota COFINS</th><th>COFINS</th><th>ID lançamento</th><th>Complemento</th></tr></thead>
-                <tbody>{otherRevenueRows.map((row, index) => <tr key={`${row.entryId}-${row.account}-${index}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.description}</td><td>{row.group || ""}</td><td>{row.classification ? <span className="tax-badge">{row.classification}</span> : ""}</td><td>{row.classification ? brl.format(row.taxBase) : ""}</td><td>{row.classification ? `${(row.pisRate * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{row.classification ? brl.format(row.pis) : ""}</td><td>{row.classification ? `${(row.cofinsRate * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{row.classification ? brl.format(row.cofins) : ""}</td><td>{row.entryId}</td><td>{row.complement}</td></tr>)}</tbody>
+                <tbody>{filteredOtherRevenueRows.map((row, index) => <tr key={`${row.entryId}-${row.account}-${index}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.description}</td><td>{row.group || ""}</td><td>{row.classification ? <span className="tax-badge">{row.classification}</span> : ""}</td><td>{row.classification ? brl.format(row.taxBase) : ""}</td><td>{row.classification ? `${(row.pisRate * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{row.classification ? brl.format(row.pis) : ""}</td><td>{row.classification ? `${(row.cofinsRate * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{row.classification ? brl.format(row.cofins) : ""}</td><td>{row.entryId}</td><td>{row.complement}</td></tr>)}</tbody>
                 <tfoot><tr><td colSpan={7}>Subtotal da competência</td><td>{brl.format(otherRevenueTotals.taxBase)}</td><td></td><td>{brl.format(otherRevenueTotals.pis)}</td><td></td><td>{brl.format(otherRevenueTotals.cofins)}</td><td colSpan={2}></td></tr></tfoot>
               </table>
             </div>
@@ -1010,6 +1041,7 @@ export default function PisCofinsAssessment({
             {annualFeeVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
+        <BranchSelector branches={branchValues(annualFeeRows)} selected={annualFeeBranches} onChange={setAnnualFeeBranches} />
         {annualFeeError && <div className="notice error">{annualFeeError}</div>}
         {!annualFeeLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para localizar os lançamentos contábeis de rateio de anuidades da competência.</span></div>
@@ -1029,7 +1061,7 @@ export default function PisCofinsAssessment({
             <div className="table-wrap tax-other-table">
               <table>
                 <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Classificação</th><th>Valor bruto</th><th>Desconto</th><th>Base tributável</th><th>Alíquota PIS</th><th>PIS</th><th>Alíquota COFINS</th><th>COFINS</th><th>ID lançamento</th><th>Documento</th><th>Complemento</th></tr></thead>
-                <tbody>{annualFeeRows.map((row) => {
+                <tbody>{filteredAnnualFeeRows.map((row) => {
                   const rate = row.regime ? rates[row.regime] : null;
                   return <tr key={`${row.entryId}-${row.account}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.service}</td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td>{brl.format(row.netRevenue)}</td><td>{rate ? `${(rate.pis * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? `${(rate.cofins * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td><td>{row.entryId}</td><td>{row.document}</td><td>{row.complement}</td></tr>;
                 })}</tbody>
@@ -1055,6 +1087,7 @@ export default function PisCofinsAssessment({
             {cancelledVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
+        <BranchSelector branches={branchValues(cancelledRows)} selected={cancelledBranches} onChange={setCancelledBranches} />
         {cancelledError && <div className="notice error">{cancelledError}</div>}
         {!cancelledLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para consultar os cancelamentos registrados na competência selecionada.</span></div>
@@ -1073,7 +1106,7 @@ export default function PisCofinsAssessment({
             </div>
             <div className="table-wrap tax-cancelled-table"><table>
               <thead><tr><th>Cancelamento</th><th>Competência de origem</th><th>Filial</th><th>NF-e</th><th>RPS</th><th>Aluno</th><th>Serviço</th><th>Classificação</th><th>Valor bruto</th><th>Desconto</th><th>Valor líquido excluído</th><th>Alíquota PIS</th><th>PIS excluído</th><th>Alíquota COFINS</th><th>COFINS excluída</th></tr></thead>
-              <tbody>{cancelledRows.map((row) => {
+              <tbody>{filteredCancelledRows.map((row) => {
                 const rate = row.regime ? rates[row.regime] : null;
                 return <tr key={`${row.movementId}-${row.entryId}-${row.invoice}`}><td>{row.cancellationDate.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.sourceCompetence.slice(0, 7).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.invoice}</td><td>{row.rps}</td><td>{row.student}</td><td>{row.service}</td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossValue)}</td><td>{brl.format(row.discountValue)}</td><td>{brl.format(row.netValue)}</td><td>{rate ? `${(rate.pis * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netValue * rate.pis) : ""}</td><td>{rate ? `${(rate.cofins * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netValue * rate.cofins) : ""}</td></tr>;
               })}</tbody>
