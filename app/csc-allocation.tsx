@@ -43,7 +43,7 @@ const calculationCriteria = [
   ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul, Didacta e a coligada 20 — Integra não participam do denominador e não recebem rateio."],
   ["8", "Sarah Tijuca", "A coligada 31 é calculada separadamente a 8,5% sobre seu faturamento-base e fica fora do denominador do rateio proporcional."],
   ["9", "Rateio proporcional", "Coligadas 18 e 25 seguem o faturamento, como as demais participantes. A coligada 20 fica excluída. Base proporcional = custos elegíveis menos o valor da Sarah Tijuca; percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes proporcionais."],
-  ["10", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,40 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
+  ["10", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,41 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
   ["11", "Arredondamento e fechamento", "O faturamento-base de cada empresa é arredondado primeiro para reais inteiros, como na planilha. Depois, cada rateio é arredondado em centavos. A diferença de até R$ 0,10 é aceita como fechamento, sem redistribuir o centavo entre empresas."],
 ];
 
@@ -54,13 +54,13 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v3:${competence}`;
+  const storageKey = `csc-allocation:v4:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
   const defaultSarahTijucaValue = competence === "2026-06" ? 120165 : 0;
   const [sarahTijucaValue, setSarahTijucaValue] = useState(defaultSarahTijucaValue);
-  const defaultAdjustments = useMemo<Record<string, number>>(() => competence === "2026-06" ? { "25": -3184.4 } : {} as Record<string, number>, [competence]);
+  const defaultAdjustments = useMemo<Record<string, number>>(() => competence === "2026-06" ? { "25": -3184.41 } : {} as Record<string, number>, [competence]);
   const [adjustments, setAdjustments] = useState<Record<string, number>>(defaultAdjustments);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState<"accounting" | "">("");
