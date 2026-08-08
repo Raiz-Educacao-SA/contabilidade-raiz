@@ -753,7 +753,7 @@ export default function Home() {
               <b>
                 {selectedModule === "cronograma"
                   ? "Período"
-                  : selectedModule === "contabil" && accountingTab === "pis-cofins"
+                  : selectedModule === "contabil" && (accountingTab === "pis-cofins" || accountingTab === "intercompany")
                   ? "Filtros"
                   : "Filtros da análise"}
               </b>
