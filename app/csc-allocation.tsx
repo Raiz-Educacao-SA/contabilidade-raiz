@@ -4,10 +4,11 @@ import { Calculator, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type Company = { code: string; name: string };
-type Balance = { account: string; movement: number; debit: number; credit: number };
+type Balance = { id?: string; reduced?: string; account: string; description?: string; movement: number; debit: number; credit: number };
 type Row = { code: string; name: string; revenue: number; share: number; rule: string; calculated: number; adjustment: number; finalValue: number };
 type ResultMovement = { revenue: number; costs: number; net: number };
 type BranchRevenue = { branch: string; revenue: number };
+type MovementDetail = { company: string; companyName: string; account: string; description: string; classification: string; debit: number; credit: number; movement: number; considered: number };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -58,10 +59,11 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v7:${competence}`;
+  const storageKey = `csc-allocation:v8:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
+  const [movementDetails, setMovementDetails] = useState<MovementDetail[]>([]);
   const defaultSarahTijucaValue = competence === "2026-06" ? 120165 : 0;
   const [sarahTijucaValue, setSarahTijucaValue] = useState(defaultSarahTijucaValue);
   const defaultAdjustments = useMemo<Record<string, number>>(() => competence >= "2024-01" ? { "25": -3184.4 } : {} as Record<string, number>, [competence]);
@@ -74,8 +76,8 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setAdjustments(defaultAdjustments); setRows([]); return; }
-      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
+      if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setMovementDetails([]); setAdjustments(defaultAdjustments); setRows([]); return; }
+      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setMovementDetails(saved.movementDetails || []); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
     } catch { localStorage.removeItem(storageKey); }
   }, [storageKey, defaultAdjustments, defaultSarahTijucaValue]);
 
@@ -87,9 +89,18 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   }
   const costValue = (data: Balance[]) => round(Math.abs(data.filter((x) => isEligibleCost(x.account)).reduce((sum, x) => sum + (x.movement || x.debit - x.credit), 0)));
   const revenueValue = (data: Balance[]) => Math.round(Math.abs(data.filter((x) => isEligibleRevenue(x.account)).reduce((sum, x) => sum + (x.movement || x.credit - x.debit), 0)));
+  const detailsFor = (company: Company, data: Balance[]) => {
+    const create = (classification: string, eligible: (account: string) => boolean, rawValue: (row: Balance) => number) => {
+      const selected = data.filter((row) => eligible(row.account));
+      const rawTotal = selected.reduce((sum, row) => sum + rawValue(row), 0);
+      const direction = rawTotal < 0 ? -1 : 1;
+      return selected.map<MovementDetail>((row) => ({ company: company.code, companyName: company.name, account: row.account, description: row.description || "", classification, debit: row.debit, credit: row.credit, movement: row.movement, considered: round(rawValue(row) * direction) }));
+    };
+    return [...create("Receita elegível", isEligibleRevenue, (row) => row.movement || row.credit - row.debit), ...create("Custo elegível", isEligibleCost, (row) => row.movement || row.debit - row.credit)];
+  };
 
   async function updateAccountingBase() {
-    setLoading("accounting"); setMessage(""); setRows([]); const output: Record<string, number> = {}; const movements: Record<string, ResultMovement> = {}; const failures: string[] = [];
+    setLoading("accounting"); setMessage(""); setRows([]); setMovementDetails([]); const output: Record<string, number> = {}; const movements: Record<string, ResultMovement> = {}; const details: MovementDetail[] = []; const failures: string[] = [];
     for (let i = 0; i < list.length; i += 5) {
       const loaded = await Promise.all(list.slice(i, i + 5).map(async (company) => { try { return { company, data: await balance(company.code) }; } catch { return { company, data: null }; } }));
       loaded.forEach(({ company, data }) => {
@@ -104,6 +115,10 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
             movements[entity.code] = { revenue: groupedRevenue, costs: 0, net: groupedRevenue };
             allocated.add(entity.code);
           });
+          data.branches.forEach(({ branch, revenue: branchValue }) => {
+            const entity = branchTen[branch] || { code: `10.${branch}`, name: `FILIAL ${branch}` };
+            details.push({ company: entity.code, companyName: entity.name, account: "METTA0909", description: `Faturamento da filial ${branch}`, classification: "Receita elegível por filial", debit: 0, credit: 0, movement: branchValue, considered: branchValue });
+          });
           allocated.forEach((code) => {
             const groupedRevenue = Math.round(output[code] || 0);
             output[code] = groupedRevenue;
@@ -114,13 +129,17 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
           if (Math.abs(branchTotal - revenue) > 1) failures.push(`10 (diferença filial × balancete: ${money.format(branchTotal - revenue)})`);
         } else {
           const closedRevenue = closedRevenueByCompetence[competence]?.[company.code];
-          const appliedRevenue = closedRevenue ?? revenue;
+          const contractualRevenue = company.code === "31" && defaultSarahTijucaValue ? round(defaultSarahTijucaValue / .085) : undefined;
+          const appliedRevenue = contractualRevenue ?? closedRevenue ?? revenue;
           output[company.code] = appliedRevenue;
           movements[company.code] = { revenue: appliedRevenue, costs, net: round(appliedRevenue - costs) };
+          details.push(...detailsFor(company, data.rows));
+          if (closedRevenue !== undefined && closedRevenue !== revenue) details.push({ company: company.code, companyName: company.name, account: "AJUSTE-BASE", description: `Ajuste para a base fechada de ${competence.slice(5)}/${competence.slice(0, 4)}`, classification: "Ajuste de receita", debit: 0, credit: 0, movement: round(closedRevenue - revenue), considered: round(closedRevenue - revenue) });
+          if (contractualRevenue !== undefined && contractualRevenue !== revenue) details.push({ company: company.code, companyName: company.name, account: "BASE-CONTRATUAL", description: "Base contratual da Sarah Tijuca", classification: "Ajuste de receita contratual", debit: 0, credit: 0, movement: round(contractualRevenue - revenue), considered: round(contractualRevenue - revenue) });
         }
       });
     }
-    setRevenues(output); setResultMovements(movements); setCostPool(movements["1"]?.costs || 0); setLoading("");
+    setRevenues(output); setResultMovements(movements); setMovementDetails(details); setCostPool(movements["1"]?.costs || 0); setLoading("");
     setMessage(failures.length ? `Base contábil carregada para ${Object.keys(movements).length} empresa(s). Falha nas coligadas: ${failures.join(", ")}.` : `Contas de resultado de ${Object.keys(movements).length} empresa(s), inclusive a Raiz, carregadas para ${competence.slice(5)}/${competence.slice(0, 4)}.`);
   }
   function calculate() {
@@ -134,7 +153,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
       const adjustment = adjustments[company.code] || 0;
       return { ...company, revenue, share, rule, calculated, adjustment, finalValue: round(calculated + adjustment) };
     });
-    setRows(output); localStorage.setItem(storageKey, JSON.stringify({ costPool, revenues, resultMovements, sarahTijucaValue, adjustments, rows: output })); setMessage("Custos da Raiz rateados conforme a memória de cálculo da competência.");
+    setRows(output); localStorage.setItem(storageKey, JSON.stringify({ costPool, revenues, resultMovements, movementDetails, sarahTijucaValue, adjustments, rows: output })); setMessage("Custos da Raiz rateados conforme a memória de cálculo da competência.");
   }
   const totals = useMemo(() => rows.reduce((t, x) => ({ revenue: t.revenue + x.revenue, calculated: t.calculated + x.calculated, adjustment: t.adjustment + x.adjustment, final: t.final + x.finalValue }), { revenue: 0, calculated: 0, adjustment: 0, final: 0 }), [rows]);
   const difference = round(costPool - totals.calculated);
@@ -155,19 +174,15 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     XLSX.writeFile(wb, `Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   function exportAccounting() {
-    const accounting = rows.flatMap((row) => [
-      { Competência: competence, Coligada: row.code, Empresa: row.name, Lado: "Empresa beneficiária", Débito: "Despesa com CSC", Crédito: "CSC a pagar para a Raiz", Valor: row.finalValue },
-      { Competência: competence, Coligada: "1", Empresa: "RAIZ EDUCAÇÃO", Lado: `Contrapartida da coligada ${row.code}`, Débito: `CSC a receber — ${row.name}`, Crédito: "Receita de CSC", Valor: row.finalValue },
-    ]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accounting), "Contabilização");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((row) => ({ Coligada: row.code, Empresa: row.name, "Valor a contabilizar": row.finalValue }))), "Valores por empresa");
-    XLSX.writeFile(wb, `Contabilizacao_Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((row) => ({ Competência: competence, Coligada: row.code, Empresa: row.name, "Faturamento considerado": row.revenue, "Percentual no rateio": row.share, Regra: row.rule, "Rateio calculado": row.calculated, Ajuste: row.adjustment, "Motivo do ajuste": row.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": row.finalValue }))), "Memória de Cálculo");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movementDetails.map((detail) => ({ Competência: competence, Coligada: detail.company, Empresa: detail.companyName, Conta: detail.account, Descrição: detail.description, Classificação: detail.classification, Débito: detail.debit, Crédito: detail.credit, Movimento: detail.movement, "Valor considerado": detail.considered }))), "Movimentos Considerados");
+    XLSX.writeFile(wb, `Memoria_Calculo_Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   return <section className="panel csc-panel">
     {loading && <div className="csc-processing"><RefreshCw className="spin" /><b>Atualizando Base TOTVS de todas as empresas</b></div>}
     <div className="csc-heading"><div><h2>Rateio CSC</h2><p>Primeiro carregue as contas de resultado; depois rateie os custos da Raiz entre as coligadas.</p></div><div className="csc-actions"><button className={`secondary ${Object.keys(resultMovements).length ? "source-loaded" : ""}`} onClick={updateAccountingBase} disabled={!!loading}><RefreshCw />Atualizar Base TOTVS</button><button className="primary" onClick={calculate} disabled={!costPool || !Object.keys(resultMovements).length}><Calculator />Ratear custos da Raiz</button><button className="secondary" onClick={exportFile} disabled={!rows.length}><Download />Exportar memória</button></div></div>
-    <div className="csc-tabs"><button className={view === "allocation" ? "active" : ""} onClick={() => setView("allocation")}>Apuração do rateio</button><button className={view === "accounting" ? "active" : ""} onClick={() => setView("accounting")}>Contabilização</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}>Regras CSC</button></div>
+    <div className="csc-tabs"><button className={view === "allocation" ? "active" : ""} onClick={() => setView("allocation")}>Apuração do rateio</button><button className={view === "accounting" ? "active" : ""} onClick={() => setView("accounting")}>Memória de Cálculo</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}>Regras CSC</button></div>
     {message && <div className="notice">{message}</div>}
     {view === "rules" ? <div className="csc-rules">
       <div className="csc-rule-intro"><b>Premissas identificadas na planilha modelo</b><span>Estas regras formam a memória de cálculo e devem ser revisadas quando houver alteração contratual.</span></div>
@@ -175,8 +190,8 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
         {calculationCriteria.map(([step, title, description]) => <li key={step}><b>{step}. {title}</b><span>{description}</span></li>)}
       </ol>
     </div> : view === "accounting" ? <div className="csc-accounting">
-      <div className="csc-accounting-heading"><div><b>Valores para contabilização</b><span>Um lançamento na empresa beneficiária e a contrapartida correspondente na Raiz Educação.</span></div><button className="secondary" onClick={exportAccounting} disabled={!rows.length}><Download />Exportar contabilização</button></div>
-      {rows.length ? <><div className="csc-accounting-summary"><article><span>Empresas para contabilizar</span><b>{rows.filter((row) => Math.abs(row.finalValue) >= .01).length}</b></article><article><span>Total a debitar nas empresas</span><b>{money.format(totals.final)}</b></article><article><span>Total a creditar na Raiz</span><b>{money.format(totals.final)}</b></article><article className="is-balanced"><span>Conferência débito × crédito</span><b>{money.format(0)}</b><small><CheckCircle2 /> Fechado</small></article></div><div className="table-wrap csc-accounting-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Valor</th><th>Débito na empresa</th><th>Crédito na empresa</th><th>Débito na Raiz</th><th>Crédito na Raiz</th></tr></thead><tbody>{rows.filter((row) => Math.abs(row.finalValue) >= .01).map((row) => <tr key={`accounting-${row.code}`}><td><b>{row.code}</b></td><td>{row.name}</td><td><b>{money.format(row.finalValue)}</b></td><td>Despesa com CSC</td><td>CSC a pagar para a Raiz</td><td>CSC a receber — {row.name}</td><td>Receita de CSC</td></tr>)}</tbody><tfoot><tr><td colSpan={2}>Total</td><td>{money.format(totals.final)}</td><td colSpan={4}>Débitos e créditos conferidos</td></tr></tfoot></table></div><p className="csc-accounting-note">Os códigos das contas contábeis devem seguir o plano de contas parametrizado no TOTVS RM. A memória identifica a natureza e o valor de cada lançamento.</p></> : <div className="csc-empty"><Calculator /><b>Calcule o rateio para gerar a contabilização</b><span>Os valores serão apresentados empresa por empresa.</span></div>}
+      <div className="csc-accounting-heading"><div><b>Memória de Cálculo</b><span>Movimentos contábeis e etapas que formam o rateio final de cada empresa.</span></div><button className="secondary" onClick={exportAccounting} disabled={!rows.length}><Download />Exportar memória de cálculo</button></div>
+      {rows.length ? <><div className="csc-accounting-summary"><article><span>Empresas calculadas</span><b>{rows.filter((row) => Math.abs(row.finalValue) >= .01).length}</b></article><article><span>Movimentos considerados</span><b>{movementDetails.length}</b></article><article><span>Rateio calculado</span><b>{money.format(totals.calculated)}</b></article><article className={Math.abs(difference) <= .1 ? "is-balanced" : ""}><span>Rateio final</span><b>{money.format(totals.final)}</b><small>{Math.abs(difference) <= .1 ? <><CheckCircle2 /> Fechado</> : `Diferença ${money.format(difference)}`}</small></article></div><div className="csc-company-list-title"><div><b>Composição do rateio por empresa</b><span>Da base de faturamento ao valor final</span></div></div><div className="table-wrap csc-accounting-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Faturamento considerado</th><th>% no rateio</th><th>Rateio calculado</th><th>Ajuste</th><th>Rateio final</th></tr></thead><tbody>{rows.map((row) => <tr key={`memory-${row.code}`}><td><b>{row.code}</b></td><td>{row.name}</td><td>{money.format(row.revenue)}</td><td>{row.share ? percent.format(row.share) : "—"}</td><td>{money.format(row.calculated)}</td><td>{money.format(row.adjustment)}</td><td><b>{money.format(row.finalValue)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={2}>Total</td><td>{money.format(rows.reduce((sum, row) => sum + row.revenue, 0))}</td><td>{percent.format(rows.reduce((sum, row) => sum + row.share, 0))}</td><td>{money.format(totals.calculated)}</td><td>{money.format(totals.adjustment)}</td><td>{money.format(totals.final)}</td></tr></tfoot></table></div><div className="csc-company-list-title"><div><b>Movimentos considerados no cálculo</b><span>Contas elegíveis de receitas e custos de todas as empresas</span></div></div><div className="table-wrap csc-accounting-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Conta</th><th>Descrição</th><th>Classificação</th><th>Débito</th><th>Crédito</th><th>Movimento</th><th>Valor considerado</th></tr></thead><tbody>{movementDetails.map((detail, index) => <tr key={`detail-${detail.company}-${detail.account}-${index}`}><td><b>{detail.company}</b></td><td>{detail.companyName}</td><td>{detail.account}</td><td>{detail.description}</td><td>{detail.classification}</td><td>{money.format(detail.debit)}</td><td>{money.format(detail.credit)}</td><td>{money.format(detail.movement)}</td><td><b>{money.format(detail.considered)}</b></td></tr>)}</tbody></table></div><p className="csc-accounting-note">A soma dos valores considerados forma as bases exibidas no resumo por empresa. Ajustes de base fechada são apresentados em linha própria para manter a rastreabilidade.</p></> : <div className="csc-empty"><Calculator /><b>Calcule o rateio para gerar a memória de cálculo</b><span>Os movimentos e os valores serão apresentados empresa por empresa.</span></div>}
     </div> : <>
     <div className="csc-summary"><article><span>Custos da Raiz no mês</span><b>{money.format(costPool)}</b><small>{competence.slice(5)}/{competence.slice(0, 4)}</small></article><article><span>Base proporcional do mês</span><b>{money.format(rows.length ? rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0) : 0)}</b></article><article><span>Rateio calculado</span><b>{money.format(totals.calculated)}</b></article><article><span>Ajustes</span><b>{money.format(totals.adjustment)}</b></article><article className={rows.length && Math.abs(difference) <= .1 ? "is-balanced" : ""}><span>Diferença de fechamento</span><b>{money.format(difference)}</b><small>{rows.length && Math.abs(difference) <= .1 ? <><CheckCircle2 /> Fechado</> : "Aguardando cálculo"}</small></article></div>
     <div className="csc-company-list-title"><div><b>Base contábil mensal — contas de resultado</b><span>{calculationList.length} empresa(s), incluindo a Raiz · competência {competence.slice(5)}/{competence.slice(0, 4)}</span></div></div>
