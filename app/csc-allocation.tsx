@@ -24,7 +24,7 @@ export default function CscAllocation({ companies, selectedCompanyCode, competen
   const [loading, setLoading] = useState<"cost" | "revenue" | "">("");
   const [message, setMessage] = useState("");
   const [parameters, setParameters] = useState(false);
-  const [view, setView] = useState<"allocation" | "rules">("allocation");
+  const [view, setView] = useState<"allocation" | "accounting" | "rules">("allocation");
 
   useEffect(() => {
     try {
@@ -82,10 +82,20 @@ export default function CscAllocation({ companies, selectedCompanyCode, competen
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Rateio final": x.finalValue }))), "Memória do rateio");
     XLSX.writeFile(wb, `Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
+  function exportAccounting() {
+    const accounting = rows.flatMap((row) => [
+      { Competência: competence, Coligada: row.code, Empresa: row.name, Lado: "Empresa beneficiária", Débito: "Despesa com CSC", Crédito: "CSC a pagar para a Raiz", Valor: row.finalValue },
+      { Competência: competence, Coligada: "1", Empresa: "RAIZ EDUCAÇÃO", Lado: `Contrapartida da coligada ${row.code}`, Débito: `CSC a receber — ${row.name}`, Crédito: "Receita de CSC", Valor: row.finalValue },
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accounting), "Contabilização");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((row) => ({ Coligada: row.code, Empresa: row.name, "Valor a contabilizar": row.finalValue }))), "Valores por empresa");
+    XLSX.writeFile(wb, `Contabilizacao_Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
+  }
   return <section className="panel csc-panel">
     {loading && <div className="csc-processing"><RefreshCw className="spin" /><b>{loading === "cost" ? "Atualizando base contábil" : "Atualizando faturamento"}</b></div>}
     <div className="csc-heading"><div><h2>Rateio CSC</h2><p>Custos da Raiz distribuídos conforme faturamento e regras contratuais.</p></div><div className="csc-actions"><button className={`secondary ${costPool ? "source-loaded" : ""}`} onClick={updateCosts} disabled={!!loading}><RefreshCw />Atualizar base contábil</button><button className={`secondary ${Object.keys(revenues).length ? "source-loaded" : ""}`} onClick={updateRevenue} disabled={!!loading}><RefreshCw />Atualizar faturamento</button><button className="secondary" onClick={() => setParameters(!parameters)}><SlidersHorizontal />Parâmetros</button><button className="primary" onClick={calculate} disabled={!costPool || !Object.keys(revenues).length}><Calculator />Calcular rateio</button><button className="secondary" onClick={exportFile} disabled={!rows.length}><Download />Exportar memória</button></div></div>
-    <div className="csc-tabs"><button className={view === "allocation" ? "active" : ""} onClick={() => setView("allocation")}>Apuração do rateio</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}>Regras CSC</button></div>
+    <div className="csc-tabs"><button className={view === "allocation" ? "active" : ""} onClick={() => setView("allocation")}>Apuração do rateio</button><button className={view === "accounting" ? "active" : ""} onClick={() => setView("accounting")}>Contabilização</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}>Regras CSC</button></div>
     {message && <div className="notice">{message}</div>}
     {view === "rules" ? <div className="csc-rules">
       <div className="csc-rule-intro"><b>Premissas identificadas na planilha modelo</b><span>Estas regras formam a memória de cálculo e devem ser revisadas quando houver alteração contratual.</span></div>
@@ -100,6 +110,9 @@ export default function CscAllocation({ companies, selectedCompanyCode, competen
         <li><b>8. Validação de fechamento</b><span>A soma dos rateios calculados deve fechar com o total de custos elegíveis. A diferença aceita é de até R$ 0,10.</span></li>
         <li><b>9. Memória e exportação</b><span>A apuração permanece salva por competência e a exportação deve apresentar resumo, regra aplicada, faturamento, participação, ajustes e valor final por coligada.</span></li>
       </ol>
+    </div> : view === "accounting" ? <div className="csc-accounting">
+      <div className="csc-accounting-heading"><div><b>Valores para contabilização</b><span>Um lançamento na empresa beneficiária e a contrapartida correspondente na Raiz Educação.</span></div><button className="secondary" onClick={exportAccounting} disabled={!rows.length}><Download />Exportar contabilização</button></div>
+      {rows.length ? <><div className="csc-accounting-summary"><article><span>Empresas para contabilizar</span><b>{rows.filter((row) => Math.abs(row.finalValue) >= .01).length}</b></article><article><span>Total a debitar nas empresas</span><b>{money.format(totals.final)}</b></article><article><span>Total a creditar na Raiz</span><b>{money.format(totals.final)}</b></article><article className="is-balanced"><span>Conferência débito × crédito</span><b>{money.format(0)}</b><small><CheckCircle2 /> Fechado</small></article></div><div className="table-wrap csc-accounting-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Valor</th><th>Débito na empresa</th><th>Crédito na empresa</th><th>Débito na Raiz</th><th>Crédito na Raiz</th></tr></thead><tbody>{rows.filter((row) => Math.abs(row.finalValue) >= .01).map((row) => <tr key={`accounting-${row.code}`} className={row.code === normalize(selectedCompanyCode) ? "selected-company" : ""}><td><b>{row.code}</b></td><td>{row.name}</td><td><b>{money.format(row.finalValue)}</b></td><td>Despesa com CSC</td><td>CSC a pagar para a Raiz</td><td>CSC a receber — {row.name}</td><td>Receita de CSC</td></tr>)}</tbody><tfoot><tr><td colSpan={2}>Total</td><td>{money.format(totals.final)}</td><td colSpan={4}>Débitos e créditos conferidos</td></tr></tfoot></table></div><p className="csc-accounting-note">Os códigos das contas contábeis devem seguir o plano de contas parametrizado no TOTVS RM. A memória identifica a natureza e o valor de cada lançamento.</p></> : <div className="csc-empty"><Calculator /><b>Calcule o rateio para gerar a contabilização</b><span>Os valores serão apresentados empresa por empresa.</span></div>}
     </div> : <>
     {parameters && <div className="csc-parameters"><label>Taxa Sarah<input type="number" step=".001" value={sarahRate} onChange={(e) => setSarahRate(Number(e.target.value))} /></label><label>Contrato mensal Apogeu<input type="number" step=".01" value={apogeu} onChange={(e) => setApogeu(Number(e.target.value))} /></label><label>Contrato mensal Integra<input type="number" step=".01" value={integra} onChange={(e) => setIntegra(Number(e.target.value))} /></label><small>Os contratos específicos são retirados da base antes do rateio proporcional, como na planilha modelo.</small></div>}
     <div className="csc-summary"><article><span>Custos elegíveis</span><b>{money.format(costPool)}</b></article><article><span>Faturamento total</span><b>{money.format(totals.revenue || Object.values(revenues).reduce((a, b) => a + b, 0))}</b></article><article><span>Rateio calculado</span><b>{money.format(totals.calculated)}</b></article><article><span>Ajustes</span><b>{money.format(totals.adjustment)}</b></article><article className={rows.length && Math.abs(difference) <= .1 ? "is-balanced" : ""}><span>Diferença de fechamento</span><b>{money.format(difference)}</b><small>{rows.length && Math.abs(difference) <= .1 ? <><CheckCircle2 /> Fechado</> : "Aguardando cálculo"}</small></article></div>
