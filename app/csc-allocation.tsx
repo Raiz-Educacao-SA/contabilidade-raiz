@@ -47,7 +47,7 @@ const calculationCriteria = [
   ["8", "Sarah Tijuca", "A coligada 31 é calculada separadamente a 8,5% sobre seu faturamento-base e fica fora do denominador do rateio proporcional. Em 06/2026, a base contratual é R$ 1.413.705,88 e o valor do CSC é R$ 120.165,00."],
   ["9", "Rateio proporcional", "Coligadas 18 e 25 seguem o faturamento, como as demais participantes. A coligada 20 fica excluída. Base proporcional = custos elegíveis menos o valor da Sarah Tijuca; percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes proporcionais."],
   ["10", "Base fechada de junho", "Para reproduzir a memória aprovada de 06/2026, prevalecem os faturamentos congelados da Matriz Educação (R$ 4.800.556), GEU (R$ 814.607), Sarah (R$ 1.171.530) e Americano (R$ 784.499). Nos demais meses, a atualização utiliza diretamente o balancete corrente do TOTVS."],
-  ["11", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,40 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
+  ["11", "Ajuste de multa IRPJ e CSLL", "A partir da competência 01/2024, a coligada 25 recebe o ajuste fixo de -R$ 3.184,40 referente à multa de IRPJ e CSLL. O valor permanece vigente nas competências seguintes até a definição de uma nova regra."],
   ["12", "Arredondamento e fechamento", "O faturamento-base de cada empresa é arredondado primeiro para reais inteiros, como na planilha. Depois, cada rateio é arredondado em centavos. A diferença de até R$ 0,10 é aceita como fechamento, sem redistribuir o centavo entre empresas."],
 ];
 
@@ -58,13 +58,13 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v6:${competence}`;
+  const storageKey = `csc-allocation:v7:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
   const defaultSarahTijucaValue = competence === "2026-06" ? 120165 : 0;
   const [sarahTijucaValue, setSarahTijucaValue] = useState(defaultSarahTijucaValue);
-  const defaultAdjustments = useMemo<Record<string, number>>(() => competence === "2026-06" ? { "25": -3184.4 } : {} as Record<string, number>, [competence]);
+  const defaultAdjustments = useMemo<Record<string, number>>(() => competence >= "2024-01" ? { "25": -3184.4 } : {} as Record<string, number>, [competence]);
   const [adjustments, setAdjustments] = useState<Record<string, number>>(defaultAdjustments);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState<"accounting" | "">("");
@@ -75,7 +75,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
       if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setAdjustments(defaultAdjustments); setRows([]); return; }
-      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...defaultAdjustments, ...(saved.adjustments || {}) }); setRows(saved.rows || []);
+      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
     } catch { localStorage.removeItem(storageKey); }
   }, [storageKey, defaultAdjustments, defaultSarahTijucaValue]);
 
@@ -150,7 +150,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   function exportFile() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Custos elegíveis": costPool, "Base proporcional": rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0), "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Total final": totals.final, Diferença: difference }]), "Resumo");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Rateio final": x.finalValue }))), "Memória do rateio");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Motivo do ajuste": x.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": x.finalValue }))), "Memória do rateio");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Etapa", "Critério", "Aplicação"], ...calculationCriteria]), "Critérios utilizados");
     XLSX.writeFile(wb, `Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
@@ -181,6 +181,6 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     <div className="csc-summary"><article><span>Custos da Raiz no mês</span><b>{money.format(costPool)}</b><small>{competence.slice(5)}/{competence.slice(0, 4)}</small></article><article><span>Base proporcional do mês</span><b>{money.format(rows.length ? rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0) : 0)}</b></article><article><span>Rateio calculado</span><b>{money.format(totals.calculated)}</b></article><article><span>Ajustes</span><b>{money.format(totals.adjustment)}</b></article><article className={rows.length && Math.abs(difference) <= .1 ? "is-balanced" : ""}><span>Diferença de fechamento</span><b>{money.format(difference)}</b><small>{rows.length && Math.abs(difference) <= .1 ? <><CheckCircle2 /> Fechado</> : "Aguardando cálculo"}</small></article></div>
     <div className="csc-company-list-title"><div><b>Base contábil mensal — contas de resultado</b><span>{calculationList.length} empresa(s), incluindo a Raiz · competência {competence.slice(5)}/{competence.slice(0, 4)}</span></div></div>
     <div className="table-wrap csc-table csc-company-preview"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Receitas do mês</th><th>Custos/despesas do mês</th><th>Movimento líquido</th><th>Função no rateio</th><th>Situação</th></tr></thead><tbody>{calculationList.map((row) => <tr key={`preview-${row.code}`}><td><b>{row.code}</b></td><td>{row.name}</td><td>{money.format(row.revenue)}</td><td>{money.format(row.costs)}</td><td className={row.net < 0 ? "negative" : ""}><b>{money.format(row.net)}</b></td><td>{row.rule}</td><td><span className={`csc-company-status ${row.status === "Calculada" ? "done" : row.status === "Base carregada" ? "ready" : ""}`}>{row.status}</span></td></tr>)}</tbody></table></div>
-    {rows.length && <><div className="csc-company-list-title"><div><b>Rateio dos custos da Raiz entre as coligadas</b><span>A porcentagem corresponde ao faturamento da empresa dividido pelo faturamento total das participantes</span></div></div><div className="table-wrap csc-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Faturamento mensal</th><th>% no rateio</th><th>Regra</th><th>Rateio</th><th>Ajuste</th><th>Final</th></tr></thead><tbody>{rows.map((row) => <tr key={row.code}><td><b>{row.code}</b></td><td>{row.name}</td><td>{money.format(row.revenue)}</td><td><b>{row.share ? percent.format(row.share) : "—"}</b></td><td>{row.rule}</td><td><b>{money.format(row.calculated)}</b></td><td><input type="number" step=".01" value={adjustments[row.code] || 0} onChange={(e) => setAdjustments({ ...adjustments, [row.code]: Number(e.target.value) })} /></td><td><b>{money.format(row.finalValue)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={2}>Total das participantes</td><td>{money.format(rows.reduce((sum, row) => sum + row.revenue, 0))}</td><td>{percent.format(rows.reduce((sum, row) => sum + row.share, 0))}</td><td>—</td><td>{money.format(totals.calculated)}</td><td>{money.format(totals.adjustment)}</td><td>{money.format(totals.final)}</td></tr></tfoot></table></div></>}</>}
+    {rows.length && <><div className="csc-company-list-title"><div><b>Rateio dos custos da Raiz entre as coligadas</b><span>A porcentagem corresponde ao faturamento da empresa dividido pelo faturamento total das participantes</span></div></div><div className="table-wrap csc-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Faturamento mensal</th><th>% no rateio</th><th>Regra</th><th>Rateio</th><th>Ajuste</th><th>Final</th></tr></thead><tbody>{rows.map((row) => <tr key={row.code}><td><b>{row.code}</b></td><td>{row.name}</td><td>{money.format(row.revenue)}</td><td><b>{row.share ? percent.format(row.share) : "—"}</b></td><td>{row.rule}</td><td><b>{money.format(row.calculated)}</b></td><td><input type="number" step=".01" value={adjustments[row.code] || 0} title={row.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "Ajuste"} disabled={row.code === "25" && competence >= "2024-01"} onChange={(e) => setAdjustments({ ...adjustments, [row.code]: Number(e.target.value) })} /></td><td><b>{money.format(row.finalValue)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={2}>Total das participantes</td><td>{money.format(rows.reduce((sum, row) => sum + row.revenue, 0))}</td><td>{percent.format(rows.reduce((sum, row) => sum + row.share, 0))}</td><td>—</td><td>{money.format(totals.calculated)}</td><td>{money.format(totals.adjustment)}</td><td>{money.format(totals.final)}</td></tr></tfoot></table></div></>}</>}
   </section>;
 }
