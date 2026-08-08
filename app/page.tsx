@@ -47,6 +47,7 @@ import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
 import PisCofinsAssessment from "@/app/pis-cofins-assessment";
 import TrialBalanceAnalysis from "@/app/trial-balance-analysis";
+import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 
@@ -933,7 +934,10 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && (
+        {selectedModule === "contabil" && accountingTab === "rateio-csc" && (
+          <CscAllocation key={competence} companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])} selectedCompanyCode={company?.empresas?.codcoligada ?? ""} competence={competence} accessToken={session.access_token} />
+        )}
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "irpj-csll" ? (
               <ReceiptText />
