@@ -417,10 +417,11 @@
 .intercompany-toolbar button svg { width: 13px; }
 .intercompany-toolbar > span { margin-left: auto; color: var(--muted); }
 .intercompany-table { margin: 0 16px 14px; max-height: calc(100vh - 365px); min-height: 350px; }
-.intercompany-table table { min-width: 1540px; font-size: 8px; }
+.intercompany-table table { min-width: 1900px; font-size: 8px; }
 .intercompany-table th { position: sticky; top: 0; z-index: 1; padding: 6px 7px; background: #173d68; color: white; font-size: 8px; }
 .intercompany-table td { padding: 5px 7px; }
 .intercompany-table td:nth-child(6), .intercompany-table td:nth-child(9), .intercompany-table td:nth-child(10) { text-align: right; white-space: nowrap; }
+.intercompany-diagnosis { min-width: 280px; max-width: 360px; color: #475467; line-height: 1.35; }
 .intercompany-status { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 999px; font-size: 7px; font-weight: 800; white-space: nowrap; }
 .intercompany-status svg { width: 11px; height: 11px; }
 .intercompany-status.ok { background: #e6f6ee; color: #087443; }
@@ -434,10 +435,11 @@
 .intercompany-entry-heading span { color: var(--muted); font-size: 7px; }
 .intercompany-entry-heading button { padding: 3px 7px; border: 1px solid #b9c7d8; border-radius: 7px; background: white; color: #173d68; font-size: 7px; font-weight: 800; }
 .intercompany-entry-table { max-height: 280px; margin: 0; }
-.intercompany-entry-table table { min-width: 1050px; font-size: 8px; }
+.intercompany-entry-table table { min-width: 1750px; font-size: 8px; }
 .intercompany-entry-table th { position: sticky; top: 0; z-index: 1; padding: 5px 7px; background: #173d68; color: white; font-size: 7px; }
 .intercompany-entry-table td { padding: 5px 7px; }
-.intercompany-entry-table td:last-child { text-align: right; white-space: nowrap; }
+.intercompany-entry-table td:nth-child(8), .intercompany-entry-table td:nth-child(9) { text-align: right; white-space: nowrap; }
+.intercompany-entry-reason { min-width: 420px; color: #475467; line-height: 1.35; }
 .intercompany-entry-empty { min-height: 70px; display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: 8px; }
 .intercompany-entry-empty svg { width: 14px; height: 14px; }
 .intercompany-empty { min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); }
