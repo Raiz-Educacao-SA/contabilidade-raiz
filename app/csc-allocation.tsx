@@ -14,6 +14,7 @@ const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const normalize = (value: string) => String(Number(value));
 const normalizeName = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const excludedFromAllocation = (company: Company) => {
+  if (company.code === "20") return true;
   const name = normalizeName(company.name);
   return name.includes("RAIZ SUL") || name.includes("DIDACTA");
 };
@@ -39,9 +40,9 @@ const calculationCriteria = [
   ["4", "Sinais", "Débitos aumentam o custo; créditos, estornos e reversões reduzem a base compartilhável."],
   ["5", "Faturamento", "Somente contas de receita vinculadas aos grupos gerenciais elegíveis 1100–1118, 1122, 1123 e 1125. ISS, PIS, COFINS e demais tributos do grupo 3.1.3.01.01 são excluídos; apenas 3.1.3.01.01.50 — benefício fiscal PAA permanece na base."],
   ["6", "Coligada 10", "Agrupada por CODFILIAL: filial 01 em 10.1; filiais 02 e 07 em 10.2; filiais 03, 04, 05 e 06 em 10.3."],
-  ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul e Didacta não participam do denominador e não recebem rateio."],
+  ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul, Didacta e a coligada 20 — Integra não participam do denominador e não recebem rateio."],
   ["8", "Sarah Tijuca", "A coligada 31 é calculada separadamente a 8,5% sobre seu faturamento-base e fica fora do denominador do rateio proporcional."],
-  ["9", "Rateio proporcional", "Coligadas 18, 20 e 25 seguem o faturamento, como as demais participantes. Base proporcional = custos elegíveis menos o valor da Sarah Tijuca; percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes proporcionais."],
+  ["9", "Rateio proporcional", "Coligadas 18 e 25 seguem o faturamento, como as demais participantes. A coligada 20 fica excluída. Base proporcional = custos elegíveis menos o valor da Sarah Tijuca; percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes proporcionais."],
   ["10", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,40 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
   ["11", "Arredondamento e fechamento", "O faturamento-base de cada empresa é arredondado primeiro para reais inteiros, como na planilha. Depois, cada rateio é arredondado em centavos. A diferença de até R$ 0,10 é aceita como fechamento, sem redistribuir o centavo entre empresas."],
 ];
@@ -53,7 +54,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v2:${competence}`;
+  const storageKey = `csc-allocation:v3:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
