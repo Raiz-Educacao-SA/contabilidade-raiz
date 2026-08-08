@@ -6,8 +6,8 @@ const xmlEscape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, 
 const xmlDecode = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, ...names: string[]) => names.map((name) => xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim()).find(Boolean) || "";
 const number = (value: string) => { const parsed = Number(String(value || "0").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; };
-const isCscRevenueAccount = (account: string) => /^(3\.1\.1\.01\.01\.|3\.1\.1\.01\.02\.|3\.1\.1\.01\.03\.|3\.1\.2\.02\.|3\.1\.3\.01\.01\.)/.test(account)
-  || ["3.1.1.01.04.03", "3.1.1.01.05.03", "3.1.1.01.05.04", "3.1.1.01.05.05", "3.1.1.01.06.01"].includes(account);
+const isCscRevenueAccount = (account: string) => /^(3\.1\.1\.01\.01\.|3\.1\.1\.01\.02\.|3\.1\.1\.01\.03\.|3\.1\.2\.02\.)/.test(account)
+  || ["3.1.1.01.04.03", "3.1.1.01.05.03", "3.1.1.01.05.04", "3.1.1.01.05.05", "3.1.1.01.06.01", "3.1.3.01.01.50"].includes(account);
 
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
