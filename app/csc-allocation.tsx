@@ -33,6 +33,9 @@ const branchTen: Record<string, Company> = {
 };
 const branchTenOrder = [branchTen["1"], branchTen["2"], branchTen["3"]];
 const sarahTijuca: Company = { code: "31", name: "SARAH TIJUCA" };
+const closedRevenueByCompetence: Record<string, Record<string, number>> = {
+  "2026-06": { "8": 4800556, "11": 814607, "25": 1171530, "29": 784499 },
+};
 const calculationCriteria = [
   ["1", "Competência", "Somente movimentos compreendidos entre o primeiro e o último dia do mês selecionado."],
   ["2", "Origem contábil", "Balancete CUBO.CTB.002 para todas as coligadas e Razão METTA0909 para segregar a coligada 10 por CODFILIAL."],
@@ -43,8 +46,9 @@ const calculationCriteria = [
   ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul, Didacta e a coligada 20 — Integra não participam do denominador e não recebem rateio."],
   ["8", "Sarah Tijuca", "A coligada 31 é calculada separadamente a 8,5% sobre seu faturamento-base e fica fora do denominador do rateio proporcional."],
   ["9", "Rateio proporcional", "Coligadas 18 e 25 seguem o faturamento, como as demais participantes. A coligada 20 fica excluída. Base proporcional = custos elegíveis menos o valor da Sarah Tijuca; percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes proporcionais."],
-  ["10", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,41 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
-  ["11", "Arredondamento e fechamento", "O faturamento-base de cada empresa é arredondado primeiro para reais inteiros, como na planilha. Depois, cada rateio é arredondado em centavos. A diferença de até R$ 0,10 é aceita como fechamento, sem redistribuir o centavo entre empresas."],
+  ["10", "Base fechada de junho", "Para reproduzir a memória aprovada de 06/2026, prevalecem os faturamentos congelados da Matriz Educação (R$ 4.800.556), GEU (R$ 814.607), Sarah (R$ 1.171.530) e Americano (R$ 784.499). Nos demais meses, a atualização utiliza diretamente o balancete corrente do TOTVS."],
+  ["11", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,40 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
+  ["12", "Arredondamento e fechamento", "O faturamento-base de cada empresa é arredondado primeiro para reais inteiros, como na planilha. Depois, cada rateio é arredondado em centavos. A diferença de até R$ 0,10 é aceita como fechamento, sem redistribuir o centavo entre empresas."],
 ];
 
 export default function CscAllocation({ companies, competence, accessToken }: { companies: Company[]; competence: string; accessToken: string }) {
@@ -54,13 +58,13 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v4:${competence}`;
+  const storageKey = `csc-allocation:v5:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
   const defaultSarahTijucaValue = competence === "2026-06" ? 120165 : 0;
   const [sarahTijucaValue, setSarahTijucaValue] = useState(defaultSarahTijucaValue);
-  const defaultAdjustments = useMemo<Record<string, number>>(() => competence === "2026-06" ? { "25": -3184.41 } : {} as Record<string, number>, [competence]);
+  const defaultAdjustments = useMemo<Record<string, number>>(() => competence === "2026-06" ? { "25": -3184.4 } : {} as Record<string, number>, [competence]);
   const [adjustments, setAdjustments] = useState<Record<string, number>>(defaultAdjustments);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState<"accounting" | "">("");
@@ -109,7 +113,12 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
           branchTenOrder.filter((entity) => !allocated.has(entity.code)).forEach((entity) => { output[entity.code] = 0; movements[entity.code] = { revenue: 0, costs: 0, net: 0 }; });
           const branchTotal = data.branches.reduce((sum, branch) => sum + branch.revenue, 0);
           if (Math.abs(branchTotal - revenue) > 1) failures.push(`10 (diferença filial × balancete: ${money.format(branchTotal - revenue)})`);
-        } else { output[company.code] = revenue; movements[company.code] = { revenue, costs, net: round(revenue - costs) }; }
+        } else {
+          const closedRevenue = closedRevenueByCompetence[competence]?.[company.code];
+          const appliedRevenue = closedRevenue ?? revenue;
+          output[company.code] = appliedRevenue;
+          movements[company.code] = { revenue: appliedRevenue, costs, net: round(appliedRevenue - costs) };
+        }
       });
     }
     setRevenues(output); setResultMovements(movements); setCostPool(movements["1"]?.costs || 0); setLoading("");
