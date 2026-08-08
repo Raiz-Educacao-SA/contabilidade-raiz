@@ -7,6 +7,7 @@ type Company = { code: string; name: string };
 type Balance = { account: string; movement: number; debit: number; credit: number };
 type Row = { code: string; name: string; revenue: number; share: number; rule: string; calculated: number; adjustment: number; finalValue: number };
 type ResultMovement = { revenue: number; costs: number; net: number };
+type BranchRevenue = { branch: string; revenue: number };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -16,9 +17,32 @@ const excludedFromAllocation = (company: Company) => {
   const name = normalizeName(company.name);
   return name.includes("RAIZ SUL") || name.includes("DIDACTA");
 };
+const isEligibleRevenue = (account: string) => /^(3\.1\.1\.01\.01\.|3\.1\.1\.01\.02\.|3\.1\.1\.01\.03\.|3\.1\.2\.02\.|3\.1\.3\.01\.01\.)/.test(account)
+  || ["3.1.1.01.04.03", "3.1.1.01.05.03", "3.1.1.01.05.04", "3.1.1.01.05.05", "3.1.1.01.06.01"].includes(account);
+const isEligibleCost = (account: string) => /^(4\.1\.1\.|4\.1\.2\.|4\.2\.1\.0[1-9]\.)/.test(account)
+  || ["4.2.1.10.01.13", "4.2.1.15.01.01", "4.2.1.15.01.02"].includes(account);
+const branchTen: Record<string, Company> = {
+  "6": { code: "10", name: "ESCOLAS INTEGRADAS" },
+  "1": { code: "10.1", name: "QI RECREIO" },
+  "7": { code: "10.2", name: "ESCOLA SAP" },
+  "3": { code: "10.3", name: "SÁ PEREIRA" },
+};
+const calculationCriteria = [
+  ["1", "Competência", "Somente movimentos compreendidos entre o primeiro e o último dia do mês selecionado."],
+  ["2", "Origem contábil", "Balancete CUBO.CTB.002 para todas as coligadas e Razão METTA0909 para segregar a coligada 10 por CODFILIAL."],
+  ["3", "Custos elegíveis", "Somente contas vinculadas aos grupos gerenciais marcados como SIM no modelo: 1201–1208, 1301–1312, 1314, 1317, 1318 e 1409."],
+  ["4", "Sinais", "Débitos aumentam o custo; créditos, estornos e reversões reduzem a base compartilhável."],
+  ["5", "Faturamento", "Somente contas de receita vinculadas aos grupos gerenciais elegíveis 1100–1118, 1122, 1123 e 1125."],
+  ["6", "Coligada 10", "Segregada em 10 — Escolas Integradas, 10.1 — QI Recreio, 10.2 — Escola SAP e 10.3 — Sá Pereira, conforme CODFILIAL."],
+  ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul e Didacta não participam do denominador e não recebem rateio."],
+  ["8", "Contratos específicos", "Sarah: 7,5% até 2024 e 8% desde 2025. Apogeu/Espaço Mágico e Integra usam os valores mensais informados nos parâmetros."],
+  ["9", "Rateio proporcional", "Base geral = custos elegíveis menos contratos específicos. Percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes gerais."],
+  ["10", "Arredondamento e fechamento", "Valores arredondados em centavos; eventual resíduo é atribuído à maior base proporcional. Tolerância final: R$ 0,10."],
+];
 
 export default function CscAllocation({ companies, competence, accessToken }: { companies: Company[]; competence: string; accessToken: string }) {
   const list = useMemo(() => Array.from(new Map(companies.map((x) => ({ ...x, code: normalize(x.code) })).filter((x) => x.code !== "0").map((x) => [x.code, x])).values()), [companies]);
+  const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? Object.values(branchTen) : [company]).map((company) => [company.code, company])).values()), [list]);
   const storageKey = `csc-allocation:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
@@ -42,13 +66,13 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   }, [storageKey]);
 
   async function balance(company: string) {
-    const response = await fetch(`/api/totvs/trial-balance?company=${company}&competence=${competence}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+    const response = await fetch(`/api/totvs/trial-balance?company=${company}&competence=${competence}${company === "10" ? "&byBranch=1" : ""}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Não foi possível consultar o balancete.");
-    return (payload.rows || []) as Balance[];
+    return { rows: (payload.rows || []) as Balance[], branches: (payload.branches || []) as BranchRevenue[] };
   }
-  const costValue = (data: Balance[]) => round(Math.abs(data.filter((x) => /^(4|5|6)\./.test(x.account)).reduce((sum, x) => sum + (x.movement || x.debit - x.credit), 0)));
-  const revenueValue = (data: Balance[]) => round(Math.abs(data.filter((x) => /^3\./.test(x.account)).reduce((sum, x) => sum + (x.movement || x.credit - x.debit), 0)));
+  const costValue = (data: Balance[]) => round(Math.abs(data.filter((x) => isEligibleCost(x.account)).reduce((sum, x) => sum + (x.movement || x.debit - x.credit), 0)));
+  const revenueValue = (data: Balance[]) => round(Math.abs(data.filter((x) => isEligibleRevenue(x.account)).reduce((sum, x) => sum + (x.movement || x.credit - x.debit), 0)));
 
   async function updateAccountingBase() {
     setLoading("accounting"); setMessage(""); setRows([]); const output: Record<string, number> = {}; const movements: Record<string, ResultMovement> = {}; const failures: string[] = [];
@@ -56,8 +80,17 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
       const loaded = await Promise.all(list.slice(i, i + 5).map(async (company) => { try { return { company, data: await balance(company.code) }; } catch { return { company, data: null }; } }));
       loaded.forEach(({ company, data }) => {
         if (!data) { failures.push(company.code); return; }
-        const revenue = revenueValue(data); const costs = costValue(data);
-        output[company.code] = revenue; movements[company.code] = { revenue, costs, net: round(revenue - costs) };
+        const revenue = revenueValue(data.rows); const costs = costValue(data.rows);
+        if (company.code === "10" && data.branches.length) {
+          const allocated = new Set<string>();
+          data.branches.forEach(({ branch, revenue: branchValue }) => {
+            const entity = branchTen[branch] || { code: `10.${branch}`, name: `FILIAL ${branch}` };
+            output[entity.code] = round(branchValue); movements[entity.code] = { revenue: round(branchValue), costs: 0, net: round(branchValue) }; allocated.add(entity.code);
+          });
+          Object.values(branchTen).filter((entity) => !allocated.has(entity.code)).forEach((entity) => { output[entity.code] = 0; movements[entity.code] = { revenue: 0, costs: 0, net: 0 }; });
+          const branchTotal = data.branches.reduce((sum, branch) => sum + branch.revenue, 0);
+          if (Math.abs(branchTotal - revenue) > 1) failures.push(`10 (diferença filial × balancete: ${money.format(branchTotal - revenue)})`);
+        } else { output[company.code] = revenue; movements[company.code] = { revenue, costs, net: round(revenue - costs) }; }
       });
     }
     setRevenues(output); setResultMovements(movements); setCostPool(movements["1"]?.costs || 0); setLoading("");
@@ -66,11 +99,11 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   function calculate() {
     const special = new Set(["18", "20", "25"]); const sarah = round((revenues["25"] || 0) * sarahRate);
     const generalPool = round(Math.max(0, costPool - sarah - apogeu - integra));
-    const participating = list.filter((x) => x.code !== "1" && !excludedFromAllocation(x));
+    const participating = allocationList.filter((x) => x.code !== "1" && !excludedFromAllocation(x));
     const participatingRevenue = participating.reduce((sum, x) => sum + (revenues[x.code] || 0), 0);
-    const general = list.filter((x) => x.code !== "1" && !special.has(x.code) && !excludedFromAllocation(x));
+    const general = allocationList.filter((x) => x.code !== "1" && !special.has(x.code) && !excludedFromAllocation(x));
     const generalRevenue = general.reduce((sum, x) => sum + (revenues[x.code] || 0), 0);
-    const output = list.filter((x) => x.code !== "1" && !excludedFromAllocation(x)).map<Row>((company) => {
+    const output = allocationList.filter((x) => x.code !== "1" && !excludedFromAllocation(x)).map<Row>((company) => {
       const revenue = revenues[company.code] || 0; const share = participatingRevenue ? revenue / participatingRevenue : 0; const generalShare = generalRevenue ? revenue / generalRevenue : 0; let calculated = round(generalPool * generalShare); let rule = "Proporcional ao faturamento";
       if (company.code === "25") { calculated = sarah; rule = `Contrato Sarah (${percent.format(sarahRate)})`; }
       if (company.code === "18") { calculated = apogeu; rule = "Contrato Apogeu / Espaço Mágico"; }
@@ -85,18 +118,19 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   }
   const totals = useMemo(() => rows.reduce((t, x) => ({ revenue: t.revenue + x.revenue, calculated: t.calculated + x.calculated, adjustment: t.adjustment + x.adjustment, final: t.final + x.finalValue }), { revenue: 0, calculated: 0, adjustment: 0, final: 0 }), [rows]);
   const difference = round(costPool - totals.calculated);
-  const calculationList = useMemo(() => list.map((company) => {
+  const calculationList = useMemo(() => allocationList.map((company) => {
     const calculated = rows.find((row) => row.code === company.code);
     const movement = resultMovements[company.code] || { revenue: 0, costs: 0, net: 0 };
     const excluded = excludedFromAllocation(company);
     const rule = company.code === "1" ? "Origem dos custos do CSC" : excluded ? "Não participa do rateio" : company.code === "25" ? "Contrato Sarah" : company.code === "18" ? "Contrato Apogeu / Espaço Mágico" : company.code === "20" ? "Contrato Integra" : "Proporcional ao faturamento";
     const status = excluded ? "Não participa" : calculated ? "Calculada" : Object.prototype.hasOwnProperty.call(resultMovements, company.code) ? "Base carregada" : "Aguardando base";
     return { ...company, ...movement, rule: calculated?.rule || rule, status };
-  }), [list, resultMovements, rows]);
+  }), [allocationList, resultMovements, rows]);
   function exportFile() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Custos elegíveis": costPool, "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Total final": totals.final, Diferença: difference }]), "Resumo");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Rateio final": x.finalValue }))), "Memória do rateio");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Etapa", "Critério", "Aplicação"], ...calculationCriteria]), "Critérios utilizados");
     XLSX.writeFile(wb, `Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   function exportAccounting() {
@@ -117,15 +151,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     {view === "rules" ? <div className="csc-rules">
       <div className="csc-rule-intro"><b>Premissas identificadas na planilha modelo</b><span>Estas regras formam a memória de cálculo e devem ser revisadas quando houver alteração contratual.</span></div>
       <ol>
-        <li><b>1. Custos mensais elegíveis da holding</b><span>A base considera exclusivamente os movimentos contábeis da Raiz Educação dentro do mês selecionado. Créditos, estornos e reversões reduzem o custo mensal. Na planilha original, somente grupos gerenciais marcados como “SIM” compõem o custo compartilhável.</span></li>
-        <li><b>2. Movimento das contas de resultado</b><span>A base contábil mensal é atualizada para todas as empresas, inclusive a Raiz. O movimento de receitas de cada coligada forma o direcionador: movimento da empresa ÷ movimento total elegível.</span></li>
-        <li><b>3. Contratos específicos antes do rateio geral</b><span>Sarah (coligada 25) usa percentual contratual sobre o faturamento: 7,5% em 2024 e 8% a partir de 2025. Apogeu/Espaço Mágico (18) e Integra (20) usam valores contratuais mensais próprios.</span></li>
-        <li><b>4. Base geral de distribuição</b><span>Custos elegíveis menos os valores dos contratos específicos. O saldo restante é distribuído proporcionalmente entre as demais empresas.</span></li>
-        <li><b>5. Empresas não participantes</b><span>Raiz Sul e Didacta permanecem visíveis na base contábil para conferência, mas não integram o denominador nem recebem parcela do Rateio CSC.</span></li>
-        <li><b>6. Ajustes manuais rastreáveis</b><span>Acréscimos ou deduções fora do cálculo padrão devem ser informados por empresa e mantidos separadamente do rateio calculado.</span></li>
-        <li><b>7. Arredondamento</b><span>O cálculo é realizado com duas casas decimais. Eventual resíduo de centavos é absorvido pela empresa de maior faturamento do rateio proporcional.</span></li>
-        <li><b>8. Validação de fechamento</b><span>A soma dos rateios calculados deve fechar com o total de custos elegíveis. A diferença aceita é de até R$ 0,10.</span></li>
-        <li><b>9. Memória e exportação</b><span>A apuração permanece salva por competência e a exportação deve apresentar resumo, regra aplicada, faturamento, participação, ajustes e valor final por coligada.</span></li>
+        {calculationCriteria.map(([step, title, description]) => <li key={step}><b>{step}. {title}</b><span>{description}</span></li>)}
       </ol>
     </div> : view === "accounting" ? <div className="csc-accounting">
       <div className="csc-accounting-heading"><div><b>Valores para contabilização</b><span>Um lançamento na empresa beneficiária e a contrapartida correspondente na Raiz Educação.</span></div><button className="secondary" onClick={exportAccounting} disabled={!rows.length}><Download />Exportar contabilização</button></div>

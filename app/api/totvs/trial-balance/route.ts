@@ -6,12 +6,33 @@ const xmlEscape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, 
 const xmlDecode = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, ...names: string[]) => names.map((name) => xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim()).find(Boolean) || "";
 const number = (value: string) => { const parsed = Number(String(value || "0").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; };
+const isCscRevenueAccount = (account: string) => /^(3\.1\.1\.01\.01\.|3\.1\.1\.01\.02\.|3\.1\.1\.01\.03\.|3\.1\.2\.02\.|3\.1\.3\.01\.01\.)/.test(account)
+  || ["3.1.1.01.04.03", "3.1.1.01.05.03", "3.1.1.01.05.04", "3.1.1.01.05.05", "3.1.1.01.06.01"].includes(account);
 
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!authorization || !url || !key) return false;
   return (await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" })).ok;
+}
+
+async function branchRevenue(baseUrl: string, user: string, password: string, company: string, firstDay: string, lastDay: string) {
+  const parameters = `PLN_B7_S=3.1;PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`;
+  const envelope = `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA0909</codSentenca><codColigada>0</codColigada><codSistema>C</codSistema><parameters>${xmlEscape(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  const response = await fetch(`${baseUrl}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
+  const soap = await response.text();
+  if (!response.ok || soap.includes(":Fault>")) throw new Error(xmlDecode(tag(soap, "faultstring")) || "O TOTVS não conseguiu segregar o faturamento por filial.");
+  const resultXml = xmlDecode(tag(soap, "RealizarConsultaSQLResult"));
+  const seen = new Set<string>(); const totals: Record<string, number> = {};
+  Array.from(resultXml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi)).forEach((match) => {
+    const record = match[1]; const account = tag(record, "CODCONTA");
+    if (!isCscRevenueAccount(account)) return;
+    const branch = tag(record, "CODFILIAL").trim() || "0"; const value = number(tag(record, "VALOR"));
+    const key = [branch, tag(record, "IDLANCAMENTO"), account, value].join("|");
+    if (seen.has(key)) return; seen.add(key);
+    totals[branch] = (totals[branch] || 0) + value;
+  });
+  return Object.entries(totals).map(([branch, movement]) => ({ branch, revenue: Math.abs(movement) })).sort((a, b) => Number(a.branch) - Number(b.branch));
 }
 
 export async function GET(request: NextRequest) {
@@ -30,6 +51,7 @@ export async function GET(request: NextRequest) {
     if (!response.ok || soap.includes("<s:Fault>") || soap.includes(":Fault>")) throw new Error(xmlDecode(tag(soap, "faultstring")) || "O TOTVS não conseguiu gerar o balancete.");
     const resultXml = xmlDecode(tag(soap, "RealizarConsultaSQLResult"));
     const rows = Array.from(resultXml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match, index) => { const record = match[1]; return { id: tag(record, "ID") || `${company}-${index}`, reduced: tag(record, "Reduzido"), account: xmlDecode(tag(record, "Conta_x0020_Contábil", "Conta_x0020_Contabil", "Conta")), description: xmlDecode(tag(record, "Descrição_x0020_Conta", "Descricao_x0020_Conta", "Descrição", "Descricao")), openingBalance: number(tag(record, "VR_SALDOANT")), debit: number(tag(record, "VR_DEBITO")), credit: number(tag(record, "VR_CREDITO")), movement: number(tag(record, "VR_MOV")), closingBalance: number(tag(record, "Saldo")) }; }).filter((row) => row.account);
-    return NextResponse.json({ source: "TOTVS RM — CUBO.CTB.002", company, competence, records: rows.length, rows }, { headers: { "cache-control": "private, no-store" } });
+    const branches = company === "10" && request.nextUrl.searchParams.get("byBranch") === "1" ? await branchRevenue(baseUrl, user, password, company, firstDay, lastDay) : [];
+    return NextResponse.json({ source: "TOTVS RM — CUBO.CTB.002 + METTA0909", company, competence, records: rows.length, rows, branches }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 503 }); }
 }
