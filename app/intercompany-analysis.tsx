@@ -6,6 +6,8 @@ import * as XLSX from "xlsx";
 
 type CompanyOption = { code: string; name: string };
 type BalanceRow = { reduced: string; account: string; description: string; closingBalance: number };
+type AccountingEntry = { id: string; date: string; account: string; accountName: string; value: number; nature: string };
+type DivergentEntry = AccountingEntry & { companyCode: string; companyName: string; side: "Receber" | "Pagar" };
 type Nature = "Mútuos" | "Rateio CSC" | "Almoxarifado" | "Transações individuais";
 type AnalysisRow = {
   id: string;
@@ -79,6 +81,9 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
   const [showReconciled, setShowReconciled] = useState(false);
   const [nature, setNature] = useState<"Todas" | Nature>("Todas");
   const [search, setSearch] = useState("");
+  const [selectedRow, setSelectedRow] = useState<AnalysisRow | null>(null);
+  const [divergentEntries, setDivergentEntries] = useState<DivergentEntry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
 
   const normalizedCompanies = useMemo(() => Array.from(new Map(companies.map((item) => ({ ...item, code: normalizeCode(item.code) })).filter((item) => item.code !== "0").map((item) => [item.code, item])).values()), [companies]);
 
@@ -136,6 +141,34 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
     setMessage(`${output.length} cruzamento(s) analisado(s). ${output.filter((row) => row.status !== "Conciliado").length} requer(em) tratamento.`);
   }
 
+  async function identifyDivergentEntries(row: AnalysisRow) {
+    setSelectedRow(row); setLoadingEntries(true); setDivergentEntries([]);
+    try {
+      const load = async (company: string) => {
+        const response = await fetch(`/api/totvs/accounting?company=${company}&competence=${competence}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Não foi possível consultar os lançamentos contábeis.");
+        return (payload.rows || []) as AccountingEntry[];
+      };
+      const [creditorRows, debtorRows] = await Promise.all([load(row.creditorCode), load(row.debtorCode)]);
+      const payableAccounts = row.payableAccount.split(" + ").map((account) => account.trim());
+      const receivables = creditorRows.filter((entry) => entry.account === row.receivableAccount);
+      const payables = debtorRows.filter((entry) => payableAccounts.includes(entry.account));
+      const matchedPayables = new Set<number>();
+      const unmatchedReceivables = receivables.filter((entry) => {
+        const match = payables.findIndex((candidate, index) => !matchedPayables.has(index) && candidate.date === entry.date && Math.abs(candidate.value + entry.value) <= tolerance);
+        if (match >= 0) { matchedPayables.add(match); return false; }
+        return true;
+      });
+      const output: DivergentEntry[] = [
+        ...unmatchedReceivables.map((entry) => ({ ...entry, companyCode: row.creditorCode, companyName: row.creditorName, side: "Receber" as const })),
+        ...payables.filter((_, index) => !matchedPayables.has(index)).map((entry) => ({ ...entry, companyCode: row.debtorCode, companyName: row.debtorName, side: "Pagar" as const })),
+      ].sort((a, b) => a.date.localeCompare(b.date) || Math.abs(b.value) - Math.abs(a.value));
+      setDivergentEntries(output);
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setLoadingEntries(false); }
+  }
+
   const summary = useMemo(() => ({
     total: results.length,
     reconciled: results.filter((row) => row.status === "Conciliado").length,
@@ -160,7 +193,8 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
     {message && <div className="notice">{message}</div>}
     {results.length > 0 && <><div className="intercompany-summary"><article><span>Cruzamentos</span><b>{summary.total}</b></article><article><span>Conciliados</span><b>{summary.reconciled}</b></article><article className={summary.divergent ? "has-warning" : ""}><span>Divergentes</span><b>{summary.divergent}</b></article><article className={summary.missing ? "has-warning" : ""}><span>Contas ausentes</span><b>{summary.missing}</b></article><article><span>Diferença absoluta</span><b>{money.format(summary.difference)}</b></article><article><span>Percentual conciliado</span><b>{summary.total ? `${((summary.reconciled / summary.total) * 100).toFixed(1)}%` : "0%"}</b></article></div>
       <div className="intercompany-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar empresa ou conta" /></label><select value={nature} onChange={(event) => setNature(event.target.value as typeof nature)}><option>Todas</option><option>Mútuos</option><option>Rateio CSC</option><option>Almoxarifado</option><option>Transações individuais</option></select><button onClick={() => setShowReconciled((value) => !value)}>{showReconciled ? <EyeOff /> : <Eye />}{showReconciled ? "Ocultar conciliados" : "Exibir conciliados"}</button><span>{filtered.length} item(ns)</span></div>
-      <div className="table-wrap intercompany-table"><table><thead><tr><th>Natureza</th><th>Credora</th><th>Devedora</th><th>Conta a receber</th><th>Red.</th><th>Saldo a receber</th><th>Conta a pagar</th><th>Red.</th><th>Saldo a pagar</th><th>Diferença</th><th>Situação</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => <tr key={row.id}><td>{row.nature}</td><td><b>{row.creditorCode}</b> — {row.creditorName}</td><td><b>{row.debtorCode}</b> — {row.debtorName}</td><td>{row.receivableAccount}</td><td>{row.receivableReduced || "—"}</td><td>{money.format(row.receivableBalance)}</td><td>{row.payableAccount}</td><td>{row.payableReduced || "—"}</td><td>{money.format(row.payableBalance)}</td><td className={Math.abs(row.difference) > tolerance ? "negative" : ""}><b>{money.format(row.difference)}</b></td><td><span className={`intercompany-status ${row.status === "Conciliado" ? "ok" : "warning"}`}>{row.status === "Conciliado" ? <CheckCircle2 /> : <AlertTriangle />}{row.status}</span></td></tr>) : <tr><td colSpan={11} className="empty-row">Nenhuma divergência encontrada para os filtros selecionados.</td></tr>}</tbody></table></div></>}
+      <div className="table-wrap intercompany-table"><table><thead><tr><th>Natureza</th><th>Credora</th><th>Devedora</th><th>Conta a receber</th><th>Red.</th><th>Saldo a receber</th><th>Conta a pagar</th><th>Red.</th><th>Saldo a pagar</th><th>Diferença</th><th>Situação</th><th>Lançamentos</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => <tr key={row.id}><td>{row.nature}</td><td><b>{row.creditorCode}</b> — {row.creditorName}</td><td><b>{row.debtorCode}</b> — {row.debtorName}</td><td>{row.receivableAccount}</td><td>{row.receivableReduced || "—"}</td><td>{money.format(row.receivableBalance)}</td><td>{row.payableAccount}</td><td>{row.payableReduced || "—"}</td><td>{money.format(row.payableBalance)}</td><td className={Math.abs(row.difference) > tolerance ? "negative" : ""}><b>{money.format(row.difference)}</b></td><td><span className={`intercompany-status ${row.status === "Conciliado" ? "ok" : "warning"}`}>{row.status === "Conciliado" ? <CheckCircle2 /> : <AlertTriangle />}{row.status}</span></td><td><button className="intercompany-detail-button" onClick={() => void identifyDivergentEntries(row)} disabled={row.status === "Conciliado" || loadingEntries}>{loadingEntries && selectedRow?.id === row.id ? "Buscando..." : "Identificar"}</button></td></tr>) : <tr><td colSpan={12} className="empty-row">Nenhuma divergência encontrada para os filtros selecionados.</td></tr>}</tbody></table></div>
+      {selectedRow && <div className="intercompany-entry-panel"><div className="intercompany-entry-heading"><div><b>Lançamentos divergentes</b><span>{selectedRow.creditorCode} × {selectedRow.debtorCode} · {selectedRow.nature}</span></div><button onClick={() => { setSelectedRow(null); setDivergentEntries([]); }}>Fechar</button></div>{loadingEntries ? <div className="intercompany-entry-empty"><RefreshCw className="spin" />Identificando lançamentos sem contrapartida...</div> : divergentEntries.length ? <div className="table-wrap intercompany-entry-table"><table><thead><tr><th>Lado</th><th>Empresa</th><th>Data</th><th>Conta</th><th>Descrição</th><th>Natureza</th><th>Valor</th></tr></thead><tbody>{divergentEntries.map((entry, index) => <tr key={`${entry.companyCode}-${entry.id}-${index}`}><td><b>{entry.side}</b></td><td><b>{entry.companyCode}</b> — {entry.companyName}</td><td>{entry.date || "—"}</td><td>{entry.account}</td><td>{entry.accountName}</td><td>{entry.nature}</td><td className={entry.value < 0 ? "negative" : ""}><b>{money.format(entry.value)}</b></td></tr>)}</tbody></table></div> : <div className="intercompany-entry-empty">Nenhum lançamento individual sem contrapartida foi localizado nessa consulta.</div>}</div>}</>}
     {!results.length && !loading && <div className="intercompany-empty"><Building2 /><b>Atualize os balancetes para iniciar</b><span>O botão de análise será liberado após a consulta das empresas.</span></div>}
   </section>;
 }
