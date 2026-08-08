@@ -71,6 +71,7 @@ function status(receivableFound: boolean, payableFound: boolean, difference: num
 
 export default function IntercompanyAnalysis({ companies, competence, accessToken }: { companies: CompanyOption[]; competence: string; accessToken: string }) {
   const [balances, setBalances] = useState<Record<string, BalanceRow[]>>({});
+  const [updatedCompetence, setUpdatedCompetence] = useState("");
   const [results, setResults] = useState<AnalysisRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -82,7 +83,7 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
   const normalizedCompanies = useMemo(() => Array.from(new Map(companies.map((item) => ({ ...item, code: normalizeCode(item.code) })).filter((item) => item.code !== "0").map((item) => [item.code, item])).values()), [companies]);
 
   async function updateBalances() {
-    setLoading(true); setMessage(""); setResults([]);
+    setLoading(true); setUpdatedCompetence(""); setMessage(""); setResults([]);
     const loaded: Record<string, BalanceRow[]> = {};
     const failures: string[] = [];
     for (let index = 0; index < normalizedCompanies.length; index += 5) {
@@ -99,11 +100,12 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
     }
     setBalances(loaded); setLoading(false);
     const count = Object.keys(loaded).length;
+    if (count > 0) setUpdatedCompetence(competence);
     setMessage(failures.length ? `${count} balancete(s) carregado(s). Não foi possível consultar: ${failures.join(", ")}.` : `${count} balancete(s) carregado(s) para ${competence.slice(5)}/${competence.slice(0, 4)}.`);
   }
 
   function analyze() {
-    if (!Object.keys(balances).length) return;
+    if (!Object.keys(balances).length || updatedCompetence !== competence) return;
     setAnalyzing(true);
     const output: AnalysisRow[] = [];
     const companyMap = new Map(normalizedCompanies.map((item) => [item.code, item]));
@@ -154,7 +156,7 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
 
   return <section className={`panel intercompany-panel ${loading || analyzing ? "is-processing" : ""}`}>
     {(loading || analyzing) && <div className="intercompany-processing"><RefreshCw className="spin" /><b>{loading ? "Atualizando os balancetes..." : "Cruzando as contas intercompany..."}</b><span>Aguarde a conclusão da etapa.</span></div>}
-    <div className="intercompany-heading"><div><h2>Intercompany</h2><p>Cruzamento dos saldos finais entre empresas e suas contrapartes.</p></div><div className="intercompany-actions"><button className={`secondary ${Object.keys(balances).length ? "source-loaded" : ""}`} onClick={() => void updateBalances()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando..." : "Atualizar Intercompany"}</button><button className="primary" onClick={analyze} disabled={!Object.keys(balances).length || analyzing}><Building2 />{analyzing ? "Analisando..." : "Analisar intercompany"}</button><button className="secondary" onClick={exportResults} disabled={!results.length}><Download />Exportar análise</button></div></div>
+    <div className="intercompany-heading"><div><h2>Intercompany</h2><p>Cruzamento dos saldos finais entre empresas e suas contrapartes.</p></div><div className="intercompany-actions"><button className={`secondary ${updatedCompetence === competence ? "source-loaded" : ""}`} onClick={() => void updateBalances()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando Intercompany" : "Atualizar Intercompany"}</button><button className="primary" onClick={analyze} disabled={updatedCompetence !== competence || analyzing}><Building2 />{analyzing ? "Analisando..." : "Analisar Intercompany"}</button><button className="secondary" onClick={exportResults} disabled={!results.length}><Download />Exportar análise</button></div></div>
     {message && <div className="notice">{message}</div>}
     {results.length > 0 && <><div className="intercompany-summary"><article><span>Cruzamentos</span><b>{summary.total}</b></article><article><span>Conciliados</span><b>{summary.reconciled}</b></article><article className={summary.divergent ? "has-warning" : ""}><span>Divergentes</span><b>{summary.divergent}</b></article><article className={summary.missing ? "has-warning" : ""}><span>Contas ausentes</span><b>{summary.missing}</b></article><article><span>Diferença absoluta</span><b>{money.format(summary.difference)}</b></article><article><span>Percentual conciliado</span><b>{summary.total ? `${((summary.reconciled / summary.total) * 100).toFixed(1)}%` : "0%"}</b></article></div>
       <div className="intercompany-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar empresa ou conta" /></label><select value={nature} onChange={(event) => setNature(event.target.value as typeof nature)}><option>Todas</option><option>Mútuos</option><option>Rateio CSC</option><option>Almoxarifado</option><option>Transações individuais</option></select><button onClick={() => setShowReconciled((value) => !value)}>{showReconciled ? <EyeOff /> : <Eye />}{showReconciled ? "Ocultar conciliados" : "Exibir conciliados"}</button><span>{filtered.length} item(ns)</span></div>
