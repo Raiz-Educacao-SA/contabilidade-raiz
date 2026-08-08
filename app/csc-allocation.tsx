@@ -22,19 +22,22 @@ const isEligibleRevenue = (account: string) => /^(3\.1\.1\.01\.01\.|3\.1\.1\.01\
 const isEligibleCost = (account: string) => /^(4\.1\.1\.|4\.1\.2\.|4\.2\.1\.0[1-9]\.)/.test(account)
   || ["4.2.1.10.01.13", "4.2.1.15.01.01", "4.2.1.15.01.02"].includes(account);
 const branchTen: Record<string, Company> = {
-  "6": { code: "10", name: "ESCOLAS INTEGRADAS" },
   "1": { code: "10.1", name: "QI RECREIO" },
+  "2": { code: "10.2", name: "ESCOLA SAP" },
   "7": { code: "10.2", name: "ESCOLA SAP" },
   "3": { code: "10.3", name: "SÁ PEREIRA" },
+  "4": { code: "10.3", name: "SÁ PEREIRA" },
+  "5": { code: "10.3", name: "SÁ PEREIRA" },
+  "6": { code: "10.3", name: "SÁ PEREIRA" },
 };
-const branchTenOrder = [branchTen["6"], branchTen["1"], branchTen["7"], branchTen["3"]];
+const branchTenOrder = [branchTen["1"], branchTen["2"], branchTen["3"]];
 const calculationCriteria = [
   ["1", "Competência", "Somente movimentos compreendidos entre o primeiro e o último dia do mês selecionado."],
   ["2", "Origem contábil", "Balancete CUBO.CTB.002 para todas as coligadas e Razão METTA0909 para segregar a coligada 10 por CODFILIAL."],
   ["3", "Custos elegíveis", "Somente contas vinculadas aos grupos gerenciais marcados como SIM no modelo: 1201–1208, 1301–1312, 1314, 1317, 1318 e 1409."],
   ["4", "Sinais", "Débitos aumentam o custo; créditos, estornos e reversões reduzem a base compartilhável."],
   ["5", "Faturamento", "Somente contas de receita vinculadas aos grupos gerenciais elegíveis 1100–1118, 1122, 1123 e 1125."],
-  ["6", "Coligada 10", "Segregada em 10 — Escolas Integradas, 10.1 — QI Recreio, 10.2 — Escola SAP e 10.3 — Sá Pereira, conforme CODFILIAL."],
+  ["6", "Coligada 10", "Agrupada por CODFILIAL: filial 01 em 10.1; filiais 02 e 07 em 10.2; filiais 03, 04, 05 e 06 em 10.3."],
   ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul e Didacta não participam do denominador e não recebem rateio."],
   ["8", "Contratos específicos", "Sarah: 7,5% até 2024 e 8% desde 2025. Apogeu/Espaço Mágico e Integra usam os valores mensais informados nos parâmetros."],
   ["9", "Rateio proporcional", "Base geral = custos elegíveis menos contratos específicos. Percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes gerais."],
@@ -86,9 +89,12 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
           const allocated = new Set<string>();
           data.branches.forEach(({ branch, revenue: branchValue }) => {
             const entity = branchTen[branch] || { code: `10.${branch}`, name: `FILIAL ${branch}` };
-            output[entity.code] = round(branchValue); movements[entity.code] = { revenue: round(branchValue), costs: 0, net: round(branchValue) }; allocated.add(entity.code);
+            const groupedRevenue = round((output[entity.code] || 0) + branchValue);
+            output[entity.code] = groupedRevenue;
+            movements[entity.code] = { revenue: groupedRevenue, costs: 0, net: groupedRevenue };
+            allocated.add(entity.code);
           });
-          Object.values(branchTen).filter((entity) => !allocated.has(entity.code)).forEach((entity) => { output[entity.code] = 0; movements[entity.code] = { revenue: 0, costs: 0, net: 0 }; });
+          branchTenOrder.filter((entity) => !allocated.has(entity.code)).forEach((entity) => { output[entity.code] = 0; movements[entity.code] = { revenue: 0, costs: 0, net: 0 }; });
           const branchTotal = data.branches.reduce((sum, branch) => sum + branch.revenue, 0);
           if (Math.abs(branchTotal - revenue) > 1) failures.push(`10 (diferença filial × balancete: ${money.format(branchTotal - revenue)})`);
         } else { output[company.code] = revenue; movements[company.code] = { revenue, costs, net: round(revenue - costs) }; }
