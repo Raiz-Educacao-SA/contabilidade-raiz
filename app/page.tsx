@@ -926,7 +926,9 @@ export default function Home() {
         )}
         {selectedModule === "contabil" && accountingTab === "intercompany" && (
           <IntercompanyAnalysis
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
             companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])}
+            selectedCompanyCode={company?.empresas?.codcoligada ?? ""}
             competence={competence}
             accessToken={session.access_token}
           />
