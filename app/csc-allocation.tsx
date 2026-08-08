@@ -27,6 +27,7 @@ const branchTen: Record<string, Company> = {
   "7": { code: "10.2", name: "ESCOLA SAP" },
   "3": { code: "10.3", name: "SÁ PEREIRA" },
 };
+const branchTenOrder = [branchTen["6"], branchTen["1"], branchTen["7"], branchTen["3"]];
 const calculationCriteria = [
   ["1", "Competência", "Somente movimentos compreendidos entre o primeiro e o último dia do mês selecionado."],
   ["2", "Origem contábil", "Balancete CUBO.CTB.002 para todas as coligadas e Razão METTA0909 para segregar a coligada 10 por CODFILIAL."],
@@ -42,7 +43,7 @@ const calculationCriteria = [
 
 export default function CscAllocation({ companies, competence, accessToken }: { companies: Company[]; competence: string; accessToken: string }) {
   const list = useMemo(() => Array.from(new Map(companies.map((x) => ({ ...x, code: normalize(x.code) })).filter((x) => x.code !== "0").map((x) => [x.code, x])).values()), [companies]);
-  const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? Object.values(branchTen) : [company]).map((company) => [company.code, company])).values()), [list]);
+  const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
   const storageKey = `csc-allocation:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
