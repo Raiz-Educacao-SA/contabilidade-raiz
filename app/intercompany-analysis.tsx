@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 type CompanyOption = { code: string; name: string };
 type BalanceRow = { reduced: string; account: string; description: string; closingBalance: number };
 type AccountingEntry = { id: string; date: string; account: string; accountName: string; value: number; nature: string };
-type DivergentEntry = AccountingEntry & { companyCode: string; companyName: string; side: "Receber" | "Pagar" };
+type DivergentEntry = AccountingEntry & { companyCode: string; companyName: string; side: "Receber" | "Pagar"; crossing: string };
 type Nature = "Mútuos" | "Rateio CSC" | "Almoxarifado" | "Transações individuais";
 type AnalysisRow = {
   id: string;
@@ -82,6 +82,7 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
   const [nature, setNature] = useState<"Todas" | Nature>("Todas");
   const [search, setSearch] = useState("");
   const [selectedRow, setSelectedRow] = useState<AnalysisRow | null>(null);
+  const [entryScope, setEntryScope] = useState<"single" | "all" | null>(null);
   const [divergentEntries, setDivergentEntries] = useState<DivergentEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(false);
 
@@ -141,30 +142,56 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
     setMessage(`${output.length} cruzamento(s) analisado(s). ${output.filter((row) => row.status !== "Conciliado").length} requer(em) tratamento.`);
   }
 
+  const compareEntries = (row: AnalysisRow, creditorRows: AccountingEntry[], debtorRows: AccountingEntry[]) => {
+    const payableAccounts = row.payableAccount.split(" + ").map((account) => account.trim());
+    const receivables = creditorRows.filter((entry) => entry.account === row.receivableAccount);
+    const payables = debtorRows.filter((entry) => payableAccounts.includes(entry.account));
+    const matchedPayables = new Set<number>();
+    const unmatchedReceivables = receivables.filter((entry) => {
+      const match = payables.findIndex((candidate, index) => !matchedPayables.has(index) && candidate.date === entry.date && Math.abs(candidate.value + entry.value) <= tolerance);
+      if (match >= 0) { matchedPayables.add(match); return false; }
+      return true;
+    });
+    const crossing = `${row.creditorCode} × ${row.debtorCode} · ${row.nature}`;
+    return [
+      ...unmatchedReceivables.map((entry) => ({ ...entry, companyCode: row.creditorCode, companyName: row.creditorName, side: "Receber" as const, crossing })),
+      ...payables.filter((_, index) => !matchedPayables.has(index)).map((entry) => ({ ...entry, companyCode: row.debtorCode, companyName: row.debtorName, side: "Pagar" as const, crossing })),
+    ];
+  };
+
+  const loadAccountingEntries = async (company: string) => {
+    const response = await fetch(`/api/totvs/accounting?company=${company}&competence=${competence}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Não foi possível consultar os lançamentos contábeis.");
+    return (payload.rows || []) as AccountingEntry[];
+  };
+
   async function identifyDivergentEntries(row: AnalysisRow) {
-    setSelectedRow(row); setLoadingEntries(true); setDivergentEntries([]);
+    setSelectedRow(row); setEntryScope("single"); setLoadingEntries(true); setDivergentEntries([]);
     try {
-      const load = async (company: string) => {
-        const response = await fetch(`/api/totvs/accounting?company=${company}&competence=${competence}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Não foi possível consultar os lançamentos contábeis.");
-        return (payload.rows || []) as AccountingEntry[];
-      };
-      const [creditorRows, debtorRows] = await Promise.all([load(row.creditorCode), load(row.debtorCode)]);
-      const payableAccounts = row.payableAccount.split(" + ").map((account) => account.trim());
-      const receivables = creditorRows.filter((entry) => entry.account === row.receivableAccount);
-      const payables = debtorRows.filter((entry) => payableAccounts.includes(entry.account));
-      const matchedPayables = new Set<number>();
-      const unmatchedReceivables = receivables.filter((entry) => {
-        const match = payables.findIndex((candidate, index) => !matchedPayables.has(index) && candidate.date === entry.date && Math.abs(candidate.value + entry.value) <= tolerance);
-        if (match >= 0) { matchedPayables.add(match); return false; }
-        return true;
-      });
-      const output: DivergentEntry[] = [
-        ...unmatchedReceivables.map((entry) => ({ ...entry, companyCode: row.creditorCode, companyName: row.creditorName, side: "Receber" as const })),
-        ...payables.filter((_, index) => !matchedPayables.has(index)).map((entry) => ({ ...entry, companyCode: row.debtorCode, companyName: row.debtorName, side: "Pagar" as const })),
-      ].sort((a, b) => a.date.localeCompare(b.date) || Math.abs(b.value) - Math.abs(a.value));
+      const [creditorRows, debtorRows] = await Promise.all([loadAccountingEntries(row.creditorCode), loadAccountingEntries(row.debtorCode)]);
+      const output = compareEntries(row, creditorRows, debtorRows).sort((a, b) => a.date.localeCompare(b.date) || Math.abs(b.value) - Math.abs(a.value));
       setDivergentEntries(output);
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setLoadingEntries(false); }
+  }
+
+  async function identifyAllDivergentEntries() {
+    const divergentRows = results.filter((row) => row.status !== "Conciliado");
+    if (!divergentRows.length) return;
+    setSelectedRow(null); setEntryScope("all"); setLoadingEntries(true); setDivergentEntries([]);
+    try {
+      const companyCodes = Array.from(new Set(divergentRows.flatMap((row) => [row.creditorCode, row.debtorCode])));
+      const cache: Record<string, AccountingEntry[]> = {};
+      for (let index = 0; index < companyCodes.length; index += 5) {
+        const batch = companyCodes.slice(index, index + 5);
+        const loaded = await Promise.all(batch.map(async (company) => ({ company, rows: await loadAccountingEntries(company) })));
+        loaded.forEach((item) => { cache[item.company] = item.rows; });
+      }
+      const output = divergentRows.flatMap((row) => compareEntries(row, cache[row.creditorCode] || [], cache[row.debtorCode] || []))
+        .sort((a, b) => a.crossing.localeCompare(b.crossing) || a.date.localeCompare(b.date) || Math.abs(b.value) - Math.abs(a.value));
+      setDivergentEntries(output);
+      setMessage(`${output.length} lançamento(s) divergente(s) identificado(s) nos cruzamentos que requerem tratamento.`);
     } catch (error) { setMessage((error as Error).message); }
     finally { setLoadingEntries(false); }
   }
@@ -188,13 +215,13 @@ export default function IntercompanyAnalysis({ companies, competence, accessToke
   }
 
   return <section className={`panel intercompany-panel ${loading || analyzing ? "is-processing" : ""}`}>
-    {(loading || analyzing) && <div className="intercompany-processing"><RefreshCw className="spin" /><b>{loading ? "Atualizando os balancetes..." : "Cruzando as contas intercompany..."}</b><span>Aguarde a conclusão da etapa.</span></div>}
-    <div className="intercompany-heading"><div><h2>Intercompany</h2><p>Cruzamento dos saldos finais entre empresas e suas contrapartes.</p></div><div className="intercompany-actions"><button className={`secondary ${updatedCompetence === competence ? "source-loaded" : ""}`} onClick={() => void updateBalances()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando Intercompany" : "Atualizar Intercompany"}</button><button className="primary" onClick={analyze} disabled={updatedCompetence !== competence || analyzing}><Building2 />{analyzing ? "Analisando..." : "Analisar Intercompany"}</button><button className="secondary" onClick={exportResults} disabled={!results.length}><Download />Exportar análise</button></div></div>
+    {(loading || analyzing) && <div className="intercompany-processing"><RefreshCw className="spin" /><b>{loading ? "Atualizando Intercompany" : "Analisando Intercompany"}</b><span>Aguarde a conclusão da etapa.</span></div>}
+    <div className="intercompany-heading"><div><h2>Intercompany</h2><p>Cruzamento dos saldos finais entre empresas e suas contrapartes.</p></div><div className="intercompany-actions"><button className={`secondary ${updatedCompetence === competence ? "source-loaded" : ""}`} onClick={() => void updateBalances()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando Intercompany" : "Atualizar Intercompany"}</button><button className="primary" onClick={analyze} disabled={updatedCompetence !== competence || analyzing}><Building2 />{analyzing ? "Analisando Intercompany" : "Analisar Intercompany"}</button><button className="secondary" onClick={() => void identifyAllDivergentEntries()} disabled={!results.some((row) => row.status !== "Conciliado") || loadingEntries}><Search />{loadingEntries && entryScope === "all" ? "Identificando..." : "Identificar"}</button><button className="secondary" onClick={exportResults} disabled={!results.length}><Download />Exportar análise</button></div></div>
     {message && <div className="notice">{message}</div>}
     {results.length > 0 && <><div className="intercompany-summary"><article><span>Cruzamentos</span><b>{summary.total}</b></article><article><span>Conciliados</span><b>{summary.reconciled}</b></article><article className={summary.divergent ? "has-warning" : ""}><span>Divergentes</span><b>{summary.divergent}</b></article><article className={summary.missing ? "has-warning" : ""}><span>Contas ausentes</span><b>{summary.missing}</b></article><article><span>Diferença absoluta</span><b>{money.format(summary.difference)}</b></article><article><span>Percentual conciliado</span><b>{summary.total ? `${((summary.reconciled / summary.total) * 100).toFixed(1)}%` : "0%"}</b></article></div>
       <div className="intercompany-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar empresa ou conta" /></label><select value={nature} onChange={(event) => setNature(event.target.value as typeof nature)}><option>Todas</option><option>Mútuos</option><option>Rateio CSC</option><option>Almoxarifado</option><option>Transações individuais</option></select><button onClick={() => setShowReconciled((value) => !value)}>{showReconciled ? <EyeOff /> : <Eye />}{showReconciled ? "Ocultar conciliados" : "Exibir conciliados"}</button><span>{filtered.length} item(ns)</span></div>
       <div className="table-wrap intercompany-table"><table><thead><tr><th>Natureza</th><th>Credora</th><th>Devedora</th><th>Conta a receber</th><th>Red.</th><th>Saldo a receber</th><th>Conta a pagar</th><th>Red.</th><th>Saldo a pagar</th><th>Diferença</th><th>Situação</th><th>Lançamentos</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => <tr key={row.id}><td>{row.nature}</td><td><b>{row.creditorCode}</b> — {row.creditorName}</td><td><b>{row.debtorCode}</b> — {row.debtorName}</td><td>{row.receivableAccount}</td><td>{row.receivableReduced || "—"}</td><td>{money.format(row.receivableBalance)}</td><td>{row.payableAccount}</td><td>{row.payableReduced || "—"}</td><td>{money.format(row.payableBalance)}</td><td className={Math.abs(row.difference) > tolerance ? "negative" : ""}><b>{money.format(row.difference)}</b></td><td><span className={`intercompany-status ${row.status === "Conciliado" ? "ok" : "warning"}`}>{row.status === "Conciliado" ? <CheckCircle2 /> : <AlertTriangle />}{row.status}</span></td><td><button className="intercompany-detail-button" onClick={() => void identifyDivergentEntries(row)} disabled={row.status === "Conciliado" || loadingEntries}>{loadingEntries && selectedRow?.id === row.id ? "Buscando..." : "Identificar"}</button></td></tr>) : <tr><td colSpan={12} className="empty-row">Nenhuma divergência encontrada para os filtros selecionados.</td></tr>}</tbody></table></div>
-      {selectedRow && <div className="intercompany-entry-panel"><div className="intercompany-entry-heading"><div><b>Lançamentos divergentes</b><span>{selectedRow.creditorCode} × {selectedRow.debtorCode} · {selectedRow.nature}</span></div><button onClick={() => { setSelectedRow(null); setDivergentEntries([]); }}>Fechar</button></div>{loadingEntries ? <div className="intercompany-entry-empty"><RefreshCw className="spin" />Identificando lançamentos sem contrapartida...</div> : divergentEntries.length ? <div className="table-wrap intercompany-entry-table"><table><thead><tr><th>Lado</th><th>Empresa</th><th>Data</th><th>Conta</th><th>Descrição</th><th>Natureza</th><th>Valor</th></tr></thead><tbody>{divergentEntries.map((entry, index) => <tr key={`${entry.companyCode}-${entry.id}-${index}`}><td><b>{entry.side}</b></td><td><b>{entry.companyCode}</b> — {entry.companyName}</td><td>{entry.date || "—"}</td><td>{entry.account}</td><td>{entry.accountName}</td><td>{entry.nature}</td><td className={entry.value < 0 ? "negative" : ""}><b>{money.format(entry.value)}</b></td></tr>)}</tbody></table></div> : <div className="intercompany-entry-empty">Nenhum lançamento individual sem contrapartida foi localizado nessa consulta.</div>}</div>}</>}
+      {entryScope && <div className="intercompany-entry-panel"><div className="intercompany-entry-heading"><div><b>Lançamentos divergentes</b><span>{entryScope === "all" ? "Todos os cruzamentos que requerem tratamento" : `${selectedRow?.creditorCode} × ${selectedRow?.debtorCode} · ${selectedRow?.nature}`}</span></div><button onClick={() => { setEntryScope(null); setSelectedRow(null); setDivergentEntries([]); }}>Fechar</button></div>{loadingEntries ? <div className="intercompany-entry-empty"><RefreshCw className="spin" />Identificando lançamentos sem contrapartida...</div> : divergentEntries.length ? <div className="table-wrap intercompany-entry-table"><table><thead><tr><th>Cruzamento</th><th>Lado</th><th>Empresa</th><th>Data</th><th>Conta</th><th>Descrição</th><th>Natureza</th><th>Valor</th></tr></thead><tbody>{divergentEntries.map((entry, index) => <tr key={`${entry.companyCode}-${entry.id}-${index}`}><td>{entry.crossing}</td><td><b>{entry.side}</b></td><td><b>{entry.companyCode}</b> — {entry.companyName}</td><td>{entry.date || "—"}</td><td>{entry.account}</td><td>{entry.accountName}</td><td>{entry.nature}</td><td className={entry.value < 0 ? "negative" : ""}><b>{money.format(entry.value)}</b></td></tr>)}</tbody></table></div> : <div className="intercompany-entry-empty">Nenhum lançamento individual sem contrapartida foi localizado nessa consulta.</div>}</div>}</>}
     {!results.length && !loading && <div className="intercompany-empty"><Building2 /><b>Atualize Intercompany para iniciar</b><span>O botão Analisar Intercompany será liberado após a atualização.</span></div>}
   </section>;
 }
