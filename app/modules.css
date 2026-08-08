@@ -401,6 +401,7 @@
 .intercompany-actions { display: flex; gap: 6px; }
 .intercompany-actions button { min-height: 30px; padding: 5px 9px; display: inline-flex; align-items: center; gap: 5px; border-radius: 8px; font-size: 8px; white-space: nowrap; }
 .intercompany-actions svg { width: 13px; height: 13px; }
+.intercompany-panel > .notice { margin: 0; padding: 5px 16px; border-radius: 0; font-size: 7px; line-height: 1.25; }
 .intercompany-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; padding: 10px 16px; background: #f7f9fc; }
 .intercompany-summary article { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .intercompany-summary article.has-warning { border-color: #f0b5ab; background: #fff8f6; }
