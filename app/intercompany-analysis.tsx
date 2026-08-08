@@ -27,7 +27,7 @@ type AnalysisRow = {
 };
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const tolerance = 0.01;
+const tolerance = 1.0;
 const holdingCode = "1";
 const normalizeCode = (value: string) => String(Number(value));
 
