@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Calculator, CheckCircle2, Download, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { Calculator, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type Company = { code: string; name: string };
@@ -44,7 +44,7 @@ const calculationCriteria = [
   ["5", "Faturamento", "Somente contas de receita vinculadas aos grupos gerenciais elegíveis 1100–1118, 1122, 1123 e 1125. ISS, PIS, COFINS e demais tributos do grupo 3.1.3.01.01 são excluídos; apenas 3.1.3.01.01.50 — benefício fiscal PAA permanece na base."],
   ["6", "Coligada 10", "Agrupada por CODFILIAL: filial 01 em 10.1; filiais 02 e 07 em 10.2; filiais 03, 04, 05 e 06 em 10.3."],
   ["7", "Exclusões", "Raiz Educação é a origem do custo. Raiz Sul, Didacta e a coligada 20 — Integra não participam do denominador e não recebem rateio."],
-  ["8", "Sarah Tijuca", "A coligada 31 é calculada separadamente a 8,5% sobre seu faturamento-base e fica fora do denominador do rateio proporcional."],
+  ["8", "Sarah Tijuca", "A coligada 31 é calculada separadamente a 8,5% sobre seu faturamento-base e fica fora do denominador do rateio proporcional. Em 06/2026, a base contratual é R$ 1.413.705,88 e o valor do CSC é R$ 120.165,00."],
   ["9", "Rateio proporcional", "Coligadas 18 e 25 seguem o faturamento, como as demais participantes. A coligada 20 fica excluída. Base proporcional = custos elegíveis menos o valor da Sarah Tijuca; percentual = faturamento elegível da empresa ÷ faturamento elegível total das participantes proporcionais."],
   ["10", "Base fechada de junho", "Para reproduzir a memória aprovada de 06/2026, prevalecem os faturamentos congelados da Matriz Educação (R$ 4.800.556), GEU (R$ 814.607), Sarah (R$ 1.171.530) e Americano (R$ 784.499). Nos demais meses, a atualização utiliza diretamente o balancete corrente do TOTVS."],
   ["11", "Ajuste Sarah", "Na competência 06/2026, a coligada 25 recebe ajuste de -R$ 3.184,40 referente ao desconto de encargos sobre impostos e contribuições previdenciárias recolhidas em atraso."],
@@ -58,7 +58,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v5:${competence}`;
+  const storageKey = `csc-allocation:v6:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
@@ -69,7 +69,6 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState<"accounting" | "">("");
   const [message, setMessage] = useState("");
-  const [parameters, setParameters] = useState(false);
   const [view, setView] = useState<"allocation" | "accounting" | "rules">("allocation");
 
   useEffect(() => {
@@ -167,8 +166,8 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   }
   return <section className="panel csc-panel">
     {loading && <div className="csc-processing"><RefreshCw className="spin" /><b>Atualizando Base TOTVS de todas as empresas</b></div>}
-    <div className="csc-heading"><div><h2>Rateio CSC</h2><p>Primeiro carregue as contas de resultado; depois rateie os custos da Raiz entre as coligadas.</p></div><div className="csc-actions"><button className={`secondary ${Object.keys(resultMovements).length ? "source-loaded" : ""}`} onClick={updateAccountingBase} disabled={!!loading}><RefreshCw />Atualizar Base TOTVS</button><button className="secondary" onClick={() => setParameters(!parameters)}><SlidersHorizontal />Parâmetros</button><button className="primary" onClick={calculate} disabled={!costPool || !Object.keys(resultMovements).length}><Calculator />Ratear custos da Raiz</button><button className="secondary" onClick={exportFile} disabled={!rows.length}><Download />Exportar memória</button></div></div>
-    <div className="csc-tabs"><button className={view === "allocation" ? "active" : ""} onClick={() => setView("allocation")}>Apuração do rateio</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}>Regras CSC</button><button className={view === "accounting" ? "active" : ""} onClick={() => setView("accounting")}>Contabilização</button></div>
+    <div className="csc-heading"><div><h2>Rateio CSC</h2><p>Primeiro carregue as contas de resultado; depois rateie os custos da Raiz entre as coligadas.</p></div><div className="csc-actions"><button className={`secondary ${Object.keys(resultMovements).length ? "source-loaded" : ""}`} onClick={updateAccountingBase} disabled={!!loading}><RefreshCw />Atualizar Base TOTVS</button><button className="primary" onClick={calculate} disabled={!costPool || !Object.keys(resultMovements).length}><Calculator />Ratear custos da Raiz</button><button className="secondary" onClick={exportFile} disabled={!rows.length}><Download />Exportar memória</button></div></div>
+    <div className="csc-tabs"><button className={view === "allocation" ? "active" : ""} onClick={() => setView("allocation")}>Apuração do rateio</button><button className={view === "accounting" ? "active" : ""} onClick={() => setView("accounting")}>Contabilização</button><button className={view === "rules" ? "active" : ""} onClick={() => setView("rules")}>Regras CSC</button></div>
     {message && <div className="notice">{message}</div>}
     {view === "rules" ? <div className="csc-rules">
       <div className="csc-rule-intro"><b>Premissas identificadas na planilha modelo</b><span>Estas regras formam a memória de cálculo e devem ser revisadas quando houver alteração contratual.</span></div>
@@ -179,7 +178,6 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
       <div className="csc-accounting-heading"><div><b>Valores para contabilização</b><span>Um lançamento na empresa beneficiária e a contrapartida correspondente na Raiz Educação.</span></div><button className="secondary" onClick={exportAccounting} disabled={!rows.length}><Download />Exportar contabilização</button></div>
       {rows.length ? <><div className="csc-accounting-summary"><article><span>Empresas para contabilizar</span><b>{rows.filter((row) => Math.abs(row.finalValue) >= .01).length}</b></article><article><span>Total a debitar nas empresas</span><b>{money.format(totals.final)}</b></article><article><span>Total a creditar na Raiz</span><b>{money.format(totals.final)}</b></article><article className="is-balanced"><span>Conferência débito × crédito</span><b>{money.format(0)}</b><small><CheckCircle2 /> Fechado</small></article></div><div className="table-wrap csc-accounting-table"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Valor</th><th>Débito na empresa</th><th>Crédito na empresa</th><th>Débito na Raiz</th><th>Crédito na Raiz</th></tr></thead><tbody>{rows.filter((row) => Math.abs(row.finalValue) >= .01).map((row) => <tr key={`accounting-${row.code}`}><td><b>{row.code}</b></td><td>{row.name}</td><td><b>{money.format(row.finalValue)}</b></td><td>Despesa com CSC</td><td>CSC a pagar para a Raiz</td><td>CSC a receber — {row.name}</td><td>Receita de CSC</td></tr>)}</tbody><tfoot><tr><td colSpan={2}>Total</td><td>{money.format(totals.final)}</td><td colSpan={4}>Débitos e créditos conferidos</td></tr></tfoot></table></div><p className="csc-accounting-note">Os códigos das contas contábeis devem seguir o plano de contas parametrizado no TOTVS RM. A memória identifica a natureza e o valor de cada lançamento.</p></> : <div className="csc-empty"><Calculator /><b>Calcule o rateio para gerar a contabilização</b><span>Os valores serão apresentados empresa por empresa.</span></div>}
     </div> : <>
-    {parameters && <div className="csc-parameters"><label>Valor mensal Sarah Tijuca<input type="number" step=".01" value={sarahTijucaValue} onChange={(e) => setSarahTijucaValue(Number(e.target.value))} /></label><small>O contrato da coligada 31 corresponde a 8,5% da base contratual. Apogeu, Integra e Sarah participam proporcionalmente ao faturamento.</small></div>}
     <div className="csc-summary"><article><span>Custos da Raiz no mês</span><b>{money.format(costPool)}</b><small>{competence.slice(5)}/{competence.slice(0, 4)}</small></article><article><span>Base proporcional do mês</span><b>{money.format(rows.length ? rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0) : 0)}</b></article><article><span>Rateio calculado</span><b>{money.format(totals.calculated)}</b></article><article><span>Ajustes</span><b>{money.format(totals.adjustment)}</b></article><article className={rows.length && Math.abs(difference) <= .1 ? "is-balanced" : ""}><span>Diferença de fechamento</span><b>{money.format(difference)}</b><small>{rows.length && Math.abs(difference) <= .1 ? <><CheckCircle2 /> Fechado</> : "Aguardando cálculo"}</small></article></div>
     <div className="csc-company-list-title"><div><b>Base contábil mensal — contas de resultado</b><span>{calculationList.length} empresa(s), incluindo a Raiz · competência {competence.slice(5)}/{competence.slice(0, 4)}</span></div></div>
     <div className="table-wrap csc-table csc-company-preview"><table><thead><tr><th>Coligada</th><th>Empresa</th><th>Receitas do mês</th><th>Custos/despesas do mês</th><th>Movimento líquido</th><th>Função no rateio</th><th>Situação</th></tr></thead><tbody>{calculationList.map((row) => <tr key={`preview-${row.code}`}><td><b>{row.code}</b></td><td>{row.name}</td><td>{money.format(row.revenue)}</td><td>{money.format(row.costs)}</td><td className={row.net < 0 ? "negative" : ""}><b>{money.format(row.net)}</b></td><td>{row.rule}</td><td><span className={`csc-company-status ${row.status === "Calculada" ? "done" : row.status === "Base carregada" ? "ready" : ""}`}>{row.status}</span></td></tr>)}</tbody></table></div>
