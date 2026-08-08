@@ -222,7 +222,7 @@ export default function RevenueReconciliation({
             <Calculator />
             {loading === "accounting"
               ? "Atualizando..."
-              : "Atualizar base contábil"}
+              : "Atualizar Base TOTVS"}
           </button>
         </div>
       </div>

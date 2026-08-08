@@ -517,7 +517,7 @@ export default function MonthlyReconciliationPanel({
               onClick={refreshAccounting}
             >
               <RefreshCw className={accountingBusy ? "spinning" : ""} />
-              {accountingBusy ? "Atualizando..." : "Atualizar contábil"}
+              {accountingBusy ? "Atualizando Base TOTVS..." : "Atualizar Base TOTVS"}
             </button>
           </article>
           <article
