@@ -431,4 +431,1233 @@ export default function Home() {
       {
         id: crypto.randomUUID(),
         bankName,
-        bankAccount: bankMetadata.account,×MyêÚ$z{-®éÜj×÷7ãàĞ¢Ç7â6Æ74æÖSÒ&ÖöGVÆRÖ6÷’#àĞ¢Æ#ç¶—FVÒçF—FÆWÓÂö#àĞ¢Ç6ÖÆÃç¶—FVÒæFW67&—F–öçÓÂ÷6ÖÆÃàĞ¢Â÷7ãàĞ¢Ç7â6Æ74æÖSÒ&ÖöGVÆRÖVçFW"#àĞ¢6W76"Ä'&÷tÆVgE&–v‡BóàĞ¢Â÷7ãàĞ¢Âö'WGFöãàĞ¢“°Ğ¢Ò—ĞĞ¢Â÷6V7F–öãàĞ¢ÂöÖ–ãàĞ¢“°§Ğ §G—R66†VGVÆT6öæf—&ÖF–öâÒ°¢ÖöGVÆó¢7G&–æs°¢6WF÷#¢7G&–æs°¢7FGW3¢'VæFVçFR"Â&6öæ6ÇV–Fò#°¢6öæf—&ÖFõöVÖ–Ã¢7G&–æs°¢6öæf—&ÖFõöVÓ¢7G&–æs°§Ó° §G—R66†VGVÆT†—7F÷'•&÷rÒ°¢–C¢7G&–æs°¢6ö×WFVæ6–¢7G&–æs°¢ÖöGVÆó¢7G&–æs°¢6WF÷#¢7G&–æs°¢6ó¢&Æ–&W&Fò"Â'&V&W'Fò#°¢W7V&–õöVÖ–Ã¢7G&–æs°¢7&–FõöVÓ¢7G&–æs°§Ó° ¦gVæ7F–öâ6Æ÷6–æu66†VGVÆR‡²–V"ÂÖöçF‚Â6Æ÷6–ætFFRÂW6W$–BÂW6W$VÖ–ÂÂW6W%&öf–ÆW2Ó¢²–V#¢çVÖ&W#²ÖöçFƒ¢çVÖ&W#²6Æ÷6–ætFFS¢7G&–æs²W6W$–C¢7G&–æs²W6W$VÖ–Ã¢7G&–æs²W6W%&öf–ÆW3¢7G&–æuµÒÒ’°¢6öç7B66†VGVÆT6ö×WFVæ6RÒG·–V'ÒÒGµ7G&–ær†ÖöçF‚’çE7F'Bƒ"Â#"—Ö°¢6öç7B¶6öæf—&ÖF–öç2Â6WD6öæf—&ÖF–öç5ÒÒW6U7FFSÅ66†VGVÆT6öæf—&ÖF–öåµÓâ…µÒ“°¢6öç7B·66†VGVÆTÆöF–ærÂ6WE66†VGVÆTÆöF–æuÒÒW6U7FFR‡G'VR“°¢6öç7B¶6öæf—&Ö–ætÖöGVÆRÂ6WD6öæf—&Ö–ætÖöGVÆUÒÒW6U7FFR‚""“°¢6öç7B·66†VGVÆTW'&÷"Â6WE66†VGVÆTW'&÷%ÒÒW6U7FFR‚""“°¢6öç7BÖöçF„VæBÒÆ7D'W6–æW74F’‡–V"ÂÖöçF‚“°¢6öç7B7FvW2Ò°¢²¶W“¢&6ö×&2"ÂæÖS¢$Ü;6GVÆò6ö×&2"Â6V7F÷#¢$6ö×&2"ÂFWF–Ã¢$f–æÆ—¦"ò–çWBFRæ÷F2"ÂFVFÆ–æS¢ÖöçF„VæBÂÖ–ÆW7FöæS¢,9¦ÇF–ÖòF–;§F–Â"Â–6öã¢6†÷–æt6'BÒÀ¢²¶W“¢&f–ææ6V—&ò"ÂæÖS¢$Ü;6GVÆòf–ææ6V—&ò"Â6V7F÷#¢$f–ææ6V—&ò"ÂFWF–Ã¢$6öæ6ÇV—"6öæ6–Æ–:|;VW2RVæL:¦æ6–2f–ææ6V—&2"ÂFVFÆ–æS¢FD'W6–æW74F—2†ÖöçF„VæBÂ2’ÂÖ–ÆW7FöæS¢$B³2"Â–6öã¢vÆÆWD6&G2ÒÀ¢²¶W“¢&föÆ†"ÂæÖS¢$Ü;6GVÆòföÆ†FRvÖVçFò"Â6V7F÷#¢$föÆ†FRvÖVçFò"ÂFWF–Ã¢$6öæfW&—"föÆ†Â&÷f—<;VW2RVæ6&v÷2"ÂFVFÆ–æS¢FD'W6–æW74F—2†ÖöçF„VæBÂR’ÂÖ–ÆW7FöæS¢$B³R"Â–6öã¢W6W'5&÷VæBÒÀ¢²¶W“¢&6öçF&–Â"ÂæÖS¢$Ü;6GVÆò6öçL:&–Â"Â6V7F÷#¢$6öçF&–Æ–FFR"ÂFWF–Ã¢$6öç6öÆ–F"ì:Æ—6W2R6öæ6ÇV—"òfV6†ÖVçFò"ÂFVFÆ–æS¢6Æ÷6–ætFFRòæWrFFR†G¶6Æ÷6–ætFFWÕC#££’¢FD'W6–æW74F—2†ÖöçF„VæBÂ’ÂÖ–ÆW7FöæS¢$FFFVf–æ–F"Â–6öã¢&ööµFW‡BÒÀ¢²¶W“¢&&öö²"ÂæÖS¢$&öö²6öçL:&–Â"Â6V7F÷#¢$6öçF&–Æ–FFR"ÂFWF–Ã¢$F—7öæ–&–Æ—¦"ò&öGWFòf–æÂFòfV6†ÖVçFò"ÂFVFÆ–æS¢6Æ÷6–ætFFRòæWrFFR†G¶6Æ÷6–ætFFWÕC#££’¢FD'W6–æW74F—2†ÖöçF„VæBÂ’ÂÖ–ÆW7FöæS¢$VçG&Vvf–æÂ"Â–6öã¢&öö´÷Vä6†V6²ÒÀ¢Ó°¢6öç7B7F'BÒæWrFFR‡–V"ÂÖöçF‚Â“°¢6öç7Bf–æÄFVFÆ–æRÒ7FvW2æB‚Ó’æFVFÆ–æS°¢6öç7BVÆ6VBÒFöF’ævWEF–ÖR‚’Ò7F'BævWEF–ÖR‚“°¢6öç7BGW&F–öâÒÖF‚æÖ‚ƒÂf–æÄFVFÆ–æRævWEF–ÖR‚’Ò7F'BævWEF–ÖR‚’“°¢6öç7B÷fW&ÆÅ&öw&W72ÒÖF‚æÖ‚ƒÂÖF‚æÖ–âƒÂÖF‚ç&÷VæB‚†VÆ6VBòGW&F–öâ’¢’’“°¢6öç7Bf÷&ÖDFFRÒ†FFS¢FFR’ÓâFFRçFôÆö6ÆTFFU7G&–ær‚'BÔ%""Â²F“¢#"ÖF–v—B"ÂÖöçFƒ¢#"ÖF–v—B"Ò“° ¢W6TVffV7B‚‚’Óâ°¢ÆWB7F—fRÒG'VS°¢6WE66†VGVÆTÆöF–ær‡G'VR“°¢6WE66†VGVÆTW'&÷"‚""“°¢fö–B7W&6P¢æg&öÒ‚&7&öæöw&ÖöVçG&Vv2"¢ç6VÆV7B‚&ÖöGVÆòÂ6WF÷"Â7FGW2Â6öæf—&ÖFõöVÖ–ÂÂ6öæf—&ÖFõöVÒ"¢æW‚&6ö×WFVæ6–"Â66†VGVÆT6ö×WFVæ6R¢çF†Vâ‚‡²FFÂW'&÷"Ò’Óâ°¢–b‚7F—fR’&WGW&ã°¢–b†W'&÷"’6WE66†VGVÆTW'&÷"‚$ì:6òfö’÷7<:×fVÂ6'&Vv"26öæf—&Ö:|;VW26ö×'F–Æ†F2â"“°¢VÇ6R6WD6öæf—&ÖF–öç2‚†FFóòµÒ’266†VGVÆT6öæf—&ÖF–öåµÒ“°¢6WE66†VGVÆTÆöF–ær†fÇ6R“°¢Ò“°¢&WGW&â‚’Óâ²7F—fRÒfÇ6S²Ó°¢ÒÂ·66†VGVÆT6ö×WFVæ6UÒ“° ¢7–æ2gVæ7F–öâFövvÆU7FvR‡7FvS¢‡G—Vöb7FvW2•¶çVÖ&W%ÒÂ6†V6¶VC¢&ööÆVâ’°¢6WD6öæf—&Ö–ætÖöGVÆR‡7FvRæ¶W’“°¢6WE66†VGVÆTW'&÷"‚""“°¢6öç7B6öæf—&ÖVDBÒæWrFFR‚’çFô•4õ7G&–ær‚“°¢6öç7B²W'&÷"ÒÒv—B7W&6Ræg&öÒ‚&7&öæöw&ÖöVçG&Vv2"’çW6W'B‡°¢6ö×WFVæ6–¢66†VGVÆT6ö×WFVæ6RÀ¢ÖöGVÆó¢7FvRæ¶W’À¢6WF÷#¢7FvRç6V7F÷"À¢7FGW3¢6†V6¶VBò&6öæ6ÇV–Fò"¢'VæFVçFR"À¢6öæf—&ÖFõ÷÷#¢W6W$–BÀ¢6öæf—&ÖFõöVÖ–Ã¢W6W$VÖ–ÂÀ¢6öæf—&ÖFõöVÓ¢6öæf—&ÖVDBÀ¢ÒÂ²öä6öæfÆ–7C¢&6ö×WFVæ6–ÆÖöGVÆò"Ò“°¢–b†W'&÷"’°¢6WE66†VGVÆTW'&÷"‚$òô²ì:6ò;FFR6W"&Vv—7G&FòâFVçFRæ÷fÖVçFRâ"“°¢ÒVÇ6R°¢6öç7B²W'&÷#¢†—7F÷'”W'&÷"ÒÒv—B7W&6Ræg&öÒ‚&7&öæöw&Öö†—7F÷&–6ò"’æ–ç6W'B‡°¢6ö×WFVæ6–¢66†VGVÆT6ö×WFVæ6RÀ¢ÖöGVÆó¢7FvRæ¶W’À¢6WF÷#¢7FvRç6V7F÷"À¢6ó¢6†V6¶VBò&Æ–&W&Fò"¢'&V&W'Fò"À¢W7V&–õö–C¢W6W$–BÀ¢W7V&–õöVÖ–Ã¢W6W$VÖ–ÂÀ¢Ò“°¢–b††—7F÷'”W'&÷"’6WE66†VGVÆTW'&÷"‚$òô²fö’GVÆ—¦FòÂÖ2ò†—7L;7&–6òì:6ò;FFR6W"&Vv—7G&Fòâ"“°¢6WD6öæf—&ÖF–öç2‚†7W'&VçB’Óâ°¢ââæ7W'&VçBæf–ÇFW"‚†—FVÒ’Óâ—FVÒæÖöGVÆòÓÒ7FvRæ¶W’’À¢²ÖöGVÆó¢7FvRæ¶W’Â6WF÷#¢7FvRç6V7F÷"Â7FGW3¢6†V6¶VBò&6öæ6ÇV–Fò"¢'VæFVçFR"Â6öæf—&ÖFõöVÖ–Ã¢W6W$VÖ–ÂÂ6öæf—&ÖFõöVÓ¢6öæf—&ÖVDBÒÀ¢Ò“°¢Ğ¢6WD6öæf—&Ö–ætÖöGVÆR‚""“°¢Ğ ¢&WGW&â€¢Ç6V7F–öâ6Æ74æÖSÒ&6Æ÷6–ær×66†VGVÆR#à¢ÆF—b6Æ74æÖSÒ'66†VGVÆRÖ÷fW'f–Wr#à¢ÆF—cà¢Ç7ãå$ô¤\8|84òDòdT4„ÔTåDóÂ÷7ãà¢Æ#ç¶ÖöçF‡5¶ÖöçF‚Ò×ÒFR·–V'ÓÂö#à¢Ç6ÖÆÃåf—<:6òvW&ÂFò&ö6W76òÂ6VÒ6W&:|:6ò÷"V×&W6ãÂ÷6ÖÆÃà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ'66†VGVÆR×v–æF÷r#à¢Ç7ãä¦æVÆ&ö¦WFFÂ÷7ãà¢Æ#ç¶f÷&ÖDFFR‡7F'B—Ò¶f÷&ÖDFFR†f–æÄFVFÆ–æR—ÓÂö#à¢Ç6ÖÆÃä6ö×&2L:’ò;¦ÇF–ÖòF–;§F–Â+r6öçF&–Æ–FFRL:’B³Â÷6ÖÆÃà¢ÂöF—cà¢ÂöF—cà ¢ÆF—b6Æ74æÖSÒ'66†VGVÆRÖÖ7FW"ÖÆ–æR#à¢Ç7â7G–ÆS×·²v–GFƒ¢G¶÷fW&ÆÅ&öw&W77ÒV×Òóà¢ÂöF—cà ¢·66†VGVÆTW'&÷"bbÆF—b6Æ74æÖSÒ'66†VGVÆRÖW'&÷"#ç·66†VGVÆTW'&÷'ÓÂöF—cçĞ ¢ÆF—b6Æ74æÖSÒ'66†VGVÆR×7FvW2#à¢·7FvW2æÖ‚‡7FvRÂ–æFW‚’Óâ°¢6öç7B–6öâÒ7FvRæ–6öã°¢6öç7B7FvTGW&F–öâÒÖF‚æÖ‚ƒÂ7FvRæFVFÆ–æRævWEF–ÖR‚’Ò7F'BævWEF–ÖR‚’“°¢6öç7B&öw&W72ÒÖF‚æÖ‚ƒÂÖF‚æÖ–âƒÂÖF‚ç&÷VæB‚†VÆ6VBò7FvTGW&F–öâ’¢’’“°¢6öç7B6öæf—&ÖF–öâÒ6öæf—&ÖF–öç2æf–æB‚†—FVÒ’Óâ—FVÒæÖöGVÆòÓÓÒ7FvRæ¶W’bb—FVÒç7FGW2ÓÓÒ&6öæ6ÇV–Fò"“°¢6öç7B6ä6öæf—&ÒÒW6W%&öf–ÆW2æ–æ6ÇVFW2‚&FÖ–æ—7G&F÷""’ÇÂ€¢7FvRç6V7F÷"ÓÓÒ$f–ææ6V—&ò"òW6W%&öf–ÆW2æ–æ6ÇVFW2‚&f–ææ6V—&ò"’ ¢7FvRç6V7F÷"ÓÓÒ$6ö×&2"òW6W%&öf–ÆW2æ–æ6ÇVFW2‚&6ö×&2"’ ¢7FvRç6V7F÷"ÓÓÒ$föÆ†FRvÖVçFò"òW6W%&öf–ÆW2ç6öÖR‚‡&öf–ÆR’Óâ&öf–ÆRÓÓÒ&föÆ†"ÇÂ&öf–ÆRÓÓÒ&föÆ†FRvÖVçFò"’ ¢W6W%&öf–ÆW2ç6öÖR‚‡&öf–ÆR’Óâ&öf–ÆRÓÓÒ&6öçF&–Â"ÇÂ&öf–ÆRÓÓÒ&6öçF&–Æ–FFR"ÇÂ&öf–ÆRÓÓÒ&6öçL:&–Â"¢“°¢&WGW&â€¢Æ'F–6ÆR¶W“×·7FvRææÖWÒ6Æ74æÖS×¶G¶–æFW‚ÓÓÒ7FvW2æÆVæwF‚Òò'66†VGVÆRÖf–æÂ×7FvR"¢"'ÒG¶6öæf—&ÖF–öâò'66†VGVÆR×7FvRÖFöæR"¢"'ÖÓà¢Ç7â6Æ74æÖSÒ'66†VGVÆR×7FvRÖ–6öâ#ãÄ–6öâóãÂ÷7ãà¢ÆF—b6Æ74æÖSÒ'66†VGVÆR×7FvRÖ6÷’#à¢ÆF—cãÆ#ç·7FvRææÖWÓÂö#ãÇ7ãå&W7öç<:fVÃ¢·7FvRç6V7F÷'Ò+r·7FvRæFWF–ÇÓÂ÷7ããÂöF—cà¢ÆF—b6Æ74æÖSÒ'66†VGVÆR×&öw&W72#ãÇ7â7G–ÆS×·²v–GFƒ¢G·&öw&W77ÒV×ÒóãÂöF—cà¢Ç6ÖÆÃç¶6öæf—&ÖF–öà¢òô²÷"G¶6öæf—&ÖF–öâæ6öæf—&ÖFõöVÖ–ÇÒVÒG¶æWrFFR†6öæf—&ÖF–öâæ6öæf—&ÖFõöVÒ’çFôÆö6ÆU7G&–ær‚'BÔ%""—Ö ¢¢&¦òFV6÷'&–Fó¢G·&öw&W77ÒVÓÂ÷6ÖÆÃà¢ÂöF—cà¢ÆF—b6Æ74æÖSÒ'66†VGVÆRÖFVFÆ–æR#ãÇ7ãç·7FvRæÖ–ÆW7FöæWÓÂ÷7ããÆ#ç¶f÷&ÖDFFR‡7FvRæFVFÆ–æR—ÓÂö#ãÂöF—cà¢ÆÆ&VÀ¢6Æ74æÖS×¶66†VGVÆRÖö²G²6ä6öæf—&Òò&—2ÖF—6&ÆVB"¢"'ÖĞ¢F—FÆS×¶6ä6öæf—&Òò$Ö&6"÷RFW6Ö&6"VçG&VvFW7FRÜ;6GVÆò"¢Æ–&W&:|:6òW†6ÇW6—fFò6WF÷"G·7FvRç6V7F÷'ÖĞ¢à¢Æ–çW@¢G—SÒ&6†V6¶&÷‚ ¢6†V6¶VC×´&ööÆVâ†6öæf—&ÖF–öâ—Ğ¢F—6&ÆVC×²6ä6öæf—&ÒÇÂ66†VGVÆTÆöF–ærÇÂ6öæf—&Ö–ætÖöGVÆRÓÓÒ7FvRæ¶W—Ğ¢öä6†ævS×²†WfVçB’Óâfö–BFövvÆU7FvR‡7FvRÂWfVçBçF&vWBæ6†V6¶VB—Ğ¢óà¢Ç7ãç¶6öæf—&Ö–ætÖöGVÆRÓÓÒ7FvRæ¶W’ò%6ÇfæFòâââ"¢$ô²'ÓÂ÷7ãà¢ÂöÆ&VÃà¢Âö'F–6ÆSà¢“°¢Ò—Ğ¢ÂöF—cà¢Â÷6V7F–öãà¢“°§Ğ ¦gVæ7F–öâ6Æ÷6–æt†—7F÷'’‚’°¢6öç7B·&÷w2Â6WE&÷w5ÒÒW6U7FFSÅ66†VGVÆT†—7F÷'•&÷uµÓâ…µÒ“°¢6öç7B¶ÆöF–ærÂ6WDÆöF–æuÒÒW6U7FFR‡G'VR“°¢6öç7B¶W'&÷"Â6WDW'&÷%ÒÒW6U7FFR‚""“° ¢W6TVffV7B‚‚’Óâ°¢ÆWB7F—fRÒG'VS°¢fö–B7W&6P¢æg&öÒ‚&7&öæöw&Öö†—7F÷&–6ò"¢ç6VÆV7B‚&–BÂ6ö×WFVæ6–ÂÖöGVÆòÂ6WF÷"Â6òÂW7V&–õöVÖ–ÂÂ7&–FõöVÒ"¢æ÷&FW"‚&7&–FõöVÒ"Â²66VæF–æs¢fÇ6RÒ¢æÆ–Ö—Bƒ3¢çF†Vâ‚‡²FFÂW'&÷#¢ÆöDW'&÷"Ò’Óâ°¢–b‚7F—fR’&WGW&ã°¢–b†ÆöDW'&÷"’6WDW'&÷"‚$ì:6òfö’÷7<:×fVÂ6'&Vv"ò†—7L;7&–6òFRVçG&Vv2â"“°¢VÇ6R6WE&÷w2‚†FFóòµÒ’266†VGVÆT†—7F÷'•&÷uµÒ“°¢6WDÆöF–ær†fÇ6R“°¢Ò“°¢&WGW&â‚’Óâ²7F—fRÒfÇ6S²Ó°¢ÒÂµÒ“° ¢6öç7BÖöGVÆTæÖW3¢&V6÷&CÇ7G&–ærÂ7G&–æsâÒ°¢6ö×&3¢$Ü;6GVÆò6ö×&2"À¢f–ææ6V—&ó¢$Ü;6GVÆòf–ææ6V—&ò"À¢föÆ†¢$Ü;6GVÆòföÆ†FRvÖVçFò"À¢6öçF&–Ã¢$Ü;6GVÆò6öçL:&–Â"À¢&öö³¢$&öö²6öçL:&–Â"À¢Ó° ¢&WGW&â€¢Ç6V7F–öâ6Æ74æÖSÒ&6Æ÷6–ærÖ†—7F÷'’#à¢Æ†VFW#à¢ÆF—cãÇ7ãä5$ôäôu$ÔDRdT4„ÔTåDóÂ÷7ããÆƒ#ä†—7L;7&–6òFRVçG&Vv3Âöƒ#ãÂöF—cà¢Ç6ÖÆÃç·&÷w2æÆVæwF‡ÒÖ÷f–ÖVçF:|:6òŒ;VW2“Â÷6ÖÆÃà¢Âö†VFW#à¢¶ÆöF–æròÇ6Æ74æÖSÒ&†—7F÷'’ÖÖW76vR#ä6'&VvæFò†—7L;7&–6òââãÂ÷â¢W'&÷"òÇ6Æ74æÖSÒ'66†VGVÆRÖW'&÷"#ç¶W'&÷'ÓÂ÷â¢&÷w2æÆVæwF‚ÓÓÒò€¢Ç6Æ74æÖSÒ&†—7F÷'’ÖÖW76vR#äæVæ‡VÖVçG&Vvfö’&Vv—7G&F–æFãÂ÷à¢’¢€¢ÆF—b6Æ74æÖSÒ&†—7F÷'’×F&ÆR×w&#à¢ÇF&ÆR6Æ74æÖSÒ&†—7F÷'’×F&ÆR#à¢ÇF†VCãÇG#ãÇFƒä6ö×WL:¦æ6–Â÷FƒãÇFƒäÜ;6GVÆóÂ÷FƒãÇFƒå6WF÷#Â÷FƒãÇFƒä:|:6óÂ÷FƒãÇFƒå&W7öç<:fVÃÂ÷FƒãÇFƒäFFR†÷&Â÷FƒãÂ÷G#ãÂ÷F†VCà¢ÇF&öG“ç·&÷w2æÖ‚‡&÷r’Óâ€¢ÇG"¶W“×·&÷ræ–GÓà¢ÇFCç·&÷ræ6ö×WFVæ6–ç6Æ–6RƒRÂr—Ò÷·&÷ræ6ö×WFVæ6–ç6Æ–6RƒÂB—ÓÂ÷FCà¢ÇFCãÆ#ç¶ÖöGVÆTæÖW5·&÷ræÖöGVÆõÒóò&÷ræÖöGVÆ÷ÓÂö#ãÂ÷FCà¢ÇFCç·&÷rç6WF÷'ÓÂ÷FCà¢ÇFCãÇ7â6Æ74æÖS×¶†—7F÷'’Ö7F–öâG·&÷ræ6÷ÖÓç·&÷ræ6òÓÓÒ&Æ–&W&Fò"ò$Æ–&W&÷R"¢%&V'&—R'ÓÂ÷7ããÂ÷FCà¢ÇFCç·&÷rçW7V&–õöVÖ–ÇÓÂ÷FCà¢ÇFCç¶æWrFFR‡&÷ræ7&–FõöVÒ’çFôÆö6ÆU7G&–ær‚'BÔ%""—ÓÂ÷FCà¢Â÷G#à¢’—ÓÂ÷F&öG“à¢Â÷F&ÆSà¢ÂöF—cà¢—Ğ¢Â÷6V7F–öãà¢“°§Ğ ¦gVæ7F–öâÆ7D'W6–æW74F’‡–V#¢çVÖ&W"ÂÖöçFƒ¢çVÖ&W"’°¢6öç7BFFRÒæWrFFR‡–V"ÂÖöçF‚Â“°¢v†–ÆR†FFRævWDF’‚’ÓÓÒÇÂFFRævWDF’‚’ÓÓÒb’FFRç6WDFFR†FFRævWDFFR‚’Ò“°¢&WGW&âFFS°§Ğ ¦gVæ7F–öâFD'W6–æW74F—2†FFS¢FFRÂÖ÷VçC¢çVÖ&W"’°¢6öç7B&W7VÇBÒæWrFFR†FFR“°¢ÆWBFFVBÒ°¢v†–ÆR†FFVBÂÖ÷VçB’°¢&W7VÇBç6WDFFR‡&W7VÇBævWDFFR‚’²“°¢–b‡&W7VÇBævWDF’‚’ÓÒbb&W7VÇBævWDF’‚’ÓÒb’FFVB³Ò°¢Ğ¢&WGW&â&W7VÇC°§Ğ ¦gVæ7F–öâf÷&ÖDFFT–çWB†FFS¢FFR’°¢&WGW&âG¶FFRævWDgVÆÅ–V"‚—ÒÒGµ7G&–ær†FFRævWDÖöçF‚‚’²’çE7F'Bƒ"Â#"—ÒÒGµ7G&–ær†FFRævWDFFR‚’’çE7F'Bƒ"Â#"—Ö°§Ğ ¦gVæ7F–öâ&Wf–÷W46ö×WFVæ6R†6ö×WFVæ6S¢7G&–ær’°¢6öç7B·–V"ÂÖöçF…ÒÒ6ö×WFVæ6Rç7Æ—B‚"Ò"’æÖ„çVÖ&W"“°Ğ¢6öç7B&Wf–÷W2ÒæWrFFR„FFRåUD2‡–V"ÂÖöçF‚Ò"Â’“°Ğ¢&WGW&âG·&Wf–÷W2ævWEUD4gVÆÅ–V"‚—ÒÒGµ7G&–ær‡&Wf–÷W2ævWEUD4ÖöçF‚‚’²’çE7F'Bƒ"Â#"—Ö°Ğ§ĞĞ Ğ¦gVæ7F–öâ&Ææ6UæVÂ‡°Ğ¢6ö×ç”–BÀĞ¢6ö×WFVæ6RÀĞ¢66÷VçG2ÀĞ¢6åw&—FRÀĞ¢W6W$–BÀĞ¢öäæ÷F–6RÀĞ§Ó¢°Ğ¢6ö×ç”–C¢7G&–æs°Ğ¢6ö×WFVæ6S¢7G&–æs°Ğ¢66÷VçG3¢66÷VçEµÓ°Ğ¢6åw&—FS¢&ööÆVã°Ğ¢W6W$–C¢7G&–æs°Ğ¢öäæ÷F–6S¢‡fÇVS¢7G&–ær’Óâfö–C°Ğ§Ò’°Ğ¢6öç7B¶66÷VçD–BÂ6WD66÷VçD–EÒÒW6U7FFR‚""“°Ğ¢6öç7B¶–æ—F–ÂÂ6WD–æ—F–ÅÒÒW6U7FFRƒ“°Ğ¢6öç7B¶f–æÂÂ6WDf–æÅÒÒW6U7FFRƒ“°Ğ¢6öç7B¶6''’Â6WD6''•ÒÒW6U7FFR†fÇ6R“°Ğ¢W6TVffV7B‚‚’Óâ°Ğ¢–b‚66÷VçD–Bbb66÷VçG5³Ò’6WD66÷VçD–B†66÷VçG5³Òæ–B“°Ğ¢ÒÂ¶66÷VçG2Â66÷VçD–EÒ“°Ğ¢W6TVffV7B‚‚’Óâ°Ğ¢–b‚66÷VçD–B’&WGW&ã°Ğ¢†7–æ2‚’Óâ°Ğ¢6öç7B7W'&VçBÒv—B7W&6PĞ¢æg&öÒ‚'6ÆF÷5ö&æ6&–÷2"Ğ¢ç6VÆV7B‚'6ÆFõö–æ–6–ÂÇ6ÆFõöf–æÂÆf—†%öÖW5÷6VwV–çFR"Ğ¢æW‚&6öçFö&æ6&–ö–B"Â66÷VçD–BĞ¢æW‚&6ö×WFVæ6–"Â6ö×WFVæ6RĞ¢æÖ–&U6–ævÆR‚“°Ğ¢–b†7W'&VçBæW'&÷"’&WGW&âöäæ÷F–6R†7W'&VçBæW'&÷"æÖW76vR“°Ğ¢–b†7W'&VçBæFF’°Ğ¢6WD–æ—F–Â„çVÖ&W"†7W'&VçBæFFç6ÆFõö–æ–6–Â’“°Ğ¢6WDf–æÂ„çVÖ&W"†7W'&VçBæFFç6ÆFõöf–æÂ’“°Ğ¢6WD6''’„&ööÆVâ†7W'&VçBæFFæf—†%öÖW5÷6VwV–çFR’“°Ğ¢&WGW&ã°Ğ¢ĞĞ¢6öç7B&Wf–÷W2Òv—B7W&6PĞ¢æg&öÒ‚'6ÆF÷5ö&æ6&–÷2"Ğ¢ç6VÆV7B‚'6ÆFõöf–æÂÆf—†%öÖW5÷6VwV–çFR"Ğ¢æW‚&6öçFö&æ6&–ö–B"Â66÷VçD–BĞ¢æW‚&6ö×WFVæ6–"Â&Wf–÷W46ö×WFVæ6R†6ö×WFVæ6R’Ğ¢æÖ–&U6–ævÆR‚“°Ğ¢6WD–æ—F–Â€Ğ¢&Wf–÷W2æFFòæf—†%öÖW5÷6VwV–çFPĞ¢òçVÖ&W"‡&Wf–÷W2æFFç6ÆFõöf–æÂĞ¢¢ÀĞ¢“°Ğ¢6WDf–æÂƒ“°Ğ¢6WD6''’†fÇ6R“°Ğ¢Ò’‚“°Ğ¢ÒÂ¶66÷VçD–BÂ6ö×WFVæ6RÂöäæ÷F–6UÒ“°Ğ¢7–æ2gVæ7F–öâ6fR‚’°Ğ¢6öç7B²W'&÷"ÒÒv—B7W&6PĞ¢æg&öÒ‚'6ÆF÷5ö&æ6&–÷2"Ğ¢çW6W'B€Ğ¢°Ğ¢6öçFö&æ6&–ö–C¢66÷VçD–BÀĞ¢6ö×WFVæ6–¢6ö×WFVæ6RÀĞ¢6ÆFõö–æ–6–Ã¢–æ—F–ÂÀĞ¢6ÆFõöf–æÃ¢f–æÂÀĞ¢f—†%öÖW5÷6VwV–çFS¢6''’ÀĞ¢W7V&–õö–C¢W6W$–BÀĞ¢ÒÀĞ¢²öä6öæfÆ–7C¢&6öçFö&æ6&–ö–BÆ6ö×WFVæ6–"ÒÀĞ¢“°Ğ¢öäæ÷F–6R†W'&÷#òæÖW76vRóò%6ÆF÷2GVÆ—¦F÷2â"“°Ğ¢ĞĞ¢&WGW&â€Ğ¢Ç6V7F–öâ6Æ74æÖSÒ'æVÂ#àĞ¢Æƒ#å6ÆF÷2&æ<:&–÷3Âöƒ#àĞ¢ÆF—b6Æ74æÖSÒ&f÷&ÒÖw&–B#àĞ¢ÆÆ&VÃàĞ¢6öçFĞ¢Ç6VÆV7@Ğ¢fÇVS×¶66÷VçD–GĞĞ¢öä6†ævS×²†R’Óâ6WD66÷VçD–B†RçF&vWBçfÇVR—ĞĞ¢àĞ¢¶66÷VçG2æÖ‚†—FVÒ’Óâ€Ğ¢Æ÷F–öâ¶W“×¶—FVÒæ–GÒfÇVS×¶—FVÒæ–GÓàĞ¢¶—FVÒæ&æ6÷Ò+r¶—FVÒæ6öçFö&æ6&–ĞĞ¢Âö÷F–öãàĞ¢’—ĞĞ¢Â÷6VÆV7CàĞ¢ÂöÆ&VÃàĞ¢ÆÆ&VÃàĞ¢6ÆFò–æ–6–ÀĞ¢Æ–çW@Ğ¢G—SÒ&çVÖ&W" Ğ¢7FWÒ#ã Ğ¢fÇVS×¶–æ—F–ÇĞĞ¢öä6†ævS×²†R’Óâ6WD–æ—F–Â„çVÖ&W"†RçF&vWBçfÇVR’—ĞĞ¢óàĞ¢ÂöÆ&VÃàĞ¢ÆÆ&VÃàĞ¢6ÆFòf–æÀĞ¢Æ–çW@Ğ¢G—SÒ&çVÖ&W" Ğ¢7FWÒ#ã Ğ¢fÇVS×¶f–æÇĞĞ¢öä6†ævS×²†R’Óâ6WDf–æÂ„çVÖ&W"†RçF&vWBçfÇVR’—ĞĞ¢óàĞ¢ÂöÆ&VÃàĞ¢ÆÆ&VÂ6Æ74æÖSÒ&6†V6¶&÷‚#àĞ¢Æ–çW@Ğ¢G—SÒ&6†V6¶&÷‚ Ğ¢6†V6¶VC×¶6''—ĞĞ¢öä6†ævS×²†R’Óâ6WD6''’†RçF&vWBæ6†V6¶VB—ĞĞ¢óàĞ¢f—†"&òÜ:§26VwV–çFPĞ¢ÂöÆ&VÃàĞ¢ÂöF—càĞ¢Æ'WGFöàĞ¢6Æ74æÖSÒ'&–Ö'’ Ğ¢F—6&ÆVC×²6åw&—FRÇÂ6ö×ç”–BÇÂ66÷VçD–GĞĞ¢öä6Æ–6³×·6fWĞĞ¢àĞ¢Å6fRóàĞ¢6Çf"6ÆF÷0Ğ¢Âö'WGFöãàĞ¢Â÷6V7F–öãàĞ¢“°Ğ§ĞĞ
+        bankAccount: bankMetadata.account,
+        accountCode: detectedAccount.code,
+        accountName: detectedAccount.name,
+        rows: results,
+      },
+    ]);
+    setBank([]);
+    setBankName("");
+    setBankMetadata({
+      agency: "",
+      account: "",
+      period: "",
+      name: "",
+      openingBalance: null,
+      closingBalance: null,
+    });
+    setResults([]);
+    setNotice("ConciliaÃ§Ã£o fixada. Agora carregue o extrato do prÃ³ximo banco.");
+  }
+  async function saveAccount(event: React.FormEvent) {
+    event.preventDefault();
+    if (!canWrite) return;
+    setBusy(true);
+    const { error } = await supabase
+      .from("contas_bancarias")
+      .insert({ ...newAccount, empresa_id: companyId, ativa: true });
+    setBusy(false);
+    if (error) return setNotice(error.message);
+    setNotice("Conta cadastrada.");
+    location.reload();
+  }
+  async function storeStatement(file?: File) {
+    if (!file || !selectedAccount || !session) return;
+    setBusy(true);
+    const path = `${companyId}/${competence}/${selectedAccount}/${crypto.randomUUID()}_${file.name.replace(/[^A-Za-z0-9._-]/g, "_")}`;
+    const uploaded = await supabase.storage
+      .from("extratos-bancarios")
+      .upload(path, file);
+    if (!uploaded.error)
+      await supabase
+        .from("arquivos_importados")
+        .insert({
+          empresa_id: companyId,
+          competencia: competence,
+          conta_bancaria_id: selectedAccount,
+          tipo_arquivo: "extrato",
+          caminho_storage: path,
+          nome_original: file.name,
+          usuario_id: session.user.id,
+        });
+    setBusy(false);
+    setNotice(uploaded.error?.message ?? "Extrato armazenado com seguranÃ§a.");
+  }
+
+  if (loading)
+    return (
+      <main className="center">
+        <section className="login-card auth-check">
+          <div className="spinner" />
+          <h1>Verificando autenticaÃ§Ã£o...</h1>
+          <p>Aguarde enquanto confirmamos seu acesso ao Contabilidade Raiz.</p>
+        </section>
+      </main>
+    );
+  if (!configured)
+    return (
+      <main className="center">
+        <section className="login-card">
+          <h1>ConfiguraÃ§Ã£o incompleta</h1>
+          <p>
+            Cadastre NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY na
+            Vercel.
+          </p>
+        </section>
+      </main>
+    );
+  if (!session)
+    return (
+      <main className="center">
+        <form className="login-card" onSubmit={login}>
+          <Image
+            className="brand-logo"
+            src="/logo-raiz.png"
+            alt="Raiz EducaÃ§Ã£o"
+            width={118}
+            height={118}
+            priority
+          />
+          <span className="eyebrow">CONTABILIDADE CORPORATIVA</span>
+          <h1>Contabilidade Raiz</h1>
+          <p>
+            Financeiro, compras, folha de pagamento e fechamento contÃ¡bil em um
+            Ãºnico ambiente.
+          </p>
+          <label>
+            E-mail
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Senha
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+          {notice && <div className="notice error">{notice}</div>}
+          <button className="primary" type="submit">
+            Entrar
+          </button>
+        </form>
+      </main>
+    );
+  if (companiesLoading)
+    return (
+      <main className="center">
+        <section className="login-card auth-check">
+          <div className="spinner" />
+          <h1>Carregando empresas...</h1>
+          <p>Aguarde enquanto confirmamos os vÃ­nculos do seu usuÃ¡rio.</p>
+        </section>
+      </main>
+    );
+  if (!companies.length)
+    return (
+      <main className="center">
+        <section className="login-card">
+          <h1>UsuÃ¡rio sem empresa vinculada</h1>
+          <p>Vincule o usuÃ¡rio a uma empresa no Supabase para continuar.</p>
+          <button onClick={() => supabase.auth.signOut()}>Sair</button>
+        </section>
+      </main>
+    );
+  if (!selectedArea)
+    return (
+      <AreaHub
+        email={session.user.email ?? ""}
+        closingDate={closingDate}
+        onClosingDateChange={(date) => void updateClosingDate(date)}
+        allowedAreas={allowedAreas}
+        onSelect={(area) => {
+          setSelectedArea(area);
+          setSelectedModule(area === "financeiro" ? null : area);
+        }}
+        onLogout={() => supabase.auth.signOut()}
+      />
+    );
+  if (selectedArea === "financeiro" && !selectedModule)
+    return (
+      <FinancialHub
+        email={session.user.email ?? ""}
+        onSelect={setSelectedModule}
+        onBack={() => setSelectedArea(null)}
+        onLogout={() => supabase.auth.signOut()}
+      />
+    );
+  if (!selectedModule) return null;
+
+  const activeModule = modules[selectedModule];
+  const ActiveModuleIcon = activeModule.icon;
+
+  return (
+    <div className={`shell ${selectedModule === "book" ? "book-shell" : ""}`}>
+      <aside>
+        <div className="logo">
+          <Image
+            className="logo-image"
+            src="/logo-raiz.png"
+            alt="Raiz EducaÃ§Ã£o"
+            width={54}
+            height={54}
+            priority
+          />
+          <div>
+            <b>CONTABILIDADE</b>
+            <span>Raiz EducaÃ§Ã£o</span>
+          </div>
+        </div>
+        <button
+          className="module-back"
+          onClick={() => {
+            if (selectedArea === "financeiro") setSelectedModule(null);
+            else {
+              setSelectedArea(null);
+              setSelectedModule(null);
+            }
+          }}
+        >
+          <ChevronLeft />
+          {selectedArea === "financeiro"
+            ? "Voltar ao Financeiro"
+            : "Voltar aos mÃ³dulos"}
+        </button>
+        <div className="current-module">
+          <ActiveModuleIcon />
+          <span>{activeModule.title}</span>
+        </div>
+        {selectedModule === "bancaria" && (
+          <nav>
+            {(
+              [
+                {
+                  id: "conciliacao",
+                  label: "ConciliaÃ§Ã£o",
+                  icon: ArrowLeftRight,
+                },
+                { id: "contas", label: "Contas", icon: WalletCards },
+                { id: "extratos", label: "Extratos", icon: Upload },
+                { id: "saldos", label: "Saldos", icon: FileSpreadsheet },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={tab === id ? "active" : ""}
+                onClick={() => setTab(id)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
+        {selectedModule === "contabil" && (
+          <nav className="accounting-nav">
+            {(
+              [
+                { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
+                { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
+                { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
+                { id: "intercompany", label: "Intercompany", icon: Building2 },
+                { id: "analise-balancete", label: "AnÃ¡lise Balancete", icon: BarChart3 },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={accountingTab === id ? "active" : ""}
+                onClick={() => setAccountingTab(id)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
+        {selectedModule === "book" && (
+          <nav className="book-base-nav">
+            <span>RelatÃ³rios Base</span>
+            {(
+              [
+                { id: "balancete", label: "Balancete", icon: FileSpreadsheet },
+                { id: "razao", label: "RazÃ£o", icon: BookText },
+                { id: "plano-contas", label: "Plano de Contas", icon: ListTree },
+              ] as const
+            ).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={bookReport === id ? "active" : ""}
+                onClick={() => setBookReport(id)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
+        {selectedModule === "cronograma" && (
+          <nav>
+            <button className={scheduleView === "acompanhamento" ? "active" : ""} onClick={() => setScheduleView("acompanhamento")}>
+              <CalendarDays /> Acompanhamento
+            </button>
+            <button className={scheduleView === "historico" ? "active" : ""} onClick={() => setScheduleView("historico")}>
+              <ListTree /> HistÃ³rico de entregas
+            </button>
+          </nav>
+        )}
+        <button className="logout" onClick={() => supabase.auth.signOut()}>
+          <LogOut />
+          Sair
+        </button>
+      </aside>
+      <main
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : ""}`}
+      >
+        <header>
+          <div>
+            <span className="eyebrow">CONTABILIDADE RAIZ</span>
+            <h1>
+              {selectedModule === "contabil"
+                ? accountingTab === "pis-cofins"
+                  ? "PIS e COFINS"
+                  : accountingTab === "analise-balancete"
+                    ? "AnÃ¡lise de Balancete"
+                  : accountingTab === "irpj-csll"
+                    ? "IRPJ/CSLL"
+                    : accountingTab === "rateio-csc"
+                      ? "Rateio CSC"
+                      : "Intercompany"
+                : activeModule.title}
+            </h1>
+            <p>
+              {selectedModule === "contabil"
+                ? "ApuraÃ§Ãµes, rateios e conferÃªncias das rotinas contÃ¡beis."
+                : activeModule.description}
+            </p>
+          </div>
+          <div className="user-chip">{session.user.email}</div>
+        </header>
+        <section className={`top-context ${selectedModule === "cronograma" ? "schedule-filters" : ""}`}>
+          <div className="filter-heading">
+            <span className="filter-icon">
+              <SlidersHorizontal />
+            </span>
+            <div>
+              <b>
+                {selectedModule === "cronograma"
+                  ? "PerÃ­odo"
+                  : selectedModule === "contabil" && accountingTab === "pis-cofins"
+                  ? "Filtros"
+                  : "Filtros da anÃ¡lise"}
+              </b>
+              <small>{selectedModule === "cronograma" ? "Selecione o ano e o mÃªs" : "Selecione a empresa e a competÃªncia"}</small>
+            </div>
+          </div>
+          <div className="filter-fields">
+            {selectedModule !== "cronograma" && <label className="company-control">
+              <span>Empresa</span>
+              <div className="company-select-stack">
+                <select
+                  value={companyId}
+                  onChange={(e) => setCompanyId(e.target.value)}
+                >
+                  {companies.map((item) => (
+                    <option key={item.empresa_id} value={item.empresa_id}>
+                      {item.empresas?.codcoligada} â€” {item.empresas?.razao_social}
+                    </option>
+                  ))}
+                </select>
+                <small>Regime tributÃ¡rio: {companyTaxRegime}</small>
+              </div>
+            </label>}
+            <div className="competence-control">
+              <label>
+                <span>Ano</span>
+                <input
+                  type="number"
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                />
+              </label>
+              <label>
+                <span>MÃªs</span>
+                <select
+                  value={month}
+                  onChange={(e) => setMonth(Number(e.target.value))}
+                >
+                  {months.map((name, index) => (
+                    <option key={name} value={index + 1}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+          {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
+            <div
+              id="pis-cofins-filter-actions"
+              className="filter-actions-slot"
+            />
+          )}
+        </section>
+        {notice && <div className="notice">{notice}</div>}
+        {selectedModule === "bancaria" && tab === "conciliacao" && (
+          <MonthlyReconciliationPanel
+            accounts={accounts}
+            competence={competence}
+            companyId={companyId}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} â€” ${company?.empresas?.razao_social ?? ""}`}
+            reconciledBy={session.user.email ?? ""}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "bancaria" && tab === "contas" && (
+          <section className="panel">
+            <div className="panel-title">
+              <div>
+                <h2>Contas bancÃ¡rias</h2>
+                <p>Cadastre o vÃ­nculo entre banco e conta contÃ¡bil.</p>
+              </div>
+            </div>
+            <div className="cards-list">
+              {accounts.map((item) => (
+                <article key={item.id}>
+                  <Landmark />
+                  <div>
+                    <b>
+                      {item.banco} Â· {item.conta_bancaria}
+                    </b>
+                    <span>
+                      Ag. {item.agencia} Â· ContÃ¡bil {item.conta_contabil}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <form className="form-grid account-form" onSubmit={saveAccount}>
+              {Object.keys(newAccount).map((key) => (
+                <label key={key}>
+                  {key.replaceAll("_", " ")}
+                  <input
+                    value={newAccount[key as keyof typeof newAccount]}
+                    onChange={(e) =>
+                      setNewAccount({ ...newAccount, [key]: e.target.value })
+                    }
+                  />
+                </label>
+              ))}
+              <button className="primary" disabled={!canWrite || busy}>
+                <Plus />
+                Cadastrar conta
+              </button>
+            </form>
+          </section>
+        )}
+        {selectedModule === "bancaria" && tab === "extratos" && (
+          <section className="panel">
+            <h2>Armazenar extratos</h2>
+            <p>
+              Os arquivos ficam no bucket privado do Supabase, organizados por
+              empresa e competÃªncia.
+            </p>
+            <div className="upload-box">
+              <Upload />
+              <label>
+                Selecionar extrato
+                <input
+                  type="file"
+                  accept=".xlsx,.xlsm"
+                  disabled={!canWrite || !selectedAccount || busy}
+                  onChange={(e) => storeStatement(e.target.files?.[0])}
+                />
+              </label>
+            </div>
+          </section>
+        )}
+        {selectedModule === "bancaria" && tab === "saldos" && (
+          <BalancePanel
+            companyId={companyId}
+            competence={competence}
+            accounts={accounts}
+            canWrite={canWrite}
+            userId={session.user.id}
+            onNotice={setNotice}
+          />
+        )}
+        {selectedModule === "book" && (
+          <BookAccountingPanel
+            report={bookReport}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} â€” ${company?.empresas?.razao_social ?? ""}`}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "receita" && (
+          <RevenueReconciliation
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} â€” ${company?.empresas?.razao_social ?? ""}`}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
+          <PisCofinsAssessment
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "contabil" && accountingTab === "analise-balancete" && (
+          <TrialBalanceAnalysis
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "contabil" && accountingTab === "intercompany" && (
+          <IntercompanyAnalysis
+            companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && (
+          <section className="panel module-workspace accounting-workspace">
+            {accountingTab === "irpj-csll" ? (
+              <ReceiptText />
+            ) : accountingTab === "rateio-csc" ? (
+              <ArrowLeftRight />
+            ) : (
+              <Building2 />
+            )}
+            <span className="eyebrow">MÃ“DULO CONTÃBIL</span>
+            <h2>
+              {accountingTab === "irpj-csll"
+                ? "IRPJ/CSLL"
+                : accountingTab === "rateio-csc"
+                  ? "Rateio CSC"
+                  : "Intercompany"}
+            </h2>
+            <p>
+              Ãrea preparada para receber as regras, bases e conferÃªncias desta rotina.
+            </p>
+          </section>
+        )}
+        {selectedModule === "cronograma" && scheduleView === "acompanhamento" && (
+          <ClosingSchedule
+            year={year}
+            month={month}
+            closingDate={closingDate}
+            userId={session.user.id}
+            userEmail={session.user.email ?? ""}
+            userProfiles={userProfiles}
+          />
+        )}
+        {selectedModule === "cronograma" && scheduleView === "historico" && (
+          <ClosingHistory />
+        )}
+        {selectedModule !== "bancaria" &&
+          selectedModule !== "book" &&
+          selectedModule !== "receita" &&
+          selectedModule !== "contabil" &&
+          selectedModule !== "cronograma" && (
+            <section className="panel module-workspace">
+              <ActiveModuleIcon />
+              <span className="eyebrow">MÃ“DULO SELECIONADO</span>
+              <h2>{activeModule.title}</h2>
+              <p>
+                A empresa{" "}
+                <b>
+                  {company?.empresas?.codcoligada} â€”{" "}
+                  {company?.empresas?.razao_social}
+                </b>{" "}
+                jÃ¡ estÃ¡ selecionada. Este espaÃ§o estÃ¡ preparado para receber as
+                regras, contratos e relatÃ³rios deste mÃ³dulo.
+              </p>
+              <div className="coming-next">
+                <Building2 />
+                <div>
+                  <b>Estrutura pronta para evoluÃ§Ã£o</b>
+                  <span>
+                    Empresa, competÃªncia e permissÃµes jÃ¡ compartilham a mesma
+                    base da conciliaÃ§Ã£o bancÃ¡ria.
+                  </span>
+                </div>
+              </div>
+            </section>
+          )}
+      </main>
+    </div>
+  );
+}
+
+function ResultBlock({ rows }: { rows: MatchRow[] }) {
+  const totals = rows.reduce<Record<string, number>>(
+    (acc, row) => ({ ...acc, [row.status]: (acc[row.status] ?? 0) + 1 }),
+    {},
+  );
+  const totalDifference = rows.reduce(
+    (sum, row) =>
+      sum +
+      (row.status === "Somente no banco"
+        ? Math.abs(row.bankValue ?? 0)
+        : row.status === "Somente na contabilidade"
+          ? Math.abs(row.accountingValue ?? 0)
+          : 0),
+    0,
+  );
+  return (
+    <>
+      <div className="result-metrics">
+        <article>
+          <b>{totals["Conciliado"] ?? 0}</b>
+          <span>Conciliados</span>
+        </article>
+        <article>
+          <b>{totals["PossÃ­vel conciliaÃ§Ã£o"] ?? 0}</b>
+          <span>PossÃ­veis</span>
+        </article>
+        <article>
+          <b>{totals["Somente no banco"] ?? 0}</b>
+          <span>Somente no banco</span>
+        </article>
+        <article>
+          <b>{totals["Somente na contabilidade"] ?? 0}</b>
+          <span>Somente na contabilidade</span>
+        </article>
+        <article>
+          <b>{brl(totalDifference)}</b>
+          <span>DiferenÃ§a de conciliaÃ§Ã£o</span>
+        </article>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Data banco</th>
+              <th>HistÃ³rico</th>
+              <th>Valor banco</th>
+              <th>Data contÃ¡bil</th>
+              <th>Valor contÃ¡bil</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index}>
+                <td>
+                  <span className={`status s${row.status.charAt(0)}`}>
+                    {row.status}
+                  </span>
+                </td>
+                <td>
+                  {row.bankDate?.toLocaleDateString("pt-BR", {
+                    timeZone: "UTC",
+                  })}
+                </td>
+                <td>{row.description}</td>
+                <td>{row.bankValue == null ? "" : brl(row.bankValue)}</td>
+                <td>
+                  {row.accountingDate?.toLocaleDateString("pt-BR", {
+                    timeZone: "UTC",
+                  })}
+                </td>
+                <td>
+                  {row.accountingValue == null ? "" : brl(row.accountingValue)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function AreaHub({
+  email,
+  closingDate,
+  onClosingDateChange,
+  allowedAreas,
+  onSelect,
+  onLogout,
+}: {
+  email: string;
+  closingDate: string;
+  onClosingDateChange: (date: string) => void;
+  allowedAreas: Area[];
+  onSelect: (area: Area) => void;
+  onLogout: () => void;
+}) {
+  const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
+  const [completedAreas, setCompletedAreas] = useState<string[]>([]);
+  const ScheduleIcon = areas.cronograma.icon;
+  const BookIcon = areas.book.icon;
+  const closingMonth = closingDate.slice(5, 7);
+  const closingYear = closingDate.slice(0, 4);
+  const scheduleCompetence = `${closingYear}-${closingMonth}`;
+  const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
+
+  useEffect(() => {
+    let active = true;
+    const loadCompletedAreas = async () => {
+      const { data } = await supabase
+        .from("cronograma_entregas")
+        .select("modulo")
+        .eq("competencia", scheduleCompetence)
+        .eq("status", "concluido");
+      if (active) setCompletedAreas((data ?? []).map((row) => row.modulo));
+    };
+    void loadCompletedAreas();
+    const channel = supabase
+      .channel(`cronograma-principal-${scheduleCompetence}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${scheduleCompetence}` }, () => void loadCompletedAreas())
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [scheduleCompetence]);
+  return (
+    <main className="module-hub">
+      <header>
+        <div className="hub-brand">
+          <Image
+            src="/logo-raiz.png"
+            alt="Raiz EducaÃ§Ã£o"
+            width={78}
+            height={78}
+            priority
+          />
+          <div>
+            <span className="eyebrow">CONTABILIDADE CORPORATIVA</span>
+            <h1>Contabilidade Raiz</h1>
+            <p>Acompanhe o cronograma, execute as etapas e conclua o fechamento no Book ContÃ¡bil.</p>
+          </div>
+        </div>
+        <div className="hub-user">
+          <span>{email}</span>
+          <button onClick={onLogout}>
+            <LogOut />
+            Sair
+          </button>
+        </div>
+      </header>
+      <section className="closing-workflow" aria-label="Fluxo do fechamento contÃ¡bil">
+        <div className="workflow-start">
+          <span className="workflow-icon"><ScheduleIcon /></span>
+          <span className="workflow-copy">
+            <small>INÃCIO DO PROCESSO</small>
+            <b>Cronograma de Fechamento</b>
+            <span>Comece por aqui: acompanhe prazos, responsÃ¡veis e o andamento de todas as etapas.</span>
+          </span>
+          <div className="workflow-date">
+            <span>MÃªs/Ano do fechamento</span>
+            <div className="workflow-date-fields">
+              <select
+                aria-label="Ano do fechamento"
+                value={closingYear}
+                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
+              >
+                {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+              <select
+                aria-label="MÃªs do fechamento"
+                value={closingMonth}
+                onChange={(event) => onClosingDateChange(`${closingYear}-${event.target.value}-10`)}
+              >
+                {months.map((name, index) => (
+                  <option key={name} value={String(index + 1).padStart(2, "0")}>{name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button className="workflow-action" onClick={() => onSelect("cronograma")}>Abrir cronograma <ArrowLeftRight /></button>
+        </div>
+
+        <div className="workflow-divider"><span>ETAPAS DE EXECUÃ‡ÃƒO</span></div>
+        <div className="workflow-modules">
+          {executionAreas.map((id) => {
+            const item = areas[id];
+            const Icon = item.icon;
+            return (
+              <button
+                key={id}
+                className={`module-card area-${id} ${completedAreas.includes(id) ? "workflow-module-done" : ""}`}
+                onClick={() => onSelect(id)}
+              >
+                <span className="module-icon">
+                  <Icon />
+                </span>
+                <span className="module-copy">
+                  <b>{item.title}</b>
+                  <small>{item.description}</small>
+                </span>
+                <span className="module-enter">
+                  Acessar mÃ³dulo <ArrowLeftRight />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {allowedAreas.includes("book") && <><div className="workflow-path" aria-hidden="true"><span>ConclusÃ£o do fechamento</span><ArrowLeftRight /></div>
+        <button className="workflow-final" onClick={() => onSelect("book")}>
+          <span className="workflow-icon"><BookIcon /></span>
+          <span className="workflow-copy">
+            <small>PRODUTO FINAL</small>
+            <b>Book ContÃ¡bil</b>
+            <span>Consolida os resultados dos mÃ³dulos e entrega a visÃ£o final do fechamento contÃ¡bil.</span>
+          </span>
+          <span className="workflow-action">Acessar Book <ArrowLeftRight /></span>
+        </button></>}
+      </section>
+    </main>
+  );
+}
+
+function FinancialHub({
+  email,
+  onSelect,
+  onBack,
+  onLogout,
+}: {
+  email: string;
+  onSelect: (module: Module) => void;
+  onBack: () => void;
+  onLogout: () => void;
+}) {
+  const financialIds: Module[] = [
+    "bancaria",
+    "receita",
+    "emprestimos",
+    "parcelamentos",
+  ];
+  return (
+    <main className="module-hub">
+      <header>
+        <div className="hub-brand">
+          <Image
+            src="/logo-raiz.png"
+            alt="Raiz EducaÃ§Ã£o"
+            width={78}
+            height={78}
+            priority
+          />
+          <div>
+            <button className="hub-back" onClick={onBack}>
+              <ChevronLeft />
+              Contabilidade Raiz
+            </button>
+            <span className="eyebrow">MÃ“DULO FINANCEIRO</span>
+            <h1>Como deseja trabalhar?</h1>
+            <p>As soluÃ§Ãµes financeiras atuais estÃ£o reunidas neste mÃ³dulo.</p>
+          </div>
+        </div>
+        <div className="hub-user">
+          <span>{email}</span>
+          <button onClick={onLogout}>
+            <LogOut />
+            Sair
+          </button>
+        </div>
+      </header>
+      <section className="module-grid">
+        {financialIds.map((id) => {
+          const item = modules[id];
+          const Icon = item.icon;
+          return (
+            <button
+              key={id}
+              className={`module-card module-${id}`}
+              onClick={() => onSelect(id)}
+            >
+              <span className="module-icon">
+                <Icon />
+              </span>
+              <span className="module-copy">
+                <b>{item.title}</b>
+                <small>{item.description}</small>
+              </span>
+              <span className="module-enter">
+                Acessar <ArrowLeftRight />
+              </span>
+            </button>
+          );
+        })}
+      </section>
+    </main>
+  );
+}
+
+type ScheduleConfirmation = {
+  modulo: string;
+  setor: string;
+  status: "pendente" | "concluido";
+  confirmado_email: string;
+  confirmado_em: string;
+};
+
+type ScheduleHistoryRow = {
+  id: string;
+  competencia: string;
+  modulo: string;
+  setor: string;
+  acao: "liberado" | "reaberto";
+  usuario_email: string;
+  criado_em: string;
+};
+
+function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[] }) {
+  const scheduleCompetence = `${year}-${String(month).padStart(2, "0")}`;
+  const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [confirmingModule, setConfirmingModule] = useState("");
+  const [scheduleError, setScheduleError] = useState("");
+  const monthEnd = lastBusinessDay(year, month);
+  const stages = [
+    { key: "compras", name: "MÃ³dulo Compras", sector: "Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Ãšltimo dia Ãºtil", icon: ShoppingCart },
+    { key: "financeiro", name: "MÃ³dulo Financeiro", sector: "Financeiro", detail: "Concluir conciliaÃ§Ãµes e pendÃªncias financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
+    { key: "folha", name: "MÃ³dulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisÃµes e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
+    { key: "contabil", name: "MÃ³dulo ContÃ¡bil", sector: "Contabilidade", detail: "Consolidar anÃ¡lises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
+    { key: "book", name: "Book ContÃ¡bil", sector: "Contabilidade", detail: "Disponibilizar o produto final do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
+  ];
+  const start = new Date(year, month, 1);
+  const finalDeadline = stages.at(-1)!.deadline;
+  const elapsed = today.getTime() - start.getTime();
+  const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
+  const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
+  const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+  useEffect(() => {
+    let active = true;
+    setScheduleLoading(true);
+    setScheduleError("");
+    void supabase
+      .from("cronograma_entregas")
+      .select("modulo, setor, status, confirmado_email, confirmado_em")
+      .eq("competencia", scheduleCompetence)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setScheduleError("NÃ£o foi possÃ­vel carregar as confirmaÃ§Ãµes compartilhadas.");
+        else setConfirmations((data ?? []) as ScheduleConfirmation[]);
+        setScheduleLoading(false);
+      });
+    return () => { active = false; };
+  }, [scheduleCompetence]);
+
+  async function toggleStage(stage: (typeof stages)[number], checked: boolean) {
+    setConfirmingModule(stage.key);
+    setScheduleError("");
+    const confirmedAt = new Date().toISOString();
+    const { error } = await supabase.from("cronograma_entregas").upsert({
+      competencia: scheduleCompetence,
+      modulo: stage.key,
+      setor: stage.sector,
+      status: checked ? "concluido" : "pendente",
+      confirmado_por: userId,
+      confirmado_email: userEmail,
+      confirmado_em: confirmedAt,
+    }, { onConflict: "competencia,modulo" });
+    if (error) {
+      setScheduleError("O OK nÃ£o pÃ´de ser registrado. Tente novamente.");
+    } else {
+      const { error: historyError } = await supabase.from("cronograma_historico").insert({
+        competencia: scheduleCompetence,
+        modulo: stage.key,
+        setor: stage.sector,
+        acao: checked ? "liberado" : "reaberto",
+        usuario_id: userId,
+        usuario_email: userEmail,
+      });
+      if (historyError) setScheduleError("O OK foi atualizado, mas o histÃ³rico nÃ£o pÃ´de ser registrado.");
+      setConfirmations((current) => [
+        ...current.filter((item) => item.modulo !== stage.key),
+        { modulo: stage.key, setor: stage.sector, status: checked ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt },
+      ]);
+    }
+    setConfirmingModule("");
+  }
+
+  return (
+    <section className="closing-schedule">
+      <div className="schedule-overview">
+        <div>
+          <span>PROJEÃ‡ÃƒO DO FECHAMENTO</span>
+          <b>{months[month - 1]} de {year}</b>
+          <small>VisÃ£o geral do processo, sem separaÃ§Ã£o por empresa.</small>
+        </div>
+        <div className="schedule-window">
+          <span>Janela projetada</span>
+          <b>{formatDate(start)} a {formatDate(finalDeadline)}</b>
+          <small>Compras atÃ© o Ãºltimo dia Ãºtil Â· Contabilidade atÃ© D+10</small>
+        </div>
+      </div>
+
+      <div className="schedule-master-line">
+        <span style={{ width: `${overallProgress}%` }} />
+      </div>
+
+      {scheduleError && <div className="schedule-error">{scheduleError}</div>}
+
+      <div className="schedule-stages">
+        {stages.map((stage, index) => {
+          const Icon = stage.icon;
+          const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
+          const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
+          const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
+          const canConfirm = userProfiles.includes("administrador") || (
+            stage.sector === "Financeiro" ? userProfiles.includes("financeiro") :
+            stage.sector === "Compras" ? userProfiles.includes("compras") :
+            stage.sector === "Folha de Pagamento" ? userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") :
+            userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contÃ¡bil")
+          );
+          return (
+            <article key={stage.name} className={`${index === stages.length - 1 ? "schedule-final-stage" : ""} ${confirmation ? "schedule-stage-done" : ""}`}>
+              <span className="schedule-stage-icon"><Icon /></span>
+              <div className="schedule-stage-copy">
+                <div><b>{stage.name}</b><span>ResponsÃ¡vel: {stage.sector} Â· {stage.detail}</span></div>
+                <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
+                <small>{confirmation
+                  ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
+                  : `Prazo decorrido: ${progress}%`}</small>
+              </div>
+              <div className="schedule-deadline"><span>{stage.milestone}</span><b>{formatDate(stage.deadline)}</b></div>
+              <label
+                className={`schedule-ok ${!canConfirm ? "is-disabled" : ""}`}
+                title={canConfirm ? "Marcar ou desmarcar a entrega deste mÃ³dulo" : `LiberaÃ§Ã£o exclusiva do setor ${stage.sector}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(confirmation)}
+                  disabled={!canConfirm || scheduleLoading || confirmingModule === stage.key}
+                  onChange={(event) => void toggleStage(stage, event.target.checked)}
+                />
+                <span>{confirmingModule === stage.key ? "Salvando..." : "OK"}</span>
+              </label>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ClosingHistory() {
+  const [rows, setRows] = useState<ScheduleHistoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from("cronograma_historico")
+      .select("id, competencia, modulo, setor, acao, usuario_email, criado_em")
+      .order("criado_em", { ascending: false })
+      .limit(300)
+      .then(({ data, error: loadError }) => {
+        if (!active) return;
+        if (loadError) setError("NÃ£o foi possÃ­vel carregar o histÃ³rico de entregas.");
+        else setRows((data ?? []) as ScheduleHistoryRow[]);
+        setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const moduleNames: Record<string, string> = {
+    compras: "MÃ³dulo Compras",
+    financeiro: "MÃ³dulo Financeiro",
+    folha: "MÃ³dulo Folha de Pagamento",
+    contabil: "MÃ³dulo ContÃ¡bil",
+    book: "Book ContÃ¡bil",
+  };
+
+  return (
+    <section className="closing-history">
+      <header>
+        <div><span>CRONOGRAMA DE FECHAMENTO</span><h2>HistÃ³rico de entregas</h2></div>
+        <small>{rows.length} movimentaÃ§Ã£o(Ãµes)</small>
+      </header>
+      {loading ? <p className="history-message">Carregando histÃ³rico...</p> : error ? <p className="schedule-error">{error}</p> : rows.length === 0 ? (
+        <p className="history-message">Nenhuma entrega foi registrada ainda.</p>
+      ) : (
+        <div className="history-table-wrap">
+          <table className="history-table">
+            <thead><tr><th>CompetÃªncia</th><th>MÃ³dulo</th><th>Setor</th><th>AÃ§Ã£o</th><th>ResponsÃ¡vel</th><th>Data e hora</th></tr></thead>
+            <tbody>{rows.map((row) => (
+              <tr key={row.id}>
+                <td>{row.competencia.slice(5, 7)}/{row.competencia.slice(0, 4)}</td>
+                <td><b>{moduleNames[row.modulo] ?? row.modulo}</b></td>
+                <td>{row.setor}</td>
+                <td><span className={`history-action ${row.acao}`}>{row.acao === "liberado" ? "Liberou" : "Reabriu"}</span></td>
+                <td>{row.usuario_email}</td>
+                <td>{new Date(row.criado_em).toLocaleString("pt-BR")}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function lastBusinessDay(year: number, month: number) {
+  const date = new Date(year, month, 0);
+  while (date.getDay() === 0 || date.getDay() === 6) date.setDate(date.getDate() - 1);
+  return date;
+}
+
+function addBusinessDays(date: Date, amount: number) {
+  const result = new Date(date);
+  let added = 0;
+  while (added < amount) {
+    result.setDate(result.getDate() + 1);
+    if (result.getDay() !== 0 && result.getDay() !== 6) added += 1;
+  }
+  return result;
+}
+
+function formatDateInput(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function previousCompetence(competence: string) {
+  const [year, month] = competence.split("-").map(Number);
+  const previous = new Date(Date.UTC(year, month - 2, 1));
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function BalancePanel({
+  companyId,
+  competence,
+  accounts,
+  canWrite,
+  userId,
+  onNotice,
+}: {
+  companyId: string;
+  competence: string;
+  accounts: Account[];
+  canWrite: boolean;
+  userId: string;
+  onNotice: (value: string) => void;
+}) {
+  const [accountId, setAccountId] = useState("");
+  const [initial, setInitial] = useState(0);
+  const [final, setFinal] = useState(0);
+  const [carry, setCarry] = useState(false);
+  useEffect(() => {
+    if (!accountId && accounts[0]) setAccountId(accounts[0].id);
+  }, [accounts, accountId]);
+  useEffect(() => {
+    if (!accountId) return;
+    (async () => {
+      const current = await supabase
+        .from("saldos_bancarios")
+        .select("saldo_inicial,saldo_final,fixar_mes_seguinte")
+        .eq("conta_bancaria_id", accountId)
+        .eq("competencia", competence)
+        .maybeSingle();
+      if (current.error) return onNotice(current.error.message);
+      if (current.data) {
+        setInitial(Number(current.data.saldo_inicial));
+        setFinal(Number(current.data.saldo_final));
+        setCarry(Boolean(current.data.fixar_mes_seguinte));
+        return;
+      }
+      const previous = await supabase
+        .from("saldos_bancarios")
+        .select("saldo_final,fixar_mes_seguinte")
+        .eq("conta_bancaria_id", accountId)
+        .eq("competencia", previousCompetence(competence))
+        .maybeSingle();
+      setInitial(
+        previous.data?.fixar_mes_seguinte
+          ? Number(previous.data.saldo_final)
+          : 0,
+      );
+      setFinal(0);
+      setCarry(false);
+    })();
+  }, [accountId, competence, onNotice]);
+  async function save() {
+    const { error } = await supabase
+      .from("saldos_bancarios")
+      .upsert(
+        {
+          conta_bancaria_id: accountId,
+          competencia: competence,
+          saldo_inicial: initial,
+          saldo_final: final,
+          fixar_mes_seguinte: carry,
+          usuario_id: userId,
+        },
+        { onConflict: "conta_bancaria_id,competencia" },
+      );
+    onNotice(error?.message ?? "Saldos atualizados.");
+  }
+  return (
+    <section className="panel">
+      <h2>Saldos bancÃ¡rios</h2>
+      <div className="form-grid">
+        <label>
+          Conta
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+          >
+            {accounts.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.banco} Â· {item.conta_bancaria}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Saldo inicial
+          <input
+            type="number"
+            step="0.01"
+            value={initial}
+            onChange={(e) => setInitial(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          Saldo final
+          <input
+            type="number"
+            step="0.01"
+            value={final}
+            onChange={(e) => setFinal(Number(e.target.value))}
+          />
+        </label>
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={carry}
+            onChange={(e) => setCarry(e.target.checked)}
+          />
+          Fixar para o mÃªs seguinte
+        </label>
+      </div>
+      <button
+        className="primary"
+        disabled={!canWrite || !companyId || !accountId}
+        onClick={save}
+      >
+        <Save />
+        Salvar saldos
+      </button>
+    </section>
+  );
+}
