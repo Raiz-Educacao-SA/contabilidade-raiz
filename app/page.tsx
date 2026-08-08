@@ -752,17 +752,17 @@ export default function Home() {
             </span>
             <div>
               <b>
-                {selectedModule === "cronograma"
+                {selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc")
                   ? "Período"
                   : selectedModule === "contabil" && (accountingTab === "pis-cofins" || accountingTab === "intercompany")
                   ? "Filtros"
                   : "Filtros da análise"}
               </b>
-              <small>{selectedModule === "cronograma" ? "Selecione o ano e o mês" : "Selecione a empresa e a competência"}</small>
+              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc") ? "Selecione o ano e o mês" : "Selecione a empresa e a competência"}</small>
             </div>
           </div>
           <div className="filter-fields">
-            {selectedModule !== "cronograma" && <label className="company-control">
+            {selectedModule !== "cronograma" && !(selectedModule === "contabil" && accountingTab === "rateio-csc") && <label className="company-control">
               <span>Empresa</span>
               <div className="company-select-stack">
                 <select
@@ -935,7 +935,7 @@ export default function Home() {
           />
         )}
         {selectedModule === "contabil" && accountingTab === "rateio-csc" && (
-          <CscAllocation key={competence} companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])} selectedCompanyCode={company?.empresas?.codcoligada ?? ""} competence={competence} accessToken={session.access_token} />
+          <CscAllocation key={competence} companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])} competence={competence} accessToken={session.access_token} />
         )}
         {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && (
           <section className="panel module-workspace accounting-workspace">
