@@ -403,6 +403,7 @@
 .intercompany-actions svg { width: 13px; height: 13px; }
 .intercompany-panel > .notice { margin: 0; padding: 5px 16px; border-radius: 0; font-size: 7px; line-height: 1.25; }
 .intercompany-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; padding: 10px 16px; background: #f7f9fc; }
+.intercompany-summary-divergences { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .intercompany-summary article { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .intercompany-summary article.has-warning { border-color: #f0b5ab; background: #fff8f6; }
 .intercompany-summary span { display: block; color: var(--muted); font-size: 7px; }
