@@ -125,6 +125,7 @@ export default function PisCofinsAssessment({
   const [otherRevenueVisible, setOtherRevenueVisible] = useState(true);
   const [annualFeeVisible, setAnnualFeeVisible] = useState(true);
   const [cancelledVisible, setCancelledVisible] = useState(true);
+  const [creditsVisible, setCreditsVisible] = useState(true);
   const [monthlyBranches, setMonthlyBranches] = useState<string[]>([]);
   const [otherRevenueBranches, setOtherRevenueBranches] = useState<string[]>([]);
   const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
@@ -169,6 +170,7 @@ export default function PisCofinsAssessment({
       setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
       setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
       setCancelledVisible(assessment?.cancelledVisible ?? true);
+      setCreditsVisible(assessment?.creditsVisible ?? true);
       setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
       setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
       setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
@@ -210,10 +212,11 @@ export default function PisCofinsAssessment({
       otherRevenueVisible,
       annualFeeVisible,
       cancelledVisible,
+      creditsVisible,
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
       requestedBranches,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -473,6 +476,79 @@ export default function PisCofinsAssessment({
       workbook,
       `pis-cofins-coligada-${companyCode}-${competence}.xlsx`,
     );
+  }
+
+  function exportItemRows(rowsToExport: Record<string, string | number>[], sheetName: string, fileName: string) {
+    if (!rowsToExport.length) return;
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rowsToExport);
+    worksheet["!cols"] = Object.keys(rowsToExport[0]).map((key) => ({ wch: Math.min(38, Math.max(12, key.length + 2)) }));
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, fileName);
+  }
+
+  function exportOtherRevenuesExcel() {
+    exportItemRows(filteredOtherRevenueRows.filter((row) => [row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)).map((row) => ({
+      Coligada: row.company,
+      Filial: row.branch,
+      Competência: competenceLabel,
+      Data: row.date,
+      "Cód. reduzido": row.reduced,
+      Conta: row.account,
+      Descrição: row.description,
+      Agrupamento: row.group,
+      Classificação: row.classification,
+      "Base tributável": row.taxBase,
+      PIS: row.pis,
+      COFINS: row.cofins,
+      "ID lançamento": row.entryId,
+      Complemento: row.complement,
+    })), "Outras Receitas", `outras-receitas-${companyCode}-${competence}.xlsx`);
+  }
+
+  function exportAnnualFeesExcel() {
+    exportItemRows(filteredAnnualFeeRows.filter((row) => Math.abs(row.netRevenue) > 0.000001).map((row) => {
+      const rate = row.regime ? rates[row.regime] : null;
+      return {
+        Coligada: row.company,
+        Filial: row.branch,
+        Competência: competenceLabel,
+        Data: row.date,
+        Conta: row.account,
+        Descrição: row.service,
+        Classificação: row.regime,
+        "Valor bruto": row.grossRevenue,
+        Descontos: row.discounts,
+        "Base tributável": row.netRevenue,
+        PIS: rate ? row.netRevenue * rate.pis : 0,
+        COFINS: rate ? row.netRevenue * rate.cofins : 0,
+        "ID lançamento": row.entryId,
+        Complemento: row.complement,
+      };
+    }), "Rateios Anuidades", `rateios-anuidades-${companyCode}-${competence}.xlsx`);
+  }
+
+  function exportCancelledInvoicesExcel() {
+    exportItemRows(filteredCancelledRows.filter((row) => Math.abs(row.netValue) > 0.000001).map((row) => {
+      const rate = row.regime ? rates[row.regime] : null;
+      return {
+        Coligada: row.company,
+        Filial: row.branch,
+        "Competência da apuração": competenceLabel,
+        "Competência de origem": row.sourceCompetence,
+        Cancelamento: row.cancellationDate,
+        "NF-e": row.invoice,
+        RPS: row.rps,
+        Aluno: row.student,
+        Serviço: row.service,
+        Classificação: row.regime,
+        "Valor bruto": row.grossValue,
+        Descontos: row.discountValue,
+        "Valor líquido excluído": row.netValue,
+        "PIS excluído": rate ? row.netValue * rate.pis : 0,
+        "COFINS excluída": rate ? row.netValue * rate.cofins : 0,
+      };
+    }), "Notas Canceladas", `notas-canceladas-${companyCode}-${competence}.xlsx`);
   }
 
   async function updateOtherRevenues() {
@@ -1081,6 +1157,9 @@ export default function PisCofinsAssessment({
           <RefreshCw className={loading ? "spin" : ""} />
           {loading ? "Atualizando..." : "Atualizar"}
         </button>
+        <button className="tax-detail-export" disabled={!loaded || !filteredRows.length} onClick={exportExcel}>
+          <Download /> Exportar
+        </button>
         <button className="tax-visibility-toggle" onClick={() => setMonthlyVisible((visible) => !visible)}>
           {monthlyVisible ? <ChevronUp /> : <ChevronDown />}
           {monthlyVisible ? "Ocultar" : "Exibir"}
@@ -1163,9 +1242,6 @@ export default function PisCofinsAssessment({
               >
                 {detailsOpen ? <ChevronUp /> : <ChevronDown />}
                 {detailsOpen ? "Ocultar detalhamento" : "Abrir detalhamento"}
-              </button>
-              <button className="tax-detail-export" onClick={exportExcel}>
-                <Download /> Exportar Excel
               </button>
             </div>
           </div>
@@ -1261,6 +1337,9 @@ export default function PisCofinsAssessment({
             <RefreshCw className={otherRevenueLoading ? "spin" : ""} />
             {otherRevenueLoading ? "Atualizando..." : "Atualizar"}
           </button>
+          <button className="tax-detail-export" disabled={!otherRevenueLoaded || !filteredOtherRevenueRows.length} onClick={exportOtherRevenuesExcel}>
+            <Download /> Exportar
+          </button>
           <button className="tax-visibility-toggle" onClick={() => setOtherRevenueVisible((visible) => !visible)}>
             {otherRevenueVisible ? <ChevronUp /> : <ChevronDown />}
             {otherRevenueVisible ? "Ocultar" : "Exibir"}
@@ -1301,6 +1380,9 @@ export default function PisCofinsAssessment({
           >
             <RefreshCw className={annualFeeLoading ? "spin" : ""} />
             {annualFeeLoading ? "Atualizando..." : "Atualizar"}
+          </button>
+          <button className="tax-detail-export" disabled={!annualFeeLoaded || !filteredAnnualFeeRows.length} onClick={exportAnnualFeesExcel}>
+            <Download /> Exportar
           </button>
           <button className="tax-visibility-toggle" onClick={() => setAnnualFeeVisible((visible) => !visible)}>
             {annualFeeVisible ? <ChevronUp /> : <ChevronDown />}
@@ -1347,6 +1429,9 @@ export default function PisCofinsAssessment({
             <RefreshCw className={cancelledLoading ? "spin" : ""} />
             {cancelledLoading ? "Atualizando..." : "Atualizar"}
           </button>
+          <button className="tax-detail-export" disabled={!cancelledLoaded || !filteredCancelledRows.length} onClick={exportCancelledInvoicesExcel}>
+            <Download /> Exportar
+          </button>
           <button className="tax-visibility-toggle" onClick={() => setCancelledVisible((visible) => !visible)}>
             {cancelledVisible ? <ChevronUp /> : <ChevronDown />}
             {cancelledVisible ? "Ocultar" : "Exibir"}
@@ -1378,6 +1463,22 @@ export default function PisCofinsAssessment({
             </table></div>
           </>
         ) : <div className="tax-source-empty"><Calculator /><b>Sem cancelamentos na competência</b><span>A consulta 37 não retornou notas municipais canceladas no período.</span></div>}
+      </section>
+      <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
+        <div className="tax-section-heading">
+          <div><b>Créditos</b><span>Créditos de PIS e COFINS · parametrização da fonte e das regras</span></div>
+          <button className="tax-secondary-update" disabled title="Aguardando a definição da fonte e das regras de crédito">
+            <RefreshCw /> Atualizar
+          </button>
+          <button className="tax-detail-export" disabled title="Disponível após a atualização dos créditos">
+            <Download /> Exportar
+          </button>
+          <button className="tax-visibility-toggle" onClick={() => setCreditsVisible((visible) => !visible)}>
+            {creditsVisible ? <ChevronUp /> : <ChevronDown />}
+            {creditsVisible ? "Ocultar" : "Exibir"}
+          </button>
+        </div>
+        {creditsVisible && <div className="tax-source-empty"><Calculator /><b>Créditos aguardando parametrização</b><span>Defina a origem dos dados, as contas permitidas e as regras de cálculo para habilitar esta etapa.</span></div>}
       </section>
     </section>
   );
