@@ -1775,8 +1775,8 @@
   z-index: 30;
   top: calc(100% + 6px);
   right: 0;
-  min-width: 225px;
-  max-height: 190px;
+  min-width: 180px;
+  max-height: 260px;
   overflow: auto;
   padding: 6px;
   border: 1px solid #d8dee8;
@@ -1784,7 +1784,7 @@
   background: #fff;
   box-shadow: 0 12px 28px rgba(30, 41, 59, 0.18);
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 }
 .tax-top-branches label,
@@ -1821,6 +1821,7 @@
 .tax-branch-toolbar span {
   padding: 0;
   font-size: 9px;
+  white-space: normal;
 }
 .tax-actions .tax-branch-toolbar button {
   min-height: 25px;
