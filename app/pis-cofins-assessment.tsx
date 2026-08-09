@@ -71,6 +71,23 @@ type OtherRevenueRow = {
   complement: string;
   costCenter: string;
 };
+type EnergyCreditRow = {
+  company: string;
+  branch: string;
+  entryId: string;
+  document: string;
+  integrationKey: string;
+  sourceSystem: string;
+  date: string;
+  reduced: number;
+  account: string;
+  description: string;
+  value: number;
+  user: string;
+  complement: string;
+  costCenter: string;
+  ticket: null | { id: string; status: string; link: string; name: string; matchScore: number };
+};
 
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -127,6 +144,11 @@ export default function PisCofinsAssessment({
   const [cancelledVisible, setCancelledVisible] = useState(true);
   const [creditsVisible, setCreditsVisible] = useState(true);
   const [creditsCategory, setCreditsCategory] = useState<"energy" | "leases">("energy");
+  const [energyRows, setEnergyRows] = useState<EnergyCreditRow[]>([]);
+  const [energyLoading, setEnergyLoading] = useState(false);
+  const [energyLoaded, setEnergyLoaded] = useState(false);
+  const [energyError, setEnergyError] = useState("");
+  const [zeevMessage, setZeevMessage] = useState("");
   const [monthlyBranches, setMonthlyBranches] = useState<string[]>([]);
   const [otherRevenueBranches, setOtherRevenueBranches] = useState<string[]>([]);
   const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
@@ -152,6 +174,8 @@ export default function PisCofinsAssessment({
     setOtherRevenueError("");
     setAnnualFeeError("");
     setCancelledError("");
+    setEnergyError("");
+    setZeevMessage("");
     setError("");
     try {
       const saved = window.localStorage.getItem(storageKey);
@@ -173,6 +197,9 @@ export default function PisCofinsAssessment({
       setCancelledVisible(assessment?.cancelledVisible ?? true);
       setCreditsVisible(assessment?.creditsVisible ?? true);
       setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
+      setEnergyRows(assessment?.energyRows || []);
+      setEnergyLoaded(Boolean(assessment?.energyLoaded));
+      setZeevMessage(String(assessment?.zeevMessage || ""));
       setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
       setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
       setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
@@ -189,6 +216,9 @@ export default function PisCofinsAssessment({
       setAnnualFeeRows([]);
       setAnnualFeeLoaded(false);
       setCancelledLoaded(false);
+      setEnergyRows([]);
+      setEnergyLoaded(false);
+      setZeevMessage("");
       setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
       setRequestedBranches([]);
     } finally {
@@ -216,10 +246,13 @@ export default function PisCofinsAssessment({
       cancelledVisible,
       creditsVisible,
       creditsCategory,
+      energyRows,
+      energyLoaded,
+      zeevMessage,
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
       requestedBranches,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -232,12 +265,16 @@ export default function PisCofinsAssessment({
     setAnnualFeeRows([]);
     setAnnualFeeLoaded(false);
     setCancelledLoaded(false);
+    setEnergyRows([]);
+    setEnergyLoaded(false);
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     setRequestedBranches([]);
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
     setCancelledError("");
+    setEnergyError("");
+    setZeevMessage("");
     setError("");
     window.localStorage.removeItem(storageKey);
   }
@@ -276,6 +313,32 @@ export default function PisCofinsAssessment({
     } finally {
       setLoading(false);
     }
+  }
+
+  async function updateEnergyCredits() {
+    setEnergyLoading(true);
+    setEnergyError("");
+    setZeevMessage("");
+    try {
+      const response = await fetch(`/api/totvs/pis-cofins/credits/energy?company=${companyCode}&competence=${competence}${branchQuery}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Falha ao consultar os lançamentos de Energia.");
+      setEnergyRows(payload.rows || []);
+      setEnergyLoaded(true);
+      setZeevMessage(payload.zeev?.error || "");
+    } catch (cause) {
+      setEnergyError((cause as Error).message);
+    } finally {
+      setEnergyLoading(false);
+    }
+  }
+
+  function exportEnergyCredits() {
+    if (!energyRows.length) return;
+    const sheet = XLSX.utils.json_to_sheet(energyRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "Chave de integração": row.integrationKey, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor contábil": row.value, "Ticket Zeev": row.ticket?.id || "Não localizado", "Situação Zeev": row.ticket?.status || "Pendente", "Link Zeev": row.ticket?.link || "" })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Energia");
+    XLSX.writeFile(workbook, `creditos-energia-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
   }
 
   const filteredRows = useMemo(() => rows.filter((row) => monthlyBranches.includes(String(row.branch || "").trim())), [rows, monthlyBranches]);
@@ -1469,11 +1532,11 @@ export default function PisCofinsAssessment({
       </section>
       <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
-          <div><b>Créditos</b><span>Créditos de PIS e COFINS · parametrização da fonte e das regras</span></div>
-          <button className="tax-secondary-update" disabled title="Aguardando a definição da fonte e das regras de crédito">
-            <RefreshCw /> Atualizar
+          <div><b>Créditos</b><span>Créditos de PIS e COFINS · conferência contábil e documentos no Zeev</span></div>
+          <button className="tax-secondary-update" disabled={creditsCategory !== "energy" || energyLoading} onClick={updateEnergyCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Arrendamentos serão configurados na próxima etapa"}>
+            <RefreshCw className={energyLoading ? "is-spinning" : ""} /> {energyLoading ? "Atualizando" : "Atualizar"}
           </button>
-          <button className="tax-detail-export" disabled title="Disponível após a atualização dos créditos">
+          <button className="tax-detail-export" disabled={creditsCategory !== "energy" || !energyRows.length} onClick={exportEnergyCredits} title="Exportar os lançamentos de Energia e os tickets localizados">
             <Download /> Exportar
           </button>
           <button className="tax-visibility-toggle" onClick={() => setCreditsVisible((visible) => !visible)}>
@@ -1486,7 +1549,19 @@ export default function PisCofinsAssessment({
             <button role="tab" aria-selected={creditsCategory === "energy"} className={creditsCategory === "energy" ? "is-active" : ""} onClick={() => setCreditsCategory("energy")}>Energia</button>
             <button role="tab" aria-selected={creditsCategory === "leases"} className={creditsCategory === "leases" ? "is-active" : ""} onClick={() => setCreditsCategory("leases")}>Arrendamentos</button>
           </div>
-          <div className="tax-source-empty"><Calculator /><b>Créditos de {creditsCategory === "energy" ? "Energia" : "Arrendamentos"}</b><span>Base preparada para receber as contas, os movimentos e as regras de cálculo desta categoria.</span></div>
+          {creditsCategory === "leases" ? <div className="tax-source-empty"><Calculator /><b>Créditos de Arrendamentos</b><span>Base preparada para receber as contas, os movimentos e as regras de cálculo desta categoria.</span></div> : <>
+            {energyError && <div className="notice error">{energyError}</div>}
+            {zeevMessage && <div className="notice">{zeevMessage} Os lançamentos contábeis permanecem disponíveis para conferência.</div>}
+            {!energyLoaded ? <div className="tax-source-empty"><Calculator /><b>Energia Elétrica · conta 4.2.1.02.04.01</b><span>Clique em Atualizar para carregar os movimentos contábeis e localizar o ticket de cada linha no Zeev.</span></div> : <>
+              <div className="tax-other-summary">
+                <article><span>Lançamentos</span><b>{energyRows.length}</b><small>Conta 913</small></article>
+                <article><span>Valor contábil</span><b>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</b><small>Competência {competenceLabel}</small></article>
+                <article><span>Tickets localizados</span><b>{energyRows.filter((row) => row.ticket).length}</b><small>Vínculo com o Zeev</small></article>
+                <article className={energyRows.some((row) => !row.ticket) ? "has-warning" : ""}><span>Sem ticket</span><b>{energyRows.filter((row) => !row.ticket).length}</b><small>Requer tratamento</small></article>
+              </div>
+              {energyRows.length ? <div className="table-wrap"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>Chave integração</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th></tr></thead><tbody>{energyRows.map((row) => <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td>{row.integrationKey || "—"}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? row.ticket.link ? <a href={row.ticket.link} target="_blank" rel="noreferrer">#{row.ticket.id}</a> : `#${row.ticket.id}` : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td></tr>)}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={2}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
+            </>}
+          </>}
         </>}
       </section>
     </section>
