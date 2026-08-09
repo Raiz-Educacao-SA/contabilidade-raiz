@@ -39,23 +39,108 @@ async function queryTotvs(company: string, firstDay: string, lastDay: string) {
 
 type ZeevInstance = Record<string, unknown>;
 
+function listFromPayload(payload: unknown): ZeevInstance[] {
+  if (Array.isArray(payload)) return payload as ZeevInstance[];
+  if (!payload || typeof payload !== "object") return [];
+  const value = payload as Record<string, unknown>;
+  for (const key of ["items", "value", "results", "data"]) {
+    if (Array.isArray(value[key])) return value[key] as ZeevInstance[];
+  }
+  return [];
+}
+
+function collectFieldNames(value: unknown, result = new Set<string>()) {
+  if (Array.isArray(value)) value.forEach((item) => collectFieldNames(item, result));
+  else if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.name === "string" && record.name.trim()) result.add(record.name.trim());
+    Object.values(record).forEach((item) => collectFieldNames(item, result));
+  }
+  return result;
+}
+
+function collectDocumentLinks(value: unknown, result = new Map<string, { name: string; url: string }>()) {
+  if (Array.isArray(value)) value.forEach((item) => collectDocumentLinks(item, result));
+  else if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidateUrl = [record.openUrl, record.url, record.link, record.downloadUrl, record.fileUrl, record.path].find((item) => typeof item === "string" && /^https?:\/\//i.test(item));
+    if (typeof candidateUrl === "string") {
+      const lowered = candidateUrl.toLowerCase();
+      if (/\.(pdf|xlsx?|csv|docx?|xml|zip)(?:[?#]|$)/i.test(lowered) || /file|attachment|anexo|document/i.test(lowered)) {
+        const name = String(record.fileName || record.filename || record.name || record.label || `Documento ${result.size + 1}`);
+        result.set(candidateUrl, { name, url: candidateUrl });
+      }
+    }
+    Object.values(record).forEach((item) => collectDocumentLinks(item, result));
+  } else if (typeof value === "string") {
+    const urls = value.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+    urls.forEach((url) => {
+      if (/\.(pdf|xlsx?|csv|docx?|xml|zip)(?:[?#]|$)/i.test(url) || /file|attachment|anexo|document/i.test(url)) result.set(url, { name: `Documento ${result.size + 1}`, url });
+    });
+  }
+  return [...result.values()];
+}
+
+async function zeevRequest(baseUrl: string, token: string, path: string, init: RequestInit = {}) {
+  return fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: { authorization: `Bearer ${token}`, accept: "application/json", ...(init.body ? { "content-type": "application/json" } : {}), ...(init.headers || {}) },
+    cache: "no-store",
+    signal: AbortSignal.timeout(90_000),
+  });
+}
+
+async function reportInstances(baseUrl: string, token: string, body: Record<string, unknown>) {
+  const all: ZeevInstance[] = [];
+  const pageSize = 500;
+  for (let page = 0; page < 20; page += 1) {
+    const query = new URLSearchParams({ "$top": String(pageSize), "$skip": String(page * pageSize) });
+    const response = await zeevRequest(baseUrl, token, `/api/2/instances/report?${query}`, { method: "POST", body: JSON.stringify(body) });
+    if (!response.ok) return { response, instances: all };
+    const items = listFromPayload(await response.json());
+    all.push(...items);
+    if (items.length < pageSize) return { response, instances: all };
+  }
+  return { response: new Response(null, { status: 200 }), instances: all };
+}
+
 async function queryZeev(firstDay: string, lastDay: string) {
   const baseUrl = process.env.ZEEV_BASE_URL?.replace(/\/$/, "");
   const token = process.env.ZEEV_API_TOKEN;
   if (!baseUrl || !token) return { configured: false, instances: [] as ZeevInstance[], error: "Autenticação do Zeev necessária." };
-  const formFieldNames = (process.env.ZEEV_ENERGY_FORM_FIELDS || "").split(",").map((item) => item.trim()).filter(Boolean);
-  const body = {
-    startDateIntervalBegin: `${firstDay}T00:00:00-03:00`,
-    startDateIntervalEnd: `${lastDay}T23:59:59-03:00`,
+  const configuredFieldNames = (process.env.ZEEV_ENERGY_FORM_FIELDS || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const rangeStart = new Date(`${firstDay}T12:00:00-03:00`);
+  const rangeEnd = new Date(`${lastDay}T12:00:00-03:00`);
+  rangeStart.setDate(rangeStart.getDate() - 45);
+  rangeEnd.setDate(rangeEnd.getDate() + 60);
+  const baseBody: Record<string, unknown> = {
+    startDateIntervalBegin: rangeStart.toISOString(),
+    startDateIntervalEnd: rangeEnd.toISOString(),
     showPendingInstanceTasks: true,
     showFinishedInstanceTasks: true,
-    ...(formFieldNames.length ? { formFieldNames } : {}),
+    showPendingAssignees: true,
+    allowOpenUrlsForFilesInForm: true,
   };
-  const response = await fetch(`${baseUrl}/api/2/instances/report`, { method: "POST", headers: { authorization: `Bearer ${token}`, accept: "application/json", "content-type": "application/json" }, body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(90_000) });
-  if (!response.ok) return { configured: true, instances: [] as ZeevInstance[], error: response.status === 401 || response.status === 403 ? "Autenticação do Zeev inválida ou sem permissão para consultar solicitações." : `O Zeev respondeu com erro ${response.status}.` };
-  const payload = await response.json();
-  const instances = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.value) ? payload.value : [];
-  return { configured: true, instances, error: "" };
+  const initial = await reportInstances(baseUrl, token, baseBody);
+  if (!initial.response.ok) return { configured: true, instances: [] as ZeevInstance[], error: initial.response.status === 401 || initial.response.status === 403 ? "Autenticação do Zeev inválida ou sem permissão para consultar solicitações." : `O Zeev respondeu com erro ${initial.response.status}.` };
+
+  const discovered = new Set(configuredFieldNames);
+  if (!discovered.size) {
+    const flowIds = [...new Set(initial.instances.map((instance) => {
+      const flow = instance.flow as Record<string, unknown> | undefined;
+      return Number(instance.flowId || flow?.id || 0);
+    }).filter(Boolean))].slice(0, 50);
+    await Promise.all(flowIds.map(async (flowId) => {
+      const response = await zeevRequest(baseUrl, token, `/api/2/flows/${flowId}/design/form`);
+      if (response.ok) collectFieldNames(await response.json()).forEach((name) => discovered.add(name));
+    }));
+  }
+
+  const formFieldNames = [...discovered].slice(0, 500);
+  if (!formFieldNames.length) return { configured: true, instances: initial.instances, error: "O token acessou o Zeev, mas não possui permissão para descobrir os campos dos documentos." };
+  const detailed = await reportInstances(baseUrl, token, { ...baseBody, formFieldNames });
+  if (!detailed.response.ok) return { configured: true, instances: initial.instances, error: `O Zeev permitiu listar solicitações, mas recusou a leitura dos campos (${detailed.response.status}).` };
+  return { configured: true, instances: detailed.instances, error: "", fieldNames: formFieldNames };
 }
 
 function ticketInfo(instance: ZeevInstance) {
@@ -66,6 +151,7 @@ function ticketInfo(instance: ZeevInstance) {
     status: active === true ? "Em andamento" : active === false ? String(instance.flowResult || "Concluído") : String(instance.status || "Localizado"),
     link: String(instance.reportLink || ""),
     name: String(instance.requestName || instance.name || "Solicitação Zeev"),
+    documents: collectDocumentLinks(instance),
   };
 }
 
