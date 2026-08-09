@@ -126,6 +126,7 @@ export default function PisCofinsAssessment({
   const [annualFeeVisible, setAnnualFeeVisible] = useState(true);
   const [cancelledVisible, setCancelledVisible] = useState(true);
   const [creditsVisible, setCreditsVisible] = useState(true);
+  const [creditsCategory, setCreditsCategory] = useState<"energy" | "leases">("energy");
   const [monthlyBranches, setMonthlyBranches] = useState<string[]>([]);
   const [otherRevenueBranches, setOtherRevenueBranches] = useState<string[]>([]);
   const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
@@ -171,6 +172,7 @@ export default function PisCofinsAssessment({
       setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
       setCancelledVisible(assessment?.cancelledVisible ?? true);
       setCreditsVisible(assessment?.creditsVisible ?? true);
+      setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
       setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
       setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
       setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
@@ -213,10 +215,11 @@ export default function PisCofinsAssessment({
       annualFeeVisible,
       cancelledVisible,
       creditsVisible,
+      creditsCategory,
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
       requestedBranches,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -1478,7 +1481,13 @@ export default function PisCofinsAssessment({
             {creditsVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
-        {creditsVisible && <div className="tax-source-empty"><Calculator /><b>Créditos aguardando parametrização</b><span>Defina a origem dos dados, as contas permitidas e as regras de cálculo para habilitar esta etapa.</span></div>}
+        {creditsVisible && <>
+          <div className="tax-credit-tabs" role="tablist" aria-label="Tipos de crédito">
+            <button role="tab" aria-selected={creditsCategory === "energy"} className={creditsCategory === "energy" ? "is-active" : ""} onClick={() => setCreditsCategory("energy")}>Energia</button>
+            <button role="tab" aria-selected={creditsCategory === "leases"} className={creditsCategory === "leases" ? "is-active" : ""} onClick={() => setCreditsCategory("leases")}>Arrendamentos</button>
+          </div>
+          <div className="tax-source-empty"><Calculator /><b>Créditos de {creditsCategory === "energy" ? "Energia" : "Arrendamentos"}</b><span>Base preparada para receber as contas, os movimentos e as regras de cálculo desta categoria.</span></div>
+        </>}
       </section>
     </section>
   );
