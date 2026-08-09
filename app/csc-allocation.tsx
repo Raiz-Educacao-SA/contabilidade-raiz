@@ -59,11 +59,12 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     return normalized;
   }, [companies]);
   const allocationList = useMemo(() => Array.from(new Map(list.flatMap((company) => company.code === "10" ? branchTenOrder : [company]).map((company) => [company.code, company])).values()), [list]);
-  const storageKey = `csc-allocation:v8:${competence}`;
+  const storageKey = `csc-allocation:v9:${competence}`;
   const [costPool, setCostPool] = useState(0);
   const [revenues, setRevenues] = useState<Record<string, number>>({});
   const [resultMovements, setResultMovements] = useState<Record<string, ResultMovement>>({});
   const [movementDetails, setMovementDetails] = useState<MovementDetail[]>([]);
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState("");
   const defaultSarahTijucaValue = competence === "2026-06" ? 120165 : 0;
   const [sarahTijucaValue, setSarahTijucaValue] = useState(defaultSarahTijucaValue);
   const defaultAdjustments = useMemo<Record<string, number>>(() => competence >= "2024-01" ? { "25": -3184.4 } : {} as Record<string, number>, [competence]);
@@ -76,8 +77,8 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setMovementDetails([]); setAdjustments(defaultAdjustments); setRows([]); return; }
-      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setMovementDetails(saved.movementDetails || []); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
+      if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setMovementDetails([]); setBaseUpdatedAt(""); setAdjustments(defaultAdjustments); setRows([]); return; }
+      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setMovementDetails(saved.movementDetails || []); setBaseUpdatedAt(saved.baseUpdatedAt || ""); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
     } catch { localStorage.removeItem(storageKey); }
   }, [storageKey, defaultAdjustments, defaultSarahTijucaValue]);
 
@@ -100,7 +101,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   };
 
   async function updateAccountingBase() {
-    setLoading("accounting"); setMessage(""); setRows([]); setMovementDetails([]); const output: Record<string, number> = {}; const movements: Record<string, ResultMovement> = {}; const details: MovementDetail[] = []; const failures: string[] = [];
+    setLoading("accounting"); setMessage(""); setRows([]); setMovementDetails([]); setBaseUpdatedAt(""); const output: Record<string, number> = {}; const movements: Record<string, ResultMovement> = {}; const details: MovementDetail[] = []; const failures: string[] = [];
     for (let i = 0; i < list.length; i += 5) {
       const loaded = await Promise.all(list.slice(i, i + 5).map(async (company) => { try { return { company, data: await balance(company.code) }; } catch { return { company, data: null }; } }));
       loaded.forEach(({ company, data }) => {
@@ -139,7 +140,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
         }
       });
     }
-    setRevenues(output); setResultMovements(movements); setMovementDetails(details); setCostPool(movements["1"]?.costs || 0); setLoading("");
+    setRevenues(output); setResultMovements(movements); setMovementDetails(details); setBaseUpdatedAt(new Date().toISOString()); setCostPool(movements["1"]?.costs || 0); setLoading("");
     setMessage(failures.length ? `Base contábil carregada para ${Object.keys(movements).length} empresa(s). Falha nas coligadas: ${failures.join(", ")}.` : `Contas de resultado de ${Object.keys(movements).length} empresa(s), inclusive a Raiz, carregadas para ${competence.slice(5)}/${competence.slice(0, 4)}.`);
   }
   function calculate() {
@@ -153,7 +154,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
       const adjustment = adjustments[company.code] || 0;
       return { ...company, revenue, share, rule, calculated, adjustment, finalValue: round(calculated + adjustment) };
     });
-    setRows(output); localStorage.setItem(storageKey, JSON.stringify({ costPool, revenues, resultMovements, movementDetails, sarahTijucaValue, adjustments, rows: output })); setMessage("Custos da Raiz rateados conforme a memória de cálculo da competência.");
+    setRows(output); localStorage.setItem(storageKey, JSON.stringify({ costPool, revenues, resultMovements, movementDetails, baseUpdatedAt, sarahTijucaValue, adjustments, rows: output })); setMessage("Custos da Raiz rateados conforme a memória de cálculo da competência.");
   }
   const totals = useMemo(() => rows.reduce((t, x) => ({ revenue: t.revenue + x.revenue, calculated: t.calculated + x.calculated, adjustment: t.adjustment + x.adjustment, final: t.final + x.finalValue }), { revenue: 0, calculated: 0, adjustment: 0, final: 0 }), [rows]);
   const difference = round(costPool - totals.calculated);
@@ -166,17 +167,19 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     const status = excluded ? "Não participa" : calculated ? "Calculada" : Object.prototype.hasOwnProperty.call(resultMovements, company.code) ? "Base carregada" : "Aguardando base";
     return { ...company, ...movement, rule: calculated?.rule || rule, status };
   }), [allocationList, resultMovements, rows, sarahTijucaValue]);
+  const baseUpdateLabel = baseUpdatedAt ? new Date(baseUpdatedAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "";
   function exportFile() {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Custos elegíveis": costPool, "Base proporcional": rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0), "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Total final": totals.final, Diferença: difference }]), "Resumo");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Motivo do ajuste": x.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": x.finalValue }))), "Memória do rateio");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, "Custos elegíveis": costPool, "Base proporcional": rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0), "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Total final": totals.final, Diferença: difference }]), "Resumo");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Motivo do ajuste": x.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": x.finalValue }))), "Memória do rateio");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Etapa", "Critério", "Aplicação"], ...calculationCriteria]), "Critérios utilizados");
     XLSX.writeFile(wb, `Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   function exportAccounting() {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((row) => ({ Competência: competence, Coligada: row.code, Empresa: row.name, "Faturamento considerado": row.revenue, "Percentual no rateio": row.share, Regra: row.rule, "Rateio calculado": row.calculated, Ajuste: row.adjustment, "Motivo do ajuste": row.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": row.finalValue }))), "Memória de Cálculo");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movementDetails.map((detail) => ({ Competência: competence, Coligada: detail.company, Empresa: detail.companyName, Conta: detail.account, Descrição: detail.description, Classificação: detail.classification, Débito: detail.debit, Crédito: detail.credit, Movimento: detail.movement, "Valor considerado": detail.considered }))), "Movimentos Considerados");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, "Custos elegíveis": costPool, "Base proporcional": rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0), "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Rateio final": totals.final, Diferença: difference }]), "Resumo");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((row) => ({ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, Coligada: row.code, Empresa: row.name, "Faturamento considerado": row.revenue, "Percentual no rateio": row.share, Regra: row.rule, "Rateio calculado": row.calculated, Ajuste: row.adjustment, "Motivo do ajuste": row.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": row.finalValue }))), "Memória de Cálculo");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movementDetails.map((detail) => ({ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, Coligada: detail.company, Empresa: detail.companyName, Conta: detail.account, Descrição: detail.description, Classificação: detail.classification, Débito: detail.debit, Crédito: detail.credit, Movimento: detail.movement, "Valor considerado": detail.considered }))), "Movimentos Considerados");
     XLSX.writeFile(wb, `Memoria_Calculo_Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   return <section className="panel csc-panel">
