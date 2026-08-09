@@ -171,19 +171,20 @@ async function queryZeev(firstDay: string, lastDay: string, email: string) {
   return { configured: true, instances: detailed.instances, error: "", fieldNames: formFieldNames };
 }
 
-function ticketInfo(instance: ZeevInstance) {
+function ticketInfo(instance: ZeevInstance, baseUrl: string) {
   const id = String(instance.instanceId ?? instance.id ?? "");
   const active = instance.active;
+  const reportLink = String(instance.reportLink || "").trim();
   return {
     id,
     status: active === true ? "Em andamento" : active === false ? String(instance.flowResult || "Concluído") : String(instance.status || "Localizado"),
-    link: String(instance.reportLink || ""),
+    link: reportLink ? new URL(reportLink, `${baseUrl}/`).toString() : "",
     name: String(instance.requestName || instance.name || "Solicitação Zeev"),
     documents: collectDocumentLinks(instance),
   };
 }
 
-function findTicket(row: { document: string; integrationKey: string; complement: string; value: number }, instances: ZeevInstance[]) {
+function findTicket(row: { document: string; integrationKey: string; complement: string; value: number }, instances: ZeevInstance[], baseUrl: string) {
   const document = normalized(row.document);
   const integrationKey = normalized(row.integrationKey);
   const amount = Math.abs(row.value).toFixed(2).replace(".", "");
@@ -197,7 +198,7 @@ function findTicket(row: { document: string; integrationKey: string; complement:
     score += supplierTokens.filter((token) => haystack.includes(token)).length * 5;
     return { instance, score };
   }).filter((item) => item.score >= 80).sort((a, b) => b.score - a.score);
-  return ranked.length ? { ...ticketInfo(ranked[0].instance), matchScore: ranked[0].score } : null;
+  return ranked.length ? { ...ticketInfo(ranked[0].instance, baseUrl), matchScore: ranked[0].score } : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -216,7 +217,7 @@ export async function GET(request: NextRequest) {
       const base = {
         company: tag(record, "CODCOLIGADA"), branch: tag(record, "CODFILIAL"), entryId: tag(record, "IDLANCAMENTO"), document: tag(record, "DOCUMENTO"), integrationKey: tag(record, "INTEGRACHAVE"), sourceSystem: tag(record, "NOMESISTEMA"), date: tag(record, "DATA"), reduced: numeric(tag(record, "REDUZIDO")) || 913, account: tag(record, "CODCONTA"), description: tag(record, "DESCRICAO") || "Energia Elétrica", value: numeric(tag(record, "VALOR")), user: tag(record, "USUARIO"), complement: tag(record, "COMPLEMENTO"), costCenter: tag(record, "CCUSTO"),
       };
-      return { ...base, ticket: findTicket(base, zeev.instances) };
+      return { ...base, ticket: findTicket(base, zeev.instances, (process.env.ZEEV_BASE_URL || "").replace(/\/$/, "")) };
     }).sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch, "pt-BR", { numeric: true }));
     const total = rows.reduce((sum, row) => sum + row.value, 0);
     const ticketsFound = rows.filter((row) => row.ticket).length;

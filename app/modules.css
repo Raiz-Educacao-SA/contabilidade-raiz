@@ -1726,6 +1726,12 @@
 .tax-other-table td:nth-child(n + 8):nth-child(-n + 12) { text-align: right; white-space: nowrap; }
 .tax-other-table tfoot td { position: sticky; bottom: 0; z-index: 1; border-top: 2px solid #173d68; background: #eef4fb; color: #102f54; font-weight: 900; }
 .tax-secondary-section { border-top: 8px solid var(--bg); }
+.energy-credit-table table { font-size: 10px; }
+.energy-credit-table th,
+.energy-credit-table td { padding: 7px 8px; }
+.zeev-ticket-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.zeev-ticket-open { color: #2563eb; font-size: 9px; font-weight: 700; text-decoration: underline; }
+.zeev-ticket-cell b { font-size: 10px; }
 .tax-cancelled-table { margin: 10px 18px 16px; max-height: 320px; }
 .tax-cancelled-table table { min-width: 2050px; font-size: 8px; }
 .tax-cancelled-table th,.tax-cancelled-table td { padding: 5px 7px; }
