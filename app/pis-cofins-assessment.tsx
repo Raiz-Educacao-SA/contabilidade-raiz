@@ -601,21 +601,11 @@ export default function PisCofinsAssessment({
 
   async function exportCompleteAssessment() {
     setError("");
-    const templateResponse = await fetch("/templates/modelo-apuracao-pis-cofins.xlsx");
-    if (!templateResponse.ok) {
-      setError("Não foi possível carregar o modelo PACONT da apuração.");
-      return;
-    }
-    const workbook = XLSX.read(await templateResponse.arrayBuffer(), {
-      type: "array",
-      cellFormula: true,
-      cellStyles: true,
-      cellDates: true,
-    });
+    // A PACONT é criada do zero para não herdar nomes definidos, fórmulas
+    // quebradas, vínculos externos e estilos ocultos do modelo legado.
+    const workbook = XLSX.utils.book_new();
     const generatedAt = new Date();
-    const [competenceYear, competenceMonth] = competence.split("-").map(Number);
-    const competenceDate = new Date(competenceYear, competenceMonth - 1, 1);
-    const excelDate = (date: Date) => (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()) - Date.UTC(1899, 11, 30)) / 86400000;
+    const generatedAtLabel = generatedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const monthlyByRegime = (regime: Exclude<TaxRegime, "">) => filteredRows.filter((row) => row.regime === regime).reduce((sum, row) => ({
       gross: sum.gross + row.grossRevenue,
       discounts: sum.discounts + row.discounts,
@@ -623,7 +613,7 @@ export default function PisCofinsAssessment({
     const annualByRegime = (regime: Exclude<TaxRegime, "">) => filteredAnnualFeeRows.filter((row) => row.regime === regime).reduce((sum, row) => sum + row.netRevenue, 0);
     const cancelledByRegime = (regime: Exclude<TaxRegime, "">) => filteredCancelledRows.filter((row) => row.regime === regime).reduce((sum, row) => sum + row.netValue, 0);
 
-    const updatePacont = (
+    const createCompactPacont = (
       sheetName: string,
       regime: Exclude<TaxRegime, "">,
       financialBase = 0,
@@ -633,89 +623,62 @@ export default function PisCofinsAssessment({
       otherPis = 0,
       otherCofins = 0,
     ) => {
-      const worksheet = workbook.Sheets[sheetName];
-      if (!worksheet) return false;
       const rate = rates[regime];
       const monthly = monthlyByRegime(regime);
       const annual = annualByRegime(regime);
       const cancelled = cancelledByRegime(regime);
-      const put = (address: string, value: string | number, format?: string) => {
-        const current = worksheet[address] || {};
-        worksheet[address] = typeof value === "number"
-          ? { ...current, t: "n", v: value, ...(format ? { z: format } : {}) }
-          : { ...current, t: "s", v: value };
-      };
-      const setLine = (row: number, base: number, pis: number, cofins: number, revenue = false) => {
-        put(`F${row}`, base, "#,##0.00");
-        put(`G${row}`, base, "#,##0.00");
-        put(`H${row}`, revenue ? base : 0, "#,##0.00");
-        put(`K${row}`, base, "#,##0.00");
-        put(`L${row}`, pis, "#,##0.00");
-        put(`M${row}`, cofins, "#,##0.00");
-      };
-      const sumLines = (target: number, sources: number[], revenue = false) => {
-        const values = sources.reduce((sum, row) => ({
-          base: sum.base + Number(worksheet[`K${row}`]?.v || 0),
-          pis: sum.pis + Number(worksheet[`L${row}`]?.v || 0),
-          cofins: sum.cofins + Number(worksheet[`M${row}`]?.v || 0),
-        }), { base: 0, pis: 0, cofins: 0 });
-        setLine(target, values.base, values.pis, values.cofins, revenue);
-      };
+      const movements = [
+        { description: "Faturamento mensal", base: monthly.gross, pisRate: rate.pis, pis: monthly.gross * rate.pis, cofinsRate: rate.cofins, cofins: monthly.gross * rate.cofins },
+        { description: "Descontos incondicionais", base: -monthly.discounts, pisRate: rate.pis, pis: -monthly.discounts * rate.pis, cofinsRate: rate.cofins, cofins: -monthly.discounts * rate.cofins },
+        { description: "Rateios Anuidades", base: annual, pisRate: rate.pis, pis: annual * rate.pis, cofinsRate: rate.cofins, cofins: annual * rate.cofins },
+        { description: "Notas canceladas", base: -cancelled, pisRate: rate.pis, pis: -cancelled * rate.pis, cofinsRate: rate.cofins, cofins: -cancelled * rate.cofins },
+        ...(regime === "Não-Cumulativo" ? [
+          { description: "Outras receitas", base: otherBase, pisRate: otherBase ? otherPis / otherBase : 0, pis: otherPis, cofinsRate: otherBase ? otherCofins / otherBase : 0, cofins: otherCofins },
+          { description: "Receitas financeiras", base: financialBase, pisRate: financialBase ? financialPis / financialBase : 0, pis: financialPis, cofinsRate: financialBase ? financialCofins / financialBase : 0, cofins: financialCofins },
+        ] : []),
+      ].filter((row) => [row.base, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001));
 
-      put("C11", companyName);
-      put("C12", taxRegime.toUpperCase());
-      put("F12", regime.toUpperCase());
-      put("D9", "Elaborado por:\n");
-      put("H9", "Revisado por:\n");
-      put("N10", excelDate(generatedAt), "dd/mm/yyyy hh:mm:ss");
-      put("M13", excelDate(competenceDate), "mm/yyyy");
-      put("N13", excelDate(generatedAt), "dd/mm/yyyy hh:mm:ss");
-      put("L20", rate.pis, "0.00%");
-      put("M20", rate.cofins, "0.00%");
-
-      [...Array.from({ length: 19 }, (_, index) => index + 22), ...Array.from({ length: 9 }, (_, index) => index + 44)].forEach((row) => setLine(row, 0, 0, 0));
-      setLine(22, monthly.gross, monthly.gross * rate.pis, monthly.gross * rate.cofins, true);
-      setLine(23, annual, annual * rate.pis, annual * rate.cofins, true);
-      setLine(28, -cancelled, -cancelled * rate.pis, -cancelled * rate.cofins);
-      setLine(31, -monthly.discounts, -monthly.discounts * rate.pis, -monthly.discounts * rate.cofins);
-      if (regime === "Não-Cumulativo") {
-        setLine(40, otherBase, otherPis, otherCofins);
-        setLine(44, financialBase, financialPis, financialCofins);
+      if (!movements.length) return false;
+      const totals = movements.reduce((sum, row) => ({
+        base: sum.base + row.base,
+        pis: sum.pis + row.pis,
+        cofins: sum.cofins + row.cofins,
+      }), { base: 0, pis: 0, cofins: 0 });
+      const rows: (string | number)[][] = [
+        ["PACONT - PLANILHA DE APURAÇÃO DAS CONTRIBUIÇÕES", "", "", "", "", ""],
+        ["Empresa", companyName, "Competência", competenceLabel, "Gerado em", generatedAtLabel],
+        ["Tributação", taxRegime, "Regime PIS/COFINS", regime, "", ""],
+        ["Elaborado por", "", "Revisado por", "", "", ""],
+        ["", "", "", "", "", ""],
+        ["RESUMO DA APURAÇÃO", "", "", "", "", ""],
+        ["Base tributável", totals.base, "PIS apurado", totals.pis, "COFINS apurada", totals.cofins],
+        ["", "", "", "", "", ""],
+        ["Composição", "Base tributável", "Alíquota PIS", "PIS", "Alíquota COFINS", "COFINS"],
+        ...movements.map((row) => [row.description, row.base, row.pisRate, row.pis, row.cofinsRate, row.cofins]),
+        ["TOTAL", totals.base, "", totals.pis, "", totals.cofins],
+      ];
+      const worksheet = XLSX.utils.aoa_to_sheet(rows);
+      worksheet["!cols"] = [{ wch: 31 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }];
+      worksheet["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } },
+      ];
+      for (let row = 6; row < rows.length; row += 1) {
+        [1, 3, 5].forEach((column) => {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+          if (cell?.t === "n") cell.z = "#,##0.00";
+        });
+        [2, 4].forEach((column) => {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+          if (cell?.t === "n") cell.z = "0.00%";
+        });
       }
-      sumLines(21, [22, 23, 24, 25, 26], true);
-      sumLines(27, [28, 29, 30, 31, 32, 33]);
-      sumLines(34, [35, 36, 37]);
-      sumLines(38, [39, 40]);
-      sumLines(41, [21, 27, 34, 38]);
-      sumLines(43, [44, 45, 46, 47, 48, 49, 50, 51, 52]);
-      sumLines(53, [41, 43]);
-      put("B2", "RESUMO DA APURAÇÃO");
-      put("B3", "Regime");
-      put("E3", "Base tributável");
-      put("H3", "PIS apurado");
-      put("K3", "COFINS apurada");
-      put("B4", regime);
-      put("E4", Number(worksheet.K53?.v || 0), "#,##0.00");
-      put("H4", Number(worksheet.L53?.v || 0), "#,##0.00");
-      put("K4", Number(worksheet.M53?.v || 0), "#,##0.00");
-      worksheet["!merges"] = [...(worksheet["!merges"] || []), { s: { r: 1, c: 1 }, e: { r: 1, c: 12 } }];
-      worksheet["!rows"] = worksheet["!rows"] || [];
-      const detailRows = [...Array.from({ length: 19 }, (_, index) => index + 22), ...Array.from({ length: 10 }, (_, index) => index + 43)];
-      detailRows.forEach((row) => {
-        const hasValue = ["K", "L", "M"].some((column) => Math.abs(Number(worksheet[`${column}${row}`]?.v || 0)) > 0.000001);
-        worksheet["!rows"]![row - 1] = { ...(worksheet["!rows"]![row - 1] || {}), hidden: !hasValue };
-      });
-      for (let row = 54; row <= 93; row += 1) worksheet["!rows"]![row - 1] = { ...(worksheet["!rows"]![row - 1] || {}), hidden: true };
-      for (let row = 102; row <= 106; row += 1) worksheet["!rows"]![row - 1] = { ...(worksheet["!rows"]![row - 1] || {}), hidden: true };
-      put("L95", Number(worksheet.L53?.v || 0), "#,##0.00");
-      put("M95", Number(worksheet.M53?.v || 0), "#,##0.00");
-      put("L101", Number(worksheet.L53?.v || 0), "#,##0.00");
-      put("M101", Number(worksheet.M53?.v || 0), "#,##0.00");
-      return ["K", "L", "M"].some((column) => Math.abs(Number(worksheet[`${column}53`]?.v || 0)) > 0.000001);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      return true;
     };
 
-    const hasCumulativeBalance = updatePacont("PACONT CUMULATIVO", "Cumulativo");
-    const hasNonCumulativeBalance = updatePacont(
+    const hasCumulativeBalance = createCompactPacont("PACONT CUMULATIVO", "Cumulativo");
+    const hasNonCumulativeBalance = createCompactPacont(
       "PACONT NÃO CUMULATIVO",
       "Não-Cumulativo",
       otherRevenueTotals.financialBase,
@@ -725,20 +688,6 @@ export default function PisCofinsAssessment({
       otherRevenueTotals.otherPis,
       otherRevenueTotals.otherCofins,
     );
-    if (!hasCumulativeBalance) {
-      delete workbook.Sheets["PACONT CUMULATIVO"];
-      workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "PACONT CUMULATIVO");
-    }
-    if (!hasNonCumulativeBalance) {
-      delete workbook.Sheets["PACONT NÃO CUMULATIVO"];
-      workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "PACONT NÃO CUMULATIVO");
-    }
-    delete workbook.Sheets["Pis-Cofins - Filial"];
-    workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "Pis-Cofins - Filial");
-    workbook.Workbook = workbook.Workbook || {};
-    const workbookProperties = workbook.Workbook as typeof workbook.Workbook & { CalcPr?: Record<string, unknown> };
-    workbookProperties.CalcPr = { ...(workbookProperties.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
-
     const deliveredSheets = [
       "Instruções",
       hasCumulativeBalance ? "PACONT CUMULATIVO" : "",
@@ -749,7 +698,6 @@ export default function PisCofinsAssessment({
       filteredAnnualFeeRows.some((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)) ? "Rateios Anuidades" : "",
       filteredCancelledRows.some((row) => [row.grossValue, row.discountValue, row.netValue].some((value) => Math.abs(value) > 0.000001)) ? "Notas Canceladas" : "",
     ].filter(Boolean);
-    const generatedAtLabel = generatedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
     const instructionRows: (string | number)[][] = [
       ["INSTRUÇÕES DA APURAÇÃO COMPLETA DE PIS E COFINS", "", "", ""],
