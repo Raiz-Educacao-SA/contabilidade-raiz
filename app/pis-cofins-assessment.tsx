@@ -995,14 +995,17 @@ export default function PisCofinsAssessment({
               <summary>Filiais {requestedBranches.length ? `(${requestedBranches.join(", ")})` : "(todas)"}</summary>
               <div>
                 <div className="tax-branch-toolbar">
-                  <span>Marque uma ou mais filiais</span>
-                  <button type="button" onClick={selectAllBranches}>Todas</button>
+                  <span>Selecione todas ou uma ou mais filiais</span>
                 </div>
+                <label className="tax-all-branches">
+                  <input type="checkbox" checked={!requestedBranches.length} onChange={(event) => { if (event.target.checked) selectAllBranches(); }} />
+                  Todas
+                </label>
                 {selectableBranches.map((branch) => <label key={branch}>
                   <input type="checkbox" checked={requestedBranches.includes(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
                   Filial {branch}
                 </label>)}
-                {!requestedBranches.length && <span>Nenhuma marcada: todas as filiais serão consultadas.</span>}
+                {!requestedBranches.length && <span>Modo atual: todas as filiais.</span>}
               </div>
             </details>
             <button

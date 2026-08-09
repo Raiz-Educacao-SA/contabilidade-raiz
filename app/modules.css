@@ -1803,6 +1803,11 @@
   height: 13px;
   accent-color: #168657;
 }
+.tax-top-branches .tax-all-branches {
+  color: #0f6d4a;
+  background: #eaf8f1;
+  border-radius: 6px;
+}
 .tax-branch-toolbar {
   display: flex;
   align-items: center;
