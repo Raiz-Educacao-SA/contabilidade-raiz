@@ -706,6 +706,76 @@ export default function PisCofinsAssessment({
     workbook.Workbook = workbook.Workbook || {};
     const workbookProperties = workbook.Workbook as typeof workbook.Workbook & { CalcPr?: Record<string, unknown> };
     workbookProperties.CalcPr = { ...(workbookProperties.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
+
+    const generatedAtLabel = generatedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
+    const instructionRows: (string | number)[][] = [
+      ["INSTRUÇÕES DA APURAÇÃO COMPLETA DE PIS E COFINS", "", "", ""],
+      ["Arquivo", "Empresa", companyName, ""],
+      ["Arquivo", "Regime tributário", taxRegime, ""],
+      ["Arquivo", "Competência", competenceLabel, ""],
+      ["Arquivo", "Filiais consideradas", selectedBranchesLabel, ""],
+      ["Arquivo", "Gerado em", generatedAtLabel, ""],
+      ["", "", "", ""],
+      ["SEÇÃO", "ITEM", "PREMISSA / ENTREGA AUTOMÁTICA", "REFERÊNCIA"],
+      ["Fluxo", "Filtros", "Empresa, ano, mês e uma ou várias filiais (1 a 15) determinam todas as consultas e cálculos do arquivo.", "Regra operacional Contabilidade Raiz"],
+      ["Fluxo", "Persistência", "Cada etapa mantém a última apuração até o usuário acionar Limpar. Ocultar/Exibir altera somente a visualização.", "Regra operacional Contabilidade Raiz"],
+      ["Faturamento Mensal", "Origem", "Planilha.NET 53 do módulo Gestão de Estoque, Compras e Faturamento; consulta METTA.108090, aplicação T, título ANALISE NF COM CONTA.", "TOTVS RM"],
+      ["Faturamento Mensal", "Competência e base", "Considera somente a competência filtrada. A base tributável final é o campo VLRNF; notas canceladas são retiradas e tratadas na etapa própria.", "Regra operacional Contabilidade Raiz"],
+      ["Faturamento Mensal", "Classificação", "Classificação linha a linha pelo campo DESCRIÇÃO, usando SERVICO_ED como identificação do serviço quando disponibilizado pela consulta.", "Matriz aprovada pela Contabilidade"],
+      ["Faturamento Mensal", "Entrega desta exportação", `${filteredRows.length} linha(s); bruto ${brl.format(totals.grossRevenue)}; descontos ${brl.format(totals.discounts)}; base VLRNF ${brl.format(totals.nfBase)}.`, "Dados da competência exportada"],
+      ["Outras Receitas", "Origem", "Movimentos mensais das contas parametrizadas na Base contas, consultados no razão contábil do TOTVS para a empresa e filiais selecionadas.", "TOTVS RM Contábil"],
+      ["Outras Receitas", "Classificação", "Para empresas no Lucro Real: receitas financeiras são não cumulativas a 0,65% de PIS e 4,00% de COFINS; demais receitas parametrizadas são não cumulativas a 1,65% e 7,60%. Itens sem regra permanecem em branco e não entram no cálculo.", "Decreto nº 8.426/2015 e parametrização interna"],
+      ["Outras Receitas", "Entrega desta exportação", `${filteredOtherRevenueRows.length} lançamento(s); base tributável ${brl.format(otherRevenueTotals.taxBase)}; PIS ${brl.format(otherRevenueTotals.pis)}; COFINS ${brl.format(otherRevenueTotals.cofins)}.`, "Dados da competência exportada"],
+      ["Rateios Anuidades", "Origem e tratamento", "Lançamentos contábeis RAT-* gerados no RM Saldus. São classificados linha a linha pela mesma matriz de serviços do faturamento.", "TOTVS RM Contábil"],
+      ["Rateios Anuidades", "Entrega desta exportação", `${filteredAnnualFeeRows.length} lançamento(s); base líquida ${brl.format(annualFeeTotals.netRevenue)}; PIS ${brl.format(annualFeeTotals.pis)}; COFINS ${brl.format(annualFeeTotals.cofins)}.`, "Dados da competência exportada"],
+      ["Notas Canceladas", "Origem", "Planilha.NET 37; consulta METTA.100, codColigada técnico 0, aplicação C, título NOTAS MUNICIPAIS CANCELADAS.", "TOTVS RM"],
+      ["Notas Canceladas", "Tratamento", "As notas são classificadas como cumulativas ou não cumulativas pelo serviço e seus valores são deduzidos da apuração consolidada.", "Regra operacional Contabilidade Raiz"],
+      ["Notas Canceladas", "Entrega desta exportação", `${filteredCancelledRows.length} nota(s); valor líquido excluído ${brl.format(cancelledTotals.net)}; PIS deduzido ${brl.format(cancelledTotals.pis)}; COFINS deduzida ${brl.format(cancelledTotals.cofins)}.`, "Dados da competência exportada"],
+      ["Apuração Consolidada", "Fórmula", "Faturamento Mensal + Outras Receitas + Rateios Anuidades - Notas Canceladas, mantendo a separação entre regimes cumulativo e não cumulativo.", "Regra operacional Contabilidade Raiz"],
+      ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(consolidatedTotals.cumulativePis)}; COFINS cumulativa ${brl.format(consolidatedTotals.cumulativeCofins)}; PIS não cumulativo ${brl.format(consolidatedTotals.nonCumulativePis)}; COFINS não cumulativa ${brl.format(consolidatedTotals.nonCumulativeCofins)}.`, "Base consolidada"],
+      ["Apuração Completa", "Abas entregues", "Instruções, PACONT CUMULATIVO, PACONT NÃO CUMULATIVO, Base consolidada, Faturamento Mensal, Outras Receitas, Rateios Anuidades e Notas Canceladas.", "Este arquivo"],
+      ["", "", "", ""],
+      ["MATRIZ DE CLASSIFICAÇÃO", "SERVIÇO / DESCRIÇÃO", "CLASSIFICAÇÃO", ""],
+      ["Serviços", "Berçário", "Cumulativo", ""],
+      ["Serviços", "Creche", "Cumulativo", ""],
+      ["Serviços", "Pré-Escolar", "Cumulativo", ""],
+      ["Serviços", "Ensino Infantil", "Cumulativo", ""],
+      ["Serviços", "Ensino Fundamental", "Cumulativo", ""],
+      ["Serviços", "Ensino Regular", "Cumulativo", ""],
+      ["Serviços", "Ensino Médio", "Cumulativo", ""],
+      ["Serviços", "Pré-Vestibular - Cursos", "Não-Cumulativo", ""],
+      ["Serviços", "1ª Cota Ensino Infantil", "Cumulativo", ""],
+      ["Serviços", "1ª Cota Ensino Fundamental", "Cumulativo", ""],
+      ["Serviços", "1ª Cota Ensino Médio", "Cumulativo", ""],
+      ["Serviços", "Horário Integral", "Cumulativo", ""],
+      ["Serviços", "Escolinhas / Atividades Extras", "Não-Cumulativo", ""],
+      ["Serviços", "High School - Cursos", "Não-Cumulativo", ""],
+      ["Serviços", "Orientação Pedagógica", "Não-Cumulativo", ""],
+      ["Serviços", "Anuidade - Ensino Fundamental", "Cumulativo", ""],
+      ["Serviços", "Anuidade - Ensino Médio", "Cumulativo", ""],
+      ["Serviços", "Anuidade - Ensino Infantil", "Cumulativo", ""],
+      ["Serviços", "Anuidade - Orientação Pedagógica", "Não-Cumulativo", ""],
+      ["Serviços", "Anuidade - Horário Integral", "Não-Cumulativo", ""],
+      ["Serviços", "Semestralidade - Ensino Fundamental", "Cumulativo", ""],
+      ["Serviços", "Semestralidade - Ensino Médio", "Cumulativo", ""],
+      ["Serviços", "Descrição não parametrizada", "Em branco; não entra no cálculo até validação da área fiscal.", "Controle de exceção"],
+      ["", "", "", ""],
+      ["RESUMO LEGAL", "TEMA", "ORIENTAÇÃO RESUMIDA", "FONTE OFICIAL"],
+      ["Legislação", "Incidência", "PIS/Pasep e COFINS incidem, em regra, sobre o faturamento ou as receitas das pessoas jurídicas de direito privado.", "https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/tributos/pis-pasep-cofins"],
+      ["Legislação", "Regime cumulativo", "Alíquotas gerais de 0,65% para PIS e 3,00% para COFINS, ressalvadas hipóteses específicas. Não há desconto ordinário de créditos da não cumulatividade.", "https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/declaracoes-e-demonstrativos/ecf/erguntas-e-respostas-pessoa-juridica-2019-arquivos/capitulo-xxii-contribuicao-para-o-pis-pasep-e-cofins-incidentes-sobre-a-receita-ou-o-faturamento-2019.pdf"],
+      ["Legislação", "Regime não cumulativo", "Para pessoas jurídicas no Lucro Real, a regra geral é a não cumulatividade, com alíquotas usuais de 1,65% para PIS e 7,60% para COFINS, observadas as receitas que a lei mantém no cumulativo e as regras próprias de créditos.", "https://www.planalto.gov.br/ccivil_03/leis/2002/l10637.htm | https://www.planalto.gov.br/ccivil_03/leis/2003/l10.833compilado.htm"],
+      ["Legislação", "Receitas financeiras", "Nas pessoas jurídicas sujeitas ao regime não cumulativo, a parametrização utiliza 0,65% de PIS e 4,00% de COFINS para receitas financeiras, observadas as exceções legais.", "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2015/decreto/d8426.htm"],
+      ["Legislação", "Escolas", "A tributação de escolas depende da natureza jurídica, do regime do IRPJ e da espécie da receita. Instituições sem fins lucrativos que atendam aos requisitos legais possuem tratamento próprio; este arquivo não presume isenção. A matriz de serviços acima é uma premissa operacional aprovada pela Contabilidade e deve ser revisada pela área fiscal quando houver novo serviço ou mudança legal.", "https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/declaracoes-e-demonstrativos/ecf/erguntas-e-respostas-pessoa-juridica-2019-arquivos/capitulo-xxii-contribuicao-para-o-pis-pasep-e-cofins-incidentes-sobre-a-receita-ou-o-faturamento-2019.pdf"],
+      ["Atenção", "Validação", "Resumo informativo. A classificação final, os créditos, retenções, benefícios e demais ajustes devem ser validados pela área fiscal antes da escrituração e do recolhimento.", "IN RFB nº 2.121/2022 e alterações posteriores"],
+    ];
+    const instructionSheet = XLSX.utils.aoa_to_sheet(instructionRows);
+    instructionSheet["!cols"] = [{ wch: 24 }, { wch: 34 }, { wch: 110 }, { wch: 70 }];
+    instructionSheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+    instructionSheet["!rows"] = instructionRows.map((_, index) => ({ hpt: index === 0 ? 28 : 36 }));
+    instructionSheet["!autofilter"] = { ref: `A8:D${instructionRows.length}` };
+    XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
+    workbook.SheetNames = ["Instruções", ...workbook.SheetNames.filter((name) => name !== "Instruções")];
     const monthly = filteredRows.map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
