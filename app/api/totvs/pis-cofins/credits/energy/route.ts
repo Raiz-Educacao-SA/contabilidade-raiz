@@ -15,12 +15,16 @@ const numeric = (value: string) => {
 };
 const normalized = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-async function authorized(request: NextRequest) {
+async function authenticatedUser(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!authorization || !url || !key) return false;
-  return (await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" })).ok;
+  if (!authorization || !url || !key) return null;
+  const response = await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" });
+  if (!response.ok) return null;
+  const user = await response.json();
+  const email = String(user?.email || "").trim().toLowerCase();
+  return email ? { id: String(user?.id || ""), email } : null;
 }
 
 async function queryTotvs(company: string, firstDay: string, lastDay: string) {
@@ -104,10 +108,34 @@ async function reportInstances(baseUrl: string, token: string, body: Record<stri
   return { response: new Response(null, { status: 200 }), instances: all };
 }
 
-async function queryZeev(firstDay: string, lastDay: string) {
+function userSuffix(email: string) {
+  if (email === "luanda.silva@raizeducacao.com.br") return "LUANDA";
+  return email.split("@")[0].replace(/[^a-z0-9]/gi, "_").toUpperCase();
+}
+
+async function temporaryToken(baseUrl: string, email: string) {
+  const suffix = userSuffix(email);
+  const login = process.env[`ZEEV_LOGIN_${suffix}`];
+  const password = process.env[`ZEEV_PASSWORD_${suffix}`];
+  if (!login || !password) return "";
+  const response = await fetch(`${baseUrl}/api/2/tokens`, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ login, password }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) return "";
+  const payload = await response.json();
+  return String(payload?.token || payload?.accessToken || payload?.value || "");
+}
+
+async function queryZeev(firstDay: string, lastDay: string, email: string) {
   const baseUrl = process.env.ZEEV_BASE_URL?.replace(/\/$/, "");
-  const token = process.env.ZEEV_API_TOKEN;
-  if (!baseUrl || !token) return { configured: false, instances: [] as ZeevInstance[], error: "Autenticação do Zeev necessária." };
+  if (!baseUrl) return { configured: false, instances: [] as ZeevInstance[], error: "Endereço do Zeev não configurado." };
+  const suffix = userSuffix(email);
+  const token = process.env[`ZEEV_API_TOKEN_${suffix}`] || process.env.ZEEV_API_TOKEN || await temporaryToken(baseUrl, email);
+  if (!token) return { configured: false, instances: [] as ZeevInstance[], error: `Credencial Zeev vinculada a ${email} ainda não configurada.` };
   const configuredFieldNames = (process.env.ZEEV_ENERGY_FORM_FIELDS || "").split(",").map((item) => item.trim()).filter(Boolean);
   const rangeStart = new Date(`${firstDay}T12:00:00-03:00`);
   const rangeEnd = new Date(`${lastDay}T12:00:00-03:00`);
@@ -174,7 +202,8 @@ function findTicket(row: { document: string; integrationKey: string; complement:
 
 export async function GET(request: NextRequest) {
   try {
-    if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
+    const user = await authenticatedUser(request);
+    if (!user) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const company = request.nextUrl.searchParams.get("company")?.trim();
     const competence = request.nextUrl.searchParams.get("competence")?.trim();
     const branches = new Set((request.nextUrl.searchParams.get("branches") || "").split(",").map((item) => item.trim()).filter(Boolean));
@@ -182,7 +211,7 @@ export async function GET(request: NextRequest) {
     const [year, month] = competence!.split("-").map(Number);
     const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
     const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const [records, zeev] = await Promise.all([queryTotvs(company, firstDay, lastDay), queryZeev(firstDay, lastDay)]);
+    const [records, zeev] = await Promise.all([queryTotvs(company, firstDay, lastDay), queryZeev(firstDay, lastDay, user.email)]);
     const rows = records.filter((record) => tag(record, "CODCONTA") === ENERGY_ACCOUNT && (!branches.size || branches.has(tag(record, "CODFILIAL")))).map((record) => {
       const base = {
         company: tag(record, "CODCOLIGADA"), branch: tag(record, "CODFILIAL"), entryId: tag(record, "IDLANCAMENTO"), document: tag(record, "DOCUMENTO"), integrationKey: tag(record, "INTEGRACHAVE"), sourceSystem: tag(record, "NOMESISTEMA"), date: tag(record, "DATA"), reduced: numeric(tag(record, "REDUZIDO")) || 913, account: tag(record, "CODCONTA"), description: tag(record, "DESCRICAO") || "Energia Elétrica", value: numeric(tag(record, "VALOR")), user: tag(record, "USUARIO"), complement: tag(record, "COMPLEMENTO"), costCenter: tag(record, "CCUSTO"),
@@ -191,7 +220,7 @@ export async function GET(request: NextRequest) {
     }).sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch, "pt-BR", { numeric: true }));
     const total = rows.reduce((sum, row) => sum + row.value, 0);
     const ticketsFound = rows.filter((row) => row.ticket).length;
-    return NextResponse.json({ source: "TOTVS RM — METTA0909 + Zeev", company, competence, account: ENERGY_ACCOUNT, rows, totals: { records: rows.length, accountingValue: total, ticketsFound, ticketsPending: rows.length - ticketsFound }, zeev: { configured: zeev.configured, error: zeev.error } }, { headers: { "cache-control": "private, no-store" } });
+    return NextResponse.json({ source: "TOTVS RM — METTA0909 + Zeev", company, competence, account: ENERGY_ACCOUNT, authenticatedUser: user.email, rows, totals: { records: rows.length, accountingValue: total, ticketsFound, ticketsPending: rows.length - ticketsFound }, zeev: { configured: zeev.configured, error: zeev.error } }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {
     console.error("[api/totvs/pis-cofins/credits/energy] consultation failed", { message: (cause as Error).message });
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
