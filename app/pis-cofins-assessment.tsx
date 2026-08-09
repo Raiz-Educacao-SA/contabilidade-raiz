@@ -159,7 +159,7 @@ export default function PisCofinsAssessment({
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   const competenceLabel = competence.split("-").reverse().join("/");
   const completeAssessmentReady = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
-  const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded;
+  const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded || energyLoaded;
   const storageKey = `pis-cofins-assessment:${companyCode}:${competence}`;
   const branchQuery = requestedBranches.length
     ? `&branches=${encodeURIComponent(requestedBranches.join(","))}`
@@ -349,6 +349,10 @@ export default function PisCofinsAssessment({
 
   function selectAllBranches() {
     setRequestedBranches([]);
+    setEnergyRows([]);
+    setEnergyLoaded(false);
+    setEnergyError("");
+    setZeevMessage("");
     setMonthlyBranches(branchValues(rows));
     setOtherRevenueBranches(branchValues(otherRevenueRows));
     setAnnualFeeBranches(branchValues(annualFeeRows));
@@ -359,6 +363,10 @@ export default function PisCofinsAssessment({
     setRequestedBranches((current) => checked
       ? [...new Set([...current, branch])].sort((a, b) => Number(a) - Number(b))
       : current.filter((item) => item !== branch));
+    setEnergyRows([]);
+    setEnergyLoaded(false);
+    setEnergyError("");
+    setZeevMessage("");
     const update = (available: string[], selected: string[], setter: (branches: string[]) => void) => {
       if (!available.includes(branch)) return;
       setter(checked ? [...new Set([...selected, branch])] : selected.filter((item) => item !== branch));
@@ -1533,7 +1541,7 @@ export default function PisCofinsAssessment({
       <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
           <div><b>Créditos</b><span>Créditos de PIS e COFINS · conferência contábil e documentos no Zeev</span></div>
-          <button className="tax-secondary-update" disabled={creditsCategory !== "energy" || energyLoading} onClick={updateEnergyCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Arrendamentos serão configurados na próxima etapa"}>
+          <button className={energyLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={creditsCategory !== "energy" || energyLoading} onClick={updateEnergyCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Arrendamentos serão configurados na próxima etapa"}>
             <RefreshCw className={energyLoading ? "is-spinning" : ""} /> {energyLoading ? "Atualizando" : "Atualizar"}
           </button>
           <button className="tax-detail-export" disabled={creditsCategory !== "energy" || !energyRows.length} onClick={exportEnergyCredits} title="Exportar os lançamentos de Energia e os tickets localizados">
