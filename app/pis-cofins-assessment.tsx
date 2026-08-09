@@ -533,53 +533,86 @@ export default function PisCofinsAssessment({
   }
 
   function consolidatedExportRows() {
-    return [
-      {
-        Coligada: companyCode,
-        "Competência": competenceLabel,
-        Tributo: "PIS cumulativo",
-        "Faturamento Mensal": totals.cumulativePis,
-        "Outras Receitas": 0,
-        "Rateios Anuidades": annualFeeTotals.cumulativePis,
-        "Notas Canceladas (dedução)": -cancelledTotals.cumulativePis,
-        "Total consolidado": consolidatedTotals.cumulativePis,
-      },
-      {
-        Coligada: companyCode,
-        "Competência": competenceLabel,
-        Tributo: "COFINS cumulativo",
-        "Faturamento Mensal": totals.cumulativeCofins,
-        "Outras Receitas": 0,
-        "Rateios Anuidades": annualFeeTotals.cumulativeCofins,
-        "Notas Canceladas (dedução)": -cancelledTotals.cumulativeCofins,
-        "Total consolidado": consolidatedTotals.cumulativeCofins,
-      },
-      {
-        Coligada: companyCode,
-        "Competência": competenceLabel,
-        Tributo: "PIS não cumulativo",
-        "Faturamento Mensal": totals.nonCumulativePis,
-        "Outras Receitas": otherRevenueTotals.pis,
-        "Rateios Anuidades": annualFeeTotals.nonCumulativePis,
-        "Notas Canceladas (dedução)": -cancelledTotals.nonCumulativePis,
-        "Total consolidado": consolidatedTotals.nonCumulativePis,
-      },
-      {
-        Coligada: companyCode,
-        "Competência": competenceLabel,
-        Tributo: "COFINS não cumulativo",
-        "Faturamento Mensal": totals.nonCumulativeCofins,
-        "Outras Receitas": otherRevenueTotals.cofins,
-        "Rateios Anuidades": annualFeeTotals.nonCumulativeCofins,
-        "Notas Canceladas (dedução)": -cancelledTotals.nonCumulativeCofins,
-        "Total consolidado": consolidatedTotals.nonCumulativeCofins,
-      },
+    type Components = { monthly: number; other: number; annual: number; cancelled: number };
+    type BranchConsolidated = Record<"cumulativePis" | "cumulativeCofins" | "nonCumulativePis" | "nonCumulativeCofins", Components>;
+    const emptyBranch = (): BranchConsolidated => ({
+      cumulativePis: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
+      cumulativeCofins: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
+      nonCumulativePis: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
+      nonCumulativeCofins: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
+    });
+    const byBranch = new Map<string, BranchConsolidated>();
+    const branchTotals = (branch: string) => {
+      const key = String(branch || "").trim() || "Sem filial";
+      if (!byBranch.has(key)) byBranch.set(key, emptyBranch());
+      return byBranch.get(key)!;
+    };
+
+    filteredRows.forEach((row) => {
+      if (!row.regime) return;
+      const rate = rates[row.regime];
+      const target = branchTotals(row.branch);
+      const pisKey = row.regime === "Cumulativo" ? "cumulativePis" : "nonCumulativePis";
+      const cofinsKey = row.regime === "Cumulativo" ? "cumulativeCofins" : "nonCumulativeCofins";
+      target[pisKey].monthly += row.netRevenue * rate.pis;
+      target[cofinsKey].monthly += row.netRevenue * rate.cofins;
+    });
+    filteredOtherRevenueRows.forEach((row) => {
+      const target = branchTotals(row.branch);
+      target.nonCumulativePis.other += row.pis;
+      target.nonCumulativeCofins.other += row.cofins;
+    });
+    filteredAnnualFeeRows.forEach((row) => {
+      if (!row.regime) return;
+      const rate = rates[row.regime];
+      const target = branchTotals(row.branch);
+      const pisKey = row.regime === "Cumulativo" ? "cumulativePis" : "nonCumulativePis";
+      const cofinsKey = row.regime === "Cumulativo" ? "cumulativeCofins" : "nonCumulativeCofins";
+      target[pisKey].annual += row.netRevenue * rate.pis;
+      target[cofinsKey].annual += row.netRevenue * rate.cofins;
+    });
+    filteredCancelledRows.forEach((row) => {
+      if (!row.regime) return;
+      const rate = rates[row.regime];
+      const target = branchTotals(row.branch);
+      const pisKey = row.regime === "Cumulativo" ? "cumulativePis" : "nonCumulativePis";
+      const cofinsKey = row.regime === "Cumulativo" ? "cumulativeCofins" : "nonCumulativeCofins";
+      target[pisKey].cancelled -= row.netValue * rate.pis;
+      target[cofinsKey].cancelled -= row.netValue * rate.cofins;
+    });
+
+    const makeRow = (view: string, branch: string, tax: string, values: Components) => ({
+      "Visão": view,
+      Coligada: companyCode,
+      Filial: branch,
+      "Competência": competenceLabel,
+      Tributo: tax,
+      "Faturamento Mensal": values.monthly,
+      "Outras Receitas": values.other,
+      "Rateios Anuidades": values.annual,
+      "Notas Canceladas (dedução)": values.cancelled,
+      "Total consolidado": values.monthly + values.other + values.annual + values.cancelled,
+    });
+    const general = [
+      makeRow("TOTAL GERAL", "Todas", "PIS cumulativo", { monthly: totals.cumulativePis, other: 0, annual: annualFeeTotals.cumulativePis, cancelled: -cancelledTotals.cumulativePis }),
+      makeRow("TOTAL GERAL", "Todas", "COFINS cumulativo", { monthly: totals.cumulativeCofins, other: 0, annual: annualFeeTotals.cumulativeCofins, cancelled: -cancelledTotals.cumulativeCofins }),
+      makeRow("TOTAL GERAL", "Todas", "PIS não cumulativo", { monthly: totals.nonCumulativePis, other: otherRevenueTotals.pis, annual: annualFeeTotals.nonCumulativePis, cancelled: -cancelledTotals.nonCumulativePis }),
+      makeRow("TOTAL GERAL", "Todas", "COFINS não cumulativo", { monthly: totals.nonCumulativeCofins, other: otherRevenueTotals.cofins, annual: annualFeeTotals.nonCumulativeCofins, cancelled: -cancelledTotals.nonCumulativeCofins }),
     ];
+    const branches = [...byBranch.entries()]
+      .sort(([left], [right]) => left.localeCompare(right, "pt-BR", { numeric: true }))
+      .flatMap(([branch, values]) => [
+        makeRow("POR FILIAL", branch, "PIS cumulativo", values.cumulativePis),
+        makeRow("POR FILIAL", branch, "COFINS cumulativo", values.cumulativeCofins),
+        makeRow("POR FILIAL", branch, "PIS não cumulativo", values.nonCumulativePis),
+        makeRow("POR FILIAL", branch, "COFINS não cumulativo", values.nonCumulativeCofins),
+      ]);
+    return [...general, ...branches].filter((row) => Math.abs(row["Total consolidado"]) > 0.000001);
   }
 
   function consolidatedWorksheet() {
     const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows().filter((row) => Math.abs(row["Total consolidado"]) > 0.000001));
-    worksheet["!cols"] = [12, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
+    worksheet["!cols"] = [14, 12, 10, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
     return worksheet;
   }
 
