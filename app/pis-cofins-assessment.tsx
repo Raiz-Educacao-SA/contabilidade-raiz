@@ -588,7 +588,7 @@ export default function PisCofinsAssessment({
   }
 
   function consolidatedWorksheet() {
-    const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows());
+    const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows().filter((row) => Math.abs(row["Total consolidado"]) > 0.000001));
     worksheet["!cols"] = [12, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
     return worksheet;
   }
@@ -634,13 +634,16 @@ export default function PisCofinsAssessment({
       otherCofins = 0,
     ) => {
       const worksheet = workbook.Sheets[sheetName];
-      if (!worksheet) return;
+      if (!worksheet) return false;
       const rate = rates[regime];
       const monthly = monthlyByRegime(regime);
       const annual = annualByRegime(regime);
       const cancelled = cancelledByRegime(regime);
       const put = (address: string, value: string | number, format?: string) => {
-        worksheet[address] = typeof value === "number" ? { t: "n", v: value, ...(format ? { z: format } : {}) } : { t: "s", v: value };
+        const current = worksheet[address] || {};
+        worksheet[address] = typeof value === "number"
+          ? { ...current, t: "n", v: value, ...(format ? { z: format } : {}) }
+          : { ...current, t: "s", v: value };
       };
       const setLine = (row: number, base: number, pis: number, cofins: number, revenue = false) => {
         put(`F${row}`, base, "#,##0.00");
@@ -662,6 +665,8 @@ export default function PisCofinsAssessment({
       put("C11", companyName);
       put("C12", taxRegime.toUpperCase());
       put("F12", regime.toUpperCase());
+      put("D9", "Elaborado por:\n");
+      put("H9", "Revisado por:\n");
       put("N10", excelDate(generatedAt), "dd/mm/yyyy hh:mm:ss");
       put("M13", excelDate(competenceDate), "mm/yyyy");
       put("N13", excelDate(generatedAt), "dd/mm/yyyy hh:mm:ss");
@@ -684,14 +689,33 @@ export default function PisCofinsAssessment({
       sumLines(41, [21, 27, 34, 38]);
       sumLines(43, [44, 45, 46, 47, 48, 49, 50, 51, 52]);
       sumLines(53, [41, 43]);
+      put("B2", "RESUMO DA APURAÇÃO");
+      put("B3", "Regime");
+      put("E3", "Base tributável");
+      put("H3", "PIS apurado");
+      put("K3", "COFINS apurada");
+      put("B4", regime);
+      put("E4", Number(worksheet.K53?.v || 0), "#,##0.00");
+      put("H4", Number(worksheet.L53?.v || 0), "#,##0.00");
+      put("K4", Number(worksheet.M53?.v || 0), "#,##0.00");
+      worksheet["!merges"] = [...(worksheet["!merges"] || []), { s: { r: 1, c: 1 }, e: { r: 1, c: 12 } }];
+      worksheet["!rows"] = worksheet["!rows"] || [];
+      const detailRows = [...Array.from({ length: 19 }, (_, index) => index + 22), ...Array.from({ length: 10 }, (_, index) => index + 43)];
+      detailRows.forEach((row) => {
+        const hasValue = ["K", "L", "M"].some((column) => Math.abs(Number(worksheet[`${column}${row}`]?.v || 0)) > 0.000001);
+        worksheet["!rows"]![row - 1] = { ...(worksheet["!rows"]![row - 1] || {}), hidden: !hasValue };
+      });
+      for (let row = 54; row <= 93; row += 1) worksheet["!rows"]![row - 1] = { ...(worksheet["!rows"]![row - 1] || {}), hidden: true };
+      for (let row = 102; row <= 106; row += 1) worksheet["!rows"]![row - 1] = { ...(worksheet["!rows"]![row - 1] || {}), hidden: true };
       put("L95", Number(worksheet.L53?.v || 0), "#,##0.00");
       put("M95", Number(worksheet.M53?.v || 0), "#,##0.00");
       put("L101", Number(worksheet.L53?.v || 0), "#,##0.00");
       put("M101", Number(worksheet.M53?.v || 0), "#,##0.00");
+      return ["K", "L", "M"].some((column) => Math.abs(Number(worksheet[`${column}53`]?.v || 0)) > 0.000001);
     };
 
-    updatePacont("PACONT CUMULATIVO", "Cumulativo");
-    updatePacont(
+    const hasCumulativeBalance = updatePacont("PACONT CUMULATIVO", "Cumulativo");
+    const hasNonCumulativeBalance = updatePacont(
       "PACONT NÃO CUMULATIVO",
       "Não-Cumulativo",
       otherRevenueTotals.financialBase,
@@ -701,12 +725,30 @@ export default function PisCofinsAssessment({
       otherRevenueTotals.otherPis,
       otherRevenueTotals.otherCofins,
     );
+    if (!hasCumulativeBalance) {
+      delete workbook.Sheets["PACONT CUMULATIVO"];
+      workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "PACONT CUMULATIVO");
+    }
+    if (!hasNonCumulativeBalance) {
+      delete workbook.Sheets["PACONT NÃO CUMULATIVO"];
+      workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "PACONT NÃO CUMULATIVO");
+    }
     delete workbook.Sheets["Pis-Cofins - Filial"];
     workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "Pis-Cofins - Filial");
     workbook.Workbook = workbook.Workbook || {};
     const workbookProperties = workbook.Workbook as typeof workbook.Workbook & { CalcPr?: Record<string, unknown> };
     workbookProperties.CalcPr = { ...(workbookProperties.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
 
+    const deliveredSheets = [
+      "Instruções",
+      hasCumulativeBalance ? "PACONT CUMULATIVO" : "",
+      hasNonCumulativeBalance ? "PACONT NÃO CUMULATIVO" : "",
+      consolidatedExportRows().some((row) => Math.abs(row["Total consolidado"]) > 0.000001) ? "Base consolidada" : "",
+      filteredRows.some((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)) ? "Faturamento Mensal" : "",
+      filteredOtherRevenueRows.some((row) => [row.value, row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)) ? "Outras Receitas" : "",
+      filteredAnnualFeeRows.some((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)) ? "Rateios Anuidades" : "",
+      filteredCancelledRows.some((row) => [row.grossValue, row.discountValue, row.netValue].some((value) => Math.abs(value) > 0.000001)) ? "Notas Canceladas" : "",
+    ].filter(Boolean);
     const generatedAtLabel = generatedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
     const instructionRows: (string | number)[][] = [
@@ -734,7 +776,7 @@ export default function PisCofinsAssessment({
       ["Notas Canceladas", "Entrega desta exportação", `${filteredCancelledRows.length} nota(s); valor líquido excluído ${brl.format(cancelledTotals.net)}; PIS deduzido ${brl.format(cancelledTotals.pis)}; COFINS deduzida ${brl.format(cancelledTotals.cofins)}.`, "Dados da competência exportada"],
       ["Apuração Consolidada", "Fórmula", "Faturamento Mensal + Outras Receitas + Rateios Anuidades - Notas Canceladas, mantendo a separação entre regimes cumulativo e não cumulativo.", "Regra operacional Contabilidade Raiz"],
       ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(consolidatedTotals.cumulativePis)}; COFINS cumulativa ${brl.format(consolidatedTotals.cumulativeCofins)}; PIS não cumulativo ${brl.format(consolidatedTotals.nonCumulativePis)}; COFINS não cumulativa ${brl.format(consolidatedTotals.nonCumulativeCofins)}.`, "Base consolidada"],
-      ["Apuração Completa", "Abas entregues", "Instruções, PACONT CUMULATIVO, PACONT NÃO CUMULATIVO, Base consolidada, Faturamento Mensal, Outras Receitas, Rateios Anuidades e Notas Canceladas.", "Este arquivo"],
+      ["Apuração Completa", "Abas entregues", `${deliveredSheets.join(", ")}. Abas sem saldo não são incluídas.`, "Este arquivo"],
       ["", "", "", ""],
       ["MATRIZ DE CLASSIFICAÇÃO", "SERVIÇO / DESCRIÇÃO", "CLASSIFICAÇÃO", ""],
       ["Serviços", "Berçário", "Cumulativo", ""],
@@ -776,7 +818,7 @@ export default function PisCofinsAssessment({
     instructionSheet["!autofilter"] = { ref: `A8:D${instructionRows.length}` };
     XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
     workbook.SheetNames = ["Instruções", ...workbook.SheetNames.filter((name) => name !== "Instruções")];
-    const monthly = filteredRows.map((row) => {
+    const monthly = filteredRows.filter((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)).map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Filial: row.branch,
@@ -791,7 +833,7 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const otherRevenues = filteredOtherRevenueRows.map((row) => ({
+    const otherRevenues = filteredOtherRevenueRows.filter((row) => [row.value, row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)).map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
       Competência: competenceLabel,
@@ -813,7 +855,7 @@ export default function PisCofinsAssessment({
       "Alíquota COFINS": row.cofinsRate,
       COFINS: row.cofins,
     }));
-    const annualFeeAllocations = filteredAnnualFeeRows.map((row) => {
+    const annualFeeAllocations = filteredAnnualFeeRows.filter((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)).map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Coligada: row.company,
@@ -838,7 +880,7 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const cancelled = filteredCancelledRows.map((row) => ({
+    const cancelled = filteredCancelledRows.filter((row) => [row.grossValue, row.discountValue, row.netValue].some((value) => Math.abs(value) > 0.000001)).map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
       "Competência da apuração": competenceLabel,
@@ -860,11 +902,11 @@ export default function PisCofinsAssessment({
       Histórico: row.history,
       Tratamento: row.treatment,
     }));
-    XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento Mensal");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras Receitas");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas Canceladas");
+    if (consolidatedExportRows().some((row) => Math.abs(row["Total consolidado"]) > 0.000001)) XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
+    if (monthly.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento Mensal");
+    if (otherRevenues.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras Receitas");
+    if (annualFeeAllocations.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
+    if (cancelled.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas Canceladas");
     XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 
