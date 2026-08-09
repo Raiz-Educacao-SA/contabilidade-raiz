@@ -644,6 +644,7 @@ export default function PisCofinsAssessment({
         pis: sum.pis + row.pis,
         cofins: sum.cofins + row.cofins,
       }), { base: 0, pis: 0, cofins: 0 });
+      if (![totals.base, totals.pis, totals.cofins].some((value) => Math.abs(value) > 0.000001)) return false;
       const rows: (string | number)[][] = [
         ["PACONT - PLANILHA DE APURAÇÃO DAS CONTRIBUIÇÕES", "", "", "", "", ""],
         ["Empresa", companyName, "Competência", competenceLabel, "Gerado em", generatedAtLabel],
@@ -689,14 +690,14 @@ export default function PisCofinsAssessment({
       otherRevenueTotals.otherCofins,
     );
     const deliveredSheets = [
-      "Instruções",
       hasCumulativeBalance ? "PACONT CUMULATIVO" : "",
       hasNonCumulativeBalance ? "PACONT NÃO CUMULATIVO" : "",
       consolidatedExportRows().some((row) => Math.abs(row["Total consolidado"]) > 0.000001) ? "Base consolidada" : "",
-      filteredRows.some((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)) ? "Faturamento Mensal" : "",
-      filteredOtherRevenueRows.some((row) => [row.value, row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)) ? "Outras Receitas" : "",
-      filteredAnnualFeeRows.some((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)) ? "Rateios Anuidades" : "",
-      filteredCancelledRows.some((row) => [row.grossValue, row.discountValue, row.netValue].some((value) => Math.abs(value) > 0.000001)) ? "Notas Canceladas" : "",
+      filteredRows.some((row) => Math.abs(row.netRevenue) > 0.000001) ? "Faturamento Mensal" : "",
+      filteredOtherRevenueRows.some((row) => [row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)) ? "Outras Receitas" : "",
+      filteredAnnualFeeRows.some((row) => Math.abs(row.netRevenue) > 0.000001) ? "Rateios Anuidades" : "",
+      filteredCancelledRows.some((row) => Math.abs(row.netValue) > 0.000001) ? "Notas Canceladas" : "",
+      "Instruções",
     ].filter(Boolean);
     const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
     const instructionRows: (string | number)[][] = [
@@ -759,14 +760,39 @@ export default function PisCofinsAssessment({
       ["Legislação", "Escolas", "A tributação de escolas depende da natureza jurídica, do regime do IRPJ e da espécie da receita. Instituições sem fins lucrativos que atendam aos requisitos legais possuem tratamento próprio; este arquivo não presume isenção. A matriz de serviços acima é uma premissa operacional aprovada pela Contabilidade e deve ser revisada pela área fiscal quando houver novo serviço ou mudança legal.", "https://www.gov.br/receitafederal/pt-br/assuntos/orientacao-tributaria/declaracoes-e-demonstrativos/ecf/erguntas-e-respostas-pessoa-juridica-2019-arquivos/capitulo-xxii-contribuicao-para-o-pis-pasep-e-cofins-incidentes-sobre-a-receita-ou-o-faturamento-2019.pdf"],
       ["Atenção", "Validação", "Resumo informativo. A classificação final, os créditos, retenções, benefícios e demais ajustes devem ser validados pela área fiscal antes da escrituração e do recolhimento.", "IN RFB nº 2.121/2022 e alterações posteriores"],
     ];
-    const instructionSheet = XLSX.utils.aoa_to_sheet(instructionRows);
-    instructionSheet["!cols"] = [{ wch: 24 }, { wch: 34 }, { wch: 110 }, { wch: 70 }];
+    const wrapInstruction = (value: string | number, maxLength: number) => {
+      if (typeof value !== "string" || value.length <= maxLength) return value;
+      const words = value.split(" ");
+      const lines: string[] = [];
+      let line = "";
+      words.forEach((word) => {
+        if (line && `${line} ${word}`.length > maxLength) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = line ? `${line} ${word}` : word;
+        }
+      });
+      if (line) lines.push(line);
+      return lines.join("\n");
+    };
+    const compactInstructionRows = instructionRows
+      .filter((row) => row.some((value) => String(value).trim()))
+      .map((row) => row.map((value, column) => wrapInstruction(value, column === 2 ? 62 : column === 3 ? 48 : 30)));
+    const instructionSheet = XLSX.utils.aoa_to_sheet(compactInstructionRows);
+    instructionSheet["!cols"] = [{ wch: 19 }, { wch: 27 }, { wch: 64 }, { wch: 50 }];
     instructionSheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
-    instructionSheet["!rows"] = instructionRows.map((_, index) => ({ hpt: index === 0 ? 28 : 36 }));
-    instructionSheet["!autofilter"] = { ref: `A8:D${instructionRows.length}` };
-    XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
-    workbook.SheetNames = ["Instruções", ...workbook.SheetNames.filter((name) => name !== "Instruções")];
-    const monthly = filteredRows.filter((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)).map((row) => {
+    instructionSheet["!rows"] = compactInstructionRows.map((row, index) => ({
+      hpt: index === 0 ? 22 : Math.max(18, Math.max(...row.map((value) => String(value).split("\n").length)) * 11),
+    }));
+    Object.keys(instructionSheet).filter((address) => !address.startsWith("!")).forEach((address) => {
+      const cell = instructionSheet[address];
+      cell.s = {
+        font: { name: "Arial", sz: address === "A1" ? 10 : 8, bold: address === "A1" },
+        alignment: { wrapText: true, vertical: "top" },
+      };
+    });
+    const monthly = filteredRows.filter((row) => Math.abs(row.netRevenue) > 0.000001).map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Filial: row.branch,
@@ -781,7 +807,7 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const otherRevenues = filteredOtherRevenueRows.filter((row) => [row.value, row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)).map((row) => ({
+    const otherRevenues = filteredOtherRevenueRows.filter((row) => [row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)).map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
       Competência: competenceLabel,
@@ -803,7 +829,7 @@ export default function PisCofinsAssessment({
       "Alíquota COFINS": row.cofinsRate,
       COFINS: row.cofins,
     }));
-    const annualFeeAllocations = filteredAnnualFeeRows.filter((row) => [row.grossRevenue, row.discounts, row.netRevenue].some((value) => Math.abs(value) > 0.000001)).map((row) => {
+    const annualFeeAllocations = filteredAnnualFeeRows.filter((row) => Math.abs(row.netRevenue) > 0.000001).map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
         Coligada: row.company,
@@ -828,7 +854,7 @@ export default function PisCofinsAssessment({
         COFINS: rate ? row.netRevenue * rate.cofins : 0,
       };
     });
-    const cancelled = filteredCancelledRows.filter((row) => [row.grossValue, row.discountValue, row.netValue].some((value) => Math.abs(value) > 0.000001)).map((row) => ({
+    const cancelled = filteredCancelledRows.filter((row) => Math.abs(row.netValue) > 0.000001).map((row) => ({
       Coligada: row.company,
       Filial: row.branch,
       "Competência da apuração": competenceLabel,
@@ -855,6 +881,7 @@ export default function PisCofinsAssessment({
     if (otherRevenues.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras Receitas");
     if (annualFeeAllocations.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
     if (cancelled.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas Canceladas");
+    XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
     XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 
