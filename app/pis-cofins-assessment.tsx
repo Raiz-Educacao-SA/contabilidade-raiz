@@ -90,11 +90,6 @@ function restoredBranches<T extends { branch: string }>(saved: unknown, rows: T[
   return Array.isArray(saved) && saved.length ? saved.map(String) : branchValues(rows);
 }
 
-function BranchSelector({ branches, selected, onChange }: { branches: string[]; selected: string[]; onChange: (branches: string[]) => void }) {
-  if (!branches.length) return null;
-  return <fieldset className="tax-branch-selector" data-branch-filter="true"><legend>Selecionar filiais</legend>{branches.map((branch) => <label key={branch}><input type="checkbox" checked={selected.includes(branch)} onChange={(event) => onChange(event.target.checked ? [...selected, branch] : selected.filter((item) => item !== branch))} />Filial {branch}</label>)}</fieldset>;
-}
-
 export default function PisCofinsAssessment({
   companyCode,
   companyName,
@@ -142,7 +137,9 @@ export default function PisCofinsAssessment({
   const completeAssessmentReady = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
   const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded;
   const storageKey = `pis-cofins-assessment:${companyCode}:${competence}`;
-  const branchQuery = "";
+  const branchQuery = requestedBranches.length
+    ? `&branches=${encodeURIComponent(requestedBranches.join(","))}`
+    : "";
 
   useEffect(() => {
     setActionsTarget(document.getElementById("pis-cofins-filter-actions"));
@@ -176,7 +173,7 @@ export default function PisCofinsAssessment({
       setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
       setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
       setCancelledBranches(restoredBranches(assessment?.cancelledBranches, assessment?.cancelledRows || []));
-      setRequestedBranches([]);
+      setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
     } catch {
       setRows([]);
       setCancelledRows([]);
@@ -261,7 +258,9 @@ export default function PisCofinsAssessment({
         );
       const nextRows = payload.rows || [];
       setRows(nextRows);
-      setMonthlyBranches(branchValues(nextRows));
+      setMonthlyBranches(requestedBranches.length
+        ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch))
+        : branchValues(nextRows));
       setIgnoredCancelled(payload.ignoredCancelled || 0);
       setLoaded(true);
       setClassified(true);
@@ -277,6 +276,29 @@ export default function PisCofinsAssessment({
   const filteredOtherRevenueRows = useMemo(() => otherRevenueRows.filter((row) => otherRevenueBranches.includes(String(row.branch || "").trim())), [otherRevenueRows, otherRevenueBranches]);
   const filteredAnnualFeeRows = useMemo(() => annualFeeRows.filter((row) => annualFeeBranches.includes(String(row.branch || "").trim())), [annualFeeRows, annualFeeBranches]);
   const filteredCancelledRows = useMemo(() => cancelledRows.filter((row) => cancelledBranches.includes(String(row.branch || "").trim())), [cancelledRows, cancelledBranches]);
+  const selectableBranches = useMemo(() => Array.from({ length: 15 }, (_, index) => String(index + 1)), []);
+
+  function selectAllBranches() {
+    setRequestedBranches([]);
+    setMonthlyBranches(branchValues(rows));
+    setOtherRevenueBranches(branchValues(otherRevenueRows));
+    setAnnualFeeBranches(branchValues(annualFeeRows));
+    setCancelledBranches(branchValues(cancelledRows));
+  }
+
+  function toggleGlobalBranch(branch: string, checked: boolean) {
+    setRequestedBranches((current) => checked
+      ? [...new Set([...current, branch])].sort((a, b) => Number(a) - Number(b))
+      : current.filter((item) => item !== branch));
+    const update = (available: string[], selected: string[], setter: (branches: string[]) => void) => {
+      if (!available.includes(branch)) return;
+      setter(checked ? [...new Set([...selected, branch])] : selected.filter((item) => item !== branch));
+    };
+    update(branchValues(rows), monthlyBranches, setMonthlyBranches);
+    update(branchValues(otherRevenueRows), otherRevenueBranches, setOtherRevenueBranches);
+    update(branchValues(annualFeeRows), annualFeeBranches, setAnnualFeeBranches);
+    update(branchValues(cancelledRows), cancelledBranches, setCancelledBranches);
+  }
   const totals = useMemo(() => {
     const result = {
       cumulativeBase: 0,
@@ -463,7 +485,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar as outras receitas no Razão Completo.");
-      const nextRows = payload.rows || []; setOtherRevenueRows(nextRows); setOtherRevenueBranches(branchValues(nextRows));
+      const nextRows = payload.rows || []; setOtherRevenueRows(nextRows); setOtherRevenueBranches(requestedBranches.length ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch)) : branchValues(nextRows));
       setOtherRevenueLoaded(true);
     } catch (cause) {
       setOtherRevenueError((cause as Error).message);
@@ -482,7 +504,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar os rateios de anuidades no módulo Contábil.");
-      const nextRows = payload.rows || []; setAnnualFeeRows(nextRows); setAnnualFeeBranches(branchValues(nextRows));
+      const nextRows = payload.rows || []; setAnnualFeeRows(nextRows); setAnnualFeeBranches(requestedBranches.length ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch)) : branchValues(nextRows));
       setAnnualFeeLoaded(true);
     } catch (cause) {
       setAnnualFeeError((cause as Error).message);
@@ -501,7 +523,7 @@ export default function PisCofinsAssessment({
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Falha ao consultar a Planilha.NET 37.");
-      const nextRows = payload.rows || []; setCancelledRows(nextRows); setCancelledBranches(branchValues(nextRows));
+      const nextRows = payload.rows || []; setCancelledRows(nextRows); setCancelledBranches(requestedBranches.length ? requestedBranches.filter((branch) => branchValues(nextRows).includes(branch)) : branchValues(nextRows));
       setCancelledLoaded(true);
     } catch (cause) {
       setCancelledError((cause as Error).message);
@@ -667,7 +689,7 @@ export default function PisCofinsAssessment({
       filteredCancelledRows.some((row) => Math.abs(row.netValue) > 0.000001) ? "Notas Canceladas" : "",
       "Instruções",
     ].filter(Boolean);
-    const selectedBranchesLabel = "Conforme a seleção realizada em cada etapa";
+    const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
     const instructionRows: (string | number)[][] = [
       ["INSTRUÇÕES DA APURAÇÃO COMPLETA DE PIS E COFINS", "", "", ""],
       ["Arquivo", "Empresa", companyName, ""],
@@ -976,6 +998,19 @@ export default function PisCofinsAssessment({
       {actionsTarget &&
         createPortal(
           <div className="tax-actions">
+            <details className="tax-top-branches">
+              <summary>Filiais {requestedBranches.length ? `(${requestedBranches.join(", ")})` : "(todas)"}</summary>
+              <div>
+                <label className="tax-all-branches">
+                  <input type="checkbox" checked={!requestedBranches.length} onChange={(event) => { if (event.target.checked) selectAllBranches(); }} />
+                  Todas
+                </label>
+                {selectableBranches.map((branch) => <label key={branch}>
+                  <input type="checkbox" checked={requestedBranches.includes(branch)} onChange={(event) => toggleGlobalBranch(branch, event.target.checked)} />
+                  Filial {branch}
+                </label>)}
+              </div>
+            </details>
             <button
               className="tax-export"
               disabled={!completeAssessmentReady}
@@ -1019,7 +1054,6 @@ export default function PisCofinsAssessment({
         </button>
       </div>
       <div hidden={!monthlyVisible}>
-      <BranchSelector branches={branchValues(rows)} selected={monthlyBranches} onChange={setMonthlyBranches} />
       {error && <div className="notice error">{error}</div>}
       <div className="tax-summary">
         <article>
@@ -1199,7 +1233,6 @@ export default function PisCofinsAssessment({
             {otherRevenueVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
-        <BranchSelector branches={branchValues(otherRevenueRows)} selected={otherRevenueBranches} onChange={setOtherRevenueBranches} />
         {otherRevenueError && <div className="notice error">{otherRevenueError}</div>}
         {!otherRevenueLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para carregar todos os movimentos das contas configuradas na competência selecionada.</span></div>
@@ -1241,7 +1274,6 @@ export default function PisCofinsAssessment({
             {annualFeeVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
-        <BranchSelector branches={branchValues(annualFeeRows)} selected={annualFeeBranches} onChange={setAnnualFeeBranches} />
         {annualFeeError && <div className="notice error">{annualFeeError}</div>}
         {!annualFeeLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para localizar os lançamentos contábeis de rateio de anuidades da competência.</span></div>
@@ -1287,7 +1319,6 @@ export default function PisCofinsAssessment({
             {cancelledVisible ? "Ocultar" : "Exibir"}
           </button>
         </div>
-        <BranchSelector branches={branchValues(cancelledRows)} selected={cancelledBranches} onChange={setCancelledBranches} />
         {cancelledError && <div className="notice error">{cancelledError}</div>}
         {!cancelledLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para consultar os cancelamentos registrados na competência selecionada.</span></div>
