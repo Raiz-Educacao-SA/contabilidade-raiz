@@ -914,6 +914,8 @@ export default function Home() {
         {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
           <PisCofinsAssessment
             companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
+            taxRegime={getCompanyTaxRegime(company?.empresas?.codcoligada ?? "")}
             competence={competence}
             accessToken={session.access_token}
           />

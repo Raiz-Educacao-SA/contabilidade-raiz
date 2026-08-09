@@ -97,10 +97,14 @@ function BranchSelector({ branches, selected, onChange }: { branches: string[]; 
 
 export default function PisCofinsAssessment({
   companyCode,
+  companyName,
+  taxRegime,
   competence,
   accessToken,
 }: {
   companyCode: string;
+  companyName: string;
+  taxRegime: string;
   competence: string;
   accessToken: string;
 }) {
@@ -595,8 +599,113 @@ export default function PisCofinsAssessment({
     XLSX.writeFile(workbook, `base-consolidada-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 
-  function exportCompleteAssessment() {
-    const workbook = XLSX.utils.book_new();
+  async function exportCompleteAssessment() {
+    setError("");
+    const templateResponse = await fetch("/templates/modelo-apuracao-pis-cofins.xlsx");
+    if (!templateResponse.ok) {
+      setError("Não foi possível carregar o modelo PACONT da apuração.");
+      return;
+    }
+    const workbook = XLSX.read(await templateResponse.arrayBuffer(), {
+      type: "array",
+      cellFormula: true,
+      cellStyles: true,
+      cellDates: true,
+    });
+    const generatedAt = new Date();
+    const [competenceYear, competenceMonth] = competence.split("-").map(Number);
+    const competenceDate = new Date(competenceYear, competenceMonth - 1, 1);
+    const excelDate = (date: Date) => (Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()) - Date.UTC(1899, 11, 30)) / 86400000;
+    const monthlyByRegime = (regime: Exclude<TaxRegime, "">) => filteredRows.filter((row) => row.regime === regime).reduce((sum, row) => ({
+      gross: sum.gross + row.grossRevenue,
+      discounts: sum.discounts + row.discounts,
+    }), { gross: 0, discounts: 0 });
+    const annualByRegime = (regime: Exclude<TaxRegime, "">) => filteredAnnualFeeRows.filter((row) => row.regime === regime).reduce((sum, row) => sum + row.netRevenue, 0);
+    const cancelledByRegime = (regime: Exclude<TaxRegime, "">) => filteredCancelledRows.filter((row) => row.regime === regime).reduce((sum, row) => sum + row.netValue, 0);
+
+    const updatePacont = (
+      sheetName: string,
+      regime: Exclude<TaxRegime, "">,
+      financialBase = 0,
+      financialPis = 0,
+      financialCofins = 0,
+      otherBase = 0,
+      otherPis = 0,
+      otherCofins = 0,
+    ) => {
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet) return;
+      const rate = rates[regime];
+      const monthly = monthlyByRegime(regime);
+      const annual = annualByRegime(regime);
+      const cancelled = cancelledByRegime(regime);
+      const put = (address: string, value: string | number, format?: string) => {
+        worksheet[address] = typeof value === "number" ? { t: "n", v: value, ...(format ? { z: format } : {}) } : { t: "s", v: value };
+      };
+      const setLine = (row: number, base: number, pis: number, cofins: number, revenue = false) => {
+        put(`F${row}`, base, "#,##0.00");
+        put(`G${row}`, base, "#,##0.00");
+        put(`H${row}`, revenue ? base : 0, "#,##0.00");
+        put(`K${row}`, base, "#,##0.00");
+        put(`L${row}`, pis, "#,##0.00");
+        put(`M${row}`, cofins, "#,##0.00");
+      };
+      const sumLines = (target: number, sources: number[], revenue = false) => {
+        const values = sources.reduce((sum, row) => ({
+          base: sum.base + Number(worksheet[`K${row}`]?.v || 0),
+          pis: sum.pis + Number(worksheet[`L${row}`]?.v || 0),
+          cofins: sum.cofins + Number(worksheet[`M${row}`]?.v || 0),
+        }), { base: 0, pis: 0, cofins: 0 });
+        setLine(target, values.base, values.pis, values.cofins, revenue);
+      };
+
+      put("C11", companyName);
+      put("C12", taxRegime.toUpperCase());
+      put("F12", regime.toUpperCase());
+      put("N10", excelDate(generatedAt), "dd/mm/yyyy hh:mm:ss");
+      put("M13", excelDate(competenceDate), "mm/yyyy");
+      put("N13", excelDate(generatedAt), "dd/mm/yyyy hh:mm:ss");
+      put("L20", rate.pis, "0.00%");
+      put("M20", rate.cofins, "0.00%");
+
+      [...Array.from({ length: 19 }, (_, index) => index + 22), ...Array.from({ length: 9 }, (_, index) => index + 44)].forEach((row) => setLine(row, 0, 0, 0));
+      setLine(22, monthly.gross, monthly.gross * rate.pis, monthly.gross * rate.cofins, true);
+      setLine(23, annual, annual * rate.pis, annual * rate.cofins, true);
+      setLine(28, -cancelled, -cancelled * rate.pis, -cancelled * rate.cofins);
+      setLine(31, -monthly.discounts, -monthly.discounts * rate.pis, -monthly.discounts * rate.cofins);
+      if (regime === "Não-Cumulativo") {
+        setLine(40, otherBase, otherPis, otherCofins);
+        setLine(44, financialBase, financialPis, financialCofins);
+      }
+      sumLines(21, [22, 23, 24, 25, 26], true);
+      sumLines(27, [28, 29, 30, 31, 32, 33]);
+      sumLines(34, [35, 36, 37]);
+      sumLines(38, [39, 40]);
+      sumLines(41, [21, 27, 34, 38]);
+      sumLines(43, [44, 45, 46, 47, 48, 49, 50, 51, 52]);
+      sumLines(53, [41, 43]);
+      put("L95", Number(worksheet.L53?.v || 0), "#,##0.00");
+      put("M95", Number(worksheet.M53?.v || 0), "#,##0.00");
+      put("L101", Number(worksheet.L53?.v || 0), "#,##0.00");
+      put("M101", Number(worksheet.M53?.v || 0), "#,##0.00");
+    };
+
+    updatePacont("PACONT CUMULATIVO", "Cumulativo");
+    updatePacont(
+      "PACONT NÃO CUMULATIVO",
+      "Não-Cumulativo",
+      otherRevenueTotals.financialBase,
+      otherRevenueTotals.financialPis,
+      otherRevenueTotals.financialCofins,
+      otherRevenueTotals.otherBase,
+      otherRevenueTotals.otherPis,
+      otherRevenueTotals.otherCofins,
+    );
+    delete workbook.Sheets["Pis-Cofins - Filial"];
+    workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "Pis-Cofins - Filial");
+    workbook.Workbook = workbook.Workbook || {};
+    const workbookProperties = workbook.Workbook as typeof workbook.Workbook & { CalcPr?: Record<string, unknown> };
+    workbookProperties.CalcPr = { ...(workbookProperties.CalcPr || {}), calcMode: "auto", fullCalcOnLoad: true, forceFullCalc: true };
     const monthly = filteredRows.map((row) => {
       const rate = row.regime ? rates[row.regime] : null;
       return {
