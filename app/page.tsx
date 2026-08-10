@@ -600,7 +600,7 @@ export default function Home() {
   const ActiveModuleIcon = activeModule.icon;
 
   return (
-    <div className={`shell ${selectedModule === "book" ? "book-shell" : ""}`}>
+    <div className={`shell ${selectedModule === "book" ? "book-shell" : ""} ${selectedModule === "bancaria" ? "bank-shell" : ""}`}>
       <aside>
         <div className="logo">
           <Image
@@ -719,7 +719,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : ""}`}
       >
         <header>
           <div>
