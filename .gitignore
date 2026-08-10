@@ -27,3 +27,4 @@ node_modules/
 *.tsbuildinfo
 .vercel
 .env*
+.codex/worktrees/
