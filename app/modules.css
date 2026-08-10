@@ -1732,6 +1732,7 @@
 .energy-credit-notice { margin: 6px 0 8px; padding: 7px 10px; font-size: 10px; line-height: 1.25; }
 .zeev-ticket-cell { display: inline-flex; flex-direction: row; align-items: center; gap: 7px; }
 .zeev-ticket-open { color: #2563eb; font-size: 9px; font-weight: 700; text-decoration: underline; }
+.zeev-ticket-number { color: #1d4ed8; font-size: 10px; font-weight: 800; text-decoration: underline; }
 .zeev-ticket-cell b { font-size: 10px; }
 .tax-cancelled-table { margin: 10px 18px 16px; max-height: 320px; }
 .tax-cancelled-table table { min-width: 2050px; font-size: 8px; }
