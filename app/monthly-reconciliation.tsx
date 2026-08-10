@@ -50,6 +50,7 @@ type DriveStatement = {
   mimeType: string;
   modifiedTime?: string;
   size?: string;
+  resourceKey?: string;
 };
 
 export default function MonthlyReconciliationPanel({
@@ -284,7 +285,7 @@ export default function MonthlyReconciliationPanel({
           continue;
         }
         const fileResponse = await fetch(
-          `/api/drive/statements?fileId=${encodeURIComponent(item.id)}${isPdf ? `&parse=pdf&fileName=${encodeURIComponent(item.name)}` : ""}`,
+          `/api/drive/statements?fileId=${encodeURIComponent(item.id)}&mimeType=${encodeURIComponent(item.mimeType)}${item.resourceKey ? `&resourceKey=${encodeURIComponent(item.resourceKey)}` : ""}${isPdf ? `&parse=pdf&fileName=${encodeURIComponent(item.name)}` : ""}`,
           { cache: "no-store" },
         );
         if (!fileResponse.ok) {
@@ -492,7 +493,7 @@ export default function MonthlyReconciliationPanel({
               </span>
             </div>
             <button
-              className={`secondary ${driveReady ? "source-loaded" : ""}`}
+              className={`secondary ${driveReady ? "source-loaded-extracts" : ""}`}
               disabled={driveBusy}
               onClick={scanDrive}
             >

@@ -7,8 +7,23 @@ export const maxDuration = 300;
 
 const DRIVE_ROOT = process.env.GOOGLE_DRIVE_EXTRATOS_FOLDER_ID || "1wnOtI3NpylWkvY6i6wUlc1sl_CM2Ml7I";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
+const SHORTCUT_MIME = "application/vnd.google-apps.shortcut";
+const SPREADSHEET_MIME = "application/vnd.google-apps.spreadsheet";
 
-type DriveItem = { id: string; name: string; mimeType: string; parents?: string[]; modifiedTime?: string; size?: string };
+type DriveItem = {
+  id: string;
+  name: string;
+  mimeType: string;
+  parents?: string[];
+  modifiedTime?: string;
+  size?: string;
+  resourceKey?: string;
+  shortcutDetails?: {
+    targetId?: string;
+    targetMimeType?: string;
+    targetResourceKey?: string;
+  };
+};
 type LocatedFile = DriveItem & { path: string };
 
 let tokenCache: { token: string; expiresAt: number } | null = null;
@@ -59,7 +74,7 @@ async function listChildren(parentId: string) {
   const token = await accessToken();
   const items: DriveItem[] = []; let pageToken = "";
   do {
-    const params = new URLSearchParams({ q: `'${parentId}' in parents and trashed = false`, fields: "nextPageToken,files(id,name,mimeType,parents,modifiedTime,size)", pageSize: "1000", supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
+    const params = new URLSearchParams({ q: `'${parentId}' in parents and trashed = false`, fields: "nextPageToken,files(id,name,mimeType,parents,modifiedTime,size,resourceKey,shortcutDetails(targetId,targetMimeType,targetResourceKey))", pageSize: "1000", supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
     if (pageToken) params.set("pageToken", pageToken);
     const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
     if (!response.ok) throw new Error("O Google Drive não permitiu listar a pasta de extratos.");
@@ -93,8 +108,22 @@ async function collectFiles(folder: DriveItem, path: string, depth = 0): Promise
   const output: LocatedFile[] = [];
   for (const item of await listChildren(folder.id)) {
     const itemPath = `${path}/${item.name}`;
-    if (item.mimeType === FOLDER_MIME) output.push(...await collectFiles(item, itemPath, depth + 1));
-    else output.push({ ...item, path: itemPath });
+    if (item.mimeType === FOLDER_MIME) {
+      output.push(...await collectFiles(item, itemPath, depth + 1));
+      continue;
+    }
+    if (item.mimeType === SHORTCUT_MIME && item.shortcutDetails?.targetId) {
+      const target: DriveItem = {
+        ...item,
+        id: item.shortcutDetails.targetId,
+        mimeType: item.shortcutDetails.targetMimeType || "application/octet-stream",
+        resourceKey: item.shortcutDetails.targetResourceKey,
+      };
+      if (target.mimeType === FOLDER_MIME) output.push(...await collectFiles(target, itemPath, depth + 1));
+      else output.push({ ...target, path: itemPath });
+      continue;
+    }
+    output.push({ ...item, path: itemPath });
   }
   return output;
 }
@@ -109,7 +138,14 @@ export async function GET(request: NextRequest) {
     const fileId = request.nextUrl.searchParams.get("fileId");
     if (fileId) {
       const token = await accessToken();
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
+      const resourceKey = request.nextUrl.searchParams.get("resourceKey");
+      const mimeType = request.nextUrl.searchParams.get("mimeType");
+      const headers: Record<string, string> = { authorization: `Bearer ${token}` };
+      if (resourceKey) headers["x-goog-drive-resource-keys"] = `${fileId}/${resourceKey}`;
+      const downloadUrl = mimeType === SPREADSHEET_MIME
+        ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}`
+        : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`;
+      const response = await fetch(downloadUrl, { headers, cache: "no-store" });
       if (!response.ok) {
         const driveResponse = await response.text();
         let driveReason = "acesso ao conteúdo negado pelo Google Drive";
@@ -136,7 +172,7 @@ export async function GET(request: NextRequest) {
     if (!company || !/^\d{4}-\d{2}$/.test(competence || "")) return NextResponse.json({ error: "Empresa e competência são obrigatórias." }, { status: 400 });
     const folder = await findCompanyFolder(company);
     if (!folder) return NextResponse.json({ files: [], warning: "Não encontrei uma pasta correspondente à empresa selecionada." });
-    const files = (await collectFiles(folder, folder.name)).filter((file) => matchesCompetence(file, competence!)).map((file) => ({ id: file.id, name: file.name, path: file.path, mimeType: file.mimeType, modifiedTime: file.modifiedTime, size: file.size }));
+    const files = (await collectFiles(folder, folder.name)).filter((file) => matchesCompetence(file, competence!)).map((file) => ({ id: file.id, name: file.name, path: file.path, mimeType: file.mimeType, modifiedTime: file.modifiedTime, size: file.size, resourceKey: file.resourceKey }));
     return NextResponse.json({ companyFolder: folder.name, competence, files });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 503 });

@@ -702,6 +702,14 @@
 .source-steps article button.source-loaded:hover {
   background: #14743d !important;
 }
+.source-steps article button.source-loaded-extracts {
+  border-color: #f18700 !important;
+  background: #f18700 !important;
+  color: #fff !important;
+}
+.source-steps article button.source-loaded-extracts:hover {
+  background: #d96f00 !important;
+}
 .source-step-number {
   position: absolute;
   right: 10px;
