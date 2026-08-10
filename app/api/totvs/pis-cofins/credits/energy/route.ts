@@ -201,6 +201,19 @@ function findTicket(row: { document: string; integrationKey: string; complement:
   return ranked.length ? { ...ticketInfo(ranked[0].instance, baseUrl), matchScore: ranked[0].score } : null;
 }
 
+function accountingTicket(integrationKey: string, baseUrl: string) {
+  const id = integrationKey.trim();
+  if (!/^\d+$/.test(id)) return null;
+  return {
+    id,
+    status: "Informado no Razão",
+    link: `${baseUrl}/report/my?instanceId=${encodeURIComponent(id)}`,
+    name: "Solicitação Zeev informada na integração contábil",
+    documents: [] as { name: string; url: string }[],
+    matchScore: 0,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await authenticatedUser(request);
@@ -217,7 +230,8 @@ export async function GET(request: NextRequest) {
       const base = {
         company: tag(record, "CODCOLIGADA"), branch: tag(record, "CODFILIAL"), entryId: tag(record, "IDLANCAMENTO"), document: tag(record, "DOCUMENTO"), integrationKey: tag(record, "INTEGRACHAVE"), sourceSystem: tag(record, "NOMESISTEMA"), date: tag(record, "DATA"), reduced: numeric(tag(record, "REDUZIDO")) || 913, account: tag(record, "CODCONTA"), description: tag(record, "DESCRICAO") || "Energia Elétrica", value: numeric(tag(record, "VALOR")), user: tag(record, "USUARIO"), complement: tag(record, "COMPLEMENTO"), costCenter: tag(record, "CCUSTO"),
       };
-      return { ...base, ticket: findTicket(base, zeev.instances, (process.env.ZEEV_BASE_URL || "").replace(/\/$/, "")) };
+      const zeevBaseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
+      return { ...base, ticket: findTicket(base, zeev.instances, zeevBaseUrl) || accountingTicket(base.integrationKey, zeevBaseUrl) };
     }).sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch, "pt-BR", { numeric: true }));
     const total = rows.reduce((sum, row) => sum + row.value, 0);
     const ticketsFound = rows.filter((row) => row.ticket).length;
