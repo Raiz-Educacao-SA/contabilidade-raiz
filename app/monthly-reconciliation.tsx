@@ -253,37 +253,15 @@ export default function MonthlyReconciliationPanel({
     let processed = 0;
     let rejected = 0;
     let skippedPdf = 0;
-    const accountHint = (name: string) =>
-      Array.from(name.matchAll(/\d{4,}/g), (match) => match[0]).at(-1) || "";
     const eligibleFiles = located
       .filter((file) => /\.(pdf|xlsx|xls|xlsm)$/i.test(file.name))
       .sort((a, b) => {
         const formatPriority = Number(/\.pdf$/i.test(a.name)) - Number(/\.pdf$/i.test(b.name));
         return formatPriority || a.name.localeCompare(b.name, "pt-BR", { numeric: true });
       });
-    const structuredAccountHints = new Set(
-      eligibleFiles
-        .filter((file) => /\.(xlsx|xls|xlsm)$/i.test(file.name))
-        .map((file) => accountHint(file.name))
-        .filter(Boolean),
-    );
-    const structuredFileStems = new Set(
-      eligibleFiles
-        .filter((file) => /\.(xlsx|xls|xlsm)$/i.test(file.name))
-        .map((file) => file.path.replace(/\.[^.\/]+$/i, "").toUpperCase()),
-    );
     for (const item of eligibleFiles) {
       try {
         const isPdf = /\.pdf$/i.test(item.name);
-        const hint = accountHint(item.name);
-        const stem = item.path.replace(/\.[^.\/]+$/i, "").toUpperCase();
-        if (
-          isPdf &&
-          (structuredFileStems.has(stem) || (hint && structuredAccountHints.has(hint)))
-        ) {
-          skippedPdf += 1;
-          continue;
-        }
         const fileResponse = await fetch(
           `/api/drive/statements?fileId=${encodeURIComponent(item.id)}&mimeType=${encodeURIComponent(item.mimeType)}${item.resourceKey ? `&resourceKey=${encodeURIComponent(item.resourceKey)}` : ""}${isPdf ? `&parse=pdf&fileName=${encodeURIComponent(item.name)}` : ""}`,
           { cache: "no-store" },
