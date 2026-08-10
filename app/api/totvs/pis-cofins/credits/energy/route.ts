@@ -130,12 +130,16 @@ async function temporaryToken(baseUrl: string, email: string) {
   return String(payload?.token || payload?.accessToken || payload?.value || "");
 }
 
-async function queryZeev(firstDay: string, lastDay: string, email: string) {
+async function queryZeev(firstDay: string, lastDay: string, email: string, instanceIds: string[]) {
   const baseUrl = process.env.ZEEV_BASE_URL?.replace(/\/$/, "");
   if (!baseUrl) return { configured: false, instances: [] as ZeevInstance[], error: "Endereço do Zeev não configurado." };
   const suffix = userSuffix(email);
   const token = process.env[`ZEEV_API_TOKEN_${suffix}`] || process.env.ZEEV_API_TOKEN || await temporaryToken(baseUrl, email);
   if (!token) return { configured: false, instances: [] as ZeevInstance[], error: `Credencial Zeev vinculada a ${email} ainda não configurada.` };
+  const exactInstances = (await Promise.all([...new Set(instanceIds.filter((id) => /^\d+$/.test(id)))].slice(0, 100).map(async (id) => {
+    const response = await zeevRequest(baseUrl, token, `/api/2/instances/${encodeURIComponent(id)}`);
+    return response.ok ? response.json().catch(() => null) : null;
+  }))).filter((instance): instance is ZeevInstance => Boolean(instance && typeof instance === "object"));
   const configuredFieldNames = (process.env.ZEEV_ENERGY_FORM_FIELDS || "").split(",").map((item) => item.trim()).filter(Boolean);
   const rangeStart = new Date(`${firstDay}T12:00:00-03:00`);
   const rangeEnd = new Date(`${lastDay}T12:00:00-03:00`);
@@ -165,10 +169,11 @@ async function queryZeev(firstDay: string, lastDay: string, email: string) {
   }
 
   const formFieldNames = [...discovered].slice(0, 500);
-  if (!formFieldNames.length) return { configured: true, instances: initial.instances, error: "O token acessou o Zeev, mas não possui permissão para descobrir os campos dos documentos." };
+  if (!formFieldNames.length) return { configured: true, instances: [...exactInstances, ...initial.instances], error: "O token acessou o Zeev, mas não possui permissão para descobrir os campos dos documentos." };
   const detailed = await reportInstances(baseUrl, token, { ...baseBody, formFieldNames });
   if (!detailed.response.ok) return { configured: true, instances: initial.instances, error: `O Zeev permitiu listar solicitações, mas recusou a leitura dos campos (${detailed.response.status}).` };
-  return { configured: true, instances: detailed.instances, error: "", fieldNames: formFieldNames };
+  const instances = [...exactInstances, ...detailed.instances].filter((instance, index, list) => list.findIndex((item) => String(item.id ?? item.instanceId ?? "") === String(instance.id ?? instance.instanceId ?? "")) === index);
+  return { configured: true, instances, error: "", fieldNames: formFieldNames };
 }
 
 function ticketInfo(instance: ZeevInstance, baseUrl: string) {
@@ -201,13 +206,13 @@ function findTicket(row: { document: string; integrationKey: string; complement:
   return ranked.length ? { ...ticketInfo(ranked[0].instance, baseUrl), matchScore: ranked[0].score } : null;
 }
 
-function accountingTicket(integrationKey: string, baseUrl: string) {
+function accountingTicket(integrationKey: string) {
   const id = integrationKey.trim();
   if (!/^\d+$/.test(id)) return null;
   return {
     id,
     status: "Informado no Razão",
-    link: `${baseUrl}/report/my?instanceId=${encodeURIComponent(id)}`,
+    link: "",
     name: "Solicitação Zeev informada na integração contábil",
     documents: [] as { name: string; url: string }[],
     matchScore: 0,
@@ -225,13 +230,15 @@ export async function GET(request: NextRequest) {
     const [year, month] = competence!.split("-").map(Number);
     const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
     const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const [records, zeev] = await Promise.all([queryTotvs(company, firstDay, lastDay), queryZeev(firstDay, lastDay, user.email)]);
+    const records = await queryTotvs(company, firstDay, lastDay);
+    const instanceIds = records.map((record) => tag(record, "INTEGRACHAVE")).filter(Boolean);
+    const zeev = await queryZeev(firstDay, lastDay, user.email, instanceIds);
     const rows = records.filter((record) => tag(record, "CODCONTA") === ENERGY_ACCOUNT && (!branches.size || branches.has(tag(record, "CODFILIAL")))).map((record) => {
       const base = {
         company: tag(record, "CODCOLIGADA"), branch: tag(record, "CODFILIAL"), entryId: tag(record, "IDLANCAMENTO"), document: tag(record, "DOCUMENTO"), integrationKey: tag(record, "INTEGRACHAVE"), sourceSystem: tag(record, "NOMESISTEMA"), date: tag(record, "DATA"), reduced: numeric(tag(record, "REDUZIDO")) || 913, account: tag(record, "CODCONTA"), description: tag(record, "DESCRICAO") || "Energia Elétrica", value: numeric(tag(record, "VALOR")), user: tag(record, "USUARIO"), complement: tag(record, "COMPLEMENTO"), costCenter: tag(record, "CCUSTO"),
       };
       const zeevBaseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
-      return { ...base, ticket: findTicket(base, zeev.instances, zeevBaseUrl) || accountingTicket(base.integrationKey, zeevBaseUrl) };
+      return { ...base, ticket: findTicket(base, zeev.instances, zeevBaseUrl) || accountingTicket(base.integrationKey) };
     }).sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch, "pt-BR", { numeric: true }));
     const total = rows.reduce((sum, row) => sum + row.value, 0);
     const ticketsFound = rows.filter((row) => row.ticket).length;
