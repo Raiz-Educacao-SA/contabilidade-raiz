@@ -1,205 +1,170 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Download, FileCheck2, LoaderCircle, RefreshCw, Upload, X } from "lucide-react";
+import { AlertTriangle, CloudDownload, Database, Download, FileCheck2, LoaderCircle, Play, RotateCcw } from "lucide-react";
 import {
   ExtractedDocument,
   exportPayrollAnalysis,
   parseProvisionFiles,
   parseSpreadsheetDocuments,
   PayrollAnalysis,
+  PayrollCheck,
   PayrollLotRow,
   reconcilePayroll,
 } from "@/lib/payroll-reconciliation";
 
 type Props = { companyCode: string; companyName: string; competence: string; accessToken: string };
 type TotvsLot = { lotCode: string; application: string; records: number; debit: number; credit: number; rows: PayrollLotRow[]; alternatives: string[] };
+type DriveFile = { id: string; name: string; path: string; mimeType: string; size?: string };
+type DriveRead = { companyFolder: string; folderPath: string; competence: string; files: DriveFile[] };
+type ExecutiveRow = { item: string; lot: number; document: number | null; tolerance: number; status: PayrollCheck["status"]; impact: string; note: string };
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const acceptedSupport = ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.xlsm";
+const number = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function PayrollBatchReconciliation({ companyCode, companyName, competence, accessToken }: Props) {
   const [lot, setLot] = useState<TotvsLot | null>(null);
-  const [lotLoading, setLotLoading] = useState(false);
-  const [lotMessage, setLotMessage] = useState("");
+  const [drive, setDrive] = useState<DriveRead | null>(null);
   const [supportFiles, setSupportFiles] = useState<File[]>([]);
-  const [tolerance, setTolerance] = useState(1);
-  const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
+  const [lotLoading, setLotLoading] = useState(false);
+  const [driveLoading, setDriveLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [lotMessage, setLotMessage] = useState("Clique para consultar o lote pendente no TOTVS.");
+  const [driveMessage, setDriveMessage] = useState("Clique para localizar os documentos oficiais da competência.");
+  const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
   const [message, setMessage] = useState("");
 
-  const grouped = useMemo(() => ({
-    liquids: analysis?.checks.filter((item) => item.group === "Líquidos") ?? [],
-    inss: analysis?.checks.filter((item) => item.group === "INSS") ?? [],
-    fgts: analysis?.checks.filter((item) => item.group === "FGTS") ?? [],
-    irrf: analysis?.checks.filter((item) => item.group === "IRRF") ?? [],
-    provisions: analysis?.checks.filter((item) => item.group === "Provisões") ?? [],
-  }), [analysis]);
+  useEffect(() => {
+    setLot(null); setDrive(null); setSupportFiles([]); setAnalysis(null); setMessage("");
+    setLotMessage("Clique para consultar o lote pendente no TOTVS.");
+    setDriveMessage("Clique para localizar os documentos oficiais da competência.");
+  }, [companyCode, competence]);
+
+  const executiveRows = useMemo(() => analysis && lot ? buildExecutiveRows(analysis, lot) : [], [analysis, lot]);
 
   async function loadLot() {
-    if (!companyCode || !competence) return;
-    setLotLoading(true);
-    setLot(null);
-    setAnalysis(null);
-    setLotMessage("");
+    setLotLoading(true); setLot(null); setAnalysis(null); setMessage("");
     try {
       const params = new URLSearchParams({ company: companyCode, competence });
       const response = await fetch(`/api/payroll/lot?${params}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
       const payload = await response.json() as TotvsLot & { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Não foi possível localizar o lote pendente no TOTVS.");
+      if (!response.ok) throw new Error(payload.error || "Não foi possível localizar o lote no TOTVS.");
       setLot(payload);
-      setLotMessage(`Lote ${payload.lotCode} identificado automaticamente no Labore para ${competence}.`);
+      setLotMessage(`Lote ${payload.lotCode} · aplicação ${payload.application} · ${payload.records} lançamentos.`);
     } catch (error) {
       setLotMessage((error as Error).message);
-    } finally {
-      setLotLoading(false);
-    }
+    } finally { setLotLoading(false); }
   }
 
-  useEffect(() => { void loadLot(); }, [companyCode, competence, accessToken]);
-
-  function addSupport(files?: FileList | null) {
-    if (!files) return;
-    setSupportFiles((current) => {
-      const merged = [...current];
-      for (const file of Array.from(files)) if (!merged.some((item) => item.name === file.name && item.size === file.size)) merged.push(file);
-      return merged;
-    });
-    setAnalysis(null);
+  async function loadDrive() {
+    setDriveLoading(true); setDrive(null); setSupportFiles([]); setAnalysis(null); setMessage("");
+    try {
+      const params = new URLSearchParams({ company: companyCode, competence });
+      const response = await fetch(`/api/payroll/drive?${params}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json() as DriveRead & { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Não foi possível localizar os documentos no Drive.");
+      setDriveMessage(`${payload.files.length} documento(s) localizado(s). Baixando as bases para análise...`);
+      const downloaded = await Promise.all(payload.files.map(async (item) => {
+        const fileResponse = await fetch(`/api/payroll/drive?fileId=${encodeURIComponent(item.id)}&company=${encodeURIComponent(companyCode)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+        if (!fileResponse.ok) throw new Error(`Não foi possível ler ${item.name}.`);
+        return new File([await fileResponse.blob()], item.name, { type: item.mimeType || "application/octet-stream" });
+      }));
+      setDrive(payload); setSupportFiles(downloaded);
+      setDriveMessage(`${downloaded.length} documento(s) prontos · ${payload.folderPath}.`);
+    } catch (error) {
+      setDriveMessage((error as Error).message);
+    } finally { setDriveLoading(false); }
   }
 
   async function runAnalysis() {
-    if (!lot) return setMessage("Aguarde a identificação automática do lote pendente no TOTVS.");
-    setBusy(true);
-    setMessage("");
-    setAnalysis(null);
+    if (!lot || !supportFiles.length) return setMessage("Faça primeiro a leitura do lote no TOTVS e dos documentos no Drive.");
+    setBusy(true); setAnalysis(null); setMessage("");
     try {
       const provisions = await parseProvisionFiles(supportFiles);
       const visualFiles = supportFiles.filter((file) => /\.(pdf|png|jpe?g|webp)$/i.test(file.name));
       let documents: ExtractedDocument[] = await parseSpreadsheetDocuments(supportFiles);
       if (visualFiles.length) {
-        const form = new FormData();
-        visualFiles.forEach((file) => form.append("files", file));
+        const form = new FormData(); visualFiles.forEach((file) => form.append("files", file));
         const response = await fetch("/api/payroll/documents", { method: "POST", body: form });
         const payload = await response.json() as { documents?: ExtractedDocument[]; error?: string };
-        if (!response.ok) throw new Error(payload.error || "Não foi possível ler os documentos do DP.");
+        if (!response.ok) throw new Error(payload.error || "Não foi possível interpretar os documentos do DP.");
         documents = [...documents, ...(payload.documents ?? [])];
       }
-      const result = reconcilePayroll(lot.rows, lot.lotCode, documents, provisions, tolerance, competence);
+      const result = reconcilePayroll(lot.rows, lot.lotCode, documents, provisions, 1, competence);
       setAnalysis(result);
-      setMessage(result.canIntegrate
-        ? "Conferência da análise de lote da folha x documentos finalizada; pode integrar o lote."
-        : "Conferência concluída com pendências a verificar.");
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
+      setMessage(result.canIntegrate ? "Conferência da análise de lote da folha x documentos finalizada; pode integrar o lote." : "Conferência finalizada: pendências a verificar — não integrar o lote neste momento.");
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setBusy(false); }
   }
 
   function reset() {
-    setSupportFiles([]);
-    setAnalysis(null);
-    setMessage("");
+    setLot(null); setDrive(null); setSupportFiles([]); setAnalysis(null); setMessage("");
+    setLotMessage("Clique para consultar o lote pendente no TOTVS.");
+    setDriveMessage("Clique para localizar os documentos oficiais da competência.");
   }
 
-  return (
-    <section className="payroll-flow">
-      <div className="panel payroll-intro">
-        <div>
-          <span className="eyebrow">CONFERÊNCIA AUTOMATIZADA</span>
-          <h2>Lote da Folha de Pagamento</h2>
-          <p>O lote é obtido automaticamente no TOTVS pelo módulo Labore, coligada e competência; envie apenas os documentos do DP.</p>
-          <span className="payroll-company-chip">Coligada selecionada: <b>{companyCode || "não informada"}</b> — {companyName.replace(/^\s*\d+\s*[—-]\s*/, "")}</span>
-        </div>
-        <label className="payroll-tolerance">
-          <span>Tolerância por item</span>
-          <div><span>R$</span><input type="number" min="0" step="0.01" value={tolerance} onChange={(event) => setTolerance(Number(event.target.value))} /></div>
-        </label>
-      </div>
+  return <section className="payroll-flow payroll-command-view">
+    <div className="panel payroll-command-header">
+      <div><span className="eyebrow">ROTINA AUTOMATIZADA</span><h2>Conciliação Folha de Pagamento</h2><p>Comande a leitura das duas fontes e execute a análise da coligada e competência selecionadas.</p></div>
+      <div className="payroll-selection"><b>Coligada {companyCode}</b><span>{companyName.replace(/^\s*\d+\s*[—-]\s*/, "")} · {competence.split("-").reverse().join("/")}</span></div>
+    </div>
 
-      <div className="payroll-upload-grid">
-        <div className={`panel payroll-upload ${lot ? "ready" : ""}`}>
-          {lotLoading ? <LoaderCircle className="spinning" /> : lot ? <FileCheck2 /> : <AlertTriangle />}
-          <span>Lote automático do Labore</span>
-          <b>{lot ? `Lote ${lot.lotCode} · aplicação ${lot.application}` : lotLoading ? "Consultando o TOTVS..." : "Lote pendente não localizado"}</b>
-          <small>{lot ? `${lot.records} linhas · débitos ${brl.format(lot.debit)} · créditos ${brl.format(lot.credit)}` : lotMessage}</small>
-          <button className="chart-toggle" type="button" onClick={() => void loadLot()} disabled={lotLoading}><RefreshCw /> Atualizar leitura</button>
-        </div>
-        <label className={`panel payroll-upload ${supportFiles.length ? "ready" : ""}`}>
-          {supportFiles.length ? <FileCheck2 /> : <Upload />}
-          <span>Documentos do DP</span>
-          <b>{supportFiles.length ? `${supportFiles.length} arquivo(s) selecionado(s)` : "Selecione todos os documentos"}</b>
-          <small>Folha Analítica, DCTFWeb, FGTS, IRRF, férias e 13º</small>
-          <input type="file" multiple accept={acceptedSupport} onChange={(event) => addSupport(event.target.files)} />
-        </label>
-      </div>
+    <div className="payroll-command-grid">
+      <CommandCard icon={<Database />} title="1. Ler lote no TOTVS" detail={lotMessage} ready={Boolean(lot)} loading={lotLoading} onClick={loadLot} />
+      <CommandCard icon={<CloudDownload />} title="2. Ler documentos no Drive" detail={driveMessage} ready={Boolean(drive)} loading={driveLoading} onClick={loadDrive} />
+      <CommandCard icon={<Play />} title="3. Executar análise" detail={busy ? "Conciliando lote e documentos..." : "Gerar a conferência e a conclusão do fechamento."} ready={Boolean(analysis)} loading={busy} disabled={!lot || !drive || lotLoading || driveLoading} onClick={runAnalysis} primary />
+    </div>
 
-      {supportFiles.length > 0 && <div className="panel payroll-file-list">
-        <div><b>Documentos selecionados</b><button type="button" onClick={reset}><X /> Limpar</button></div>
-        <ul>{supportFiles.map((file) => <li key={`${file.name}-${file.size}`}><FileCheck2 /><span>{file.name}</span><button aria-label={`Remover ${file.name}`} onClick={() => { setSupportFiles((files) => files.filter((item) => item !== file)); setAnalysis(null); }}><X /></button></li>)}</ul>
-      </div>}
+    <div className="payroll-command-footer">
+      <span>{lot && drive ? "As duas fontes estão prontas para conciliação." : "A análise será liberada após as duas leituras."}</span>
+      <button type="button" className="chart-toggle" onClick={reset}><RotateCcw /> Reiniciar</button>
+    </div>
 
-      <button className="primary payroll-run" disabled={!lot || busy || lotLoading} onClick={runAnalysis}>
-        {busy ? <LoaderCircle className="spinning" /> : <CheckCircle2 />}
-        {busy ? "Lendo e conferindo documentos..." : "Executar conferência do lote"}
-      </button>
+    {message && !analysis && <div className="payroll-message review"><AlertTriangle /><span>{message}</span></div>}
 
-      {message && <div className={`payroll-message ${analysis?.canIntegrate ? "ok" : "review"}`}>
-        {analysis?.canIntegrate ? <CheckCircle2 /> : <AlertTriangle />}<span>{message}</span>
-      </div>}
-
-      {analysis && <>
-        <div className="payroll-summary">
-          <article><span>Débitos</span><b>{brl.format(analysis.debit)}</b></article>
-          <article><span>Créditos</span><b>{brl.format(analysis.credit)}</b></article>
-          <article><span>Diferença do lote</span><b>{brl.format(analysis.difference)}</b></article>
-          <article className={analysis.canIntegrate ? "ok" : "review"}><span>Situação</span><b>{analysis.canIntegrate ? "Pode integrar" : "Verificar pendências"}</b></article>
-        </div>
-
-        <ResultTable title="Líquidos da folha" subtitle="Salário, RPA, rescisão, férias e adiantamentos" rows={grouped.liquids} />
-        <InssMemoryTable analysis={analysis} />
-        <ResultTable title="Conciliação do INSS" subtitle="Comparação do lote com a DCTFWeb após os ajustes dos eventos 130 e 131" rows={grouped.inss} />
-        <ResultTable title="FGTS por guia" subtitle="FGTS mensal e rescisório, sem encargos, com tolerância de até R$ 40,00" rows={grouped.fgts} />
-        <ResultTable title="IRRF por código" subtitle="Lançamento do 0561 e recolhimentos 0561/0588 conforme o pagamento" rows={grouped.irrf} />
-        <ResultTable title="Provisões" subtitle="Movimento mensal de férias e 13º salário" rows={grouped.provisions} />
-
-        <div className="panel payroll-export">
-          <div><span className="eyebrow">MEMÓRIA DA VERIFICAÇÃO</span><h3>Relatório pronto para arquivamento</h3><p>O Excel inclui resumo, conferências por grupo e o detalhamento do lote.</p></div>
-          <button className="primary" onClick={() => exportPayrollAnalysis(analysis, companyCode, companyName, competence)}><Download /> Baixar memória em Excel</button>
-        </div>
-      </>}
-    </section>
-  );
+    {analysis && <section className="panel payroll-executive">
+      <header className="payroll-executive-title">
+        <h2>CONFERÊNCIA DO LOTE DA FOLHA — COLIGADA {companyCode}</h2>
+        <p>Competência {competence.split("-").reverse().join("/")} | {companyName.replace(/^\s*\d+\s*[—-]\s*/, "")} | Fontes: TOTVS Labore e Google Drive</p>
+      </header>
+      <div className="table-wrap"><table><thead><tr><th>Verificação</th><th>Lote / referência</th><th>Documento / contraparte</th><th>Diferença</th><th>Tolerância</th><th>Status</th><th>Impacto</th><th>Observação</th></tr></thead>
+        <tbody>{executiveRows.map((row) => <tr key={row.item}><td><b>{row.item}</b></td><td>{number.format(row.lot)}</td><td>{row.document === null ? "Não identificado" : number.format(row.document)}</td><td className={row.status === "PENDENTE" ? "difference-pending" : ""}>{row.document === null ? "—" : number.format(row.lot - row.document)}</td><td>{number.format(row.tolerance)}</td><td><span className={`payroll-status ${row.status.toLowerCase()}`}>{row.status}</span></td><td>{row.impact}</td><td>{row.note}</td></tr>)}</tbody>
+      </table></div>
+      <div className={`payroll-conclusion ${analysis.canIntegrate ? "ok" : "pending"}`}>{analysis.canIntegrate ? "CONCLUSÃO: CONFERÊNCIA FINALIZADA — PODE INTEGRAR O LOTE" : "CONCLUSÃO: PENDÊNCIAS A VERIFICAR — NÃO INTEGRAR O LOTE NESTE MOMENTO"}</div>
+      <p className="payroll-executive-note">{executiveNarrative(executiveRows, analysis.canIntegrate)}</p>
+      <div className="payroll-export-action"><span>{message}</span><button className="primary" onClick={() => exportPayrollAnalysis(analysis, companyCode, companyName, competence)}><Download /> Exportar documentação da análise</button></div>
+    </section>}
+  </section>;
 }
 
-function InssMemoryTable({ analysis }: { analysis: PayrollAnalysis }) {
-  const memory = analysis.inssMemory;
-  const rows: Array<[string, string, number | null]> = [
-    ["Total contribuição previdenciária — segurados", "+", memory.insured],
-    ["Total contribuição previdenciária — patronal", "+", memory.employer],
-    ["Total para outras entidades e fundos", "+", memory.otherEntities],
-    ["Código 1162 — INSS retido", "−", memory.retained1162],
-    ["INSS da folha na guia", "=", memory.payrollGuide],
-    ["Evento 130 — INSS férias ref. próximo mês", "−", memory.event130],
-    ["Evento 131 — INSS férias desc. mês anterior", "+", memory.event131],
-    ["Guia após os ajustes", "=", memory.adjustedGuide],
-    ["INSS contabilizado no lote", "comparar", memory.lot],
-    ["Diferença lote menos guia ajustada", "=", memory.difference],
+function CommandCard({ icon, title, detail, ready, loading, disabled, onClick, primary }: { icon: React.ReactNode; title: string; detail: string; ready: boolean; loading: boolean; disabled?: boolean; onClick: () => void | Promise<void>; primary?: boolean }) {
+  return <article className={`panel payroll-command-card ${ready ? "ready" : ""}`}>
+    <span className="payroll-command-icon">{loading ? <LoaderCircle className="spinning" /> : ready ? <FileCheck2 /> : icon}</span>
+    <div><b>{title}</b><p>{detail}</p></div>
+    <button type="button" className={primary ? "primary" : "chart-toggle"} disabled={disabled || loading} onClick={() => void onClick()}>{loading ? "Processando..." : ready && !primary ? "Ler novamente" : title}</button>
+  </article>;
+}
+
+function aggregate(checks: PayrollCheck[]) {
+  const document = checks.some((row) => row.document === null) ? null : checks.reduce((sum, row) => sum + (row.document ?? 0), 0);
+  const status = checks.some((row) => row.status === "PENDENTE") ? "PENDENTE" : checks.some((row) => row.status === "INFORMATIVO") ? "INFORMATIVO" : "OK";
+  return { lot: checks.reduce((sum, row) => sum + row.lot, 0), document, status: status as PayrollCheck["status"] };
+}
+
+function buildExecutiveRows(analysis: PayrollAnalysis, lot: TotvsLot): ExecutiveRow[] {
+  const liquids = aggregate(analysis.checks.filter((row) => row.group === "Líquidos"));
+  const provisions = aggregate(analysis.checks.filter((row) => row.group === "Provisões"));
+  const checkRows = (group: PayrollCheck["group"]) => analysis.checks.filter((row) => row.group === group).map((row) => ({ item: row.item, lot: row.lot, document: row.document, tolerance: group === "FGTS" ? 40 : 1, status: row.status, impact: row.status === "INFORMATIVO" ? "Acompanhamento" : group === "Provisões" ? "Conforme movimento" : "Bloqueante", note: row.note || row.source }));
+  return [
+    { item: "Equilíbrio do lote", lot: lot.debit, document: lot.credit, tolerance: .01, status: Math.abs(lot.debit - lot.credit) <= .01 ? "OK" : "PENDENTE", impact: "Bloqueante", note: `Lote ${lot.lotCode}: débitos e créditos.` },
+    { item: "Líquidos da folha", lot: liquids.lot, document: liquids.document, tolerance: 1, status: liquids.status, impact: "Bloqueante", note: "Salários, férias, rescisões, RPA e adiantamentos." },
+    ...checkRows("INSS"), ...checkRows("FGTS"), ...checkRows("IRRF"),
+    { item: "Provisões — movimentação do mês", lot: provisions.lot, document: provisions.document, tolerance: 1, status: provisions.status, impact: "Bloqueia somente divergência do movimento", note: "Férias e 13º: principal, FGTS e INSS." },
   ];
-  return <section className="panel payroll-results">
-    <header><div><h3>Memória de cálculo do INSS</h3><p>Composição da DCTFWeb e ajustes obrigatórios da Folha Analítica</p></div></header>
-    <div className="table-wrap"><table><thead><tr><th>Componente</th><th>Operação</th><th>Valor</th></tr></thead>
-      <tbody>{rows.map(([label, operation, value]) => <tr key={label}><td><b>{label}</b></td><td>{operation}</td><td>{value === null ? "Não identificado" : brl.format(value)}</td></tr>)}</tbody>
-    </table></div>
-  </section>;
 }
 
-function ResultTable({ title, subtitle, rows }: { title: string; subtitle: string; rows: PayrollAnalysis["checks"] }) {
-  return <section className="panel payroll-results">
-    <header><div><h3>{title}</h3><p>{subtitle}</p></div><b>{rows.filter((item) => item.status === "PENDENTE").length} pendência(s)</b></header>
-    <div className="table-wrap"><table><thead><tr><th>Item</th><th>Conta / evento</th><th>Lote</th><th>Documento DP</th><th>Diferença</th><th>Status</th><th>Fonte / observação</th></tr></thead>
-      <tbody>{rows.map((row) => <tr key={`${row.account}-${row.item}`}><td><b>{row.item}</b></td><td>{row.account}<small>{row.event}</small></td><td>{brl.format(row.lot)}</td><td>{row.document === null ? "Não identificado" : brl.format(row.document)}</td><td>{row.difference === null ? "—" : brl.format(row.difference)}</td><td><span className={`payroll-status ${row.status.toLowerCase()}`}>{row.status}</span></td><td className="payroll-source">{row.source}{row.note && <small>{row.note}</small>}</td></tr>)}</tbody>
-    </table></div>
-  </section>;
+function executiveNarrative(rows: ExecutiveRow[], canIntegrate: boolean) {
+  if (canIntegrate) return "Todas as verificações bloqueantes ficaram dentro das tolerâncias definidas. A memória pode ser exportada e o lote está liberado para integração.";
+  const pending = rows.filter((row) => row.status === "PENDENTE").map((row) => `${row.item}: diferença de ${row.document === null ? "documento não identificado" : brl.format(row.lot - row.document)}`);
+  return `Permanecem pendências a verificar: ${pending.join("; ")}. Os itens informativos permanecem registrados na memória e não são ocultados da análise.`;
 }

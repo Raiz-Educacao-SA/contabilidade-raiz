@@ -52,8 +52,8 @@ test("mantém filtros de coligada e competência e exportação segregada", () =
   const engine = readFileSync(new URL("../lib/payroll-reconciliation.ts", import.meta.url), "utf8");
   assert.match(page, /Qual a coligada analisar\?/);
   assert.match(page, /competence=/);
-  assert.match(panel, /Memória de cálculo do INSS/);
-  assert.match(panel, /IRRF por código/);
+  assert.match(panel, /CONFERÊNCIA DO LOTE DA FOLHA/);
+  assert.match(panel, /Documento \/ contraparte/);
   assert.match(engine, /"INSS"/);
   assert.match(engine, /"IRRF"/);
 });

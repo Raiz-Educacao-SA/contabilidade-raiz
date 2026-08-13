@@ -124,7 +124,7 @@ const modules = {
     icon: ShoppingCart,
   },
   folha: {
-    title: "Folha de Pagamento",
+    title: "Conciliação Folha de Pagamento",
     description:
       "Conferências, encargos, provisões e rotinas da folha de pagamento.",
     icon: UsersRound,
