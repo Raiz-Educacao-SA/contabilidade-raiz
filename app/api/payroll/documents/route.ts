@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const form = await request.formData();
     const files = form.getAll("files").filter((value): value is File => value instanceof File && accepted.test(value.name));
     if (!files.length) return NextResponse.json({ documents: [] });
-    if (files.length > 20) return NextResponse.json({ error: "Envie no máximo 20 documentos por conferência." }, { status: 400 });
+    if (files.length > 80) return NextResponse.json({ error: "Foram localizados mais de 80 documentos. Revise a pasta da competência no Drive." }, { status: 400 });
 
     const [{ pdf }, { createWorker }] = await Promise.all([import("pdf-to-img"), import("tesseract.js")]);
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
