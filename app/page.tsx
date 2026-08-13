@@ -49,6 +49,7 @@ import PisCofinsAssessment from "@/app/pis-cofins-assessment";
 import TrialBalanceAnalysis from "@/app/trial-balance-analysis";
 import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
+import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 
 type Company = {
@@ -758,12 +759,12 @@ export default function Home() {
                   ? "Filtros"
                   : "Filtros da análise"}
               </b>
-              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc") ? "Selecione o ano e o mês" : "Selecione a empresa e a competência"}</small>
+              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc") ? "Selecione o ano e o mês" : selectedModule === "folha" ? "Selecione a coligada e a competência da folha" : "Selecione a empresa e a competência"}</small>
             </div>
           </div>
           <div className="filter-fields">
             {selectedModule !== "cronograma" && !(selectedModule === "contabil" && accountingTab === "rateio-csc") && <label className="company-control">
-              <span>Empresa</span>
+              <span>{selectedModule === "folha" ? "Qual a coligada analisar?" : "Empresa"}</span>
               <div className="company-select-stack">
                 <select
                   value={companyId}
@@ -920,6 +921,14 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
+        {selectedModule === "folha" && (
+          <PayrollBatchReconciliation
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "analise-balancete" && (
           <TrialBalanceAnalysis
             companyCode={company?.empresas?.codcoligada ?? ""}
@@ -977,6 +986,7 @@ export default function Home() {
         {selectedModule !== "bancaria" &&
           selectedModule !== "book" &&
           selectedModule !== "receita" &&
+          selectedModule !== "folha" &&
           selectedModule !== "contabil" &&
           selectedModule !== "cronograma" && (
             <section className="panel module-workspace">
