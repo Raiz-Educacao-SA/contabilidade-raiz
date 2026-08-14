@@ -1,58 +1,50 @@
-# Publicação no Streamlit Community Cloud
+# Publicação na Vercel
 
-## Estrutura de publicação
+## Projeto de produção
 
-- Repositório: `luandasilva-prog/conciliacao-bancaria`
-- Branch: `main`
-- Arquivo principal: `streamlit_app.py`
-- Dependências: `requirements.txt`
-- Banco, autenticação e arquivos: Supabase
+- Repositório operacional: `luandasilva-prog/contabilidade-raiz`
+- Branch de produção: `main`
+- Projeto Vercel: `contabilidade-raiz`
+- Equipe Vercel: `contabilidade2`
+- URL: `https://contabilidade-raiz.vercel.app`
 
-## 1. Preparar o Supabase
+O deploy deve ocorrer pela integração Git da Vercel após merge aprovado. Não use
+deploy direto pela CLI.
 
-1. Crie ou abra o projeto no Supabase.
-2. No **SQL Editor**, execute `Supabase/schema.sql`.
-3. Em **Authentication > Users**, crie o primeiro usuário.
-4. Ajuste os valores de exemplo e execute `Supabase/criar_primeiro_acesso.sql`.
-5. Confirme que o bucket privado `extratos-bancarios` foi criado.
-6. Confirme que o RLS está habilitado e que as políticas do `schema.sql` existem.
+## Variáveis obrigatórias
 
-O aplicativo usa:
+Cadastre em Production, Preview e Development, conforme a política do projeto:
 
-- `empresas`;
-- `usuarios_empresas`;
-- `contas_bancarias`;
-- `saldos_bancarios`;
-- `arquivos_importados`;
-- bucket privado `extratos-bancarios`.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `DATA_ENGINE_URL`
+- `DATA_ENGINE_API_KEY`
+- `TOTVS_WS_PRD_BASE_URL`
+- `TOTVS_WS_PRD_USER`
+- `TOTVS_WS_PRD_PASSWORD`
 
-## 2. Configurar Secrets
+`DATA_ENGINE_API_KEY` é exclusivamente server-side. Nunca crie uma variável
+`NEXT_PUBLIC_DATA_ENGINE_API_KEY` nem exponha a credencial ao navegador.
 
-Use somente a URL do projeto e a chave pública `anon`/`publishable`.
-Nunca use nem publique a chave `service_role`.
+A credencial do Data Engine deve ter somente `read:tesouraria`, acesso PII
+governado e a lista explícita de coligadas atendidas pelo portal.
 
-No ambiente local, copie `.streamlit/secrets.toml.example` para
-`.streamlit/secrets.toml` e preencha:
+## Gates antes do merge
 
-```toml
-SUPABASE_URL = "https://SEU-PROJETO.supabase.co"
-SUPABASE_ANON_KEY = "SUA-CHAVE-PUBLICAVEL"
+```bash
+npm ci
+npm test
+npm exec tsc -- --noEmit
+npm run build
 ```
 
-O arquivo `.streamlit/secrets.toml` é ignorado pelo Git.
-
-## 3. Publicar
-
-1. Revise as alterações locais.
-2. Faça commit e push para a branch `main`.
-3. Acesse o Streamlit Community Cloud e conecte a conta do GitHub.
-4. Selecione o repositório, a branch `main` e `streamlit_app.py`.
-5. Em **App settings > Secrets**, cadastre as mesmas duas variáveis.
-6. Faça o deploy e teste login, cadastro de conta, upload, armazenamento e conciliação.
+Após o deploy, valide login, consulta contábil TOTVS e consulta de extratos pela
+rota server-side `/api/data-engine/statements`. O fluxo de conciliação não usa o
+Google Drive como fonte de extratos.
 
 ## Segurança
 
-- O repositório deve permanecer privado enquanto houver código ou contexto interno.
-- Não envie extratos, planilhas contábeis, relatórios ou dados bancários ao Git.
-- O bucket é privado e o acesso é limitado pelas políticas RLS.
-- A aplicação não precisa da chave `service_role`.
+- Não registre chaves, tokens ou extratos no Git.
+- Não use chave `service_role` do Supabase no cliente.
+- Não envie a chave do Data Engine em respostas, logs ou variáveis públicas.
+- Mantenha respostas de erro sanitizadas e cache `private, no-store`.
