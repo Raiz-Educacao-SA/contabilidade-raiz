@@ -7,12 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test tests-web/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests-web/*.test.mjs tests-web/*.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.468.0",
-    "next": "^16.2.12",
+    "next": "^16.3.1",
     "pdf-to-img": "^5.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -26,7 +26,7 @@
     "typescript": "^5.7.2"
   },
   "overrides": {
-    "postcss": "8.5.18",
+    "postcss": "8.5.26",
     "sharp": "0.35.0"
   }
 }

@@ -155,10 +155,11 @@ Os resultados dos módulos Financeiro, Compras, Folha de Pagamento e Contábil d
 
 ### Conciliação bancária e fontes
 
-- A leitura dos extratos prioriza arquivos estruturados em Excel; PDF é utilizado apenas quando não existe arquivo estruturado equivalente.
-- A atualização dos extratos deve informar erro quando nenhum arquivo ou conta for reconhecido.
+- A leitura operacional dos extratos usa movimentos normalizados e sanitizados do Raiz Data Engine.
+- A atualização dos extratos deve informar quando nenhum movimento ou conta for encontrado.
 - O botão da fonte fica verde após atualização válida.
 - A conciliação só é liberada após extratos e base contábil estarem disponíveis.
+- Quando houver múltiplas contas, cada identificador bancário protegido deve ser vinculado explicitamente à conta contábil.
 - O sistema deve entregar somente contas e lançamentos divergentes para tratamento.
 
 ### Publicação e continuidade
@@ -170,6 +171,17 @@ Os resultados dos módulos Financeiro, Compras, Folha de Pagamento e Contábil d
 - As alterações aprovadas são enviadas ao GitHub e publicadas na Vercel.
 - Credenciais, senhas, tokens e valores de variáveis de ambiente não devem ser registrados no histórico.
 
+## 2026-08-14 — Integração canônica de extratos com o Data Engine
+
+- A fonte operacional de extratos passou a ser o Raiz Data Engine, pela rota
+  server-side `/api/data-engine/statements`.
+- O navegador não recebe a credencial técnica do Data Engine.
+- A API consulta movimentos por coligada e competência, pagina todos os
+  resultados e devolve somente descrições sanitizadas.
+- Como o identificador bancário do Data Engine é protegido, a interface exige
+  vínculo explícito com a conta contábil quando há mais de uma conta.
+- O fluxo antigo do Google Drive deixa de ser usado pelo painel de conciliação.
+
 ---
 
-Última consolidação deste histórico: 7 de agosto de 2026.
+Última consolidação deste histórico: 14 de agosto de 2026.

@@ -17,15 +17,13 @@ import {
   BankMetadata,
   BankRow,
   MatchRow,
-  ParsedBank,
   accountingBankAccounts,
   brl,
-  detectAccountingAccount,
   exportReport,
-  parseBank,
   reconcile,
   validateMonthly,
 } from "@/lib/reconciliation";
+import type { DataEngineStatement } from "@/lib/data-engine-statements";
 
 type RegisteredAccount = {
   agencia: string;
@@ -43,16 +41,6 @@ type AccountResult = Statement & {
   validation: ReturnType<typeof validateMonthly>;
   competence: string;
 };
-type DriveStatement = {
-  id: string;
-  name: string;
-  path: string;
-  mimeType: string;
-  modifiedTime?: string;
-  size?: string;
-  resourceKey?: string;
-};
-
 export default function MonthlyReconciliationPanel({
   accounts,
   competence,
@@ -75,8 +63,13 @@ export default function MonthlyReconciliationPanel({
   const [statements, setStatements] = useState<Statement[]>([]);
   const [results, setResults] = useState<AccountResult[]>([]);
   const [notice, setNotice] = useState("");
-  const [driveFiles, setDriveFiles] = useState<DriveStatement[]>([]);
-  const [driveBusy, setDriveBusy] = useState(false);
+  const [dataEngineSources, setDataEngineSources] = useState<
+    DataEngineStatement[]
+  >([]);
+  const [sourceBindings, setSourceBindings] = useState<Record<string, string>>(
+    {},
+  );
+  const [dataEngineBusy, setDataEngineBusy] = useState(false);
   const [accountingBusy, setAccountingBusy] = useState(false);
   const [accountingMessage, setAccountingMessage] = useState(
     "Aguardando atualização no TOTVS",
@@ -86,9 +79,9 @@ export default function MonthlyReconciliationPanel({
     (account) =>
       !statements.some((statement) => statement.account.code === account.code),
   );
-  const driveReady = statements.length > 0;
+  const statementsReady = statements.length > 0;
   const accountingReady = accounting.length > 0;
-  const reconciliationReady = driveReady && accountingReady;
+  const reconciliationReady = statementsReady && accountingReady;
   const allRows = useMemo(
     () => results.flatMap((result) => result.rows),
     [results],
@@ -183,14 +176,11 @@ export default function MonthlyReconciliationPanel({
       const discovered = accountingBankAccounts(rows);
       setAccounting(rows);
       setBankAccounts(discovered);
-      setStatements([]);
-      if (driveFiles.length) {
-        await identifyStatements(driveFiles, rows, discovered);
-      }
+      applySourceBindings(dataEngineSources, discovered, sourceBindings);
       setAccountingMessage(
         `${discovered.length} conta(s) carregada(s) da Planilha 18`,
       );
-      if (!driveFiles.length)
+      if (!dataEngineSources.length)
         setNotice(
           data.warning ||
             `Base contábil atualizada: ${discovered.length} conta(s) bancária(s) encontrada(s) no TOTVS.`,
@@ -204,156 +194,83 @@ export default function MonthlyReconciliationPanel({
     }
   }
 
-  async function scanDrive() {
-    setDriveBusy(true);
-    setDriveFiles([]);
+  async function scanDataEngine() {
+    setDataEngineBusy(true);
     try {
       const response = await fetch(
-        `/api/drive/statements?company=${encodeURIComponent(companyName)}&competence=${encodeURIComponent(competence)}`,
-        { cache: "no-store" },
+        `/api/data-engine/statements?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
+        {
+          cache: "no-store",
+          headers: { authorization: `Bearer ${accessToken}` },
+        },
       );
       const data = (await response.json()) as {
-        files?: DriveStatement[];
+        statements?: DataEngineStatement[];
         error?: string;
-        warning?: string;
-        companyFolder?: string;
+        records?: number;
       };
       if (!response.ok || data.error)
         throw new Error(
-          data.error || "Não foi possível revisar o Google Drive.",
+          data.error || "Não foi possível consultar o Data Engine.",
         );
-      const located = data.files || [];
-      setDriveFiles(located);
-      if (!accounting.length)
-        return setNotice(
-          data.warning ||
-            `${located.length} arquivo(s) localizado(s). Carregue a base contábil para o sistema identificar as contas automaticamente.`,
-        );
-      await identifyStatements(
-        located,
-        accounting,
-        bankAccounts,
+      const sources = data.statements ?? [];
+      setDataEngineSources(sources);
+      applySourceBindings(sources, bankAccounts, sourceBindings);
+      setNotice(
+        `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
       );
-      if (data.warning) setNotice(data.warning);
     } catch (error) {
       setNotice((error as Error).message);
     } finally {
-      setDriveBusy(false);
+      setDataEngineBusy(false);
     }
   }
 
-  async function identifyStatements(
-    located: DriveStatement[],
-    accountingRows: AccountingRow[],
+  function applySourceBindings(
+    sources: DataEngineStatement[],
     discoveredAccounts: AccountingAccount[],
+    bindings: Record<string, string>,
   ) {
-    const groups = new Map<string, Statement>();
-    const structuredAccountCodes = new Set<string>();
-    const rejectedFiles: string[] = [];
-    let processed = 0;
-    let rejected = 0;
-    let skippedPdf = 0;
-    const eligibleFiles = located
-      .filter((file) => /\.(pdf|xlsx|xls|xlsm)$/i.test(file.name))
-      .sort((a, b) => {
-        const formatPriority = Number(/\.pdf$/i.test(a.name)) - Number(/\.pdf$/i.test(b.name));
-        return formatPriority || a.name.localeCompare(b.name, "pt-BR", { numeric: true });
-      });
-    for (const item of eligibleFiles) {
-      try {
-        const isPdf = /\.pdf$/i.test(item.name);
-        const fileResponse = await fetch(
-          `/api/drive/statements?fileId=${encodeURIComponent(item.id)}&mimeType=${encodeURIComponent(item.mimeType)}${item.resourceKey ? `&resourceKey=${encodeURIComponent(item.resourceKey)}` : ""}${isPdf ? `&parse=pdf&fileName=${encodeURIComponent(item.name)}` : ""}`,
-          { cache: "no-store" },
-        );
-        if (!fileResponse.ok) {
-          rejected += 1;
-          const failure = await fileResponse.json().catch(() => null) as { error?: string } | null;
-          rejectedFiles.push(`${item.name}: ${failure?.error || "falha ao baixar"}`);
-          continue;
-        }
-        const parsed: ParsedBank = isPdf
-          ? await fileResponse.json().then((data: ParsedBank) => ({
-              ...data,
-              rows: data.rows.map((row) => ({
-                ...row,
-                date: new Date(String(row.date)),
-              })),
-            }))
-          : parseBank(await fileResponse.arrayBuffer());
-        processed += 1;
-        const detected = detectAccountingAccount(
-          accountingRows,
-          parsed.metadata,
-          item.name,
-          accounts,
-        );
-        if (!detected) {
-          rejected += 1;
-          rejectedFiles.push(
-            `${item.name}: conta bancária ${parsed.metadata.account || "não informada"} sem vínculo com a Planilha 18`,
-          );
-          continue;
-        }
-        if (isPdf && structuredAccountCodes.has(detected.code)) {
-          skippedPdf += 1;
-          continue;
-        }
-        if (!isPdf) {
-          structuredAccountCodes.add(detected.code);
-        }
-        const accountingAccount = discoveredAccounts.find(
-          (account) => account.code === detected.code,
-        );
-        if (!accountingAccount) {
-          rejected += 1;
-          rejectedFiles.push(`${item.name}: conta contábil ${detected.code} não carregada`);
-          continue;
-        }
-        const current = groups.get(detected.code);
-        if (!current)
-          groups.set(detected.code, {
-            fileName: item.name,
-            account: accountingAccount,
-            bank: parsed.rows,
-            metadata: parsed.metadata,
-          });
-        else {
-          const seen = new Set(
-            current.bank.map(
-              (row) =>
-                `${row.date.toISOString().slice(0, 10)}|${row.value}|${row.description.trim().toUpperCase()}`,
-            ),
-          );
-          const additional = parsed.rows.filter(
-            (row) =>
-              !seen.has(
-                `${row.date.toISOString().slice(0, 10)}|${row.value}|${row.description.trim().toUpperCase()}`,
-              ),
-          );
-          current.bank.push(...additional);
-          current.bank.sort((a, b) => a.date.getTime() - b.date.getTime());
-          current.fileName = `${current.fileName} + ${item.name}`;
-          current.metadata = {
-            ...current.metadata,
-            agency: current.metadata.agency || parsed.metadata.agency,
-            account: current.metadata.account || parsed.metadata.account,
-            period: parsed.metadata.period || current.metadata.period,
-            closingBalance:
-              parsed.metadata.closingBalance ?? current.metadata.closingBalance,
-          };
-        }
-      } catch (error) {
-        rejected += 1;
-        rejectedFiles.push(`${item.name}: ${(error as Error).message}`);
+    const effectiveBindings = { ...bindings };
+    if (sources.length === 1 && discoveredAccounts.length === 1) {
+      effectiveBindings[sources[0].sourceAccountId] = discoveredAccounts[0].code;
+      setSourceBindings(effectiveBindings);
+    }
+    const identified = new Map<string, Statement>();
+    for (const source of sources) {
+      const account = discoveredAccounts.find(
+        (candidate) =>
+          candidate.code === effectiveBindings[source.sourceAccountId],
+      );
+      if (!account) continue;
+      const current = identified.get(account.code);
+      const bank = source.rows.map((row) => ({
+        ...row,
+        date: new Date(`${row.date}T00:00:00.000Z`),
+      }));
+      const sourceName = `Data Engine · Banco ${source.bankId} · ${source.sourceAccountId.slice(0, 12)}`;
+      if (!current) {
+        identified.set(account.code, {
+          account,
+          bank,
+          fileName: sourceName,
+          metadata: source.metadata,
+        });
+      } else {
+        current.bank.push(...bank);
+        current.bank.sort((left, right) => left.date.getTime() - right.date.getTime());
+        current.fileName = `${current.fileName} + ${sourceName}`;
       }
     }
-    const identified = Array.from(groups.values());
-    setStatements(identified);
-    setNotice(
-      `${identified.length ? "" : "Erro: "}${located.length} arquivo(s) localizado(s), ${processed} processado(s), ${skippedPdf} PDF(s) dispensado(s) por existir Excel/arquivo estruturado, ${rejected} rejeitado(s) e ${identified.length} conta(s) identificada(s).${rejectedFiles.length ? ` Revisar: ${rejectedFiles.slice(0, 3).join("; ")}.` : ""}`,
-    );
-    return identified;
+    setStatements(Array.from(identified.values()));
+  }
+
+  function bindSource(sourceAccountId: string, accountCode: string) {
+    const next = { ...sourceBindings };
+    if (accountCode) next[sourceAccountId] = accountCode;
+    else delete next[sourceAccountId];
+    setSourceBindings(next);
+    applySourceBindings(dataEngineSources, bankAccounts, next);
   }
 
   function reconcileStatements(selected: Statement[]) {
@@ -457,26 +374,26 @@ export default function MonthlyReconciliationPanel({
           </p>
         </div>
         <div className="source-steps">
-          <article className={driveReady ? "ready" : "waiting"}>
+          <article className={statementsReady ? "ready" : "waiting"}>
             <div className="source-step-number">1</div>
             <Landmark />
             <div>
               <b>Extratos bancários</b>
               <span>
-                {driveBusy
-                  ? "Verificando a pasta oficial..."
-                  : driveReady
-                    ? `${driveFiles.length} arquivo(s) encontrado(s) no Drive`
-                    : "Aguardando atualização do Drive"}
+                {dataEngineBusy
+                  ? "Consultando o Data Engine..."
+                  : dataEngineSources.length
+                    ? `${dataEngineSources.length} conta(s) encontrada(s) no Data Engine`
+                    : "Aguardando atualização do Data Engine"}
               </span>
             </div>
             <button
-              className={`secondary ${driveReady ? "source-loaded-extracts" : ""}`}
-              disabled={driveBusy}
-              onClick={scanDrive}
+              className={`secondary ${statementsReady ? "source-loaded-extracts" : ""}`}
+              disabled={dataEngineBusy}
+              onClick={scanDataEngine}
             >
-              <RefreshCw className={driveBusy ? "spinning" : ""} />
-              {driveBusy ? "Atualizando..." : "Atualizar extratos"}
+              <RefreshCw className={dataEngineBusy ? "spinning" : ""} />
+              {dataEngineBusy ? "Atualizando..." : "Atualizar extratos"}
             </button>
           </article>
           <article className={accountingReady ? "ready" : "waiting"}>
@@ -525,15 +442,34 @@ export default function MonthlyReconciliationPanel({
           </article>
         </div>
       </div>
-      {driveFiles.length > 0 && (
+      {dataEngineSources.length > 0 && (
         <div className="drive-files">
-          {driveFiles.map((file) => (
-            <article key={file.id}>
+          {dataEngineSources.map((source) => (
+            <article key={source.sourceAccountId}>
               <Landmark />
               <div>
-                <b>{file.name}</b>
-                <span>{file.path}</span>
+                <b>
+                  Banco {source.bankId} — conta protegida {source.metadata.account}
+                </b>
+                <span>{source.rows.length} movimento(s) nesta competência</span>
               </div>
+              <label>
+                Conta contábil
+                <select
+                  aria-label={`Conta contábil para ${source.metadata.account}`}
+                  value={sourceBindings[source.sourceAccountId] ?? ""}
+                  onChange={(event) =>
+                    bindSource(source.sourceAccountId, event.target.value)
+                  }
+                >
+                  <option value="">Selecione</option>
+                  {bankAccounts.map((account) => (
+                    <option key={account.code} value={account.code}>
+                      {account.code} — {account.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </article>
           ))}
         </div>
@@ -544,8 +480,8 @@ export default function MonthlyReconciliationPanel({
             <div>
               <h3>2. Extratos por conta</h3>
               <p>
-                Os arquivos encontrados no Drive serão identificados e
-                vinculados às contas desta competência.
+                Vincule cada conta protegida do Data Engine à conta contábil
+                correspondente desta competência.
               </p>
             </div>
             <b>
@@ -575,7 +511,7 @@ export default function MonthlyReconciliationPanel({
                     <small>
                       {statement
                         ? `${reconciled ? "Conciliação salva" : "Extrato identificado"}: ${statement.fileName}`
-                        : "Aguardando identificação automática no Drive"}
+                        : "Aguardando vínculo com uma conta do Data Engine"}
                     </small>
                   </div>
                   {statement && (
