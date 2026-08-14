@@ -78,8 +78,17 @@ export default function MonthlyReconciliationPanel({
     "Aguardando atualização no TOTVS",
   );
   const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
-  const activeContextRef = useRef(historyKey);
-  activeContextRef.current = historyKey;
+  const contextRef = useRef({ generation: 0, key: historyKey });
+  const accountingRequestRef = useRef(0);
+  const dataEngineRequestRef = useRef(0);
+  const accountingAbortRef = useRef<AbortController | null>(null);
+  const dataEngineAbortRef = useRef<AbortController | null>(null);
+  if (contextRef.current.key !== historyKey) {
+    contextRef.current = {
+      generation: contextRef.current.generation + 1,
+      key: historyKey,
+    };
+  }
   const pending = bankAccounts.filter(
     (account) =>
       !statements.some((statement) => statement.account.code === account.code),
@@ -98,6 +107,10 @@ export default function MonthlyReconciliationPanel({
   const reconciledCount = results.length - divergentResults.length;
 
   useEffect(() => {
+    accountingAbortRef.current?.abort();
+    dataEngineAbortRef.current?.abort();
+    accountingAbortRef.current = null;
+    dataEngineAbortRef.current = null;
     setAccounting([]);
     setBankAccounts([]);
     setStatements([]);
@@ -108,6 +121,10 @@ export default function MonthlyReconciliationPanel({
     setAccountingMessage("Aguardando atualização no TOTVS");
     setNotice("");
     setResults([]);
+    return () => {
+      accountingAbortRef.current?.abort();
+      dataEngineAbortRef.current?.abort();
+    };
   }, [historyKey]);
 
   useEffect(() => {
@@ -169,7 +186,15 @@ export default function MonthlyReconciliationPanel({
   }
 
   async function refreshAccounting() {
-    const requestContext = historyKey;
+    accountingAbortRef.current?.abort();
+    const controller = new AbortController();
+    accountingAbortRef.current = controller;
+    const contextGeneration = contextRef.current.generation;
+    const requestId = accountingRequestRef.current + 1;
+    accountingRequestRef.current = requestId;
+    const requestIsCurrent = () =>
+      contextRef.current.generation === contextGeneration &&
+      accountingRequestRef.current === requestId;
     setAccountingBusy(true);
     setAccounting([]);
     setBankAccounts([]);
@@ -180,6 +205,7 @@ export default function MonthlyReconciliationPanel({
         {
           cache: "no-store",
           headers: { authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
         },
       );
       const data = (await response.json()) as {
@@ -187,7 +213,7 @@ export default function MonthlyReconciliationPanel({
         error?: string;
         warning?: string;
       };
-      if (activeContextRef.current !== requestContext) return;
+      if (!requestIsCurrent()) return;
       if (!response.ok || data.error)
         throw new Error(
           data.error || "Não foi possível consultar a Planilha 18 no TOTVS.",
@@ -209,19 +235,28 @@ export default function MonthlyReconciliationPanel({
             `Base contábil atualizada: ${discovered.length} conta(s) bancária(s) encontrada(s) no TOTVS.`,
         );
     } catch (error) {
-      if (activeContextRef.current !== requestContext) return;
+      if (!requestIsCurrent()) return;
       const message = (error as Error).message;
       setAccountingMessage("Aguardando permissão de leitura no TOTVS");
       setNotice(message);
     } finally {
-      if (activeContextRef.current === requestContext) {
+      if (requestIsCurrent()) {
+        accountingAbortRef.current = null;
         setAccountingBusy(false);
       }
     }
   }
 
   async function scanDataEngine() {
-    const requestContext = historyKey;
+    dataEngineAbortRef.current?.abort();
+    const controller = new AbortController();
+    dataEngineAbortRef.current = controller;
+    const contextGeneration = contextRef.current.generation;
+    const requestId = dataEngineRequestRef.current + 1;
+    dataEngineRequestRef.current = requestId;
+    const requestIsCurrent = () =>
+      contextRef.current.generation === contextGeneration &&
+      dataEngineRequestRef.current === requestId;
     setDataEngineBusy(true);
     setDataEngineSources([]);
     setStatements([]);
@@ -231,6 +266,7 @@ export default function MonthlyReconciliationPanel({
         {
           cache: "no-store",
           headers: { authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
         },
       );
       const data = (await response.json()) as {
@@ -238,7 +274,7 @@ export default function MonthlyReconciliationPanel({
         error?: string;
         records?: number;
       };
-      if (activeContextRef.current !== requestContext) return;
+      if (!requestIsCurrent()) return;
       if (!response.ok || data.error)
         throw new Error(
           data.error || "Não foi possível consultar o Data Engine.",
@@ -251,10 +287,11 @@ export default function MonthlyReconciliationPanel({
         );
       }
     } catch (error) {
-      if (activeContextRef.current !== requestContext) return;
+      if (!requestIsCurrent()) return;
       setNotice((error as Error).message);
     } finally {
-      if (activeContextRef.current === requestContext) {
+      if (requestIsCurrent()) {
+        dataEngineAbortRef.current = null;
         setDataEngineBusy(false);
       }
     }
