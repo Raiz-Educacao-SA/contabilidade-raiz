@@ -44,6 +44,10 @@ type LoadOptions = {
   toDate: string;
 };
 
+type BindableAccount = {
+  code: string;
+};
+
 const PAGE_SIZE = 200;
 const MAX_PAGE_REQUESTS = 500;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -122,6 +126,33 @@ export function statementPeriod(competence: string) {
   };
 }
 
+export function resolveStatementBindings<TAccount extends BindableAccount>(
+  sources: DataEngineStatement[],
+  accounts: TAccount[],
+  bindings: Record<string, string>,
+) {
+  const claims = new Map<string, number>();
+  for (const source of sources) {
+    const accountCode = bindings[source.sourceAccountId];
+    if (accountCode) claims.set(accountCode, (claims.get(accountCode) ?? 0) + 1);
+  }
+  const duplicateAccountCodes = Array.from(claims)
+    .filter(([, count]) => count > 1)
+    .map(([accountCode]) => accountCode)
+    .sort();
+  if (duplicateAccountCodes.length) {
+    return { duplicateAccountCodes, pairs: [] as Array<{ account: TAccount; source: DataEngineStatement }> };
+  }
+
+  const pairs = sources.flatMap((source) => {
+    const account = accounts.find(
+      (candidate) => candidate.code === bindings[source.sourceAccountId],
+    );
+    return account ? [{ account, source }] : [];
+  });
+  return { duplicateAccountCodes, pairs };
+}
+
 export async function loadDataEngineStatements(
   options: LoadOptions,
 ): Promise<DataEngineStatement[]> {
@@ -170,6 +201,8 @@ export async function loadDataEngineStatements(
   for (const movement of movements) {
     if (
       movement.cod_coligada !== options.codColigada ||
+      movement.data_lancamento < options.fromDate ||
+      movement.data_lancamento > options.toDate ||
       movementIds.has(movement.movimento_id)
     ) {
       throw new Error("Resposta inválida do Data Engine.");

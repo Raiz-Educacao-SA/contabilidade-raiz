@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeftRight,
   CheckCircle2,
@@ -23,7 +23,10 @@ import {
   reconcile,
   validateMonthly,
 } from "@/lib/reconciliation";
-import type { DataEngineStatement } from "@/lib/data-engine-statements";
+import {
+  resolveStatementBindings,
+  type DataEngineStatement,
+} from "@/lib/data-engine-statements";
 
 type RegisteredAccount = {
   agencia: string;
@@ -75,6 +78,8 @@ export default function MonthlyReconciliationPanel({
     "Aguardando atualização no TOTVS",
   );
   const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
+  const activeContextRef = useRef(historyKey);
+  activeContextRef.current = historyKey;
   const pending = bankAccounts.filter(
     (account) =>
       !statements.some((statement) => statement.account.code === account.code),
@@ -91,6 +96,19 @@ export default function MonthlyReconciliationPanel({
     [results],
   );
   const reconciledCount = results.length - divergentResults.length;
+
+  useEffect(() => {
+    setAccounting([]);
+    setBankAccounts([]);
+    setStatements([]);
+    setDataEngineSources([]);
+    setSourceBindings({});
+    setDataEngineBusy(false);
+    setAccountingBusy(false);
+    setAccountingMessage("Aguardando atualização no TOTVS");
+    setNotice("");
+    setResults([]);
+  }, [historyKey]);
 
   useEffect(() => {
     const stored = localStorage.getItem(historyKey);
@@ -151,7 +169,11 @@ export default function MonthlyReconciliationPanel({
   }
 
   async function refreshAccounting() {
+    const requestContext = historyKey;
     setAccountingBusy(true);
+    setAccounting([]);
+    setBankAccounts([]);
+    setStatements([]);
     try {
       const response = await fetch(
         `/api/totvs/accounting?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -165,6 +187,7 @@ export default function MonthlyReconciliationPanel({
         error?: string;
         warning?: string;
       };
+      if (activeContextRef.current !== requestContext) return;
       if (!response.ok || data.error)
         throw new Error(
           data.error || "Não foi possível consultar a Planilha 18 no TOTVS.",
@@ -186,16 +209,22 @@ export default function MonthlyReconciliationPanel({
             `Base contábil atualizada: ${discovered.length} conta(s) bancária(s) encontrada(s) no TOTVS.`,
         );
     } catch (error) {
+      if (activeContextRef.current !== requestContext) return;
       const message = (error as Error).message;
       setAccountingMessage("Aguardando permissão de leitura no TOTVS");
       setNotice(message);
     } finally {
-      setAccountingBusy(false);
+      if (activeContextRef.current === requestContext) {
+        setAccountingBusy(false);
+      }
     }
   }
 
   async function scanDataEngine() {
+    const requestContext = historyKey;
     setDataEngineBusy(true);
+    setDataEngineSources([]);
+    setStatements([]);
     try {
       const response = await fetch(
         `/api/data-engine/statements?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -209,20 +238,25 @@ export default function MonthlyReconciliationPanel({
         error?: string;
         records?: number;
       };
+      if (activeContextRef.current !== requestContext) return;
       if (!response.ok || data.error)
         throw new Error(
           data.error || "Não foi possível consultar o Data Engine.",
         );
       const sources = data.statements ?? [];
       setDataEngineSources(sources);
-      applySourceBindings(sources, bankAccounts, sourceBindings);
-      setNotice(
-        `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
-      );
+      if (applySourceBindings(sources, bankAccounts, sourceBindings)) {
+        setNotice(
+          `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
+        );
+      }
     } catch (error) {
+      if (activeContextRef.current !== requestContext) return;
       setNotice((error as Error).message);
     } finally {
-      setDataEngineBusy(false);
+      if (activeContextRef.current === requestContext) {
+        setDataEngineBusy(false);
+      }
     }
   }
 
@@ -231,41 +265,48 @@ export default function MonthlyReconciliationPanel({
     discoveredAccounts: AccountingAccount[],
     bindings: Record<string, string>,
   ) {
-    const effectiveBindings = { ...bindings };
-    if (sources.length === 1 && discoveredAccounts.length === 1) {
-      effectiveBindings[sources[0].sourceAccountId] = discoveredAccounts[0].code;
-      setSourceBindings(effectiveBindings);
-    }
-    const identified = new Map<string, Statement>();
-    for (const source of sources) {
-      const account = discoveredAccounts.find(
-        (candidate) =>
-          candidate.code === effectiveBindings[source.sourceAccountId],
+    const resolved = resolveStatementBindings(
+      sources,
+      discoveredAccounts,
+      bindings,
+    );
+    if (resolved.duplicateAccountCodes.length) {
+      setStatements([]);
+      setNotice(
+        `Erro: cada conta do Data Engine deve possuir um vínculo contábil exclusivo. Revise: ${resolved.duplicateAccountCodes.join(", ")}.`,
       );
-      if (!account) continue;
-      const current = identified.get(account.code);
+      return false;
+    }
+    const identified = resolved.pairs.map(({ account, source }) => {
       const bank = source.rows.map((row) => ({
         ...row,
         date: new Date(`${row.date}T00:00:00.000Z`),
       }));
       const sourceName = `Data Engine · Banco ${source.bankId} · ${source.sourceAccountId.slice(0, 12)}`;
-      if (!current) {
-        identified.set(account.code, {
-          account,
-          bank,
-          fileName: sourceName,
-          metadata: source.metadata,
-        });
-      } else {
-        current.bank.push(...bank);
-        current.bank.sort((left, right) => left.date.getTime() - right.date.getTime());
-        current.fileName = `${current.fileName} + ${sourceName}`;
-      }
-    }
-    setStatements(Array.from(identified.values()));
+      return {
+        account,
+        bank,
+        fileName: sourceName,
+        metadata: source.metadata,
+      };
+    });
+    setStatements(identified);
+    return true;
   }
 
   function bindSource(sourceAccountId: string, accountCode: string) {
+    const duplicate = Object.entries(sourceBindings).some(
+      ([currentSourceId, currentAccountCode]) =>
+        currentSourceId !== sourceAccountId &&
+        currentAccountCode === accountCode &&
+        accountCode !== "",
+    );
+    if (duplicate) {
+      setNotice(
+        `Erro: a conta contábil ${accountCode} já está vinculada a outra conta do Data Engine.`,
+      );
+      return;
+    }
     const next = { ...sourceBindings };
     if (accountCode) next[sourceAccountId] = accountCode;
     else delete next[sourceAccountId];
@@ -464,7 +505,15 @@ export default function MonthlyReconciliationPanel({
                 >
                   <option value="">Selecione</option>
                   {bankAccounts.map((account) => (
-                    <option key={account.code} value={account.code}>
+                    <option
+                      key={account.code}
+                      value={account.code}
+                      disabled={Object.entries(sourceBindings).some(
+                        ([currentSourceId, currentAccountCode]) =>
+                          currentSourceId !== source.sourceAccountId &&
+                          currentAccountCode === account.code,
+                      )}
+                    >
                       {account.code} — {account.name}
                     </option>
                   ))}

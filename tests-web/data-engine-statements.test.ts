@@ -108,3 +108,69 @@ test("interrompe paginação quando o cursor se repete", async () => {
   );
   assert.equal(requests, 2);
 });
+
+test("rejeita movimento fora da competência solicitada", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  await assert.rejects(
+    loadDataEngineStatements({
+      apiKey: "server-secret",
+      baseUrl: "https://data-engine.example",
+      codColigada: 10,
+      fetcher: async () =>
+        Response.json({
+          items: [
+            {
+              movimento_id: "mov-outside-period",
+              cod_coligada: 10,
+              bank_id: "341",
+              source_account_id: "b".repeat(64),
+              data_lancamento: "2026-09-01",
+              valor_centavos: 100,
+              natureza: "C",
+              descricao_sanitizada: "MOVIMENTO-FORA",
+            },
+          ],
+          next_cursor: null,
+        }),
+      fromDate: "2026-08-01",
+      toDate: "2026-08-31",
+    }),
+    /resposta inválida/i,
+  );
+});
+
+test("exige vínculo explícito e rejeita duas fontes na mesma conta", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "341",
+    sourceAccountId: "c".repeat(64),
+    rows: [],
+    metadata: {
+      account: "cccccccccccc",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 341",
+      openingBalance: null,
+      period: "08/2026",
+    },
+  };
+  const accounts = [{ code: "1.1.1", name: "Banco", rows: [] }];
+
+  assert.deepEqual(resolveStatementBindings([source], accounts, {}), {
+    duplicateAccountCodes: [],
+    pairs: [],
+  });
+
+  const duplicateSource = {
+    ...source,
+    sourceAccountId: "d".repeat(64),
+    metadata: { ...source.metadata, account: "dddddddddddd" },
+  };
+  assert.deepEqual(
+    resolveStatementBindings([source, duplicateSource], accounts, {
+      [source.sourceAccountId]: "1.1.1",
+      [duplicateSource.sourceAccountId]: "1.1.1",
+    }),
+    { duplicateAccountCodes: ["1.1.1"], pairs: [] },
+  );
+});

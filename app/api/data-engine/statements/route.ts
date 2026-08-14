@@ -3,30 +3,9 @@ import {
   loadDataEngineStatements,
   statementPeriod,
 } from "@/lib/data-engine-statements";
+import { isAuthorizedCompany } from "@/lib/server/authorized-company";
 
 export const runtime = "nodejs";
-
-async function authorizedForCompany(request: NextRequest, company: string) {
-  const authorization = request.headers.get("authorization");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!authorization || !url || !key) return false;
-  try {
-    const endpoint = new URL("/rest/v1/empresas", url);
-    endpoint.searchParams.set("select", "id");
-    endpoint.searchParams.set("codcoligada", `eq.${company}`);
-    endpoint.searchParams.set("limit", "1");
-    const response = await fetch(endpoint, {
-      cache: "no-store",
-      headers: { apikey: key, authorization },
-    });
-    if (!response.ok) return false;
-    const companies = (await response.json()) as unknown;
-    return Array.isArray(companies) && companies.length === 1;
-  } catch {
-    return false;
-  }
-}
 
 export async function GET(request: NextRequest) {
   const company = request.nextUrl.searchParams.get("company")?.trim() ?? "";
@@ -38,7 +17,14 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
-  if (!(await authorizedForCompany(request, company))) {
+  if (
+    !(await isAuthorizedCompany({
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      authorization: request.headers.get("authorization"),
+      company,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    }))
+  ) {
     return NextResponse.json(
       { error: "Sessão inválida ou empresa não autorizada." },
       { status: 403 },
