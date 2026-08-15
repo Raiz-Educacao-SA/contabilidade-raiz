@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const baseUrl = process.env.DATA_ENGINE_URL;
+  const baseUrl = process.env.DATA_ENGINE_URL ?? process.env.DATA_ENGINE_API_URL;
   const apiKey = process.env.DATA_ENGINE_API_KEY;
   if (!baseUrl || !apiKey) {
     return NextResponse.json(

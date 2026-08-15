@@ -52,7 +52,7 @@ type BindableAccount = {
 const PAGE_SIZE = 200;
 const MAX_PAGE_REQUESTS = 500;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const ACCOUNT_ID = /^[a-f0-9]{64}$/i;
+const MAX_SOURCE_ACCOUNT_ID_LENGTH = 256;
 
 function isCalendarDate(value: string) {
   if (!ISO_DATE.test(value)) return false;
@@ -71,7 +71,8 @@ function isMovement(value: unknown): value is Movement {
     Number.isSafeInteger(item.cod_coligada) &&
     typeof item.bank_id === "string" &&
     typeof item.source_account_id === "string" &&
-    ACCOUNT_ID.test(item.source_account_id) &&
+    item.source_account_id.trim().length > 0 &&
+    item.source_account_id.length <= MAX_SOURCE_ACCOUNT_ID_LENGTH &&
     typeof item.data_lancamento === "string" &&
     isCalendarDate(item.data_lancamento) &&
     Number.isSafeInteger(item.valor_centavos) &&
