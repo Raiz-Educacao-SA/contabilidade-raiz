@@ -66,7 +66,10 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor a chave", async
   assert.equal(requests[0].url.searchParams.get("from_date"), "2026-08-01");
   assert.equal(requests[0].url.searchParams.get("to_date"), "2026-08-31");
   assert.equal(requests[0].url.searchParams.get("limit"), "200");
+  assert.equal(requests[0].url.searchParams.has("cursor"), false);
+  assert.equal(requests[0].url.searchParams.has("next_cursor"), false);
   assert.equal(requests[1].url.searchParams.get("cursor"), "cursor-2");
+  assert.equal(requests[1].url.searchParams.has("next_cursor"), false);
   assert.deepEqual(result, [
     {
       bankId: "341",
@@ -86,6 +89,26 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor a chave", async
     },
   ]);
   assert.equal(JSON.stringify(result).includes("server-secret"), false);
+});
+
+test("preserva o zero à esquerda da coligada na consulta", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  let requestedUrl: URL | undefined;
+
+  await loadDataEngineStatements({
+    apiKey: "server-secret",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    codColigadaCode: "03",
+    fetcher: async (input: RequestInfo | URL) => {
+      requestedUrl = new URL(String(input));
+      return Response.json({ items: [], next_cursor: null });
+    },
+    fromDate: "2026-08-01",
+    toDate: "2026-08-31",
+  });
+
+  assert.equal(requestedUrl?.searchParams.get("cod_coligada"), "03");
 });
 
 test("interrompe paginação quando o cursor se repete", async () => {
