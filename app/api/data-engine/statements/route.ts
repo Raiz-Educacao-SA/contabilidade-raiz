@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       apiKey,
       baseUrl,
       codColigada: Number(company),
+      codColigadaCode: company.padStart(2, "0"),
       fromDate,
       toDate,
     });

@@ -39,6 +39,7 @@ type LoadOptions = {
   apiKey: string;
   baseUrl: string;
   codColigada: number;
+  codColigadaCode?: string;
   fetcher?: typeof fetch;
   fromDate: string;
   toDate: string;
@@ -164,11 +165,14 @@ export async function loadDataEngineStatements(
 
   for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
     const url = new URL("/v1/tesouraria/extratos/movimentos", options.baseUrl);
-    url.searchParams.set("cod_coligada", String(options.codColigada));
+    url.searchParams.set(
+      "cod_coligada",
+      options.codColigadaCode ?? String(options.codColigada).padStart(2, "0"),
+    );
     url.searchParams.set("from_date", options.fromDate);
     url.searchParams.set("to_date", options.toDate);
     url.searchParams.set("limit", String(PAGE_SIZE));
-    if (cursor) url.searchParams.set("cursor", cursor);
+    if (cursor) url.searchParams.set("next_cursor", cursor);
 
     const response = await fetcher(url, {
       cache: "no-store",

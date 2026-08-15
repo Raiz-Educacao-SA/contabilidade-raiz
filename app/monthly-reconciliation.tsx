@@ -447,13 +447,33 @@ export default function MonthlyReconciliationPanel({
           <span>ATUALIZAÇÃO DAS FONTES</span>
           <h3>Preparar a conciliação</h3>
           <p>
-            Atualize os extratos e a base contábil antes de executar a
+            Atualize a base contábil e os extratos antes de executar a
             conferência do mês.
           </p>
         </div>
         <div className="source-steps">
-          <article className={statementsReady ? "ready" : "waiting"}>
+          <article className={accountingReady ? "ready" : "waiting"}>
             <div className="source-step-number">1</div>
+            <Database />
+            <div>
+              <b>Base contábil</b>
+              <span>
+                {accountingBusy
+                  ? "Consultando a Planilha 18..."
+                  : accountingMessage}
+              </span>
+            </div>
+            <button
+              className={`secondary ${accountingReady ? "source-loaded" : ""}`}
+              disabled={accountingBusy}
+              onClick={refreshAccounting}
+            >
+              <RefreshCw className={accountingBusy ? "spinning" : ""} />
+              {accountingBusy ? "Atualizando..." : "Atualizar base contábil"}
+            </button>
+          </article>
+          <article className={statementsReady ? "ready" : "waiting"}>
+            <div className="source-step-number">2</div>
             <Landmark />
             <div>
               <b>Extratos bancários</b>
@@ -472,26 +492,6 @@ export default function MonthlyReconciliationPanel({
             >
               <RefreshCw className={dataEngineBusy ? "spinning" : ""} />
               {dataEngineBusy ? "Atualizando..." : "Atualizar extratos"}
-            </button>
-          </article>
-          <article className={accountingReady ? "ready" : "waiting"}>
-            <div className="source-step-number">2</div>
-            <Database />
-            <div>
-              <b>Base contábil</b>
-              <span>
-                {accountingBusy
-                  ? "Consultando a Planilha 18..."
-                  : accountingMessage}
-              </span>
-            </div>
-            <button
-              className={`secondary ${accountingReady ? "source-loaded" : ""}`}
-              disabled={accountingBusy}
-              onClick={refreshAccounting}
-            >
-              <RefreshCw className={accountingBusy ? "spinning" : ""} />
-              {accountingBusy ? "Atualizando Base TOTVS..." : "Atualizar Base TOTVS"}
             </button>
           </article>
           <article
@@ -515,7 +515,7 @@ export default function MonthlyReconciliationPanel({
               onClick={runAll}
             >
               <ArrowLeftRight />
-              Conciliar agora
+              Conciliação automática
             </button>
           </article>
         </div>
