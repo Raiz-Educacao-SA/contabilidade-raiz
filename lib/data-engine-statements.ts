@@ -172,7 +172,7 @@ export async function loadDataEngineStatements(
     url.searchParams.set("from_date", options.fromDate);
     url.searchParams.set("to_date", options.toDate);
     url.searchParams.set("limit", String(PAGE_SIZE));
-    if (cursor) url.searchParams.set("next_cursor", cursor);
+    if (cursor) url.searchParams.set("cursor", cursor);
 
     const response = await fetcher(url, {
       cache: "no-store",
