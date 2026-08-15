@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, CloudDownload, Database, Download, FileCheck2, LoaderCircle, Play, RotateCcw } from "lucide-react";
 import {
   ExtractedDocument,
@@ -33,12 +33,6 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   const [driveMessage, setDriveMessage] = useState("Clique para localizar os documentos oficiais da competência.");
   const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    setLot(null); setDrive(null); setSupportFiles([]); setAnalysis(null); setMessage("");
-    setLotMessage("Clique para consultar o lote pendente no TOTVS.");
-    setDriveMessage("Clique para localizar os documentos oficiais da competência.");
-  }, [companyCode, competence]);
 
   const executiveRows = useMemo(() => analysis && lot ? buildExecutiveRows(analysis, lot) : [], [analysis, lot]);
 
