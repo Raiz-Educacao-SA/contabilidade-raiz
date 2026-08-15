@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import {
   ArrowLeftRight,
@@ -10,13 +10,11 @@ import {
   Building2,
   CalendarDays,
   ChevronLeft,
-  Download,
   FileSpreadsheet,
   HandCoins,
   Landmark,
   ListTree,
   LogOut,
-  Pin,
   Plus,
   ReceiptText,
   Save,
@@ -26,22 +24,9 @@ import {
   Upload,
   UsersRound,
   WalletCards,
-  X,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, supabase } from "@/lib/supabase";
-import {
-  AccountingRow,
-  BankMetadata,
-  BankRow,
-  MatchRow,
-  brl,
-  detectAccountingAccount,
-  exportReport,
-  parseAccounting,
-  parseBank,
-  reconcile,
-} from "@/lib/reconciliation";
 import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
@@ -85,15 +70,6 @@ type Module =
   | "contabil"
   | "book"
   | "cronograma";
-type PinnedReconciliation = {
-  id: string;
-  bankName: string;
-  bankAccount: string;
-  accountCode: string;
-  accountName: string;
-  rows: MatchRow[];
-};
-
 const modules = {
   bancaria: {
     title: "Conciliação Bancária",
@@ -201,23 +177,8 @@ export default function Home() {
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [closingDate, setClosingDate] = useState(defaultClosingDateValue);
   const [filterStorageReady, setFilterStorageReady] = useState(false);
-  const [accounting, setAccounting] = useState<AccountingRow[]>([]);
-  const [bank, setBank] = useState<BankRow[]>([]);
-  const [bankName, setBankName] = useState("");
-  const [bankMetadata, setBankMetadata] = useState<BankMetadata>({
-    agency: "",
-    account: "",
-    period: "",
-    name: "",
-    openingBalance: null,
-    closingBalance: null,
-  });
   const [selectedAccount, setSelectedAccount] = useState("");
-  const [toleranceDays, setToleranceDays] = useState(3);
-  const [toleranceValue, setToleranceValue] = useState(0.01);
-  const [results, setResults] = useState<MatchRow[]>([]);
   const [busy, setBusy] = useState(false);
-  const [pinned, setPinned] = useState<PinnedReconciliation[]>([]);
   const [newAccount, setNewAccount] = useState({
     banco: "",
     agencia: "",
@@ -242,13 +203,15 @@ export default function Home() {
       ];
 
   useEffect(() => {
-    const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
-    const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
-    const savedClosingDate = window.localStorage.getItem("contabilidade-raiz:closing-date");
-    if (savedYear >= 2000 && savedYear <= 2100) setYear(savedYear);
-    if (savedMonth >= 1 && savedMonth <= 12) setMonth(savedMonth);
-    if (savedClosingDate && /^\d{4}-\d{2}-\d{2}$/.test(savedClosingDate)) setClosingDate(savedClosingDate);
-    setFilterStorageReady(true);
+    void Promise.resolve().then(() => {
+      const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
+      const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
+      const savedClosingDate = window.localStorage.getItem("contabilidade-raiz:closing-date");
+      if (savedYear >= 2000 && savedYear <= 2100) setYear(savedYear);
+      if (savedMonth >= 1 && savedMonth <= 12) setMonth(savedMonth);
+      if (savedClosingDate && /^\d{4}-\d{2}-\d{2}$/.test(savedClosingDate)) setClosingDate(savedClosingDate);
+      setFilterStorageReady(true);
+    });
   }, []);
   useEffect(() => {
     if (!filterStorageReady) return;
@@ -312,17 +275,13 @@ export default function Home() {
     };
   }, []);
   useEffect(() => {
-    if (!session) {
+    let active = true;
+    void Promise.resolve().then(async () => {
+      if (!active) return;
+      setCompaniesLoading(true);
       setCompanies([]);
       setCompanyId("");
-      setCompaniesLoading(true);
-      return;
-    }
-    let active = true;
-    setCompaniesLoading(true);
-    setCompanies([]);
-    setCompanyId("");
-    (async () => {
+      if (!session) return;
       const { data, error } = await supabase
         .from("usuarios_empresas")
         .select(
@@ -344,7 +303,7 @@ export default function Home() {
         return rows[0]?.empresa_id ?? "";
       });
       setCompaniesLoading(false);
-    })();
+    });
     return () => { active = false; };
   }, [session]);
   useEffect(() => {
@@ -367,17 +326,6 @@ export default function Home() {
       });
   }, [companyId]);
 
-  const detectedAccount = useMemo(
-    () => detectAccountingAccount(accounting, bankMetadata, bankName, accounts),
-    [accounting, bankMetadata, bankName, accounts],
-  );
-  const filteredAccounting = useMemo(
-    () =>
-      detectedAccount
-        ? accounting.filter((row) => row.account === detectedAccount.code)
-        : [],
-    [accounting, detectedAccount],
-  );
   async function login(event: React.FormEvent) {
     event.preventDefault();
     setNotice("");
@@ -387,70 +335,6 @@ export default function Home() {
     });
     if (error)
       setNotice("Não foi possível entrar. Confira o e-mail e a senha.");
-  }
-  async function readAccounting(file?: File) {
-    if (!file) return;
-    try {
-      setAccounting(await parseAccounting(await file.arrayBuffer()));
-      setNotice("Planilha contábil carregada.");
-    } catch (error) {
-      setNotice((error as Error).message);
-    }
-  }
-  async function readBank(file?: File) {
-    if (!file) return;
-    try {
-      const parsed = parseBank(await file.arrayBuffer());
-      setBank(parsed.rows);
-      setBankMetadata(parsed.metadata);
-      setBankName(file.name);
-      setResults([]);
-      setNotice(
-        "Extrato carregado. A conta será identificada automaticamente.",
-      );
-    } catch (error) {
-      setNotice((error as Error).message);
-    }
-  }
-  function run() {
-    if (!bank.length || !accounting.length)
-      return setNotice("Envie a planilha contábil e o extrato bancário.");
-    if (!detectedAccount || !filteredAccounting.length)
-      return setNotice(
-        `Não foi possível identificar automaticamente a conta do extrato${bankMetadata.account ? ` (${bankMetadata.account})` : ""} na planilha contábil.`,
-      );
-    setResults(
-      reconcile(bank, filteredAccounting, toleranceDays, toleranceValue),
-    );
-    setNotice(
-      `Conciliação concluída na conta ${detectedAccount.code} — ${detectedAccount.name}.`,
-    );
-  }
-  function pinResult() {
-    if (!results.length || !detectedAccount) return;
-    setPinned((items) => [
-      ...items,
-      {
-        id: crypto.randomUUID(),
-        bankName,
-        bankAccount: bankMetadata.account,
-        accountCode: detectedAccount.code,
-        accountName: detectedAccount.name,
-        rows: results,
-      },
-    ]);
-    setBank([]);
-    setBankName("");
-    setBankMetadata({
-      agency: "",
-      account: "",
-      period: "",
-      name: "",
-      openingBalance: null,
-      closingBalance: null,
-    });
-    setResults([]);
-    setNotice("Conciliação fixada. Agora carregue o extrato do próximo banco.");
   }
   async function saveAccount(event: React.FormEvent) {
     event.preventDefault();
@@ -813,7 +697,7 @@ export default function Home() {
         {notice && <div className="notice">{notice}</div>}
         {selectedModule === "bancaria" && tab === "conciliacao" && (
           <MonthlyReconciliationPanel
-            accounts={accounts}
+            key={`${companyId}-${competence}`}
             competence={competence}
             companyId={companyId}
             companyCode={company?.empresas?.codcoligada ?? ""}
@@ -887,6 +771,7 @@ export default function Home() {
         )}
         {selectedModule === "bancaria" && tab === "saldos" && (
           <BalancePanel
+            key={`${companyId}-${competence}`}
             companyId={companyId}
             competence={competence}
             accounts={accounts}
@@ -923,6 +808,7 @@ export default function Home() {
         )}
         {selectedModule === "folha" && (
           <PayrollBatchReconciliation
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
             companyCode={company?.empresas?.codcoligada ?? ""}
             companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
             competence={competence}
@@ -1016,89 +902,6 @@ export default function Home() {
           )}
       </main>
     </div>
-  );
-}
-
-function ResultBlock({ rows }: { rows: MatchRow[] }) {
-  const totals = rows.reduce<Record<string, number>>(
-    (acc, row) => ({ ...acc, [row.status]: (acc[row.status] ?? 0) + 1 }),
-    {},
-  );
-  const totalDifference = rows.reduce(
-    (sum, row) =>
-      sum +
-      (row.status === "Somente no banco"
-        ? Math.abs(row.bankValue ?? 0)
-        : row.status === "Somente na contabilidade"
-          ? Math.abs(row.accountingValue ?? 0)
-          : 0),
-    0,
-  );
-  return (
-    <>
-      <div className="result-metrics">
-        <article>
-          <b>{totals["Conciliado"] ?? 0}</b>
-          <span>Conciliados</span>
-        </article>
-        <article>
-          <b>{totals["Possível conciliação"] ?? 0}</b>
-          <span>Possíveis</span>
-        </article>
-        <article>
-          <b>{totals["Somente no banco"] ?? 0}</b>
-          <span>Somente no banco</span>
-        </article>
-        <article>
-          <b>{totals["Somente na contabilidade"] ?? 0}</b>
-          <span>Somente na contabilidade</span>
-        </article>
-        <article>
-          <b>{brl(totalDifference)}</b>
-          <span>Diferença de conciliação</span>
-        </article>
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Data banco</th>
-              <th>Histórico</th>
-              <th>Valor banco</th>
-              <th>Data contábil</th>
-              <th>Valor contábil</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>
-                <td>
-                  <span className={`status s${row.status.charAt(0)}`}>
-                    {row.status}
-                  </span>
-                </td>
-                <td>
-                  {row.bankDate?.toLocaleDateString("pt-BR", {
-                    timeZone: "UTC",
-                  })}
-                </td>
-                <td>{row.description}</td>
-                <td>{row.bankValue == null ? "" : brl(row.bankValue)}</td>
-                <td>
-                  {row.accountingDate?.toLocaleDateString("pt-BR", {
-                    timeZone: "UTC",
-                  })}
-                </td>
-                <td>
-                  {row.accountingValue == null ? "" : brl(row.accountingValue)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
   );
 }
 
@@ -1359,18 +1162,21 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
   useEffect(() => {
     let active = true;
-    setScheduleLoading(true);
-    setScheduleError("");
-    void supabase
-      .from("cronograma_entregas")
-      .select("modulo, setor, status, confirmado_email, confirmado_em")
-      .eq("competencia", scheduleCompetence)
-      .then(({ data, error }) => {
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      setScheduleLoading(true);
+      setScheduleError("");
+      void supabase
+        .from("cronograma_entregas")
+        .select("modulo, setor, status, confirmado_email, confirmado_em")
+        .eq("competencia", scheduleCompetence)
+        .then(({ data, error }) => {
         if (!active) return;
         if (error) setScheduleError("Não foi possível carregar as confirmações compartilhadas.");
         else setConfirmations((data ?? []) as ScheduleConfirmation[]);
         setScheduleLoading(false);
-      });
+        });
+    });
     return () => { active = false; };
   }, [scheduleCompetence]);
 
@@ -1571,19 +1377,17 @@ function BalancePanel({
   onNotice: (value: string) => void;
 }) {
   const [accountId, setAccountId] = useState("");
+  const selectedAccountId = accountId || accounts[0]?.id || "";
   const [initial, setInitial] = useState(0);
   const [final, setFinal] = useState(0);
   const [carry, setCarry] = useState(false);
   useEffect(() => {
-    if (!accountId && accounts[0]) setAccountId(accounts[0].id);
-  }, [accounts, accountId]);
-  useEffect(() => {
-    if (!accountId) return;
+    if (!selectedAccountId) return;
     (async () => {
       const current = await supabase
         .from("saldos_bancarios")
         .select("saldo_inicial,saldo_final,fixar_mes_seguinte")
-        .eq("conta_bancaria_id", accountId)
+        .eq("conta_bancaria_id", selectedAccountId)
         .eq("competencia", competence)
         .maybeSingle();
       if (current.error) return onNotice(current.error.message);
@@ -1596,7 +1400,7 @@ function BalancePanel({
       const previous = await supabase
         .from("saldos_bancarios")
         .select("saldo_final,fixar_mes_seguinte")
-        .eq("conta_bancaria_id", accountId)
+        .eq("conta_bancaria_id", selectedAccountId)
         .eq("competencia", previousCompetence(competence))
         .maybeSingle();
       setInitial(
@@ -1607,13 +1411,13 @@ function BalancePanel({
       setFinal(0);
       setCarry(false);
     })();
-  }, [accountId, competence, onNotice]);
+  }, [selectedAccountId, competence, onNotice]);
   async function save() {
     const { error } = await supabase
       .from("saldos_bancarios")
       .upsert(
         {
-          conta_bancaria_id: accountId,
+          conta_bancaria_id: selectedAccountId,
           competencia: competence,
           saldo_inicial: initial,
           saldo_final: final,
@@ -1631,7 +1435,7 @@ function BalancePanel({
         <label>
           Conta
           <select
-            value={accountId}
+            value={selectedAccountId}
             onChange={(e) => setAccountId(e.target.value)}
           >
             {accounts.map((item) => (
@@ -1670,7 +1474,7 @@ function BalancePanel({
       </div>
       <button
         className="primary"
-        disabled={!canWrite || !companyId || !accountId}
+        disabled={!canWrite || !companyId || !selectedAccountId}
         onClick={save}
       >
         <Save />

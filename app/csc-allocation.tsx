@@ -75,11 +75,16 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
   const [view, setView] = useState<"allocation" | "accounting" | "rules">("allocation");
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setMovementDetails([]); setBaseUpdatedAt(""); setAdjustments(defaultAdjustments); setRows([]); return; }
-      setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setMovementDetails(saved.movementDetails || []); setBaseUpdatedAt(saved.baseUpdatedAt || ""); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
-    } catch { localStorage.removeItem(storageKey); }
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+        if (!saved) { setCostPool(0); setRevenues({}); setResultMovements({}); setMovementDetails([]); setBaseUpdatedAt(""); setAdjustments(defaultAdjustments); setRows([]); return; }
+        setCostPool(saved.costPool || 0); setRevenues(saved.revenues || {}); setResultMovements(saved.resultMovements || {}); setMovementDetails(saved.movementDetails || []); setBaseUpdatedAt(saved.baseUpdatedAt || ""); setSarahTijucaValue(saved.sarahTijucaValue ?? defaultSarahTijucaValue); setAdjustments({ ...(saved.adjustments || {}), ...defaultAdjustments }); setRows(saved.rows || []);
+      } catch { localStorage.removeItem(storageKey); }
+    });
+    return () => { active = false; };
   }, [storageKey, defaultAdjustments, defaultSarahTijucaValue]);
 
   async function balance(company: string) {

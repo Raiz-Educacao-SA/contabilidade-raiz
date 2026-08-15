@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Calculator, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx";
+
+const subscribeToDocument = () => () => {};
+const getActionsTarget = () => document.getElementById("pis-cofins-filter-actions");
+const getServerActionsTarget = () => null;
 
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
 type RevenueRow = {
@@ -155,8 +159,13 @@ export default function PisCofinsAssessment({
   const [cancelledBranches, setCancelledBranches] = useState<string[]>([]);
   const [requestedBranches, setRequestedBranches] = useState<string[]>([]);
   const [storageReady, setStorageReady] = useState(false);
+  const [restoredStorageKey, setRestoredStorageKey] = useState("");
   const [error, setError] = useState("");
-  const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
+  const actionsTarget = useSyncExternalStore(
+    subscribeToDocument,
+    getActionsTarget,
+    getServerActionsTarget,
+  );
   const competenceLabel = competence.split("-").reverse().join("/");
   const completeAssessmentReady = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
   const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded || energyLoaded;
@@ -166,68 +175,70 @@ export default function PisCofinsAssessment({
     : "";
 
   useEffect(() => {
-    setActionsTarget(document.getElementById("pis-cofins-filter-actions"));
-  }, []);
-
-  useEffect(() => {
-    setStorageReady(false);
-    setOtherRevenueError("");
-    setAnnualFeeError("");
-    setCancelledError("");
-    setEnergyError("");
-    setZeevMessage("");
-    setError("");
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      const assessment = saved ? JSON.parse(saved) : null;
-      setRows(assessment?.rows || []);
-      setCancelledRows(assessment?.cancelledRows || []);
-      setLoaded(Boolean(assessment?.loaded));
-      setClassified(Boolean(assessment?.loaded));
-      setIgnoredCancelled(Number(assessment?.ignoredCancelled || 0));
-      setOtherRevenueRows(assessment?.otherRevenueRows || []);
-      setOtherRevenueLoaded(Boolean(assessment?.otherRevenueLoaded));
-      setAnnualFeeRows(assessment?.annualFeeRows || []);
-      setAnnualFeeLoaded(Boolean(assessment?.annualFeeLoaded));
-      setCancelledLoaded(Boolean(assessment?.cancelledLoaded));
-      setDetailsOpen(Boolean(assessment?.detailsOpen));
-      setMonthlyVisible(assessment?.monthlyVisible ?? true);
-      setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
-      setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
-      setCancelledVisible(assessment?.cancelledVisible ?? true);
-      setCreditsVisible(assessment?.creditsVisible ?? true);
-      setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
-      setEnergyRows(assessment?.energyRows || []);
-      setEnergyLoaded(Boolean(assessment?.energyLoaded));
-      setZeevMessage(String(assessment?.zeevMessage || ""));
-      setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
-      setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
-      setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
-      setCancelledBranches(restoredBranches(assessment?.cancelledBranches, assessment?.cancelledRows || []));
-      setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
-    } catch {
-      setRows([]);
-      setCancelledRows([]);
-      setLoaded(false);
-      setClassified(false);
-      setIgnoredCancelled(0);
-      setOtherRevenueRows([]);
-      setOtherRevenueLoaded(false);
-      setAnnualFeeRows([]);
-      setAnnualFeeLoaded(false);
-      setCancelledLoaded(false);
-      setEnergyRows([]);
-      setEnergyLoaded(false);
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      setStorageReady(false);
+      setOtherRevenueError("");
+      setAnnualFeeError("");
+      setCancelledError("");
+      setEnergyError("");
       setZeevMessage("");
-      setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
-      setRequestedBranches([]);
-    } finally {
-      setStorageReady(true);
-    }
+      setError("");
+      try {
+        const saved = window.localStorage.getItem(storageKey);
+        const assessment = saved ? JSON.parse(saved) : null;
+        setRows(assessment?.rows || []);
+        setCancelledRows(assessment?.cancelledRows || []);
+        setLoaded(Boolean(assessment?.loaded));
+        setClassified(Boolean(assessment?.loaded));
+        setIgnoredCancelled(Number(assessment?.ignoredCancelled || 0));
+        setOtherRevenueRows(assessment?.otherRevenueRows || []);
+        setOtherRevenueLoaded(Boolean(assessment?.otherRevenueLoaded));
+        setAnnualFeeRows(assessment?.annualFeeRows || []);
+        setAnnualFeeLoaded(Boolean(assessment?.annualFeeLoaded));
+        setCancelledLoaded(Boolean(assessment?.cancelledLoaded));
+        setDetailsOpen(Boolean(assessment?.detailsOpen));
+        setMonthlyVisible(assessment?.monthlyVisible ?? true);
+        setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
+        setAnnualFeeVisible(assessment?.annualFeeVisible ?? true);
+        setCancelledVisible(assessment?.cancelledVisible ?? true);
+        setCreditsVisible(assessment?.creditsVisible ?? true);
+        setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
+        setEnergyRows(assessment?.energyRows || []);
+        setEnergyLoaded(Boolean(assessment?.energyLoaded));
+        setZeevMessage(String(assessment?.zeevMessage || ""));
+        setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
+        setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
+        setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
+        setCancelledBranches(restoredBranches(assessment?.cancelledBranches, assessment?.cancelledRows || []));
+        setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
+      } catch {
+        setRows([]);
+        setCancelledRows([]);
+        setLoaded(false);
+        setClassified(false);
+        setIgnoredCancelled(0);
+        setOtherRevenueRows([]);
+        setOtherRevenueLoaded(false);
+        setAnnualFeeRows([]);
+        setAnnualFeeLoaded(false);
+        setCancelledLoaded(false);
+        setEnergyRows([]);
+        setEnergyLoaded(false);
+        setZeevMessage("");
+        setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
+        setRequestedBranches([]);
+      } finally {
+        setRestoredStorageKey(storageKey);
+        setStorageReady(true);
+      }
+    });
+    return () => { active = false; };
   }, [storageKey]);
 
   useEffect(() => {
-    if (!storageReady) return;
+    if (!storageReady || restoredStorageKey !== storageKey) return;
     window.localStorage.setItem(storageKey, JSON.stringify({
       rows,
       cancelledRows,
@@ -252,7 +263,7 @@ export default function PisCofinsAssessment({
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
       requestedBranches,
     }));
-  }, [storageReady, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -764,12 +775,6 @@ export default function PisCofinsAssessment({
     const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows().filter((row) => Math.abs(row["Total consolidado"]) > 0.000001));
     worksheet["!cols"] = [14, 12, 10, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
     return worksheet;
-  }
-
-  function exportConsolidatedBase() {
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
-    XLSX.writeFile(workbook, `base-consolidada-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 
   async function exportCompleteAssessment() {

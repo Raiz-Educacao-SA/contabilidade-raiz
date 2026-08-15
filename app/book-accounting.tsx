@@ -26,7 +26,9 @@ export default function BookAccountingPanel({ report, companyCode, companyName, 
     finally { setLoading(false); }
   }, [companyCode, competence, accessToken]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void Promise.resolve().then(load);
+  }, [load]);
   const filtered = useMemo(() => { const term = search.trim().toLocaleLowerCase("pt-BR"); return term ? rows.filter((row) => `${row.account} ${row.reduced} ${row.description}`.toLocaleLowerCase("pt-BR").includes(term)) : rows; }, [rows, search]);
   const totals = useMemo(() => rows.reduce((sum, row) => ({ debit: sum.debit + row.debit, credit: sum.credit + Math.abs(row.credit), debtor: sum.debtor + Math.max(row.closingBalance, 0), creditor: sum.creditor + Math.abs(Math.min(row.closingBalance, 0)) }), { debit: 0, credit: 0, debtor: 0, creditor: 0 }), [rows]);
   const [year, month] = competence.split("-");

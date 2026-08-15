@@ -158,12 +158,12 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
     XLSX.writeFile(workbook, `${String(companyCode).padStart(2, "0")}_Analise_Balancete_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
 
-  const summary = useMemo(() => {
+  const summary = (() => {
     const totals = new Map<string, number>();
     analysis.forEach((row) => totals.set(row.category, (totals.get(row.category) || 0) + (row.balances.at(-1) || 0)));
     const revenue = totals.get("Receita") || 0, cost = totals.get("Custo") || 0, expense = totals.get("Despesa") || 0;
     return { totals, result: revenue - cost - expense };
-  }, [analysis]);
+  })();
   const inconsistencies = useMemo(() => analysis.filter((row) => row.relevantVariation || row.possibleError || row.reversedAccount), [analysis]);
   const filtered = useMemo(() => { const term = normalize(search); return term ? inconsistencies.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description}`).includes(term)) : inconsistencies; }, [inconsistencies, search]);
 

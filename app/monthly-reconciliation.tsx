@@ -28,11 +28,6 @@ import {
   type DataEngineStatement,
 } from "@/lib/data-engine-statements";
 
-type RegisteredAccount = {
-  agencia: string;
-  conta_bancaria: string;
-  conta_contabil: string;
-};
 type Statement = {
   fileName: string;
   account: AccountingAccount;
@@ -44,8 +39,41 @@ type AccountResult = Statement & {
   validation: ReturnType<typeof validateMonthly>;
   competence: string;
 };
+
+function loadStoredResults(historyKey: string): AccountResult[] {
+  if (typeof window === "undefined") return [];
+  const stored = window.localStorage.getItem(historyKey);
+  if (!stored) return [];
+  const reviveRow = <
+    T extends { date?: Date; bankDate?: Date; accountingDate?: Date },
+  >(
+    row: T,
+  ) => ({
+    ...row,
+    ...(row.date ? { date: new Date(row.date) } : {}),
+    ...(row.bankDate ? { bankDate: new Date(row.bankDate) } : {}),
+    ...(row.accountingDate
+      ? { accountingDate: new Date(row.accountingDate) }
+      : {}),
+  });
+  try {
+    const parsed = JSON.parse(stored) as AccountResult[];
+    return parsed.map((result) => ({
+      ...result,
+      bank: result.bank.map(reviveRow),
+      account: {
+        ...result.account,
+        rows: result.account.rows.map(reviveRow),
+      },
+      rows: result.rows.map(reviveRow),
+    }));
+  } catch {
+    window.localStorage.removeItem(historyKey);
+    return [];
+  }
+}
+
 export default function MonthlyReconciliationPanel({
-  accounts,
   competence,
   companyId,
   companyCode,
@@ -53,7 +81,6 @@ export default function MonthlyReconciliationPanel({
   reconciledBy,
   accessToken,
 }: {
-  accounts: RegisteredAccount[];
   competence: string;
   companyId: string;
   companyCode: string;
@@ -64,6 +91,7 @@ export default function MonthlyReconciliationPanel({
   const [accounting, setAccounting] = useState<AccountingRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<AccountingAccount[]>([]);
   const [statements, setStatements] = useState<Statement[]>([]);
+  const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
   const [results, setResults] = useState<AccountResult[]>([]);
   const [notice, setNotice] = useState("");
   const [dataEngineSources, setDataEngineSources] = useState<
@@ -77,18 +105,10 @@ export default function MonthlyReconciliationPanel({
   const [accountingMessage, setAccountingMessage] = useState(
     "Aguardando atualização no TOTVS",
   );
-  const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
-  const contextRef = useRef({ generation: 0, key: historyKey });
   const accountingRequestRef = useRef(0);
   const dataEngineRequestRef = useRef(0);
   const accountingAbortRef = useRef<AbortController | null>(null);
   const dataEngineAbortRef = useRef<AbortController | null>(null);
-  if (contextRef.current.key !== historyKey) {
-    contextRef.current = {
-      generation: contextRef.current.generation + 1,
-      key: historyKey,
-    };
-  }
   const pending = bankAccounts.filter(
     (account) =>
       !statements.some((statement) => statement.account.code === account.code),
@@ -106,59 +126,20 @@ export default function MonthlyReconciliationPanel({
   );
   const reconciledCount = results.length - divergentResults.length;
 
-  useEffect(() => {
-    accountingAbortRef.current?.abort();
-    dataEngineAbortRef.current?.abort();
-    accountingAbortRef.current = null;
-    dataEngineAbortRef.current = null;
-    setAccounting([]);
-    setBankAccounts([]);
-    setStatements([]);
-    setDataEngineSources([]);
-    setSourceBindings({});
-    setDataEngineBusy(false);
-    setAccountingBusy(false);
-    setAccountingMessage("Aguardando atualização no TOTVS");
-    setNotice("");
-    setResults([]);
-    return () => {
+  useEffect(
+    () => () => {
       accountingAbortRef.current?.abort();
       dataEngineAbortRef.current?.abort();
-    };
-  }, [historyKey]);
+    },
+    [],
+  );
 
   useEffect(() => {
-    const stored = localStorage.getItem(historyKey);
-    if (!stored) return setResults([]);
-    try {
-      const reviveRow = <
-        T extends { date?: Date; bankDate?: Date; accountingDate?: Date },
-      >(
-        row: T,
-      ) => ({
-        ...row,
-        ...(row.date ? { date: new Date(row.date) } : {}),
-        ...(row.bankDate ? { bankDate: new Date(row.bankDate) } : {}),
-        ...(row.accountingDate
-          ? { accountingDate: new Date(row.accountingDate) }
-          : {}),
-      });
-      const parsed = JSON.parse(stored) as AccountResult[];
-      setResults(
-        parsed.map((result) => ({
-          ...result,
-          bank: result.bank.map(reviveRow),
-          account: {
-            ...result.account,
-            rows: result.account.rows.map(reviveRow),
-          },
-          rows: result.rows.map(reviveRow),
-        })),
-      );
-    } catch {
-      localStorage.removeItem(historyKey);
-      setResults([]);
-    }
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) setResults(loadStoredResults(historyKey));
+    });
+    return () => { active = false; };
   }, [historyKey]);
 
   function keepResults(completed: AccountResult[]) {
@@ -189,12 +170,9 @@ export default function MonthlyReconciliationPanel({
     accountingAbortRef.current?.abort();
     const controller = new AbortController();
     accountingAbortRef.current = controller;
-    const contextGeneration = contextRef.current.generation;
     const requestId = accountingRequestRef.current + 1;
     accountingRequestRef.current = requestId;
-    const requestIsCurrent = () =>
-      contextRef.current.generation === contextGeneration &&
-      accountingRequestRef.current === requestId;
+    const requestIsCurrent = () => accountingRequestRef.current === requestId;
     setAccountingBusy(true);
     setAccounting([]);
     setBankAccounts([]);
@@ -251,12 +229,9 @@ export default function MonthlyReconciliationPanel({
     dataEngineAbortRef.current?.abort();
     const controller = new AbortController();
     dataEngineAbortRef.current = controller;
-    const contextGeneration = contextRef.current.generation;
     const requestId = dataEngineRequestRef.current + 1;
     dataEngineRequestRef.current = requestId;
-    const requestIsCurrent = () =>
-      contextRef.current.generation === contextGeneration &&
-      dataEngineRequestRef.current === requestId;
+    const requestIsCurrent = () => dataEngineRequestRef.current === requestId;
     setDataEngineBusy(true);
     setDataEngineSources([]);
     setStatements([]);
