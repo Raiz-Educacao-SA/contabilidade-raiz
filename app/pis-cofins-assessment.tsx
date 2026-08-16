@@ -346,10 +346,38 @@ export default function PisCofinsAssessment({
 
   function exportEnergyCredits() {
     if (!energyRows.length) return;
-    const sheet = XLSX.utils.json_to_sheet(energyRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "Chave de integração": row.integrationKey, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor contábil": row.value, "Ticket Zeev": row.ticket?.id || "Não localizado", "Situação Zeev": row.ticket?.status || "Pendente", "Link Zeev": row.ticket?.link || "", "Documentos Zeev": row.ticket?.documents?.map((document) => document.url).join(" | ") || "" })));
+    const sheet = XLSX.utils.json_to_sheet(energyRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "IDMOV de origem": row.integrationKey, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor contábil": row.value, "Ticket Zeev": row.ticket?.id || "Não localizado", "Situação Zeev": row.ticket?.status || "Pendente", "Link Zeev": row.ticket?.link || "", "Documentos Zeev": row.ticket?.documents?.map((document) => document.url).join(" | ") || "" })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Energia");
     XLSX.writeFile(workbook, `creditos-energia-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
+  }
+
+  async function downloadZeevDocument(file: { name: string; url: string }, ticketId: string) {
+    if (!file.url) return;
+    setEnergyError("");
+    try {
+      const params = new URLSearchParams({
+        url: file.url,
+        name: file.name || `ticket-${ticketId}`,
+      });
+      const response = await fetch(`/api/zeev/document?${params.toString()}`, {
+        headers: { authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Não foi possível baixar o documento do Zeev.");
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = file.name || `ticket-${ticketId}`;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (cause) {
+      setEnergyError((cause as Error).message);
+    }
   }
 
   const filteredRows = useMemo(() => rows.filter((row) => monthlyBranches.includes(String(row.branch || "").trim())), [rows, monthlyBranches]);
@@ -1572,7 +1600,7 @@ export default function PisCofinsAssessment({
                 <article><span>Tickets localizados</span><b>{energyRows.filter((row) => row.ticket).length}</b><small>Vínculo com o Zeev</small></article>
                 <article className={energyRows.some((row) => !row.ticket) ? "has-warning" : ""}><span>Sem ticket</span><b>{energyRows.filter((row) => !row.ticket).length}</b><small>Requer tratamento</small></article>
               </div>
-              {energyRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>Nº Zeev (Razão)</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th><th>Documentos Zeev</th></tr></thead><tbody>{energyRows.map((row) => { const firstDocument = row.ticket?.documents?.[0]; return <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td>{row.ticket?.link ? <a className="zeev-ticket-number" href={row.ticket.link} target="_blank" rel="noreferrer">#{row.integrationKey}</a> : <b>{row.integrationKey || "—"}</b>}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? <div className="zeev-ticket-cell"><b>#{row.ticket.id}</b>{row.ticket.link && <a className="zeev-ticket-action" href={row.ticket.link} target="_blank" rel="noreferrer">Zeev</a>}{firstDocument ? <a className="zeev-ticket-action zeev-ticket-download" href={firstDocument.url} target="_blank" rel="noreferrer" download>Baixar</a> : <span className="zeev-ticket-action is-disabled">Baixar</span>}</div> : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td><td>{row.ticket?.documents?.length ? row.ticket.documents.map((document, index) => <span key={document.url}>{index ? " · " : ""}<a href={document.url} target="_blank" rel="noreferrer">{document.name}</a></span>) : "—"}</td></tr>; })}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
+              {energyRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th><th>Documentos Zeev</th></tr></thead><tbody>{energyRows.map((row) => { const firstDocument = row.ticket?.documents?.[0]; return <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? <div className="zeev-ticket-cell"><b>#{row.ticket.id}</b>{row.ticket.link && <a className="zeev-ticket-action" href={row.ticket.link} target="_blank" rel="noreferrer">Consultar</a>}{firstDocument ? <button type="button" className="zeev-ticket-action zeev-ticket-download" onClick={() => downloadZeevDocument(firstDocument, row.ticket!.id)}>Baixar</button> : <span className="zeev-ticket-action is-disabled">Baixar</span>}</div> : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td><td>{row.ticket?.documents?.length ? row.ticket.documents.map((document, index) => <span key={document.url}>{index ? " · " : ""}<a href={document.url} target="_blank" rel="noreferrer">{document.name}</a></span>) : "—"}</td></tr>; })}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
             </>}
           </>}
         </>}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { queryDataEngine } from "@/lib/totvs-dataengine";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -7,6 +8,7 @@ const ENERGY_ACCOUNT = "4.2.1.02.04.01";
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const decodeXml = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, name: string) => decodeXml(xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() || "");
+const firstTag = (xml: string, names: string[]) => names.map((name) => tag(xml, name)).find(Boolean) || "";
 const numeric = (value: string) => {
   const direct = Number(value);
   if (Number.isFinite(direct)) return direct;
@@ -47,8 +49,15 @@ function listFromPayload(payload: unknown): ZeevInstance[] {
   if (Array.isArray(payload)) return payload as ZeevInstance[];
   if (!payload || typeof payload !== "object") return [];
   const value = payload as Record<string, unknown>;
-  for (const key of ["items", "value", "results", "data"]) {
+  for (const key of ["items", "value", "results", "data", "instances", "instanceDtos", "report", "records", "rows"]) {
     if (Array.isArray(value[key])) return value[key] as ZeevInstance[];
+  }
+  // Algumas versões do Zeev encapsulam o relatório em um objeto intermediário.
+  // A busca permanece restrita aos campos conhecidos para não confundir tarefas,
+  // anexos ou campos de formulário com solicitações.
+  for (const key of ["data", "result", "report", "response"]) {
+    const nested = listFromPayload(value[key]);
+    if (nested.length) return nested;
   }
   return [];
 }
@@ -67,10 +76,10 @@ function collectDocumentLinks(value: unknown, result = new Map<string, { name: s
   if (Array.isArray(value)) value.forEach((item) => collectDocumentLinks(item, result));
   else if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
-    const candidateUrl = [record.openUrl, record.url, record.link, record.downloadUrl, record.fileUrl, record.path].find((item) => typeof item === "string" && /^https?:\/\//i.test(item));
+    const candidateUrl = [record.openUrl, record.url, record.link, record.downloadUrl, record.fileUrl, record.path].find((item) => typeof item === "string" && item.trim());
     if (typeof candidateUrl === "string") {
       const lowered = candidateUrl.toLowerCase();
-      if (/\.(pdf|xlsx?|csv|docx?|xml|zip)(?:[?#]|$)/i.test(lowered) || /file|attachment|anexo|document/i.test(lowered)) {
+      if ((/^https?:\/\//i.test(lowered) || lowered.startsWith("/")) && (/\.(pdf|xlsx?|csv|docx?|xml|zip)(?:[?#]|$)/i.test(lowered) || /file|attachment|anexo|document/i.test(lowered))) {
         const name = String(record.fileName || record.filename || record.name || record.label || `Documento ${result.size + 1}`);
         result.set(candidateUrl, { name, url: candidateUrl });
       }
@@ -95,17 +104,28 @@ async function zeevRequest(baseUrl: string, token: string, path: string, init: R
 }
 
 async function reportInstances(baseUrl: string, token: string, body: Record<string, unknown>) {
-  const all: ZeevInstance[] = [];
-  const pageSize = 500;
-  for (let page = 0; page < 20; page += 1) {
-    const query = new URLSearchParams({ "$top": String(pageSize), "$skip": String(page * pageSize) });
-    const response = await zeevRequest(baseUrl, token, `/api/2/instances/report?${query}`, { method: "POST", body: JSON.stringify(body) });
-    if (!response.ok) return { response, instances: all };
-    const items = listFromPayload(await response.json());
-    all.push(...items);
-    if (items.length < pageSize) return { response, instances: all };
-  }
-  return { response: new Response(null, { status: 200 }), instances: all };
+  // A instalação da Raiz não habilita $top/$skip neste endpoint. O relatório
+  // já devolve o conjunto limitado pelos filtros enviados no corpo.
+  const response = await zeevRequest(baseUrl, token, "/api/2/instances/report", { method: "POST", body: JSON.stringify(body) });
+  if (!response.ok) return { response, instances: [] as ZeevInstance[] };
+  return { response, instances: listFromPayload(await response.json()) };
+}
+
+async function consultSpecificInstances(baseUrl: string, token: string, instanceIds: string[], formFieldNames: string[]) {
+  const uniqueIds = [...new Set(instanceIds.filter((id) => /^\d+$/.test(id)))].slice(0, 100);
+  const instances = await Promise.all(uniqueIds.map(async (id) => {
+    const query = new URLSearchParams({
+      showPendingInstanceTasks: "true",
+      showFinishedInstanceTasks: "true",
+      showPendingAssignees: "true",
+      allowOpenUrlsForFilesInForm: "true",
+    });
+    formFieldNames.slice(0, 150).forEach((fieldName) => query.append("formFieldNames", fieldName));
+    const response = await zeevRequest(baseUrl, token, `/api/2/instances/${encodeURIComponent(id)}?${query}`);
+    if (response.ok) return response.json().catch(() => null);
+    return null;
+  }));
+  return instances.filter((instance): instance is ZeevInstance => Boolean(instance && typeof instance === "object"));
 }
 
 function userSuffix(email: string) {
@@ -127,20 +147,55 @@ async function temporaryToken(baseUrl: string, email: string) {
   });
   if (!response.ok) return "";
   const payload = await response.json();
-  return String(payload?.token || payload?.accessToken || payload?.value || "");
+  return String(payload?.temporaryToken || payload?.token || payload?.accessToken || payload?.value || "");
 }
 
-async function queryZeev(firstDay: string, lastDay: string, email: string, instanceIds: string[]) {
+function tokenFromPayload(payload: Record<string, unknown>) {
+  return String(payload.temporaryToken || payload.token || payload.accessToken || payload.value || "").trim();
+}
+
+async function zeevTokenForUser(baseUrl: string, email: string) {
+  const suffix = userSuffix(email);
+  const personalToken = process.env[`ZEEV_API_TOKEN_${suffix}`];
+  if (personalToken) return { token: personalToken, mode: "personal" as const };
+
+  const integrationToken = process.env.ZEEV_INTEGRATION_TOKEN || process.env.ZEEV_API_TOKEN;
+  if (integrationToken) {
+    const impersonation = await zeevRequest(baseUrl, integrationToken, `/api/2/tokens/impersonate/${encodeURIComponent(email)}`);
+    if (impersonation.ok) {
+      const delegatedToken = tokenFromPayload(await impersonation.json());
+      if (delegatedToken) return { token: delegatedToken, mode: "delegated" as const };
+    }
+    return { token: integrationToken, mode: "integration" as const };
+  }
+
+  const loginToken = await temporaryToken(baseUrl, email);
+  return loginToken ? { token: loginToken, mode: "login" as const } : { token: "", mode: "missing" as const };
+}
+
+async function queryZeev(firstDay: string, lastDay: string, email: string, ticketIds: string[]) {
   const baseUrl = process.env.ZEEV_BASE_URL?.replace(/\/$/, "");
   if (!baseUrl) return { configured: false, instances: [] as ZeevInstance[], error: "Endereço do Zeev não configurado." };
-  const suffix = userSuffix(email);
-  const token = process.env[`ZEEV_API_TOKEN_${suffix}`] || process.env.ZEEV_API_TOKEN || await temporaryToken(baseUrl, email);
+  const zeevAuthentication = await zeevTokenForUser(baseUrl, email);
+  const token = zeevAuthentication.token;
   if (!token) return { configured: false, instances: [] as ZeevInstance[], error: `Credencial Zeev vinculada a ${email} ainda não configurada.` };
-  const exactInstances = (await Promise.all([...new Set(instanceIds.filter((id) => /^\d+$/.test(id)))].slice(0, 100).map(async (id) => {
-    const response = await zeevRequest(baseUrl, token, `/api/2/instances/${encodeURIComponent(id)}`);
-    return response.ok ? response.json().catch(() => null) : null;
-  }))).filter((instance): instance is ZeevInstance => Boolean(instance && typeof instance === "object"));
   const configuredFieldNames = (process.env.ZEEV_ENERGY_FORM_FIELDS || "").split(",").map((item) => item.trim()).filter(Boolean);
+  if (!ticketIds.length) {
+    return { configured: true, instances: [] as ZeevInstance[], error: "", fieldNames: configuredFieldNames, authenticationMode: zeevAuthentication.mode };
+  }
+  // Com o TICKET vindo do TOTVS, a consulta deve ser pontual. O relatório
+  // amplo de solicitações retorna erro 500 neste ambiente e não é
+  // necessário para estabelecer o vínculo IDMOV -> TICKET.
+  if (ticketIds.length) {
+    const exactInstances = await consultSpecificInstances(baseUrl, token, ticketIds, configuredFieldNames);
+    return {
+      configured: true,
+      instances: exactInstances,
+      error: exactInstances.length < new Set(ticketIds).size ? "Alguns documentos não puderam ser detalhados pelo Zeev; os tickets identificados no TOTVS continuam disponíveis." : "",
+      fieldNames: configuredFieldNames,
+      authenticationMode: zeevAuthentication.mode,
+    };
+  }
   const rangeStart = new Date(`${firstDay}T12:00:00-03:00`);
   const rangeEnd = new Date(`${lastDay}T12:00:00-03:00`);
   rangeStart.setDate(rangeStart.getDate() - 45);
@@ -169,11 +224,12 @@ async function queryZeev(firstDay: string, lastDay: string, email: string, insta
   }
 
   const formFieldNames = [...discovered].slice(0, 500);
+  const exactInstances = await consultSpecificInstances(baseUrl, token, ticketIds, formFieldNames);
   if (!formFieldNames.length) return { configured: true, instances: [...exactInstances, ...initial.instances], error: "O token acessou o Zeev, mas não possui permissão para descobrir os campos dos documentos." };
   const detailed = await reportInstances(baseUrl, token, { ...baseBody, formFieldNames });
   if (!detailed.response.ok) return { configured: true, instances: initial.instances, error: `O Zeev permitiu listar solicitações, mas recusou a leitura dos campos (${detailed.response.status}).` };
   const instances = [...exactInstances, ...detailed.instances].filter((instance, index, list) => list.findIndex((item) => String(item.id ?? item.instanceId ?? "") === String(instance.id ?? instance.instanceId ?? "")) === index);
-  return { configured: true, instances, error: "", fieldNames: formFieldNames };
+  return { configured: true, instances, error: "", fieldNames: formFieldNames, authenticationMode: zeevAuthentication.mode };
 }
 
 function ticketInfo(instance: ZeevInstance, baseUrl: string) {
@@ -183,40 +239,49 @@ function ticketInfo(instance: ZeevInstance, baseUrl: string) {
   return {
     id,
     status: active === true ? "Em andamento" : active === false ? String(instance.flowResult || "Concluído") : String(instance.status || "Localizado"),
-    link: reportLink ? new URL(reportLink, `${baseUrl}/`).toString() : "",
+    link: reportLink ? new URL(reportLink, `${baseUrl}/`).toString() : id ? `${baseUrl}/1.0/audit?c=${encodeURIComponent(id)}` : "",
     name: String(instance.requestName || instance.name || "Solicitação Zeev"),
-    documents: collectDocumentLinks(instance),
+    documents: collectDocumentLinks(instance).map((document) => ({ ...document, url: new URL(document.url, `${baseUrl}/`).toString() })),
   };
 }
 
-function findTicket(row: { document: string; integrationKey: string; complement: string; value: number }, instances: ZeevInstance[], baseUrl: string) {
+function findTicket(row: { document: string; integrationKey: string; ticketHint: string; complement: string; value: number }, instances: ZeevInstance[], baseUrl: string) {
   const document = normalized(row.document);
-  const integrationKey = normalized(row.integrationKey);
+  const movementId = normalized(row.integrationKey);
+  const ticketHint = normalized(row.ticketHint);
   const amount = Math.abs(row.value).toFixed(2).replace(".", "");
   const supplierTokens = normalized(row.complement).match(/[a-z]{4,}/g)?.slice(0, 4) || [];
+
+  // O TICKET informado no anexo FLUIG do razão é a chave de verdade.
+  // Se ele existir, não pode ser substituído por uma solicitação semelhante.
+  if (ticketHint) {
+    const exact = instances.find((instance) => normalized(instance.instanceId ?? instance.id) === ticketHint);
+    return exact
+      ? { ...ticketInfo(exact, baseUrl), id: row.ticketHint.trim(), matchScore: 1_000 }
+      : {
+          id: row.ticketHint.trim(),
+          status: "Identificado no TOTVS",
+          link: `${baseUrl}/1.0/audit?c=${encodeURIComponent(row.ticketHint.trim())}`,
+          name: "Solicitação Zeev",
+          documents: [],
+          matchScore: 1_000,
+        };
+  }
+
   const ranked = instances.map((instance) => {
-    const haystack = normalized(JSON.stringify(instance));
+    const searchable = { ...instance };
+    delete searchable.id;
+    delete searchable.instanceId;
+    delete searchable.reportLink;
+    const haystack = normalized(JSON.stringify(searchable));
     let score = 0;
-    if (document && haystack.includes(document)) score += 100;
-    if (integrationKey && haystack.includes(integrationKey)) score += 80;
+    if (movementId && haystack.includes(movementId)) score += 500;
+    if (document && haystack.includes(document)) score += 150;
     if (amount && haystack.includes(amount)) score += 20;
     score += supplierTokens.filter((token) => haystack.includes(token)).length * 5;
     return { instance, score };
-  }).filter((item) => item.score >= 80).sort((a, b) => b.score - a.score);
+  }).filter((item) => item.score >= 150).sort((a, b) => b.score - a.score);
   return ranked.length ? { ...ticketInfo(ranked[0].instance, baseUrl), matchScore: ranked[0].score } : null;
-}
-
-function accountingTicket(integrationKey: string) {
-  const id = integrationKey.trim();
-  if (!/^\d+$/.test(id)) return null;
-  return {
-    id,
-    status: "Informado no Razão",
-    link: "",
-    name: "Solicitação Zeev informada na integração contábil",
-    documents: [] as { name: string; url: string }[],
-    matchScore: 0,
-  };
 }
 
 export async function GET(request: NextRequest) {
@@ -230,19 +295,56 @@ export async function GET(request: NextRequest) {
     const [year, month] = competence!.split("-").map(Number);
     const firstDay = `${year}-${String(month).padStart(2, "0")}-01`;
     const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const records = await queryTotvs(company, firstDay, lastDay);
-    const instanceIds = records.map((record) => tag(record, "INTEGRACHAVE")).filter(Boolean);
-    const zeev = await queryZeev(firstDay, lastDay, user.email, instanceIds);
+    const records = await queryDataEngine({ code: "METTA0909", system: "C", parameters: `PLN_B7_S=${ENERGY_ACCOUNT};PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`, errorMessage: "Falha ao consultar a conta de Energia no TOTVS/DataEngine." });
+    // Planilha Net 08 — FORNECEDOR X MOVIMENTO. Ela enriquece a lista
+    // contábil com o TICKET, sem substituir os lançamentos da conta 913.
+    const movementRecords = await queryDataEngine({
+      code: "PLAN.T.0003.001",
+      system: "T",
+      parameters: `PLN_B1_D=${firstDay};PLN_B2_D=${lastDay}`,
+      errorMessage: "Falha ao consultar a Planilha Net 08 do módulo de Compras.",
+    });
+    const key = (value: string) => value.trim().replace(/^0+(?=\d)/, "");
+    const valueKey = (value: number) => Math.abs(value).toFixed(2);
+    const companyMovements = movementRecords.filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
+    const ticketByMovement = new Map<string, string>();
+    const ticketByDocument = new Map<string, string>();
+    const ticketsByBranchValue = new Map<string, Set<string>>();
+    companyMovements.forEach((record) => {
+      const ticket = firstTag(record, ["TICKET", "CODTICKET", "NUMEROTICKET"]);
+      if (!ticket) return;
+      const movement = key(tag(record, "IDMOV"));
+      const document = key(tag(record, "NUMEROMOV"));
+      if (movement) ticketByMovement.set(movement, ticket);
+      if (document) ticketByDocument.set(document, ticket);
+      const branchValue = `${key(tag(record, "CODFILIAL"))}|${valueKey(numeric(tag(record, "VALOR")))}`;
+      const found = ticketsByBranchValue.get(branchValue) || new Set<string>();
+      found.add(ticket);
+      ticketsByBranchValue.set(branchValue, found);
+    });
+    const movementFromRecord = (record: string) => key(firstTag(record, ["IDMOV", "INTEGRACHAVE"]));
+    const ticketFromRecord = (record: string) => {
+      const direct = firstTag(record, ["TICKET", "CODTICKET", "NUMEROTICKET"]);
+      if (direct) return direct;
+      const byMovement = ticketByMovement.get(movementFromRecord(record));
+      if (byMovement) return byMovement;
+      const byDocument = ticketByDocument.get(key(tag(record, "DOCUMENTO")));
+      if (byDocument) return byDocument;
+      const candidates = ticketsByBranchValue.get(`${key(tag(record, "CODFILIAL"))}|${valueKey(numeric(tag(record, "VALOR")))}`);
+      return candidates?.size === 1 ? [...candidates][0] : "";
+    };
+    const ticketIds = records.map(ticketFromRecord).filter(Boolean);
+    const zeev = await queryZeev(firstDay, lastDay, user.email, ticketIds);
     const rows = records.filter((record) => tag(record, "CODCONTA") === ENERGY_ACCOUNT && (!branches.size || branches.has(tag(record, "CODFILIAL")))).map((record) => {
       const base = {
-        company: tag(record, "CODCOLIGADA"), branch: tag(record, "CODFILIAL"), entryId: tag(record, "IDLANCAMENTO"), document: tag(record, "DOCUMENTO"), integrationKey: tag(record, "INTEGRACHAVE"), sourceSystem: tag(record, "NOMESISTEMA"), date: tag(record, "DATA"), reduced: numeric(tag(record, "REDUZIDO")) || 913, account: tag(record, "CODCONTA"), description: tag(record, "DESCRICAO") || "Energia Elétrica", value: numeric(tag(record, "VALOR")), user: tag(record, "USUARIO"), complement: tag(record, "COMPLEMENTO"), costCenter: tag(record, "CCUSTO"),
+        company: tag(record, "CODCOLIGADA"), branch: tag(record, "CODFILIAL"), entryId: tag(record, "IDLANCAMENTO"), document: tag(record, "DOCUMENTO"), integrationKey: movementFromRecord(record), ticketHint: ticketFromRecord(record), sourceSystem: tag(record, "NOMESISTEMA"), date: tag(record, "DATA"), reduced: numeric(tag(record, "REDUZIDO")) || 913, account: tag(record, "CODCONTA"), description: tag(record, "DESCRICAO") || "Energia Elétrica", value: numeric(tag(record, "VALOR")), user: tag(record, "USUARIO"), complement: tag(record, "COMPLEMENTO"), costCenter: tag(record, "CCUSTO"),
       };
       const zeevBaseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
-      return { ...base, ticket: findTicket(base, zeev.instances, zeevBaseUrl) || accountingTicket(base.integrationKey) };
+      return { ...base, ticket: findTicket(base, zeev.instances, zeevBaseUrl) };
     }).sort((a, b) => a.date.localeCompare(b.date) || a.branch.localeCompare(b.branch, "pt-BR", { numeric: true }));
     const total = rows.reduce((sum, row) => sum + row.value, 0);
     const ticketsFound = rows.filter((row) => row.ticket).length;
-    return NextResponse.json({ source: "TOTVS RM — METTA0909 + Zeev", company, competence, account: ENERGY_ACCOUNT, authenticatedUser: user.email, rows, totals: { records: rows.length, accountingValue: total, ticketsFound, ticketsPending: rows.length - ticketsFound }, zeev: { configured: zeev.configured, error: zeev.error } }, { headers: { "cache-control": "private, no-store" } });
+    return NextResponse.json({ source: "TOTVS RM — conta 913 + Planilha Net 08 (PLAN.T.0003.001) + Zeev", company, competence, account: ENERGY_ACCOUNT, authenticatedUser: user.email, rows, totals: { records: rows.length, accountingValue: total, ticketsFound, ticketsPending: rows.length - ticketsFound }, zeev: { configured: zeev.configured, error: zeev.error } }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {
     console.error("[api/totvs/pis-cofins/credits/energy] consultation failed", { message: (cause as Error).message });
     return NextResponse.json({ error: (cause as Error).message }, { status: 503 });
