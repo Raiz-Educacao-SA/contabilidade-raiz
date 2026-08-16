@@ -28,14 +28,82 @@ function safeFileName(value: string) {
   return cleaned || "documento-zeev";
 }
 
+function collectDocumentLinks(value: unknown, result = new Map<string, { name: string; url: string }>()) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectDocumentLinks(item, result));
+  } else if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidateUrl = [
+      record.openUrl,
+      record.url,
+      record.link,
+      record.downloadUrl,
+      record.fileUrl,
+      record.path,
+    ].find((item) => typeof item === "string" && item.trim());
+
+    if (typeof candidateUrl === "string") {
+      const lowered = candidateUrl.toLowerCase();
+      if (
+        (/^https?:\/\//i.test(lowered) || lowered.startsWith("/")) &&
+        (/\.(pdf|xlsx?|csv|docx?|xml|zip)(?:[?#]|$)/i.test(lowered) || /file|attachment|anexo|document/i.test(lowered))
+      ) {
+        const name = String(record.fileName || record.filename || record.name || record.label || `Documento ${result.size + 1}`);
+        result.set(candidateUrl, { name, url: candidateUrl });
+      }
+    }
+
+    Object.values(record).forEach((item) => collectDocumentLinks(item, result));
+  } else if (typeof value === "string") {
+    const urls = value.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+    urls.forEach((url) => {
+      if (/\.(pdf|xlsx?|csv|docx?|xml|zip)(?:[?#]|$)/i.test(url) || /file|attachment|anexo|document/i.test(url)) {
+        result.set(url, { name: `Documento ${result.size + 1}`, url });
+      }
+    });
+  }
+
+  return [...result.values()];
+}
+
+async function zeevInstanceDocument(baseUrl: string, ticket: string) {
+  const token = process.env.ZEEV_INTEGRATION_TOKEN || process.env.ZEEV_API_TOKEN;
+  if (!token) throw new Error("Token técnico do Zeev não configurado para baixar documentos.");
+
+  const query = new URLSearchParams({
+    showPendingInstanceTasks: "true",
+    showFinishedInstanceTasks: "true",
+    showPendingAssignees: "true",
+    allowOpenUrlsForFilesInForm: "true",
+  });
+
+  const response = await fetch(`${baseUrl}/api/2/instances/${encodeURIComponent(ticket)}?${query}`, {
+    headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    cache: "no-store",
+    signal: AbortSignal.timeout(50_000),
+  });
+  if (!response.ok) throw new Error(`O Zeev recusou a consulta do ticket ${ticket} (${response.status}).`);
+
+  const instance = await response.json();
+  const document = collectDocumentLinks(instance)[0];
+  if (!document?.url) throw new Error(`Nenhum documento/anexo foi localizado no ticket Zeev ${ticket}.`);
+
+  return {
+    name: document.name || `ticket-${ticket}`,
+    url: new URL(document.url, `${baseUrl}/`).toString(),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await authenticatedUser(request);
     if (!user) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
 
     const baseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
-    const requestedUrl = request.nextUrl.searchParams.get("url")?.trim();
-    const requestedName = request.nextUrl.searchParams.get("name")?.trim() || "documento-zeev";
+    const ticket = request.nextUrl.searchParams.get("ticket")?.trim();
+    const documentFromTicket = ticket ? await zeevInstanceDocument(baseUrl, ticket) : null;
+    const requestedUrl = documentFromTicket?.url || request.nextUrl.searchParams.get("url")?.trim();
+    const requestedName = documentFromTicket?.name || request.nextUrl.searchParams.get("name")?.trim() || "documento-zeev";
     if (!requestedUrl) return NextResponse.json({ error: "Documento do Zeev não informado." }, { status: 400 });
 
     const base = new URL(baseUrl);
