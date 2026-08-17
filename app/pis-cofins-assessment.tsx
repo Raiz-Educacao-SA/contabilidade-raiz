@@ -304,7 +304,7 @@ export default function PisCofinsAssessment({
       const payload = await response.json();
       if (!response.ok)
         throw new Error(
-          payload.error || "Falha ao consultar a Planilha.NET 44.",
+          payload.error || "Falha ao consultar a Planilha.NET 53.",
         );
       if (!payload.rows?.length)
         throw new Error(
@@ -916,7 +916,7 @@ export default function PisCofinsAssessment({
       ["SEÇÃO", "ITEM", "PREMISSA / ENTREGA AUTOMÁTICA", "REFERÊNCIA"],
       ["Fluxo", "Filtros", "Empresa, ano, mês e uma ou várias filiais (1 a 15) determinam todas as consultas e cálculos do arquivo.", "Regra operacional Contabilidade Raiz"],
       ["Fluxo", "Persistência", "Cada etapa mantém a última apuração até o usuário acionar Limpar. Ocultar/Exibir altera somente a visualização.", "Regra operacional Contabilidade Raiz"],
-      ["Faturamento Mensal", "Origem", "Planilha.NET 44 do módulo de Compras; consulta PLAN.T.0006.0001, aplicação T, título FATURAMENTO - PREFEITURA (ISSQN).", "TOTVS RM"],
+      ["Faturamento Mensal", "Origem", "Planilha.NET 53 do módulo Gestão de Estoque, Compras e Faturamento; consulta METTA.108090, aplicação T, título ANALISE NF COM CONTA.", "TOTVS RM"],
       ["Faturamento Mensal", "Competência e base", "Considera somente a competência filtrada. A base tributável final é o campo VLRNF; notas canceladas são retiradas e tratadas na etapa própria.", "Regra operacional Contabilidade Raiz"],
       ["Faturamento Mensal", "Classificação", "Classificação linha a linha pelo campo DESCRIÇÃO, usando SERVICO_ED como identificação do serviço quando disponibilizado pela consulta.", "Matriz aprovada pela Contabilidade"],
       ["Faturamento Mensal", "Entrega desta exportação", `${filteredRows.length} linha(s); bruto ${brl.format(totals.grossRevenue)}; descontos ${brl.format(totals.discounts)}; base VLRNF ${brl.format(totals.nfBase)}.`, "Dados da competência exportada"],
@@ -1254,7 +1254,7 @@ export default function PisCofinsAssessment({
         <article><span>COFINS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
       </div>
       <div className="tax-section-heading">
-        <div><b>Faturamento Mensal</b><span>Planilha.NET 44 · FATURAMENTO - PREFEITURA (ISSQN)</span></div>
+        <div><b>Faturamento Mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
         <button
           className={loaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
           disabled={loading || !companyCode}
@@ -1313,7 +1313,7 @@ export default function PisCofinsAssessment({
       {!loaded ? (
         <div className="tax-empty">
           <Calculator />
-          <b>Atualize a Planilha.NET 44</b>
+          <b>Atualize a Planilha.NET 53</b>
           <span>
             Cada linha será classificada pelo campo DESCRIÇÃO e pela
             competência.
