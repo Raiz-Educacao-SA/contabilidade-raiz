@@ -8,6 +8,77 @@ import * as XLSX from "xlsx";
 const subscribeToDocument = () => () => {};
 const getActionsTarget = () => document.getElementById("pis-cofins-filter-actions");
 const getServerActionsTarget = () => null;
+const cacheDbName = "contabilidade-raiz-cache";
+const cacheStoreName = "pis-cofins-assessments";
+
+function openAssessmentCache() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB indisponível."));
+      return;
+    }
+    const request = window.indexedDB.open(cacheDbName, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(cacheStoreName)) {
+        request.result.createObjectStore(cacheStoreName);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readAssessmentCache<T>(key: string): Promise<T | null> {
+  try {
+    const db = await openAssessmentCache();
+    return await new Promise<T | null>((resolve, reject) => {
+      const transaction = db.transaction(cacheStoreName, "readonly");
+      const request = transaction.objectStore(cacheStoreName).get(key);
+      request.onsuccess = () => resolve((request.result as T | undefined) ?? null);
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => db.close();
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function writeAssessmentCache(key: string, value: unknown) {
+  const db = await openAssessmentCache();
+  return await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(cacheStoreName, "readwrite");
+    transaction.objectStore(cacheStoreName).put(value, key);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function deleteAssessmentCache(key: string) {
+  try {
+    const db = await openAssessmentCache();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(cacheStoreName, "readwrite");
+      transaction.objectStore(cacheStoreName).delete(key);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+  } catch {
+    // A limpeza visual da tela não deve depender do cache local.
+  }
+}
 
 type TaxRegime = "Cumulativo" | "Não-Cumulativo" | "";
 type RevenueRow = {
@@ -181,7 +252,7 @@ export default function PisCofinsAssessment({
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve().then(() => {
+    void Promise.resolve().then(async () => {
       if (!active) return;
       setStorageReady(false);
       setOtherRevenueError("");
@@ -191,8 +262,10 @@ export default function PisCofinsAssessment({
       setZeevMessage("");
       setError("");
       try {
-        const saved = window.localStorage.getItem(storageKey);
-        const assessment = saved ? JSON.parse(saved) : null;
+        const assessment = await readAssessmentCache<Record<string, unknown>>(storageKey) ?? (() => {
+          const legacy = window.localStorage.getItem(storageKey);
+          return legacy ? JSON.parse(legacy) : null;
+        })();
         const restoredRows = Array.isArray(assessment?.rows) ? assessment.rows : [];
         const restoredCancelledRows = Array.isArray(assessment?.cancelledRows) ? assessment.cancelledRows : [];
         const restoredOtherRevenueRows = Array.isArray(assessment?.otherRevenueRows) ? assessment.otherRevenueRows : [];
@@ -225,7 +298,7 @@ export default function PisCofinsAssessment({
         setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, restoredOtherRevenueRows));
         setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, restoredAnnualFeeRows));
         setCancelledBranches(restoredBranches(assessment?.cancelledBranches, restoredCancelledRows));
-        setRequestedBranches([]);
+        setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
       } catch {
         setRows([]);
         setCancelledRows([]);
@@ -254,16 +327,43 @@ export default function PisCofinsAssessment({
 
   useEffect(() => {
     if (!storageReady || restoredStorageKey !== storageKey) return;
+    const assessment = {
+      rows,
+      cancelledRows,
+      loaded,
+      classified,
+      ignoredCancelled,
+      otherRevenueRows,
+      otherRevenueLoaded,
+      annualFeeRows,
+      annualFeeLoaded,
+      cancelledLoaded,
+      detailsOpen,
+      monthlyVisible,
+      otherRevenueVisible,
+      annualFeeVisible,
+      cancelledVisible,
+      creditsVisible,
+      creditsCategory,
+      energyRows,
+      energyLoaded,
+      leaseRows,
+      leaseLoaded,
+      zeevMessage,
+      monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
+      requestedBranches,
+    };
+    void writeAssessmentCache(storageKey, assessment).catch(() => {
+      console.warn("Não foi possível salvar a última apuração de PIS/COFINS no cache local.");
+    });
     try {
       window.localStorage.setItem(storageKey, JSON.stringify({
-        rows,
-        cancelledRows,
+        savedInIndexedDb: true,
+        updatedAt: new Date().toISOString(),
         loaded,
         classified,
         ignoredCancelled,
-        otherRevenueRows,
         otherRevenueLoaded,
-        annualFeeRows,
         annualFeeLoaded,
         cancelledLoaded,
         detailsOpen,
@@ -273,9 +373,7 @@ export default function PisCofinsAssessment({
         cancelledVisible,
         creditsVisible,
         creditsCategory,
-        energyRows,
         energyLoaded,
-        leaseRows,
         leaseLoaded,
         zeevMessage,
         monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
@@ -283,14 +381,15 @@ export default function PisCofinsAssessment({
       }));
     } catch {
       try {
-        window.localStorage.removeItem(storageKey);
         window.localStorage.setItem(storageKey, JSON.stringify({
-          loaded: false,
-          classified: false,
+          savedInIndexedDb: true,
+          updatedAt: new Date().toISOString(),
+          loaded,
+          classified,
           ignoredCancelled,
-          otherRevenueLoaded: false,
-          annualFeeLoaded: false,
-          cancelledLoaded: false,
+          otherRevenueLoaded,
+          annualFeeLoaded,
+          cancelledLoaded,
           detailsOpen,
           monthlyVisible,
           otherRevenueVisible,
@@ -298,16 +397,17 @@ export default function PisCofinsAssessment({
           cancelledVisible,
           creditsVisible,
           creditsCategory,
-          energyLoaded: false,
-          leaseLoaded: false,
-          zeevMessage: "A última apuração ficou grande demais para salvar no navegador. Atualize as bases para recarregar os dados.",
+          energyLoaded,
+          leaseLoaded,
+          zeevMessage,
           monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
+          requestedBranches,
         }));
       } catch {
-        // O armazenamento local não pode impedir a atualização das bases.
+        // O localStorage é apenas um marcador leve. A base completa fica no IndexedDB.
       }
     }
-  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches]);
+  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -335,6 +435,7 @@ export default function PisCofinsAssessment({
     setZeevMessage("");
     setError("");
     window.localStorage.removeItem(storageKey);
+    void deleteAssessmentCache(storageKey);
   }
 
   async function update() {
