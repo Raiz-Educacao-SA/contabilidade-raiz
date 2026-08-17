@@ -193,16 +193,22 @@ export default function PisCofinsAssessment({
       try {
         const saved = window.localStorage.getItem(storageKey);
         const assessment = saved ? JSON.parse(saved) : null;
-        setRows(assessment?.rows || []);
-        setCancelledRows(assessment?.cancelledRows || []);
-        setLoaded(Boolean(assessment?.loaded));
-        setClassified(Boolean(assessment?.loaded));
+        const restoredRows = Array.isArray(assessment?.rows) ? assessment.rows : [];
+        const restoredCancelledRows = Array.isArray(assessment?.cancelledRows) ? assessment.cancelledRows : [];
+        const restoredOtherRevenueRows = Array.isArray(assessment?.otherRevenueRows) ? assessment.otherRevenueRows : [];
+        const restoredAnnualFeeRows = Array.isArray(assessment?.annualFeeRows) ? assessment.annualFeeRows : [];
+        const restoredEnergyRows = Array.isArray(assessment?.energyRows) ? assessment.energyRows : [];
+        const restoredLeaseRows = Array.isArray(assessment?.leaseRows) ? assessment.leaseRows : [];
+        setRows(restoredRows);
+        setCancelledRows(restoredCancelledRows);
+        setLoaded(Boolean(assessment?.loaded && restoredRows.length));
+        setClassified(Boolean(assessment?.loaded && restoredRows.length));
         setIgnoredCancelled(Number(assessment?.ignoredCancelled || 0));
-        setOtherRevenueRows(assessment?.otherRevenueRows || []);
-        setOtherRevenueLoaded(Boolean(assessment?.otherRevenueLoaded));
-        setAnnualFeeRows(assessment?.annualFeeRows || []);
-        setAnnualFeeLoaded(Boolean(assessment?.annualFeeLoaded));
-        setCancelledLoaded(Boolean(assessment?.cancelledLoaded));
+        setOtherRevenueRows(restoredOtherRevenueRows);
+        setOtherRevenueLoaded(Boolean(assessment?.otherRevenueLoaded && restoredOtherRevenueRows.length));
+        setAnnualFeeRows(restoredAnnualFeeRows);
+        setAnnualFeeLoaded(Boolean(assessment?.annualFeeLoaded && restoredAnnualFeeRows.length));
+        setCancelledLoaded(Boolean(assessment?.cancelledLoaded && restoredCancelledRows.length));
         setDetailsOpen(Boolean(assessment?.detailsOpen));
         setMonthlyVisible(assessment?.monthlyVisible ?? true);
         setOtherRevenueVisible(assessment?.otherRevenueVisible ?? true);
@@ -210,15 +216,15 @@ export default function PisCofinsAssessment({
         setCancelledVisible(assessment?.cancelledVisible ?? true);
         setCreditsVisible(assessment?.creditsVisible ?? true);
         setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
-        setEnergyRows(assessment?.energyRows || []);
-        setEnergyLoaded(Boolean(assessment?.energyLoaded));
-        setLeaseRows(assessment?.leaseRows || []);
-        setLeaseLoaded(Boolean(assessment?.leaseLoaded));
+        setEnergyRows(restoredEnergyRows);
+        setEnergyLoaded(Boolean(assessment?.energyLoaded && restoredEnergyRows.length));
+        setLeaseRows(restoredLeaseRows);
+        setLeaseLoaded(Boolean(assessment?.leaseLoaded && restoredLeaseRows.length));
         setZeevMessage(String(assessment?.zeevMessage || ""));
-        setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
-        setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
-        setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, assessment?.annualFeeRows || []));
-        setCancelledBranches(restoredBranches(assessment?.cancelledBranches, assessment?.cancelledRows || []));
+        setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, restoredRows));
+        setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, restoredOtherRevenueRows));
+        setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, restoredAnnualFeeRows));
+        setCancelledBranches(restoredBranches(assessment?.cancelledBranches, restoredCancelledRows));
         setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
       } catch {
         setRows([]);
@@ -279,12 +285,12 @@ export default function PisCofinsAssessment({
       try {
         window.localStorage.removeItem(storageKey);
         window.localStorage.setItem(storageKey, JSON.stringify({
-          loaded,
-          classified,
+          loaded: false,
+          classified: false,
           ignoredCancelled,
-          otherRevenueLoaded,
-          annualFeeLoaded,
-          cancelledLoaded,
+          otherRevenueLoaded: false,
+          annualFeeLoaded: false,
+          cancelledLoaded: false,
           detailsOpen,
           monthlyVisible,
           otherRevenueVisible,
@@ -292,8 +298,8 @@ export default function PisCofinsAssessment({
           cancelledVisible,
           creditsVisible,
           creditsCategory,
-          energyLoaded,
-          leaseLoaded,
+          energyLoaded: false,
+          leaseLoaded: false,
           zeevMessage: "A última apuração ficou grande demais para salvar no navegador. Atualize as bases para recarregar os dados.",
           monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
           requestedBranches,
