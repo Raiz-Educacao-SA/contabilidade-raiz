@@ -799,8 +799,73 @@ export default function PisCofinsAssessment({
   }
 
   function consolidatedWorksheet() {
-    const worksheet = XLSX.utils.json_to_sheet(consolidatedExportRows().filter((row) => Math.abs(row["Total consolidado"]) > 0.000001));
-    worksheet["!cols"] = [14, 12, 10, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
+    const consolidatedRows = consolidatedExportRows().filter((row) => Math.abs(row["Total consolidado"]) > 0.000001);
+    const cumulativeRevenue = totals.cumulativeBase + annualFeeTotals.cumulativeBase - cancelledTotals.cumulativeBase;
+    const nonCumulativeRevenue = totals.nonCumulativeBase + otherRevenueTotals.taxBase + annualFeeTotals.nonCumulativeBase - cancelledTotals.nonCumulativeBase;
+    const totalRevenue = cumulativeRevenue + nonCumulativeRevenue;
+    const revenueCompositionRows: (string | number)[][] = [
+      ["BASE CONSOLIDADA - APURAÇÃO PIS E COFINS", "", "", "", "", "", "", "", "", ""],
+      ["Empresa", companyName, "Coligada", companyCode, "Competência", competenceLabel, "", "", "", ""],
+      ["", "", "", "", "", "", "", "", "", ""],
+      ["COMPOSIÇÃO DAS RECEITAS", "", "", "", "", "", "", "", "", ""],
+      ["Tipo de receita", "Valor", "% sobre o total", "", "", "", "", "", "", ""],
+      ["Receita cumulativa", cumulativeRevenue, totalRevenue ? cumulativeRevenue / totalRevenue : 0, "", "", "", "", "", "", ""],
+      ["Receita não cumulativa", nonCumulativeRevenue, totalRevenue ? nonCumulativeRevenue / totalRevenue : 0, "", "", "", "", "", "", ""],
+      ["TOTAL", totalRevenue, totalRevenue ? 1 : 0, "", "", "", "", "", "", ""],
+      ["", "", "", "", "", "", "", "", "", ""],
+      ["APURAÇÃO CONSOLIDADA POR TRIBUTO", "", "", "", "", "", "", "", "", ""],
+    ];
+    const consolidatedTable = consolidatedRows.map((row) => [
+      row["Visão"],
+      row.Coligada,
+      row.Filial,
+      row["Competência"],
+      row.Tributo,
+      row["Faturamento Mensal"],
+      row["Outras Receitas"],
+      row["Rateios Anuidades"],
+      row["Notas Canceladas (dedução)"],
+      row["Total consolidado"],
+    ]);
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ...revenueCompositionRows,
+      ["Visão", "Coligada", "Filial", "Competência", "Tributo", "Faturamento Mensal", "Outras Receitas", "Rateios Anuidades", "Notas Canceladas (dedução)", "Total consolidado"],
+      ...consolidatedTable,
+    ]);
+    worksheet["!cols"] = [18, 18, 16, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 9 } },
+      { s: { r: 9, c: 0 }, e: { r: 9, c: 9 } },
+    ];
+    [5, 6, 7].forEach((row) => {
+      const valueCell = worksheet[XLSX.utils.encode_cell({ r: row, c: 1 })];
+      const percentCell = worksheet[XLSX.utils.encode_cell({ r: row, c: 2 })];
+      if (valueCell?.t === "n") valueCell.z = "#,##0.00";
+      if (percentCell?.t === "n") percentCell.z = "0.00%";
+    });
+    for (let row = 11; row <= 10 + consolidatedRows.length; row += 1) {
+      for (let column = 5; column <= 9; column += 1) {
+        const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+        if (cell?.t === "n") cell.z = "#,##0.00";
+      }
+    }
+    Object.keys(worksheet).filter((address) => !address.startsWith("!")).forEach((address) => {
+      const cell = worksheet[address];
+      const { r } = XLSX.utils.decode_cell(address);
+      if ([0, 3, 9, 10].includes(r)) {
+        cell.s = {
+          font: { name: "Arial", sz: r === 0 ? 12 : 10, bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: r === 3 ? "2F80C0" : "14213D" } },
+          alignment: { horizontal: "center", vertical: "center" },
+        };
+      } else if ([5, 6, 7].includes(r)) {
+        cell.s = {
+          font: { name: "Arial", sz: 10, bold: r === 7 },
+          fill: { fgColor: { rgb: r === 7 ? "E8F1FA" : "FFFFFF" } },
+        };
+      }
+    });
     return worksheet;
   }
 
