@@ -248,32 +248,60 @@ export default function PisCofinsAssessment({
 
   useEffect(() => {
     if (!storageReady || restoredStorageKey !== storageKey) return;
-    window.localStorage.setItem(storageKey, JSON.stringify({
-      rows,
-      cancelledRows,
-      loaded,
-      classified,
-      ignoredCancelled,
-      otherRevenueRows,
-      otherRevenueLoaded,
-      annualFeeRows,
-      annualFeeLoaded,
-      cancelledLoaded,
-      detailsOpen,
-      monthlyVisible,
-      otherRevenueVisible,
-      annualFeeVisible,
-      cancelledVisible,
-      creditsVisible,
-      creditsCategory,
-      energyRows,
-      energyLoaded,
-      leaseRows,
-      leaseLoaded,
-      zeevMessage,
-      monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
-      requestedBranches,
-    }));
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify({
+        rows,
+        cancelledRows,
+        loaded,
+        classified,
+        ignoredCancelled,
+        otherRevenueRows,
+        otherRevenueLoaded,
+        annualFeeRows,
+        annualFeeLoaded,
+        cancelledLoaded,
+        detailsOpen,
+        monthlyVisible,
+        otherRevenueVisible,
+        annualFeeVisible,
+        cancelledVisible,
+        creditsVisible,
+        creditsCategory,
+        energyRows,
+        energyLoaded,
+        leaseRows,
+        leaseLoaded,
+        zeevMessage,
+        monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
+        requestedBranches,
+      }));
+    } catch {
+      try {
+        window.localStorage.removeItem(storageKey);
+        window.localStorage.setItem(storageKey, JSON.stringify({
+          loaded,
+          classified,
+          ignoredCancelled,
+          otherRevenueLoaded,
+          annualFeeLoaded,
+          cancelledLoaded,
+          detailsOpen,
+          monthlyVisible,
+          otherRevenueVisible,
+          annualFeeVisible,
+          cancelledVisible,
+          creditsVisible,
+          creditsCategory,
+          energyLoaded,
+          leaseLoaded,
+          zeevMessage: "A última apuração ficou grande demais para salvar no navegador. Atualize as bases para recarregar os dados.",
+          monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
+          requestedBranches,
+        }));
+      } catch {
+        // O armazenamento local não pode impedir a atualização das bases.
+      }
+    }
   }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
