@@ -43,6 +43,13 @@ const classifyService = (value: string): "Cumulativo" | "Não-Cumulativo" | "" =
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const decodeXml = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, name: string) => decodeXml(xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() || "");
+const firstTag = (xml: string, names: string[]) => {
+  for (const name of names) {
+    const value = tag(xml, name);
+    if (value) return value;
+  }
+  return "";
+};
 const number = (value: string) => { const direct = Number(value); if (Number.isFinite(direct)) return direct; const parsed = Number(value.replace(/\./g, "").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; };
 const recordCompetence = (value: string) => {
   const normalized = value.trim();
@@ -68,11 +75,11 @@ async function query(parameters: string) {
   const user = process.env.TOTVS_WS_PRD_USER;
   const password = process.env.TOTVS_WS_PRD_PASSWORD;
   if (!user || !password) throw new Error("Credenciais técnicas do TOTVS não configuradas.");
-  // Planilha.NET 53 — sentença oficial "ANALISE NF COM CONTA".
-  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA.108090</codSentenca><codColigada>10</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  // Planilha.NET 44 — FATURAMENTO - PREFEITURA (ISSQN).
+  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>PLAN.T.0006.0001</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
   const soap = await response.text();
-  if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 53.");
+  if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 44.");
   const result = decodeXml(tag(soap, "RealizarConsultaSQLResult"));
   return Array.from(result.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) => match[1]);
 }
@@ -91,30 +98,30 @@ export async function GET(request: NextRequest) {
     const sourceCompanyRecords = (await query(`CODCOLIGADA=${company};COMP_INI_D=${start};COMP_FIM_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = sourceCompanyRecords.filter((record) =>
-      recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence &&
+      recordCompetence(firstTag(record, ["DTCOMPETENCIA", "COMPETENCIA", "DATAEMISSAO", "DTEMISSAO", "DATA", "MESCOMPETENCIA"])) === competence &&
       (!requestedBranches.size || requestedBranches.has(tag(record, "CODFILIAL").trim())),
     );
     let ignoredCancelled = 0;
     const cancelledRows: Array<{ line: number; branch: string; service: string; grossRevenue: number; discounts: number; netRevenue: number; status: string }> = [];
     const rows = records.flatMap((record, index) => {
-      const fiscalStatus = normalize(tag(record, "STATUSNF") || tag(record, "STATUS"));
+      const fiscalStatus = normalize(firstTag(record, ["STATUSNF", "STATUS", "SITUACAO", "STATUS_NF", "SITUACAONF"]));
       if (fiscalStatus.includes("CANCELAD")) {
         ignoredCancelled += 1;
         cancelledRows.push({
           line: index + 1,
           branch: tag(record, "CODFILIAL"),
-          service: tag(record, "DESCRICAO") || tag(record, "SERVICO_ED") || "Descrição não informada",
-          grossRevenue: number(tag(record, "VALORORIGINAL")),
-          discounts: number(tag(record, "BOLSA")),
-          netRevenue: number(tag(record, "VALORNF") || tag(record, "VLRNF")),
-          status: tag(record, "STATUSNF") || tag(record, "STATUS"),
+          service: firstTag(record, ["DESCRICAO", "SERVICO_ED", "SERVICO", "NOME_SERVICO"]) || "Descrição não informada",
+          grossRevenue: number(firstTag(record, ["VALORORIGINAL", "VALOR_ORIGINAL", "VALORBRUTO", "VALOR_BRUTO"])),
+          discounts: number(firstTag(record, ["BOLSA", "DESCONTO", "DESCONTOS", "VALORDESCONTO", "VALOR_DESCONTO"])),
+          netRevenue: number(firstTag(record, ["VLRNF", "VALORNF", "VALOR_NF", "VALORLIQUIDO", "VALOR_LIQUIDO"])),
+          status: firstTag(record, ["STATUSNF", "STATUS", "SITUACAO", "STATUS_NF", "SITUACAONF"]),
         });
         return [];
       }
-      const service = tag(record, "DESCRICAO") || tag(record, "SERVICO_ED") || "Descrição não informada pela consulta fiscal";
-      const grossRevenue = number(tag(record, "VALORORIGINAL") || tag(record, "VALORLIQUIDO") || tag(record, "BC"));
-      const discounts = number(tag(record, "BOLSA"));
-      const netRevenue = number(tag(record, "VALORNF") || tag(record, "VLRNF"));
+      const service = firstTag(record, ["DESCRICAO", "SERVICO_ED", "SERVICO", "NOME_SERVICO"]) || "Descrição não informada pela consulta fiscal";
+      const grossRevenue = number(firstTag(record, ["VALORORIGINAL", "VALOR_ORIGINAL", "VALORBRUTO", "VALOR_BRUTO", "VALORLIQUIDO", "VALOR_LIQUIDO", "BC"]));
+      const discounts = number(firstTag(record, ["BOLSA", "DESCONTO", "DESCONTOS", "VALORDESCONTO", "VALOR_DESCONTO"]));
+      const netRevenue = number(firstTag(record, ["VLRNF", "VALORNF", "VALOR_NF", "VALORLIQUIDO", "VALOR_LIQUIDO"]));
       return [{ line: index + 1, branch: tag(record, "CODFILIAL"), service, grossRevenue, discounts, netRevenue, regime: classifyService(service) }];
     });
     const totals = rows.reduce((result, row) => ({
@@ -124,7 +131,7 @@ export async function GET(request: NextRequest) {
     }), { grossRevenue: 0, discounts: 0, netRevenue: 0 });
     const reconciliationDifference = totals.grossRevenue - totals.discounts - totals.netRevenue;
     if (Math.abs(reconciliationDifference) > 0.01) {
-      throw new Error(`A base da NET.53 não reconciliou para a coligada ${company} em ${competence}. Diferença: ${reconciliationDifference.toFixed(2)}.`);
+      throw new Error(`A base da NET.44 não reconciliou para a coligada ${company} em ${competence}. Diferença: ${reconciliationDifference.toFixed(2)}.`);
     }
     return NextResponse.json({
       company,
