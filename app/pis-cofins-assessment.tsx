@@ -92,6 +92,7 @@ type EnergyCreditRow = {
   costCenter: string;
   ticket: null | { id: string; status: string; link: string; name: string; matchScore: number; documents: { name: string; url: string }[] };
 };
+type LeaseCreditRow = Omit<EnergyCreditRow, "ticket">;
 
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -152,6 +153,10 @@ export default function PisCofinsAssessment({
   const [energyLoading, setEnergyLoading] = useState(false);
   const [energyLoaded, setEnergyLoaded] = useState(false);
   const [energyError, setEnergyError] = useState("");
+  const [leaseRows, setLeaseRows] = useState<LeaseCreditRow[]>([]);
+  const [leaseLoading, setLeaseLoading] = useState(false);
+  const [leaseLoaded, setLeaseLoaded] = useState(false);
+  const [leaseError, setLeaseError] = useState("");
   const [zeevMessage, setZeevMessage] = useState("");
   const [monthlyBranches, setMonthlyBranches] = useState<string[]>([]);
   const [otherRevenueBranches, setOtherRevenueBranches] = useState<string[]>([]);
@@ -207,6 +212,8 @@ export default function PisCofinsAssessment({
         setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
         setEnergyRows(assessment?.energyRows || []);
         setEnergyLoaded(Boolean(assessment?.energyLoaded));
+        setLeaseRows(assessment?.leaseRows || []);
+        setLeaseLoaded(Boolean(assessment?.leaseLoaded));
         setZeevMessage(String(assessment?.zeevMessage || ""));
         setMonthlyBranches(restoredBranches(assessment?.monthlyBranches, assessment?.rows || []));
         setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, assessment?.otherRevenueRows || []));
@@ -226,6 +233,8 @@ export default function PisCofinsAssessment({
         setCancelledLoaded(false);
         setEnergyRows([]);
         setEnergyLoaded(false);
+        setLeaseRows([]);
+        setLeaseLoaded(false);
         setZeevMessage("");
         setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
         setRequestedBranches([]);
@@ -259,11 +268,13 @@ export default function PisCofinsAssessment({
       creditsCategory,
       energyRows,
       energyLoaded,
+      leaseRows,
+      leaseLoaded,
       zeevMessage,
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
       requestedBranches,
     }));
-  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
 
   function clearAssessment() {
     setRows([]);
@@ -278,6 +289,8 @@ export default function PisCofinsAssessment({
     setCancelledLoaded(false);
     setEnergyRows([]);
     setEnergyLoaded(false);
+    setLeaseRows([]);
+    setLeaseLoaded(false);
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     setRequestedBranches([]);
     setDetailsOpen(false);
@@ -285,6 +298,7 @@ export default function PisCofinsAssessment({
     setAnnualFeeError("");
     setCancelledError("");
     setEnergyError("");
+    setLeaseError("");
     setZeevMessage("");
     setError("");
     window.localStorage.removeItem(storageKey);
@@ -350,6 +364,30 @@ export default function PisCofinsAssessment({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Energia");
     XLSX.writeFile(workbook, `creditos-energia-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
+  }
+
+  async function updateLeaseCredits() {
+    setLeaseLoading(true);
+    setLeaseError("");
+    try {
+      const response = await fetch(`/api/totvs/pis-cofins/credits/leases?company=${companyCode}&competence=${competence}${branchQuery}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Falha ao consultar os lançamentos de Arrendamentos.");
+      setLeaseRows(payload.rows || []);
+      setLeaseLoaded(true);
+    } catch (cause) {
+      setLeaseError((cause as Error).message);
+    } finally {
+      setLeaseLoading(false);
+    }
+  }
+
+  function exportLeaseCredits() {
+    if (!leaseRows.length) return;
+    const sheet = XLSX.utils.json_to_sheet(leaseRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "IDMOV de origem": row.integrationKey, Origem: row.sourceSystem, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor débito": row.value })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Arrendamentos");
+    XLSX.writeFile(workbook, `creditos-arrendamentos-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
   }
 
   async function downloadZeevDocument(ticketId: string, file?: { name: string; url: string }) {
@@ -1638,10 +1676,10 @@ export default function PisCofinsAssessment({
       <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
           <div><b>Créditos</b><span>Créditos de PIS e COFINS · conferência contábil e documentos no Zeev</span></div>
-          <button className={energyLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={creditsCategory !== "energy" || energyLoading} onClick={updateEnergyCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Arrendamentos serão configurados na próxima etapa"}>
-            <RefreshCw className={energyLoading ? "is-spinning" : ""} /> {energyLoading ? "Atualizando" : "Atualizar"}
+          <button className={(creditsCategory === "energy" ? energyLoaded : leaseLoaded) ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={creditsCategory === "energy" ? energyLoading : leaseLoading} onClick={creditsCategory === "energy" ? updateEnergyCredits : updateLeaseCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Consultar Arrendamentos no reduzido 2026"}>
+            <RefreshCw className={(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "is-spinning" : ""} /> {(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "Atualizando" : "Atualizar"}
           </button>
-          <button className="tax-detail-export" disabled={creditsCategory !== "energy" || !energyRows.length} onClick={exportEnergyCredits} title="Exportar os lançamentos de Energia e os tickets localizados">
+          <button className="tax-detail-export" disabled={creditsCategory === "energy" ? !energyRows.length : !leaseRows.length} onClick={creditsCategory === "energy" ? exportEnergyCredits : exportLeaseCredits} title={creditsCategory === "energy" ? "Exportar os lançamentos de Energia e os tickets localizados" : "Exportar os lançamentos de Arrendamentos"}>
             <Download /> Exportar
           </button>
           <button className="tax-visibility-toggle" onClick={() => setCreditsVisible((visible) => !visible)}>
@@ -1654,7 +1692,18 @@ export default function PisCofinsAssessment({
             <button role="tab" aria-selected={creditsCategory === "energy"} className={creditsCategory === "energy" ? "is-active" : ""} onClick={() => setCreditsCategory("energy")}>Energia</button>
             <button role="tab" aria-selected={creditsCategory === "leases"} className={creditsCategory === "leases" ? "is-active" : ""} onClick={() => setCreditsCategory("leases")}>Arrendamentos</button>
           </div>
-          {creditsCategory === "leases" ? <div className="tax-source-empty"><Calculator /><b>Créditos de Arrendamentos</b><span>Base preparada para receber as contas, os movimentos e as regras de cálculo desta categoria.</span></div> : <>
+          {creditsCategory === "leases" ? <>
+            {leaseError && <div className="notice error">{leaseError}</div>}
+            {!leaseLoaded ? <div className="tax-source-empty"><Calculator /><b>Arrendamentos · reduzido 2026</b><span>Clique em Atualizar para carregar os débitos lançados pelo sistema financeiro na competência filtrada.</span></div> : <>
+              <div className="tax-other-summary">
+                <article><span>Lançamentos</span><b>{leaseRows.length}</b><small>Red. 2026</small></article>
+                <article><span>Valor a débito</span><b>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</b><small>Competência {competenceLabel}</small></article>
+                <article><span>Origem</span><b>Financeiro</b><small>RM Fluxus / Financeiro</small></article>
+                <article><span>Filiais</span><b>{new Set(leaseRows.map((row) => row.branch)).size}</b><small>Filtro aplicado</small></article>
+              </div>
+              {leaseRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Origem</th><th>Complemento</th><th>Centro de custo</th><th>Valor débito</th></tr></thead><tbody>{leaseRows.map((row) => <tr key={`${row.branch}-${row.entryId}-${row.document}-${row.value}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.sourceSystem || "Financeiro"}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={10}>Subtotal da competência</td><td>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Arrendamentos</b><span>Nenhum débito financeiro foi encontrado no reduzido 2026 para os filtros selecionados.</span></div>}
+            </>}
+          </> : <>
             {energyError && <div className="notice error">{energyError}</div>}
             {zeevMessage && <div className="notice energy-credit-notice">{zeevMessage} Os lançamentos contábeis permanecem disponíveis para conferência.</div>}
             {!energyLoaded ? <div className="tax-source-empty"><Calculator /><b>Energia Elétrica · conta 4.2.1.02.04.01</b><span>Clique em Atualizar para carregar os movimentos contábeis e localizar o ticket de cada linha no Zeev.</span></div> : <>
