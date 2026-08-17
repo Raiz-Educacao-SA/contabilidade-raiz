@@ -225,7 +225,7 @@ export default function PisCofinsAssessment({
         setOtherRevenueBranches(restoredBranches(assessment?.otherRevenueBranches, restoredOtherRevenueRows));
         setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, restoredAnnualFeeRows));
         setCancelledBranches(restoredBranches(assessment?.cancelledBranches, restoredCancelledRows));
-        setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
+        setRequestedBranches([]);
       } catch {
         setRows([]);
         setCancelledRows([]);
@@ -302,13 +302,12 @@ export default function PisCofinsAssessment({
           leaseLoaded: false,
           zeevMessage: "A última apuração ficou grande demais para salvar no navegador. Atualize as bases para recarregar os dados.",
           monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
-          requestedBranches,
         }));
       } catch {
         // O armazenamento local não pode impedir a atualização das bases.
       }
     }
-  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches]);
 
   function clearAssessment() {
     setRows([]);
