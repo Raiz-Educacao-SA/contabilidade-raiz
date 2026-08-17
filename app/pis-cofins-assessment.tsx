@@ -1356,6 +1356,7 @@ export default function PisCofinsAssessment({
         <article><span>PIS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
         <article><span>COFINS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
       </div>
+      <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
       <div className="tax-section-heading">
         <div><b>Faturamento Mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
         <button
@@ -1374,7 +1375,7 @@ export default function PisCofinsAssessment({
           {monthlyVisible ? "Ocultar" : "Exibir"}
         </button>
       </div>
-      <div hidden={!monthlyVisible}>
+      <div>
       {error && <div className="notice error">{error}</div>}
       <div className="tax-summary">
         <article>
@@ -1535,6 +1536,7 @@ export default function PisCofinsAssessment({
         fiscais.
       </p>
       </div>
+      </section>
       <section className={`tax-secondary-section ${otherRevenueVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
           <div><b>Outras Receitas</b><span>Razão Completo · contas definidas na aba Base contas</span></div>
@@ -1676,7 +1678,7 @@ export default function PisCofinsAssessment({
       <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
           <div><b>Créditos</b><span>Créditos de PIS e COFINS · conferência contábil e documentos no Zeev</span></div>
-          <button className={(creditsCategory === "energy" ? energyLoaded : leaseLoaded) ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={creditsCategory === "energy" ? energyLoading : leaseLoading} onClick={creditsCategory === "energy" ? updateEnergyCredits : updateLeaseCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Consultar Arrendamentos no reduzido 2026"}>
+          <button className={(creditsCategory === "energy" ? energyLoaded : leaseLoaded) ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={creditsCategory === "energy" ? energyLoading : leaseLoading} onClick={creditsCategory === "energy" ? updateEnergyCredits : updateLeaseCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Consultar Arrendamentos no Razão 25, conta 2.1.7.01.01.53"}>
             <RefreshCw className={(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "is-spinning" : ""} /> {(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "Atualizando" : "Atualizar"}
           </button>
           <button className="tax-detail-export" disabled={creditsCategory === "energy" ? !energyRows.length : !leaseRows.length} onClick={creditsCategory === "energy" ? exportEnergyCredits : exportLeaseCredits} title={creditsCategory === "energy" ? "Exportar os lançamentos de Energia e os tickets localizados" : "Exportar os lançamentos de Arrendamentos"}>
@@ -1694,14 +1696,14 @@ export default function PisCofinsAssessment({
           </div>
           {creditsCategory === "leases" ? <>
             {leaseError && <div className="notice error">{leaseError}</div>}
-            {!leaseLoaded ? <div className="tax-source-empty"><Calculator /><b>Arrendamentos · reduzido 2026</b><span>Clique em Atualizar para carregar os débitos lançados pelo sistema financeiro na competência filtrada.</span></div> : <>
+            {!leaseLoaded ? <div className="tax-source-empty"><Calculator /><b>Arrendamentos · conta 2.1.7.01.01.53</b><span>Clique em Atualizar para carregar os débitos lançados pelo sistema financeiro na competência filtrada.</span></div> : <>
               <div className="tax-other-summary">
-                <article><span>Lançamentos</span><b>{leaseRows.length}</b><small>Red. 2026</small></article>
+                <article><span>Lançamentos</span><b>{leaseRows.length}</b><small>Conta 2.1.7.01.01.53</small></article>
                 <article><span>Valor a débito</span><b>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</b><small>Competência {competenceLabel}</small></article>
                 <article><span>Origem</span><b>Financeiro</b><small>RM Fluxus / Financeiro</small></article>
                 <article><span>Filiais</span><b>{new Set(leaseRows.map((row) => row.branch)).size}</b><small>Filtro aplicado</small></article>
               </div>
-              {leaseRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Origem</th><th>Complemento</th><th>Centro de custo</th><th>Valor débito</th></tr></thead><tbody>{leaseRows.map((row) => <tr key={`${row.branch}-${row.entryId}-${row.document}-${row.value}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.sourceSystem || "Financeiro"}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={10}>Subtotal da competência</td><td>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Arrendamentos</b><span>Nenhum débito financeiro foi encontrado no reduzido 2026 para os filtros selecionados.</span></div>}
+              {leaseRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Origem</th><th>Complemento</th><th>Centro de custo</th><th>Valor débito</th></tr></thead><tbody>{leaseRows.map((row) => <tr key={`${row.branch}-${row.entryId}-${row.document}-${row.value}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.sourceSystem || "Financeiro"}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={10}>Subtotal da competência</td><td>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Arrendamentos</b><span>Nenhum débito financeiro foi encontrado na conta 2.1.7.01.01.53 para os filtros selecionados.</span></div>}
             </>}
           </> : <>
             {energyError && <div className="notice error">{energyError}</div>}

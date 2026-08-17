@@ -4,6 +4,7 @@ import { decodedTag, isAuthorized, queryDataEngine } from "@/lib/totvs-dataengin
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+const LEASE_ACCOUNT = "2.1.7.01.01.53";
 const LEASE_REDUCED_CODE = 2026;
 
 const numeric = (value: string) => {
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     const records = await queryDataEngine({
       code: "METTA0909",
       system: "C",
-      parameters: `PLN_B7_S=4.2.1;PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`,
+      parameters: `PLN_B7_S=${LEASE_ACCOUNT};PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`,
       errorMessage: "Falha ao consultar os créditos de Arrendamentos no TOTVS/DataEngine.",
     });
 
@@ -53,11 +54,12 @@ export async function GET(request: NextRequest) {
     const rows = records.flatMap((record) => {
       const reduced = numeric(decodedTag(record, "REDUZIDO"));
       const value = numeric(decodedTag(record, "VALOR"));
-      const sourceSystem = decodedTag(record, "NOMESISTEMA");
+      const account = decodedTag(record, "CODCONTA");
+      const sourceSystem = decodedTag(record, "NOMESISTEMA", "SISTEMA", "SISTEMAORIGEM", "ORIGEM");
       const source = normalize(sourceSystem);
       const branch = decodedTag(record, "CODFILIAL");
       const isFinancial = source.includes("FINANCEIRO") || source.includes("FLUXUS");
-      if (reduced !== LEASE_REDUCED_CODE || value <= 0 || !isFinancial || (branches.size && !branches.has(branch))) return [];
+      if (account !== LEASE_ACCOUNT || value <= 0 || !isFinancial || (branches.size && !branches.has(branch))) return [];
 
       const key = [
         decodedTag(record, "CODCOLIGADA"),
@@ -75,10 +77,10 @@ export async function GET(request: NextRequest) {
         entryId: decodedTag(record, "IDLANCAMENTO"),
         document: decodedTag(record, "DOCUMENTO"),
         integrationKey: decodedTag(record, "INTEGRACHAVE", "IDMOV"),
-        sourceSystem,
+        sourceSystem: sourceSystem || "Financeiro",
         date: decodedTag(record, "DATA"),
-        reduced,
-        account: decodedTag(record, "CODCONTA"),
+        reduced: reduced || LEASE_REDUCED_CODE,
+        account,
         description: decodedTag(record, "DESCRICAO") || "Arrendamentos",
         value,
         user: decodedTag(record, "USUARIO"),
@@ -92,8 +94,9 @@ export async function GET(request: NextRequest) {
       source: "TOTVS RM — METTA0909 / Razão Completo",
       company,
       competence,
+      account: LEASE_ACCOUNT,
       reduced: LEASE_REDUCED_CODE,
-      identification: "REDUZIDO=2026; VALOR > 0; NOMESISTEMA Financeiro/RM Fluxus",
+      identification: "Conta 2.1.7.01.01.53; REDUZIDO=2026; VALOR > 0; NOMESISTEMA Financeiro/RM Fluxus",
       rows,
       totals: { records: rows.length, accountingValue: total },
     }, { headers: { "cache-control": "private, no-store" } });
