@@ -152,8 +152,14 @@
 }
 .accounting-nav button {
   width: 100%;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 750;
+  line-height: 1.25;
+  padding: 9px 10px;
+}
+.accounting-nav button svg {
+  width: 15px;
+  height: 15px;
 }
 .accounting-nav button.active {
   box-shadow: inset 3px 0 #69beb9;
@@ -1682,6 +1688,7 @@
 .tax-panel {
   padding: 0;
   overflow: hidden;
+  border-radius: 24px;
 }
 .tax-section-heading { padding: 9px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #28334e; background: var(--navy); }
 .tax-section-heading > div { display: flex; flex-direction: column; gap: 2px; }
@@ -1708,12 +1715,12 @@
 .tax-consolidated-title { padding: 7px 9px; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
 .tax-consolidated-title b { color: #173d68; font-size: 11px; }
 .tax-consolidated-title span { color: var(--muted); font-size: 7px; line-height: 1.35; }
-.tax-consolidated-summary article { padding: 7px 9px; border: 1px solid #d6e0ec; border-radius: 9px; display: flex; flex-direction: column; gap: 2px; background: #fff; }
+.tax-consolidated-summary article { padding: 7px 9px; border: 1px solid #d6e0ec; border-radius: 14px; display: flex; flex-direction: column; gap: 2px; background: #fff; }
 .tax-consolidated-summary article span { color: var(--muted); font-size: 7px; }
 .tax-consolidated-summary article b { color: #102f54; font-size: 10px; white-space: nowrap; }
 .tax-consolidated-summary article small { color: var(--muted); font-size: 7px; }
 .tax-other-summary { padding: 8px 18px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; background: #f8fafc; }
-.tax-other-summary article { padding: 7px 9px; border: 1px solid #e2e7ee; border-radius: 9px; display: flex; flex-direction: column; gap: 2px; background: #fff; }
+.tax-other-summary article { padding: 7px 9px; border: 1px solid #e2e7ee; border-radius: 14px; display: flex; flex-direction: column; gap: 2px; background: #fff; }
 .tax-other-summary span { color: var(--muted); font-size: 8px; }
 .tax-other-summary b { font-size: 10px; }
 .tax-other-summary small { color: var(--muted); font-size: 7px; }
@@ -1725,7 +1732,7 @@
 .tax-other-table td { padding: 4px 5px; }
 .tax-other-table td:nth-child(n + 8):nth-child(-n + 12) { text-align: right; white-space: nowrap; }
 .tax-other-table tfoot td { position: sticky; bottom: 0; z-index: 1; border-top: 2px solid #173d68; background: #eef4fb; color: #102f54; font-weight: 900; }
-.tax-secondary-section { border-top: 8px solid var(--bg); }
+.tax-secondary-section { margin: 8px 16px; overflow: hidden; border: 1px solid #dfe6f0; border-radius: 18px; background: #fff; }
 .energy-credit-table table { font-size: 10px; }
 .energy-credit-table th,
 .energy-credit-table td { padding: 7px 8px; }
@@ -2340,7 +2347,7 @@
 .tax-summary article {
   padding: 7px 9px;
   border: 1px solid #e2e7ee;
-  border-radius: 9px;
+  border-radius: 14px;
   background: #fff;
   display: flex;
   flex-direction: column;
