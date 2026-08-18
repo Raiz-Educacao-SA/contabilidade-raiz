@@ -56,7 +56,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes";
+type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "arrendamentos";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = "financeiro" | "compras" | "folha" | "contabil" | "book" | "cronograma";
@@ -556,6 +556,7 @@ export default function Home() {
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "provisoes", label: "Provisões", icon: Save },
+                { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
             ).map(({ id, label, icon: Icon }) => (
@@ -624,6 +625,8 @@ export default function Home() {
                       ? "Rateio CSC"
                       : accountingTab === "provisoes"
                         ? "Provisões"
+                        : accountingTab === "arrendamentos"
+                          ? "Arrendamentos"
                         : "Intercompany"
                 : activeModule.title}
             </h1>
@@ -845,6 +848,8 @@ export default function Home() {
               <ReceiptText />
             ) : accountingTab === "provisoes" ? (
               <Save />
+            ) : accountingTab === "arrendamentos" ? (
+              <HandCoins />
             ) : accountingTab === "rateio-csc" ? (
               <ArrowLeftRight />
             ) : (
@@ -856,6 +861,8 @@ export default function Home() {
                 ? "IRPJ/CSLL"
                 : accountingTab === "provisoes"
                   ? "Provisões"
+                : accountingTab === "arrendamentos"
+                  ? "Arrendamentos"
                 : accountingTab === "rateio-csc"
                   ? "Rateio CSC"
                   : "Intercompany"}
