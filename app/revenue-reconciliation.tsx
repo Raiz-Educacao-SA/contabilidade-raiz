@@ -480,7 +480,6 @@ export default function RevenueReconciliation({
         <article>
           <span>Receita contábil</span>
           <b>{cr ? brl.format(cRev) : "Aguardando"}</b>
-          <small>Grupo 3.1.1.01.01</small>
         </article>
         <article>
           <span>Desconto fiscal × contábil</span>
