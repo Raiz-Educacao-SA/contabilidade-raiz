@@ -416,8 +416,8 @@ export default function RevenueReconciliation({
     const audit = XLSX.utils.aoa_to_sheet([
       ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
       ["Etapa", "Regra", "Resultado", "Observação"],
-      ["1", "Atualizar base fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
-      ["2", "Atualizar Base TOTVS", `${c.length} lançamento(s) carregado(s)`, "Grupo contábil parametrizado na API"],
+      ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
+      ["2", "Atualizar base Contábil", `${c.length} lançamento(s) carregado(s)`, "Grupo contábil parametrizado na API"],
       ["3", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["4", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
       ["5", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
