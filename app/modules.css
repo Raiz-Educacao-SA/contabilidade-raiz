@@ -1397,11 +1397,11 @@
   overflow: hidden;
 }
 .revenue-head {
-  padding: 20px 24px;
+  padding: 10px 18px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
+  justify-content: flex-end;
+  gap: 10px;
   background: linear-gradient(120deg, #f3fbf7, #fff9ed);
   border-bottom: 1px solid var(--line);
 }
@@ -1414,20 +1414,24 @@
 }
 .revenue-actions {
   display: flex;
-  gap: 9px;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .revenue-actions button {
   border: 0;
-  border-radius: 10px;
-  padding: 11px 14px;
+  border-radius: 8px;
+  padding: 8px 11px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   color: #fff;
+  font-size: 10px;
   font-weight: 800;
 }
 .revenue-actions svg {
-  width: 17px;
+  width: 14px;
+  height: 14px;
 }
 .fiscal-button {
   background: #168657;

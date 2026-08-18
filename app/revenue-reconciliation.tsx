@@ -436,11 +436,6 @@ export default function RevenueReconciliation({
   return (
     <section className="panel revenue-panel">
       <div className="revenue-head">
-        <div>
-          <span className="eyebrow">CONCILIAÇÃO DE RECEITA</span>
-          <h2>{companyName}</h2>
-          <p>RA + competência {competenceLabel} · tolerância R$ 0,01</p>
-        </div>
         <div className="revenue-actions">
           <button
             className="fiscal-button"
@@ -448,7 +443,7 @@ export default function RevenueReconciliation({
             onClick={() => void update("fiscal")}
           >
             <FileCheck2 />
-            {loading === "fiscal" ? "Atualizando..." : "Atualizar base fiscal"}
+            {loading === "fiscal" ? "Atualizando..." : "Atualizar base Fiscal"}
           </button>
           <button
             className="accounting-button"
@@ -458,7 +453,7 @@ export default function RevenueReconciliation({
             <Calculator />
             {loading === "accounting"
               ? "Atualizando..."
-              : "Atualizar Base TOTVS"}
+              : "Atualizar base Contábil"}
           </button>
           <button
             className="export-revenue"
