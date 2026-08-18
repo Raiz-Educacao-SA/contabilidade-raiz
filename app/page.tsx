@@ -516,10 +516,12 @@ export default function Home() {
             ? "Voltar ao Financeiro"
             : "Voltar aos módulos"}
         </button>
-        <div className="current-module">
-          <ActiveModuleIcon />
-          <span>{activeModule.title}</span>
-        </div>
+        {selectedModule !== "contabil" && (
+          <div className="current-module">
+            <ActiveModuleIcon />
+            <span>{activeModule.title}</span>
+          </div>
+        )}
         {selectedModule === "bancaria" && (
           <nav>
             {(
