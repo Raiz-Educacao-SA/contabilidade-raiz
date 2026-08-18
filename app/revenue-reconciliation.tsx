@@ -30,6 +30,58 @@ const brl = new Intl.NumberFormat("pt-BR", {
     currency: "BRL",
   }),
   tol = 0.01;
+const excelMoney = 'R$ #,##0.00;[Red]-R$ #,##0.00';
+const excelPercent = '0.0%';
+const excelColors = {
+  navy: "14213D",
+  blue: "2F80C0",
+  paleBlue: "F3F8FE",
+  white: "FFFFFF",
+};
+type StyledCell = XLSX.CellObject & { s?: unknown };
+type SheetStyle = NonNullable<StyledCell["s"]>;
+function setCellStyle(worksheet: XLSX.WorkSheet, address: string, style: SheetStyle) {
+  const cell = worksheet[address] as StyledCell | undefined;
+  if (cell) cell.s = style;
+}
+function styleRange(
+  worksheet: XLSX.WorkSheet,
+  rowStart: number,
+  rowEnd: number,
+  colStart: number,
+  colEnd: number,
+  style: SheetStyle,
+) {
+  for (let row = rowStart; row <= rowEnd; row += 1) {
+    for (let col = colStart; col <= colEnd; col += 1) {
+      setCellStyle(worksheet, XLSX.utils.encode_cell({ r: row, c: col }), style);
+    }
+  }
+}
+function setNumberFormat(
+  worksheet: XLSX.WorkSheet,
+  rowStart: number,
+  rowEnd: number,
+  columns: number[],
+  format: string,
+) {
+  for (let row = rowStart; row <= rowEnd; row += 1) {
+    columns.forEach((column) => {
+      const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })] as XLSX.CellObject | undefined;
+      if (cell?.t === "n") cell.z = format;
+    });
+  }
+}
+function compactBar(percent: number) {
+  const safe = Math.max(0, Math.min(100, percent));
+  const filled = Math.round(safe / 5);
+  return `${"█".repeat(filled)}${"░".repeat(20 - filled)} ${safe.toFixed(1).replace(".", ",")}%`;
+}
+function compactPercentBar(percent: number) {
+  const safe = Math.max(0, Math.min(100, percent));
+  const filled = Math.round(safe / 5);
+  return `${"#".repeat(filled)}${".".repeat(20 - filled)} ${safe.toFixed(1).replace(".", ",")}%`;
+}
 export default function RevenueReconciliation({
   companyCode,
   companyName,
@@ -197,6 +249,190 @@ export default function RevenueReconciliation({
       `conciliacao-receita-${companyCode}-${competence}.xlsx`,
     );
   }
+  function exportAnalysis() {
+    const generatedAt = new Date().toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+    });
+    const mapRow = (x: (typeof rows)[number]) => ({
+      Status: x.status,
+      RA: x.ra,
+      Competência: x.competence,
+      Aluno: x.name,
+      "Status fiscal": x.fiscalStatus,
+      "Receita fiscal": x.fiscalRevenue,
+      "Receita contábil": x.accountingRevenue,
+      "Diferença receita": x.revenueDifference,
+      "Desconto fiscal": x.fiscalDiscount,
+      "Desconto contábil": x.accountingDiscount,
+      "Diferença desconto": x.discountDifference,
+      Impacto: x.impact,
+      Orientação: x.comment,
+      "Complemento contábil": x.complements,
+    });
+    const workbook = XLSX.utils.book_new();
+    const border = {
+      top: { style: "thin", color: { rgb: "D9E2EF" } },
+      bottom: { style: "thin", color: { rgb: "D9E2EF" } },
+      left: { style: "thin", color: { rgb: "D9E2EF" } },
+      right: { style: "thin", color: { rgb: "D9E2EF" } },
+    };
+    const titleStyle = {
+      font: { name: "Arial", sz: 13, bold: true, color: { rgb: excelColors.white } },
+      fill: { fgColor: { rgb: excelColors.navy } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border,
+    };
+    const sectionStyle = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: excelColors.white } },
+      fill: { fgColor: { rgb: excelColors.blue } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border,
+    };
+    const headerStyle = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: excelColors.white } },
+      fill: { fgColor: { rgb: excelColors.navy } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border,
+    };
+    const cardStyle = {
+      font: { name: "Arial", sz: 10, bold: true, color: { rgb: excelColors.navy } },
+      fill: { fgColor: { rgb: excelColors.paleBlue } },
+      alignment: { vertical: "center" },
+      border,
+    };
+    const statusCounts = [
+      { status: "Conciliado", count: rows.filter((x) => x.status === "Conciliado").length },
+      { status: "Divergente", count: rows.filter((x) => x.status === "Divergente").length },
+      { status: "Só no Fiscal", count: rows.filter((x) => x.status === "Só no Fiscal").length },
+      { status: "Só no Contábil", count: rows.filter((x) => x.status === "Só no Contábil").length },
+    ];
+    const netFiscal = fRev - fDisc;
+    const netAccounting = cRev - cDisc;
+    const dashboardRows: (string | number)[][] = [
+      ["CONCILIAÇÃO FATURAMENTO VS RECEITA EDUCACIONAL", "", "", "", "", "", "", ""],
+      ["Empresa", companyName, "Coligada", companyCode, "Competência", competenceLabel, "Gerado em", generatedAt],
+      ["", "", "", "", "", "", "", ""],
+      ["INDICADORES DA CONCILIAÇÃO", "", "", "", "", "", "", ""],
+      ["Total de RA analisados", rows.length, "Conciliados", reconciled, "Divergências", pending.length, "Taxa de conciliação", reconciledPercentage / 100],
+      ["", "", "", "", "", "", "", ""],
+      ["COMPARAÇÃO FINANCEIRA", "", "", "", "", "", "", ""],
+      ["Indicador", "Base fiscal", "Base TOTVS", "Diferença", "", "", "", ""],
+      ["Receitas de mensalidades", fRev, cRev, cRev - fRev, "", "", "", ""],
+      ["Bolsas e descontos", fDisc, cDisc, cDisc - fDisc, "", "", "", ""],
+      ["Receita líquida", netFiscal, netAccounting, netAccounting - netFiscal, "", "", "", ""],
+      ["", "", "", "", "", "", "", ""],
+      ["GRÁFICO COMPACTO DE CONCILIAÇÃO", "", "", "", "", "", "", ""],
+      ["Status", "Quantidade", "% sobre total", "Visual", "", "", "", ""],
+      ...statusCounts.map((item) => [
+        item.status,
+        item.count,
+        rows.length ? item.count / rows.length : 0,
+        compactPercentBar(rows.length ? (item.count / rows.length) * 100 : 0),
+        "",
+        "",
+        "",
+        "",
+      ]),
+      ["", "", "", "", "", "", "", ""],
+      ["LEITURA DAS BASES", "", "", "", "", "", "", ""],
+      ["Base fiscal", f.length, "Base contábil", c.length, "Chave", "RA + Competência", "Tolerância", "R$ 0,01"],
+    ];
+    const dashboard = XLSX.utils.aoa_to_sheet(dashboardRows);
+    dashboard["!cols"] = [
+      { wch: 28 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 24 },
+    ];
+    dashboard["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 7 } },
+      { s: { r: 6, c: 0 }, e: { r: 6, c: 7 } },
+      { s: { r: 12, c: 0 }, e: { r: 12, c: 7 } },
+      { s: { r: 19, c: 0 }, e: { r: 19, c: 7 } },
+    ];
+    styleRange(dashboard, 0, 0, 0, 7, titleStyle);
+    styleRange(dashboard, 3, 3, 0, 7, sectionStyle);
+    styleRange(dashboard, 6, 6, 0, 7, sectionStyle);
+    styleRange(dashboard, 12, 12, 0, 7, sectionStyle);
+    styleRange(dashboard, 19, 19, 0, 7, sectionStyle);
+    styleRange(dashboard, 4, 4, 0, 7, cardStyle);
+    styleRange(dashboard, 7, 7, 0, 3, headerStyle);
+    styleRange(dashboard, 13, 13, 0, 3, headerStyle);
+    setNumberFormat(dashboard, 4, 4, [7], excelPercent);
+    setNumberFormat(dashboard, 8, 10, [1, 2, 3], excelMoney);
+    setNumberFormat(dashboard, 14, 17, [2], excelPercent);
+    XLSX.utils.book_append_sheet(workbook, dashboard, "Dashboard");
+
+    const appendJsonSheet = (
+      sheetName: string,
+      data: Record<string, string | number>[],
+      columns: { wch: number }[],
+    ) => {
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      worksheet["!cols"] = columns;
+      const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
+      styleRange(worksheet, 0, 0, range.s.c, range.e.c, headerStyle);
+      setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [4, 5, 6, 7, 8, 9, 10, 11], excelMoney);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    };
+    const detailColumns = [
+      { wch: 16 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
+      { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
+    ];
+    appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
+    appendJsonSheet("Conciliados", rows.filter((x) => x.status === "Conciliado").map(mapRow), detailColumns);
+    appendJsonSheet("Resumo Geral", rows.map(mapRow), detailColumns);
+    appendJsonSheet(
+      "Receitas Contábil",
+      c.map((x) => ({
+        RA: x.ra,
+        Competência: competenceLabel,
+        Aluno: x.name,
+        Tipo: x.kind === "revenue" ? "Receita" : "Desconto",
+        Valor: x.value,
+        Estorno: x.isReversal ? "Sim" : "Não",
+        Complemento: x.complement,
+      })),
+      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 70 }],
+    );
+    appendJsonSheet(
+      "Receitas Fiscal",
+      f.map((x) => ({
+        RA: x.ra,
+        Competência: competenceLabel,
+        Aluno: x.name,
+        Status: x.status,
+        "Valor original": x.originalValue,
+        Bolsa: x.discount,
+        "Valor líquido": x.originalValue - x.discount,
+      })),
+      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }],
+    );
+    const audit = XLSX.utils.aoa_to_sheet([
+      ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
+      ["Etapa", "Regra", "Resultado", "Observação"],
+      ["1", "Atualizar base fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
+      ["2", "Atualizar Base TOTVS", `${c.length} lançamento(s) carregado(s)`, "Grupo contábil parametrizado na API"],
+      ["3", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
+      ["4", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
+      ["5", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
+    ]);
+    audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
+    audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+    styleRange(audit, 0, 0, 0, 3, titleStyle);
+    styleRange(audit, 1, 1, 0, 3, headerStyle);
+    XLSX.utils.book_append_sheet(workbook, audit, "Auditoria");
+    XLSX.writeFile(
+      workbook,
+      `${String(companyCode).padStart(2, "0")}_${companyName.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "")}_Faturamento_VS_Educacional_${competenceLabel.replace("/", ".")}.xlsx`,
+      { compression: true },
+    );
+  }
   return (
     <section className="panel revenue-panel">
       <div className="revenue-head">
@@ -223,6 +459,19 @@ export default function RevenueReconciliation({
             {loading === "accounting"
               ? "Atualizando..."
               : "Atualizar Base TOTVS"}
+          </button>
+          <button
+            className="export-revenue"
+            disabled={!fr || !cr || loading !== null}
+            onClick={exportAnalysis}
+            title={
+              fr && cr
+                ? "Exportar análise completa"
+                : "Atualize as duas bases antes de exportar"
+            }
+          >
+            <Download />
+            Exportar
           </button>
         </div>
       </div>
@@ -276,7 +525,7 @@ export default function RevenueReconciliation({
               <b>{pending.length} inconsistência(s) para tratamento</b>
               <span>Registros conciliados não aparecem na lista.</span>
             </div>
-            <button className="export-revenue" onClick={exportDivergences}>
+            <button className="export-revenue" onClick={exportAnalysis}>
               <Download />
               Exportar Excel
             </button>

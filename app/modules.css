@@ -1685,6 +1685,19 @@
   height: 15px;
   color: #fff;
 }
+.revenue-actions .export-revenue {
+  margin-left: 0;
+  background: #168657;
+}
+.export-revenue:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: #eef2f7;
+  color: #8a94a6;
+}
+.export-revenue:disabled svg {
+  color: #8a94a6;
+}
 .tax-panel {
   padding: 0;
   overflow: hidden;
