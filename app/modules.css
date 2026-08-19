@@ -150,16 +150,31 @@
   padding-top: 4px;
   border-top: 1px solid #28334e;
 }
-.accounting-nav button {
+.accounting-nav button,
+.accounting-nav .sidebar-link-button {
   width: 100%;
   font-size: 10px;
   font-weight: 750;
   line-height: 1.25;
   padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  color: #aeb7ca;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  text-decoration: none;
 }
-.accounting-nav button svg {
+.accounting-nav button svg,
+.accounting-nav .sidebar-link-button svg {
   width: 15px;
   height: 15px;
+}
+.accounting-nav .sidebar-link-button:hover {
+  color: #fff;
+  background: #222c48;
 }
 .accounting-nav button.active {
   box-shadow: inset 3px 0 #69beb9;

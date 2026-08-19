@@ -560,16 +560,29 @@ export default function Home() {
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
-            ).map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                className={accountingTab === id ? "active" : ""}
-                onClick={() => setAccountingTab(id)}
-              >
-                <Icon />
-                {label}
-              </button>
-            ))}
+            ).map(({ id, label, icon: Icon }) =>
+              id === "arrendamentos" ? (
+                <a
+                  key={id}
+                  href="https://arrendamentov2.vercel.app"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="sidebar-link-button"
+                >
+                  <Icon />
+                  {label}
+                </a>
+              ) : (
+                <button
+                  key={id}
+                  className={accountingTab === id ? "active" : ""}
+                  onClick={() => setAccountingTab(id)}
+                >
+                  <Icon />
+                  {label}
+                </button>
+              )
+            )}
           </nav>
         )}
         {selectedModule === "book" && (
