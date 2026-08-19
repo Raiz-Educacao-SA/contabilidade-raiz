@@ -72,6 +72,22 @@ type Module =
   | "contabil"
   | "book"
   | "cronograma";
+
+type ScheduleCompany = {
+  code: string;
+  name: string;
+};
+
+const accountingScheduleTasks: { id: AccountingTab; label: string; description: string }[] = [
+  { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
+  { id: "irpj-csll", label: "IRPJ/CSLL", description: "Apuração do imposto" },
+  { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
+  { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
+  { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
+  { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
+  { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
+];
+
 const modules = {
   bancaria: {
     title: "Conciliação Bancária",
@@ -952,6 +968,11 @@ export default function Home() {
             userId={session.user.id}
             userEmail={session.user.email ?? ""}
             userProfiles={userProfiles}
+            companies={companies.flatMap((item) =>
+              item.empresas
+                ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }]
+                : [],
+            )}
           />
         )}
         {selectedModule === "cronograma" && scheduleView === "historico" && (
@@ -1016,6 +1037,7 @@ function AreaHub({
   const closingYear = closingDate.slice(0, 4);
   const scheduleCompetence = `${closingYear}-${closingMonth}`;
   const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
+  const workflowModulesTotal = executionAreas.length + (allowedAreas.includes("book") ? 1 : 0);
 
   useEffect(() => {
     let active = true;
@@ -1069,6 +1091,9 @@ function AreaHub({
             <small>INÍCIO DO PROCESSO</small>
             <b>Cronograma de Fechamento</b>
             <span>Comece por aqui: acompanhe prazos, responsáveis e o andamento de todas as etapas.</span>
+          </span>
+          <span className="workflow-flag">
+            {completedAreas.length}/{workflowModulesTotal} flags
           </span>
           <div className="workflow-date">
             <span>Mês/Ano do fechamento</span>
@@ -1227,7 +1252,7 @@ type ScheduleHistoryRow = {
   criado_em: string;
 };
 
-function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[] }) {
+function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles, companies }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[]; companies: ScheduleCompany[] }) {
   const scheduleCompetence = `${year}-${String(month).padStart(2, "0")}`;
   const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
@@ -1238,6 +1263,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     { key: "compras", name: "Módulo Compras", sector: "Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
     { key: "financeiro", name: "Módulo Financeiro", sector: "Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
     { key: "folha", name: "Módulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
+    { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Concluir apurações e obrigações fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "D+6", icon: FileSpreadsheet },
     { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
     { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Disponibilizar o produto final do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
   ];
@@ -1250,6 +1276,16 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const accountingDetails = confirmations
     .filter((item) => item.modulo.startsWith("contabil:") && item.status === "concluido")
     .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
+  const canConfirmSector = (sector: string) =>
+    userProfiles.includes("administrador") || (
+      sector === "Financeiro" ? userProfiles.includes("financeiro") :
+      sector === "Compras" ? userProfiles.includes("compras") :
+      sector === "Fiscal" ? userProfiles.includes("fiscal") :
+      sector === "Folha de Pagamento" ? userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") :
+      userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil")
+    );
+  const isDone = (modulo: string) => confirmations.some((item) => item.modulo === modulo && item.status === "concluido");
+  const companyLabel = (company: ScheduleCompany) => `${company.code} — ${company.name}`;
 
   useEffect(() => {
     let active = true;
@@ -1271,14 +1307,14 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     return () => { active = false; };
   }, [scheduleCompetence]);
 
-  async function toggleStage(stage: (typeof stages)[number], checked: boolean) {
-    setConfirmingModule(stage.key);
+  async function saveScheduleItem(item: { key: string; sector: string; label: string }, checked: boolean) {
+    setConfirmingModule(item.key);
     setScheduleError("");
     const confirmedAt = new Date().toISOString();
     const { error } = await supabase.from("cronograma_entregas").upsert({
       competencia: scheduleCompetence,
-      modulo: stage.key,
-      setor: stage.sector,
+      modulo: item.key,
+      setor: item.sector,
       status: checked ? "concluido" : "pendente",
       confirmado_por: userId,
       confirmado_email: userEmail,
@@ -1289,19 +1325,31 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     } else {
       const { error: historyError } = await supabase.from("cronograma_historico").insert({
         competencia: scheduleCompetence,
-        modulo: stage.key,
-        setor: stage.sector,
+        modulo: item.key,
+        setor: item.sector,
         acao: checked ? "liberado" : "reaberto",
         usuario_id: userId,
         usuario_email: userEmail,
       });
       if (historyError) setScheduleError("O OK foi atualizado, mas o histórico não pôde ser registrado.");
       setConfirmations((current) => [
-        ...current.filter((item) => item.modulo !== stage.key),
-        { modulo: stage.key, setor: stage.sector, status: checked ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt },
+        ...current.filter((currentItem) => currentItem.modulo !== item.key),
+        { modulo: item.key, setor: item.sector, status: checked ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt },
       ]);
     }
     setConfirmingModule("");
+  }
+
+  async function toggleStage(stage: (typeof stages)[number], checked: boolean) {
+    await saveScheduleItem({ key: stage.key, sector: stage.sector, label: stage.name }, checked);
+  }
+
+  async function toggleAccountingTask(task: (typeof accountingScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
+    await saveScheduleItem({
+      key: `contabil:${task.id}:${company.code}`,
+      sector: `Contabilidade · ${task.label} · ${companyLabel(company)}`,
+      label: `${task.label} · ${companyLabel(company)}`,
+    }, checked);
   }
 
   return (
@@ -1325,18 +1373,14 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
       {scheduleError && <div className="schedule-error">{scheduleError}</div>}
 
-      <div className="schedule-stages">
+      <div className="schedule-dashboard-layout">
+        <div className="schedule-stages">
         {stages.map((stage, index) => {
           const Icon = stage.icon;
           const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
           const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
           const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
-          const canConfirm = userProfiles.includes("administrador") || (
-            stage.sector === "Financeiro" ? userProfiles.includes("financeiro") :
-            stage.sector === "Compras" ? userProfiles.includes("compras") :
-            stage.sector === "Folha de Pagamento" ? userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") :
-            userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil")
-          );
+          const canConfirm = canConfirmSector(stage.sector);
           return (
             <article key={stage.name} className={`${index === stages.length - 1 ? "schedule-final-stage" : ""} ${confirmation ? "schedule-stage-done" : ""}`}>
               <span className="schedule-stage-icon"><Icon /></span>
@@ -1370,6 +1414,75 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
             </article>
           );
         })}
+        </div>
+
+        <aside className="schedule-module-panel" aria-label="Lista de flags por módulo">
+          <header>
+            <div>
+              <span>FLAGS DO FECHAMENTO</span>
+              <b>Lista por módulo</b>
+            </div>
+            <small>{confirmations.filter((item) => item.status === "concluido").length} OK</small>
+          </header>
+
+          <div className="schedule-module-list">
+            {stages.map((stage) => {
+              const Icon = stage.icon;
+              const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
+              return (
+                <div key={`panel-${stage.key}`} className={`schedule-module-card ${confirmation ? "is-done" : ""}`}>
+                  <span><Icon /></span>
+                  <div>
+                    <b>{stage.name}</b>
+                    <small>{confirmation ? "Liberado" : "Pendente"}</small>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="schedule-accounting-checklist">
+            <header>
+              <div>
+                <span>MÓDULO CONTÁBIL</span>
+                <b>Tarefas por empresa</b>
+              </div>
+              <small>{companies.length} empresa(s)</small>
+            </header>
+            {accountingScheduleTasks.map((task) => {
+              const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length;
+              return (
+                <details key={task.id} className="schedule-accounting-task" open={task.id === "pis-cofins"}>
+                  <summary>
+                    <span>
+                      <b>{task.label}</b>
+                      <small>{task.description}</small>
+                    </span>
+                    <em>{doneCount}/{companies.length}</em>
+                  </summary>
+                  <div className="schedule-company-list">
+                    {companies.map((company) => {
+                      const modulo = `contabil:${task.id}:${company.code}`;
+                      const checked = isDone(modulo);
+                      const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
+                      return (
+                        <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled}
+                            onChange={(event) => void toggleAccountingTask(task, company, event.target.checked)}
+                          />
+                          <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        </aside>
       </div>
     </section>
   );
@@ -1399,13 +1512,17 @@ function ClosingHistory() {
   const moduleNames: Record<string, string> = {
     compras: "Módulo Compras",
     financeiro: "Módulo Financeiro",
+    fiscal: "Módulo Fiscal",
     folha: "Módulo Folha de Pagamento",
     contabil: "Módulo Contábil",
     book: "Book Contábil",
   };
   const moduleLabel = (modulo: string) => {
-    if (modulo.startsWith("contabil:pis-cofins")) return "PIS e COFINS por empresa";
-    if (modulo.startsWith("contabil:")) return "Item do Módulo Contábil";
+    if (modulo.startsWith("contabil:")) {
+      const [, taskId, companyCode] = modulo.split(":");
+      const task = accountingScheduleTasks.find((item) => item.id === taskId);
+      return `${task?.label ?? "Item do Módulo Contábil"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
+    }
     return moduleNames[modulo] ?? modulo;
   };
 
