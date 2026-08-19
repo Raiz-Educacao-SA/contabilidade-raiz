@@ -102,6 +102,9 @@
 .module-parcelamentos .module-icon {
   background: #69beb9;
 }
+.module-fiscal .module-icon {
+  background: #2f80ed;
+}
 .module-copy {
   display: flex;
   flex-direction: column;
@@ -1184,16 +1187,19 @@
   height: 62px;
 }
 .hub-brand h1 {
-  font-size: clamp(27px, 3vw, 38px);
+  font-size: clamp(24px, 2.6vw, 33px);
   margin: 3px 0;
+}
+.hub-brand p {
+  font-size: 13px;
 }
 .module-grid {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
 }
 .module-card {
-  min-height: 225px;
-  padding: 20px;
+  min-height: 205px;
+  padding: 18px;
   border-radius: 18px;
 }
 .module-icon {
@@ -1210,14 +1216,14 @@
   margin-top: 22px;
 }
 .module-copy b {
-  font-size: 19px;
+  font-size: 17px;
 }
 .module-copy small {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.4;
 }
 .module-enter {
-  font-size: 12px;
+  font-size: 11px;
 }
 .module-enter svg {
   width: 16px;

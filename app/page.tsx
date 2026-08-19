@@ -66,6 +66,7 @@ type Module =
   | "emprestimos"
   | "parcelamentos"
   | "receita"
+  | "fiscal"
   | "compras"
   | "folha"
   | "contabil"
@@ -93,6 +94,12 @@ const modules = {
     description:
       "Receitas reconhecidas, recebimentos, baixas e diferenças por empresa.",
     icon: TrendingUp,
+  },
+  fiscal: {
+    title: "Módulo Fiscal",
+    description:
+      "Apurações fiscais, obrigações e conferências tributárias.",
+    icon: FileSpreadsheet,
   },
   compras: {
     title: "Compras",
@@ -1138,6 +1145,7 @@ function FinancialHub({
   const financialIds: Module[] = [
     "bancaria",
     "receita",
+    "fiscal",
     "emprestimos",
     "parcelamentos",
   ];
