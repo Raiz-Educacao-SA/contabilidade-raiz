@@ -60,7 +60,7 @@ type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "arrendamentos";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
-type Area = "financeiro" | "compras" | "folha" | "contabil" | "book" | "cronograma";
+type Area = "financeiro" | "fiscal" | "compras" | "folha" | "contabil" | "book" | "cronograma";
 type Module =
   | "bancaria"
   | "emprestimos"
@@ -140,6 +140,7 @@ const areas = {
       "Conciliações bancárias, receitas, empréstimos, parcelamentos e controles financeiros.",
     icon: WalletCards,
   },
+  fiscal: { ...modules.fiscal },
   compras: { ...modules.compras, title: "Módulo Compras" },
   folha: { ...modules.folha, title: "Módulo Folha de Pagamento" },
   contabil: { ...modules.contabil, title: "Módulo Contábil" },
@@ -214,10 +215,11 @@ export default function Home() {
   const userProfiles = [...new Set(companies.map((item) => item.perfil.trim().toLowerCase()))];
   const isAdministrator = userProfiles.includes("administrador");
   const allowedAreas: Area[] = isAdministrator
-    ? ["financeiro", "compras", "folha", "contabil", "book", "cronograma"]
+    ? ["financeiro", "fiscal", "compras", "folha", "contabil", "book", "cronograma"]
     : [
         "cronograma",
         ...(userProfiles.includes("financeiro") ? ["financeiro" as Area] : []),
+        ...(userProfiles.includes("fiscal") ? ["fiscal" as Area] : []),
         ...(userProfiles.includes("compras") ? ["compras" as Area] : []),
         ...(userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") ? ["folha" as Area] : []),
         ...(userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil") ? ["contabil" as Area, "book" as Area] : []),
@@ -1004,7 +1006,7 @@ function AreaHub({
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
-  const executionAreas: Area[] = ["compras", "financeiro", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
+  const executionAreas: Area[] = ["compras", "financeiro", "fiscal", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
   const [completedAreas, setCompletedAreas] = useState<string[]>([]);
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
@@ -1145,7 +1147,6 @@ function FinancialHub({
   const financialIds: Module[] = [
     "bancaria",
     "receita",
-    "fiscal",
     "emprestimos",
     "parcelamentos",
   ];

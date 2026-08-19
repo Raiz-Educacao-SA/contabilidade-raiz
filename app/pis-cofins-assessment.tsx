@@ -96,6 +96,7 @@ type AnnualFeeAllocationRow = RevenueRow & {
   entryId: string;
   document: string;
   sourceSystem: string;
+  allocationType?: string;
   date: string;
   reduced: number;
   account: string;
@@ -804,6 +805,7 @@ export default function PisCofinsAssessment({
         Competência: competenceLabel,
         Data: row.date,
         Conta: row.account,
+        "Tipo de rateio": row.allocationType || "Rateio RM Saldus",
         Descrição: row.service,
         Classificação: row.regime,
         "Valor bruto": row.grossRevenue,
@@ -1327,7 +1329,7 @@ export default function PisCofinsAssessment({
       ["Outras Receitas", "Origem", "Movimentos mensais das contas parametrizadas na Base contas, consultados no razão contábil do TOTVS para a empresa e filiais selecionadas.", "TOTVS RM Contábil"],
       ["Outras Receitas", "Classificação", "Para empresas no Lucro Real: receitas financeiras são não cumulativas a 0,65% de PIS e 4,00% de COFINS; demais receitas parametrizadas são não cumulativas a 1,65% e 7,60%. Itens sem regra permanecem em branco e não entram no cálculo.", "Decreto nº 8.426/2015 e parametrização interna"],
       ["Outras Receitas", "Entrega desta exportação", `${filteredOtherRevenueRows.length} lançamento(s); base tributável ${brl.format(otherRevenueTotals.taxBase)}; PIS ${brl.format(otherRevenueTotals.pis)}; COFINS ${brl.format(otherRevenueTotals.cofins)}.`, "Dados da competência exportada"],
-      ["Rateios Anuidades", "Origem e tratamento", "Lançamentos contábeis RAT-* gerados no RM Saldus. São classificados linha a linha pela mesma matriz de serviços do faturamento.", "TOTVS RM Contábil"],
+      ["Rateios Anuidades", "Origem e tratamento", "Lançamentos contábeis RAT-* gerados no RM Saldus e lançamentos de receita com descrição RATEIO GERADO PELA FV. São classificados linha a linha pela mesma matriz de serviços do faturamento.", "TOTVS RM Contábil"],
       ["Rateios Anuidades", "Entrega desta exportação", `${filteredAnnualFeeRows.length} lançamento(s); base líquida ${brl.format(annualFeeTotals.netRevenue)}; PIS ${brl.format(annualFeeTotals.pis)}; COFINS ${brl.format(annualFeeTotals.cofins)}.`, "Dados da competência exportada"],
       ["Notas Canceladas", "Origem", "Planilha.NET 37; consulta METTA.100, codColigada técnico 0, aplicação C, título NOTAS MUNICIPAIS CANCELADAS.", "TOTVS RM"],
       ["Notas Canceladas", "Tratamento", "As notas são classificadas como cumulativas ou não cumulativas pelo serviço e seus valores são deduzidos da apuração consolidada.", "Regra operacional Contabilidade Raiz"],
@@ -1452,6 +1454,7 @@ export default function PisCofinsAssessment({
         "ID lançamento": row.entryId,
         Documento: row.document,
         Sistema: row.sourceSystem,
+        "Tipo de rateio": row.allocationType || "Rateio RM Saldus",
         Complemento: row.complement,
         "Centro de custo": row.costCenter,
         "Valor bruto": row.grossRevenue,
@@ -1885,7 +1888,7 @@ export default function PisCofinsAssessment({
       </section>
       <section className={`tax-secondary-section ${annualFeeVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
-          <div><b>Rateios Anuidades</b><span>RM Contábil · lançamentos RAT-* gerados no RM Saldus</span></div>
+          <div><b>Rateios Anuidades</b><span>RM Contábil · RAT-* e Rateio Gerado Pela FV em receitas</span></div>
           <button
             className={annualFeeLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
             disabled={annualFeeLoading || !companyCode}
@@ -1906,11 +1909,11 @@ export default function PisCofinsAssessment({
         {!annualFeeLoaded ? (
           <div className="tax-source-empty"><Calculator /><span>Atualize para localizar os lançamentos contábeis de rateio de anuidades da competência.</span></div>
         ) : annualFeeRows.length === 0 ? (
-          <div className="tax-source-empty"><Calculator /><b>Sem rateios na competência</b><span>Nenhum lançamento RAT-* de anuidades foi encontrado no módulo Contábil.</span></div>
+          <div className="tax-source-empty"><Calculator /><b>Sem rateios na competência</b><span>Nenhum lançamento RAT-* ou Rateio Gerado Pela FV foi encontrado no módulo Contábil.</span></div>
         ) : (
           <>
             <div className="tax-other-summary">
-              <article><span>Lançamentos</span><b>{annualFeeRows.length}</b><small>RM Saldus · RAT-*</small></article>
+              <article><span>Lançamentos</span><b>{annualFeeRows.length}</b><small>RAT-* + Rateio FV</small></article>
               <article><span>Valor bruto</span><b>{brl.format(annualFeeTotals.grossRevenue)}</b></article>
               <article><span>Descontos</span><b>{brl.format(annualFeeTotals.discounts)}</b></article>
               <article><span>Base tributável</span><b>{brl.format(annualFeeTotals.netRevenue)}</b></article>
@@ -1920,12 +1923,12 @@ export default function PisCofinsAssessment({
             </div>
             <div className="table-wrap tax-other-table">
               <table>
-                <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Descrição</th><th>Classificação</th><th>Valor bruto</th><th>Desconto</th><th>Base tributável</th><th>Alíquota PIS</th><th>PIS</th><th>Alíquota COFINS</th><th>COFINS</th><th>ID lançamento</th><th>Documento</th><th>Complemento</th></tr></thead>
+                <thead><tr><th>Data</th><th>Filial</th><th>Cód. reduzido</th><th>Conta</th><th>Tipo de rateio</th><th>Descrição</th><th>Classificação</th><th>Valor bruto</th><th>Desconto</th><th>Base tributável</th><th>Alíquota PIS</th><th>PIS</th><th>Alíquota COFINS</th><th>COFINS</th><th>ID lançamento</th><th>Documento</th><th>Complemento</th></tr></thead>
                 <tbody>{filteredAnnualFeeRows.map((row) => {
                   const rate = row.regime ? rates[row.regime] : null;
-                  return <tr key={`${row.entryId}-${row.account}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.service}</td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td>{brl.format(row.netRevenue)}</td><td>{rate ? `${(rate.pis * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? `${(rate.cofins * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td><td>{row.entryId}</td><td>{row.document}</td><td>{row.complement}</td></tr>;
+                  return <tr key={`${row.entryId}-${row.account}`}><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.branch}</td><td>{row.reduced}</td><td>{row.account}</td><td>{row.allocationType || "Rateio RM Saldus"}</td><td>{row.service}</td><td>{row.regime ? <span className="tax-badge">{row.regime}</span> : ""}</td><td>{brl.format(row.grossRevenue)}</td><td>{brl.format(row.discounts)}</td><td>{brl.format(row.netRevenue)}</td><td>{rate ? `${(rate.pis * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.pis) : ""}</td><td>{rate ? `${(rate.cofins * 100).toFixed(2).replace(".", ",")}%` : ""}</td><td>{rate ? brl.format(row.netRevenue * rate.cofins) : ""}</td><td>{row.entryId}</td><td>{row.document}</td><td>{row.complement}</td></tr>;
                 })}</tbody>
-                <tfoot><tr><td colSpan={6}>Subtotal da competência</td><td>{brl.format(annualFeeTotals.grossRevenue)}</td><td>{brl.format(annualFeeTotals.discounts)}</td><td>{brl.format(annualFeeTotals.netRevenue)}</td><td></td><td>{brl.format(annualFeeTotals.pis)}</td><td></td><td>{brl.format(annualFeeTotals.cofins)}</td><td colSpan={3}></td></tr></tfoot>
+                <tfoot><tr><td colSpan={7}>Subtotal da competência</td><td>{brl.format(annualFeeTotals.grossRevenue)}</td><td>{brl.format(annualFeeTotals.discounts)}</td><td>{brl.format(annualFeeTotals.netRevenue)}</td><td></td><td>{brl.format(annualFeeTotals.pis)}</td><td></td><td>{brl.format(annualFeeTotals.cofins)}</td><td colSpan={3}></td></tr></tfoot>
               </table>
             </div>
           </>

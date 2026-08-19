@@ -79,18 +79,24 @@ export async function GET(request: NextRequest) {
       const complement = tag(record, "COMPLEMENTO");
       const account = tag(record, "CODCONTA");
       const value = number(tag(record, "VALOR"));
-      const signature = normalize(`${document} ${complement}`);
-      const isAllocation = normalize(sourceSystem).includes("RM SALDUS")
+      const description = tag(record, "DESCRICAO");
+      const revenueDescription = tag(record, "DESCRICAOCREDITO") || tag(record, "DESCCREDITO") || tag(record, "DESCRICAO_CREDITO");
+      const signature = normalize(`${document} ${description} ${revenueDescription} ${complement}`);
+      const isSaldusAllocation = normalize(sourceSystem).includes("RM SALDUS")
         && signature.includes("RATEIO")
         && (signature.includes("ANUIDADE") || signature.includes("COTA"))
         && account.startsWith("3.1.1.")
         && value < 0;
-      if (!isAllocation) return [];
+      const isFinancialRevenueAllocation = account.startsWith("3.1.1.")
+        && signature.includes("RATEIO GERADO PELA FV");
+      if (!isSaldusAllocation && !isFinancialRevenueAllocation) return [];
       const key = [tag(record, "CODCOLIGADA"), tag(record, "CODFILIAL"), tag(record, "IDLANCAMENTO"), account, value].join("|");
       if (seen.has(key)) return [];
       seen.add(key);
-      const service = tag(record, "DESCRICAO") || complement || "Rateio de anuidades";
+      const service = revenueDescription || description || complement || "Rateio de anuidades";
       const netRevenue = Math.abs(value);
+      const regime = classifyService(`${service} ${complement}`)
+        || (isFinancialRevenueAllocation && account.startsWith("3.1.1.01.01.") ? "Cumulativo" : "");
       return [{
         line: index + 1,
         company: tag(record, "CODCOLIGADA"),
@@ -98,6 +104,7 @@ export async function GET(request: NextRequest) {
         entryId: tag(record, "IDLANCAMENTO"),
         document,
         sourceSystem,
+        allocationType: isFinancialRevenueAllocation ? "Rateio FV em conta de receita" : "Rateio RM Saldus",
         date: tag(record, "DATA"),
         reduced: number(tag(record, "REDUZIDO")),
         account,
@@ -107,13 +114,13 @@ export async function GET(request: NextRequest) {
         grossRevenue: netRevenue,
         discounts: 0,
         netRevenue,
-        regime: classifyService(`${service} ${complement}`),
+        regime,
       }];
     }).sort((left, right) => left.branch.localeCompare(right.branch) || left.entryId.localeCompare(right.entryId));
 
     return NextResponse.json({
-      source: "TOTVS RM Contábil — METTA0909 / RM Saldus",
-      identification: "NOMESISTEMA=RM Saldus; DOCUMENTO=RAT-*; COMPLEMENTO contém RATEIO e ANUIDADE/COTA",
+      source: "TOTVS RM Contábil — METTA0909 / RM Saldus e Financeiro",
+      identification: "RAT-* do RM Saldus e RATEIO GERADO PELA FV em contas de receita 3.1.1.*",
       company,
       competence,
       recordsChecked: records.length,

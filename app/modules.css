@@ -382,6 +382,9 @@
 .area-financeiro .module-icon {
   background: #6554e8;
 }
+.area-fiscal .module-icon {
+  background: #2f80ed;
+}
 .area-compras .module-icon {
   background: #f18700;
 }
