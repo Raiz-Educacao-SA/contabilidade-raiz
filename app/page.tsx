@@ -157,6 +157,19 @@ const months = [
 const today = new Date();
 const defaultClosingDate = new Date(today.getFullYear(), today.getMonth() + 1, 10);
 const defaultClosingDateValue = `${defaultClosingDate.getFullYear()}-${String(defaultClosingDate.getMonth() + 1).padStart(2, "0")}-${String(defaultClosingDate.getDate()).padStart(2, "0")}`;
+const LEASE_APP_URL = "https://arrendamentov2.vercel.app";
+
+function buildLeaseAppUrl(currentSession: Session | null) {
+  const url = new URL(LEASE_APP_URL);
+  if (currentSession?.access_token && currentSession.refresh_token) {
+    url.hash = new URLSearchParams({
+      source: "contabilidade-raiz",
+      access_token: currentSession.access_token,
+      refresh_token: currentSession.refresh_token,
+    }).toString();
+  }
+  return url.toString();
+}
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
@@ -202,6 +215,10 @@ export default function Home() {
         ...(userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") ? ["folha" as Area] : []),
         ...(userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil") ? ["contabil" as Area, "book" as Area] : []),
       ];
+
+  function openLeaseApp() {
+    window.open(buildLeaseAppUrl(session), "_blank", "noreferrer");
+  }
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -254,6 +271,20 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    const source = hashParams.get("source");
+    if (source === "contabilidade-raiz" && accessToken && refreshToken) {
+      void supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ data, error }) => {
+          if (!active) return;
+          if (data.session) setSession(data.session);
+          if (error) setNotice("Não foi possível aproveitar sua sessão do Contabilidade Raiz. Entre novamente para continuar.");
+          window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}`);
+        });
+    }
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
       setSession(data.session);
@@ -562,16 +593,14 @@ export default function Home() {
               ] as const
             ).map(({ id, label, icon: Icon }) =>
               id === "arrendamentos" ? (
-                <a
+                <button
                   key={id}
-                  href="https://arrendamentov2.vercel.app"
-                  target="_blank"
-                  rel="noreferrer"
                   className="sidebar-link-button"
+                  onClick={openLeaseApp}
                 >
                   <Icon />
                   {label}
-                </a>
+                </button>
               ) : (
                 <button
                   key={id}
