@@ -1244,7 +1244,18 @@ export default function PisCofinsAssessment({
         ["TOTAL A RECOLHER", "", "", "", "", "", "", "", "", "", "", pisDue, cofinsDue, "", "", "", ""],
       ];
 
-      const worksheet = XLSX.utils.aoa_to_sheet(rows.map((row) => row.map(decodePacontText)));
+      const cleanPacontLabel = (value: string | number) => {
+        const decoded = decodePacontText(value);
+        if (typeof decoded !== "string") return decoded;
+        const upper = decoded.toLocaleUpperCase("pt-BR");
+        if (upper.startsWith("TRIBUTA")) return "Tributação:";
+        if (upper.startsWith("B) COMPOSI") && upper.includes("DOS")) return "B) Composição dos Créditos";
+        if (upper.startsWith("CR") && upper.length <= 16 && !upper.includes("COFINS")) return "Créditos";
+        if (upper.startsWith("BENS")) return "Bens serviços e demais créditos";
+        return decoded;
+      };
+
+      const worksheet = XLSX.utils.aoa_to_sheet(rows.map((row) => row.map(cleanPacontLabel)));
       worksheet["!cols"] = [
         { wch: 12 }, { wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
         { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 },
