@@ -10,6 +10,7 @@ import {
   Building2,
   CalendarDays,
   ChevronLeft,
+  ExternalLink,
   FileSpreadsheet,
   HandCoins,
   Landmark,
@@ -842,14 +843,32 @@ export default function Home() {
         {selectedModule === "contabil" && accountingTab === "rateio-csc" && (
           <CscAllocation key={competence} companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])} competence={competence} accessToken={session.access_token} />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && (
+        {selectedModule === "contabil" && accountingTab === "arrendamentos" && (
+          <section className="panel module-workspace accounting-workspace lease-bridge">
+            <HandCoins />
+            <span className="eyebrow">ROTINA INTEGRADA</span>
+            <h2>Arrendamentos</h2>
+            <p>
+              A rotina de arrendamentos está conectada ao projeto oficial
+              arrendamentov2 da Vercel da Raiz.
+            </p>
+            <a
+              className="primary lease-bridge-link"
+              href="https://arrendamentov2.vercel.app"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink />
+              Abrir arrendamentov2
+            </a>
+          </section>
+        )}
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "irpj-csll" ? (
               <ReceiptText />
             ) : accountingTab === "provisoes" ? (
               <Save />
-            ) : accountingTab === "arrendamentos" ? (
-              <HandCoins />
             ) : accountingTab === "rateio-csc" ? (
               <ArrowLeftRight />
             ) : (

@@ -260,6 +260,22 @@
   margin: 0 auto !important;
   line-height: 1.65;
 }
+.lease-bridge {
+  min-height: 320px;
+}
+.lease-bridge-link {
+  width: fit-content;
+  margin: 24px auto 0;
+  padding: 12px 18px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lease-bridge-link svg {
+  width: 18px;
+  height: 18px;
+}
 .coming-next {
   max-width: 660px;
   margin: 28px auto 0;
