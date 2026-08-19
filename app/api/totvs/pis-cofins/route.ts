@@ -68,11 +68,11 @@ async function query(parameters: string) {
   const user = process.env.TOTVS_WS_PRD_USER;
   const password = process.env.TOTVS_WS_PRD_PASSWORD;
   if (!user || !password) throw new Error("Credenciais técnicas do TOTVS não configuradas.");
-  // Planilha.NET 53 — sentença oficial "ANALISE NF COM CONTA".
-  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA.108090</codSentenca><codColigada>10</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  // Planilha.NET 2 — sentença oficial "ANALISE NF MENSALIDADES 1".
+  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA1308</codSentenca><codColigada>0</codColigada><codSistema>T</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
   const soap = await response.text();
-  if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 53.");
+  if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "Falha na consulta da Planilha.NET 2.");
   const result = decodeXml(tag(soap, "RealizarConsultaSQLResult"));
   return Array.from(result.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) => match[1]);
 }
@@ -91,13 +91,20 @@ export async function GET(request: NextRequest) {
     const sourceCompanyRecords = (await query(`CODCOLIGADA=${company};COMP_INI_D=${start};COMP_FIM_D=${end}`))
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company));
     const records = sourceCompanyRecords.filter((record) =>
-      recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence &&
+      recordCompetence(tag(record, "DTCOMPETENCIA") || tag(record, "MESDECOMPETENCIA") || tag(record, "COMPETENCIA") || tag(record, "DATAEMISSAO")) === competence &&
       (!requestedBranches.size || requestedBranches.has(tag(record, "CODFILIAL").trim())),
     );
     let ignoredCancelled = 0;
     const cancelledRows: Array<{ line: number; branch: string; service: string; grossRevenue: number; discounts: number; netRevenue: number; status: string }> = [];
     const rows = records.flatMap((record, index) => {
-      const fiscalStatus = normalize(tag(record, "STATUSNF") || tag(record, "STATUS"));
+      const fiscalStatus = normalize([
+        tag(record, "STATUSNF"),
+        tag(record, "STATUS"),
+        tag(record, "SITUACAO"),
+        tag(record, "TIPO_GERACAO"),
+        tag(record, "TIPOGERACAO"),
+        tag(record, "TIPO DE GERACAO"),
+      ].filter(Boolean).join(" "));
       if (fiscalStatus.includes("CANCELAD")) {
         ignoredCancelled += 1;
         cancelledRows.push({
@@ -107,7 +114,7 @@ export async function GET(request: NextRequest) {
           grossRevenue: number(tag(record, "VALORORIGINAL")),
           discounts: number(tag(record, "BOLSA")),
           netRevenue: number(tag(record, "VALORNF") || tag(record, "VLRNF")),
-          status: tag(record, "STATUSNF") || tag(record, "STATUS"),
+          status: tag(record, "STATUSNF") || tag(record, "STATUS") || tag(record, "TIPO_GERACAO") || tag(record, "TIPOGERACAO"),
         });
         return [];
       }
@@ -124,7 +131,7 @@ export async function GET(request: NextRequest) {
     }), { grossRevenue: 0, discounts: 0, netRevenue: 0 });
     const reconciliationDifference = totals.grossRevenue - totals.discounts - totals.netRevenue;
     if (Math.abs(reconciliationDifference) > 0.01) {
-      throw new Error(`A base da NET.53 não reconciliou para a coligada ${company} em ${competence}. Diferença: ${reconciliationDifference.toFixed(2)}.`);
+      throw new Error(`A base da Planilha.NET 2 não reconciliou para a coligada ${company} em ${competence}. Diferença: ${reconciliationDifference.toFixed(2)}.`);
     }
     return NextResponse.json({
       company,

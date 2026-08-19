@@ -113,8 +113,8 @@ Os resultados dos módulos Financeiro, Compras, Folha de Pagamento e Contábil d
 - A empresa selecionada permanece ao trocar de página.
 - O regime tributário é exibido dentro da área da empresa.
 - O processo contém as etapas Faturamento Mensal, Outras Receitas, Rateios Anuidades e Notas Canceladas.
-- A base de Faturamento Mensal utiliza a Planilha.NET 53 do módulo fiscal/faturamento, consulta técnica `METTA.108090`, aplicação `T`, título `ANALISE NF COM CONTA`.
-- A base tributável do faturamento é o campo `VLRNF`, respeitando empresa, competência e filiais selecionadas.
+- A base de Faturamento Mensal utiliza a Planilha.NET 2 do módulo Gestão de Estoque, Compras e Faturamento, consulta técnica `METTA1308`, aplicação `T`, título `ANALISE NF MENSALIDADES 1`, desconsiderando notas canceladas.
+- A base tributável do faturamento é o campo `VALORNF`, respeitando empresa, competência e filiais selecionadas.
 - Notas canceladas são desconsideradas do faturamento e tratadas em etapa própria.
 - A classificação é feita linha a linha pelo serviço/descrição, aplicando as regras cumulativas e não cumulativas definidas pela Contabilidade.
 - `Pré-Escolar` é classificado como cumulativo.

@@ -454,7 +454,7 @@ export default function PisCofinsAssessment({
       const payload = await response.json();
       if (!response.ok)
         throw new Error(
-          payload.error || "Falha ao consultar a Planilha.NET 53.",
+          payload.error || "Falha ao consultar a Planilha.NET 2.",
         );
       if (!payload.rows?.length)
         throw new Error(
@@ -747,7 +747,7 @@ export default function PisCofinsAssessment({
         Classificação: row.regime,
         "Receita bruta": row.grossRevenue,
         "Bolsas/Descontos": row.discounts,
-        "Valor líquido (VLRNF)": row.netRevenue,
+        "Valor líquido (VALORNF)": row.netRevenue,
         "Alíquota PIS": rate?.pis ?? 0,
         PIS: rate ? row.netRevenue * rate.pis : 0,
         "Alíquota COFINS": rate?.cofins ?? 0,
@@ -1322,10 +1322,10 @@ export default function PisCofinsAssessment({
       ["SEÇÃO", "ITEM", "PREMISSA / ENTREGA AUTOMÁTICA", "REFERÊNCIA"],
       ["Fluxo", "Filtros", "Empresa, ano, mês e uma ou várias filiais (1 a 15) determinam todas as consultas e cálculos do arquivo.", "Regra operacional Contabilidade Raiz"],
       ["Fluxo", "Persistência", "Cada etapa mantém a última apuração até o usuário acionar Limpar. Ocultar/Exibir altera somente a visualização.", "Regra operacional Contabilidade Raiz"],
-      ["Faturamento Mensal", "Origem", "Planilha.NET 53 do módulo Gestão de Estoque, Compras e Faturamento; consulta METTA.108090, aplicação T, título ANALISE NF COM CONTA.", "TOTVS RM"],
-      ["Faturamento Mensal", "Competência e base", "Considera somente a competência filtrada. A base tributável final é o campo VLRNF; notas canceladas são retiradas e tratadas na etapa própria.", "Regra operacional Contabilidade Raiz"],
+      ["Faturamento Mensal", "Origem", "Planilha.NET 2 do módulo Gestão de Estoque, Compras e Faturamento; consulta METTA1308, aplicação T, título ANALISE NF MENSALIDADES 1.", "TOTVS RM"],
+      ["Faturamento Mensal", "Competência e base", "Considera somente a competência filtrada. A base tributável final é o campo VALORNF; notas canceladas são retiradas e tratadas na etapa própria.", "Regra operacional Contabilidade Raiz"],
       ["Faturamento Mensal", "Classificação", "Classificação linha a linha pelo campo DESCRIÇÃO, usando SERVICO_ED como identificação do serviço quando disponibilizado pela consulta.", "Matriz aprovada pela Contabilidade"],
-      ["Faturamento Mensal", "Entrega desta exportação", `${filteredRows.length} linha(s); bruto ${brl.format(totals.grossRevenue)}; descontos ${brl.format(totals.discounts)}; base VLRNF ${brl.format(totals.nfBase)}.`, "Dados da competência exportada"],
+      ["Faturamento Mensal", "Entrega desta exportação", `${filteredRows.length} linha(s); bruto ${brl.format(totals.grossRevenue)}; descontos ${brl.format(totals.discounts)}; base VALORNF ${brl.format(totals.nfBase)}.`, "Dados da competência exportada"],
       ["Outras Receitas", "Origem", "Movimentos mensais das contas parametrizadas na Base contas, consultados no razão contábil do TOTVS para a empresa e filiais selecionadas.", "TOTVS RM Contábil"],
       ["Outras Receitas", "Classificação", "Para empresas no Lucro Real: receitas financeiras são não cumulativas a 0,65% de PIS e 4,00% de COFINS; demais receitas parametrizadas são não cumulativas a 1,65% e 7,60%. Itens sem regra permanecem em branco e não entram no cálculo.", "Decreto nº 8.426/2015 e parametrização interna"],
       ["Outras Receitas", "Entrega desta exportação", `${filteredOtherRevenueRows.length} lançamento(s); base tributável ${brl.format(otherRevenueTotals.taxBase)}; PIS ${brl.format(otherRevenueTotals.pis)}; COFINS ${brl.format(otherRevenueTotals.cofins)}.`, "Dados da competência exportada"],
@@ -1663,7 +1663,7 @@ export default function PisCofinsAssessment({
       </div>
       <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
       <div className="tax-section-heading">
-        <div><b>Faturamento Mensal</b><span>Planilha.NET 53 · ANÁLISE NF COM CONTA</span></div>
+        <div><b>Faturamento Mensal</b><span>Planilha.NET 2 · ANÁLISE NF MENSALIDADES 1</span></div>
         <button
           className={loaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
           disabled={loading || !companyCode}
@@ -1696,7 +1696,7 @@ export default function PisCofinsAssessment({
         <article>
           <span>Valor líquido</span>
           <b>{loaded ? brl.format(totals.nfBase) : "Aguardando"}</b>
-          <small>Soma de VLRNF</small>
+          <small>Soma de VALORNF</small>
         </article>
         <article>
           <span>PIS cumulativo</span>
@@ -1722,7 +1722,7 @@ export default function PisCofinsAssessment({
       {!loaded ? (
         <div className="tax-empty">
           <Calculator />
-          <b>Atualize a Planilha.NET 53</b>
+          <b>Atualize a Planilha.NET 2</b>
           <span>
             Cada linha será classificada pelo campo DESCRIÇÃO e pela
             competência.
@@ -1783,7 +1783,7 @@ export default function PisCofinsAssessment({
                   <th>Classificação</th>
                   <th>Valor bruto</th>
                   <th>Desconto</th>
-                  <th>Valor líquido (VLRNF)</th>
+                  <th>Valor líquido (VALORNF)</th>
                   <th>PIS</th>
                   <th>COFINS</th>
                 </tr>
@@ -1836,7 +1836,7 @@ export default function PisCofinsAssessment({
         </>
       )}
       <p className="tax-note">
-        Cálculo realizado exclusivamente sobre o campo VLRNF de cada linha da
+        Cálculo realizado exclusivamente sobre o campo VALORNF de cada linha da
         competência selecionada, antes de créditos, retenções e demais ajustes
         fiscais.
       </p>
