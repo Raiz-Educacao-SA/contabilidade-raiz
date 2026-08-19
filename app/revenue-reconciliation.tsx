@@ -8,6 +8,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 type F = {
   id: string;
   ra: string;
@@ -244,6 +245,7 @@ export default function RevenueReconciliation({
       { wch: 58 },
     ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Divergências");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(
       workbook,
       `conciliacao-receita-${companyCode}-${competence}.xlsx`,
@@ -427,6 +429,7 @@ export default function RevenueReconciliation({
     styleRange(audit, 0, 0, 0, 3, titleStyle);
     styleRange(audit, 1, 1, 0, 3, headerStyle);
     XLSX.utils.book_append_sheet(workbook, audit, "Auditoria");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(
       workbook,
       `${String(companyCode).padStart(2, "0")}_${companyName.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "")}_Faturamento_VS_Educacional_${competenceLabel.replace("/", ".")}.xlsx`,

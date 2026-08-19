@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 export type PayrollLotRow = {
   account: string;
@@ -473,5 +474,6 @@ export function buildPayrollAnalysisWorkbook(analysis: PayrollAnalysis, companyC
 
 export function exportPayrollAnalysis(analysis: PayrollAnalysis, companyCode: string, companyName: string, competence: string) {
   const workbook = buildPayrollAnalysisWorkbook(analysis, companyCode, companyName, competence);
+  applyRaizWorkbookStyle(workbook);
   XLSX.writeFile(workbook, `memoria-conferencia-folha-coligada-${companyCode}-${competence}.xlsx`);
 }

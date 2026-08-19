@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Calculator, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 const subscribeToDocument = () => () => {};
 const getActionsTarget = () => document.getElementById("pis-cofins-filter-actions");
@@ -497,6 +498,7 @@ export default function PisCofinsAssessment({
     const sheet = XLSX.utils.json_to_sheet(energyRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "IDMOV de origem": row.integrationKey, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor contábil": row.value, "Ticket Zeev": row.ticket?.id || "Não localizado", "Situação Zeev": row.ticket?.status || "Pendente", "Link Zeev": row.ticket?.link || "", "Documentos Zeev": row.ticket?.documents?.map((document) => document.url).join(" | ") || "" })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Energia");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `creditos-energia-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
   }
 
@@ -521,6 +523,7 @@ export default function PisCofinsAssessment({
     const sheet = XLSX.utils.json_to_sheet(leaseRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "IDMOV de origem": row.integrationKey, Origem: row.sourceSystem, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor débito": row.value })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Arrendamentos");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `creditos-arrendamentos-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
   }
 
@@ -756,6 +759,7 @@ export default function PisCofinsAssessment({
       (wch) => ({ wch }),
     );
     XLSX.utils.book_append_sheet(workbook, worksheet, "Apuração PIS COFINS");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(
       workbook,
       `pis-cofins-coligada-${companyCode}-${competence}.xlsx`,
@@ -768,6 +772,7 @@ export default function PisCofinsAssessment({
     const worksheet = XLSX.utils.json_to_sheet(rowsToExport);
     worksheet["!cols"] = Object.keys(rowsToExport[0]).map((key) => ({ wch: Math.min(38, Math.max(12, key.length + 2)) }));
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, fileName);
   }
 
@@ -1324,6 +1329,7 @@ export default function PisCofinsAssessment({
     if (annualFeeAllocations.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
     if (cancelled.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas Canceladas");
     XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
   }
 

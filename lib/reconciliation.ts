@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 export type BankRow = { id: string; date: Date; description: string; value: number };
 export type BankMetadata = { agency: string; account: string; period: string; name: string; openingBalance: number | null; closingBalance: number | null };
@@ -266,5 +267,6 @@ export function exportReport(rows: MatchRow[], name = "conciliacao") {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data), "Conciliacao");
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(data.filter((row) => row.Status !== "Conciliado")), "Todas_as_diferencas");
+  applyRaizWorkbookStyle(workbook);
   XLSX.writeFile(workbook, `${name}.xlsx`);
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { BarChart3, Download, FileSpreadsheet, RefreshCw, Search, Table2 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 type BalanceRow = {
   id: string;
@@ -155,6 +156,7 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.filter((item) => item.possibleError).map(row)), "Erros Contabeis");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.filter((item) => item.reversedAccount).map(row)), "Contas Viradas");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.map(row)), "Base Tratada");
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `${String(companyCode).padStart(2, "0")}_Analise_Balancete_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
 

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Building2, CheckCircle2, Download, RefreshCw, Search } from "lucide-react";
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 type CompanyOption = { code: string; name: string };
 type BalanceRow = { reduced: string; account: string; description: string; closingBalance: number };
@@ -244,6 +245,7 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows.filter((row) => row.Situação !== "Conciliado")), "Divergências");
     (["Mútuos", "Rateio CSC", "Almoxarifado", "Transações individuais"] as Nature[]).forEach((item) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows.filter((row) => row.Natureza === item)), item.slice(0, 31)));
+    applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `Intercompany_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
 

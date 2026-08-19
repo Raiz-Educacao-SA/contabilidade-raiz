@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Calculator, CheckCircle2, Download, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
+import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 type Company = { code: string; name: string };
 type Balance = { id?: string; reduced?: string; account: string; description?: string; movement: number; debit: number; credit: number };
@@ -178,6 +179,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, "Custos elegíveis": costPool, "Base proporcional": rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0), "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Total final": totals.final, Diferença: difference }]), "Resumo");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((x) => ({ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, Coligada: x.code, Empresa: x.name, Faturamento: x.revenue, Participação: x.share, Regra: x.rule, "Rateio calculado": x.calculated, Ajuste: x.adjustment, "Motivo do ajuste": x.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": x.finalValue }))), "Memória do rateio");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Etapa", "Critério", "Aplicação"], ...calculationCriteria]), "Critérios utilizados");
+    applyRaizWorkbookStyle(wb);
     XLSX.writeFile(wb, `Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   function exportAccounting() {
@@ -185,6 +187,7 @@ export default function CscAllocation({ companies, competence, accessToken }: { 
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, "Custos elegíveis": costPool, "Base proporcional": rows.filter((row) => row.rule === "Proporcional ao faturamento").reduce((sum, row) => sum + row.revenue, 0), "Rateio calculado": totals.calculated, Ajustes: totals.adjustment, "Rateio final": totals.final, Diferença: difference }]), "Resumo");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map((row) => ({ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, Coligada: row.code, Empresa: row.name, "Faturamento considerado": row.revenue, "Percentual no rateio": row.share, Regra: row.rule, "Rateio calculado": row.calculated, Ajuste: row.adjustment, "Motivo do ajuste": row.code === "25" && competence >= "2024-01" ? "Ajuste de multa IRPJ e CSLL" : "", "Rateio final": row.finalValue }))), "Memória de Cálculo");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(movementDetails.map((detail) => ({ Competência: competence, "Base TOTVS atualizada em": baseUpdateLabel, Coligada: detail.company, Empresa: detail.companyName, Conta: detail.account, Descrição: detail.description, Classificação: detail.classification, Débito: detail.debit, Crédito: detail.credit, Movimento: detail.movement, "Valor considerado": detail.considered }))), "Movimentos Considerados");
+    applyRaizWorkbookStyle(wb);
     XLSX.writeFile(wb, `Memoria_Calculo_Rateio_CSC_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
   return <section className="panel csc-panel">
