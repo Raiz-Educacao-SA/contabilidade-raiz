@@ -864,6 +864,8 @@ export default function Home() {
             taxRegime={getCompanyTaxRegime(company?.empresas?.codcoligada ?? "")}
             competence={competence}
             accessToken={session.access_token}
+            userId={session.user.id}
+            userEmail={session.user.email ?? ""}
           />
         )}
         {selectedModule === "folha" && (
@@ -1245,6 +1247,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
   const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const accountingDetails = confirmations
+    .filter((item) => item.modulo.startsWith("contabil:") && item.status === "concluido")
+    .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
 
   useEffect(() => {
     let active = true;
@@ -1337,6 +1342,13 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
               <span className="schedule-stage-icon"><Icon /></span>
               <div className="schedule-stage-copy">
                 <div><b>{stage.name}</b><span>Responsável: {stage.sector} · {stage.detail}</span></div>
+                {stage.key === "contabil" && accountingDetails.length > 0 && (
+                  <div className="schedule-accounting-details">
+                    {accountingDetails.map((item) => (
+                      <span key={item.modulo}>{item.setor.replace(/^Contabilidade · /, "")}</span>
+                    ))}
+                  </div>
+                )}
                 <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
                 <small>{confirmation
                   ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
@@ -1391,6 +1403,11 @@ function ClosingHistory() {
     contabil: "Módulo Contábil",
     book: "Book Contábil",
   };
+  const moduleLabel = (modulo: string) => {
+    if (modulo.startsWith("contabil:pis-cofins")) return "PIS e COFINS por empresa";
+    if (modulo.startsWith("contabil:")) return "Item do Módulo Contábil";
+    return moduleNames[modulo] ?? modulo;
+  };
 
   return (
     <section className="closing-history">
@@ -1407,7 +1424,7 @@ function ClosingHistory() {
             <tbody>{rows.map((row) => (
               <tr key={row.id}>
                 <td>{row.competencia.slice(5, 7)}/{row.competencia.slice(0, 4)}</td>
-                <td><b>{moduleNames[row.modulo] ?? row.modulo}</b></td>
+                <td><b>{moduleLabel(row.modulo)}</b></td>
                 <td>{row.setor}</td>
                 <td><span className={`history-action ${row.acao}`}>{row.acao === "liberado" ? "Liberou" : "Reabriu"}</span></td>
                 <td>{row.usuario_email}</td>

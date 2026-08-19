@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Calculator, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { Calculator, CheckCircle2, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import { supabase } from "@/lib/supabase";
 
 const subscribeToDocument = () => () => {};
 const getActionsTarget = () => document.getElementById("pis-cofins-filter-actions");
@@ -166,6 +167,22 @@ type EnergyCreditRow = {
   ticket: null | { id: string; status: string; link: string; name: string; matchScore: number; documents: { name: string; url: string }[] };
 };
 type LeaseCreditRow = Omit<EnergyCreditRow, "ticket">;
+type ConsolidatedTotals = {
+  cumulativePis: number;
+  cumulativeCofins: number;
+  nonCumulativePis: number;
+  nonCumulativeCofins: number;
+};
+type FinalizedSnapshot = {
+  finalized: true;
+  finalizedAt: string;
+  finalizedBy: string;
+  companyCode: string;
+  companyName: string;
+  competence: string;
+  branches: string[];
+  totals: ConsolidatedTotals;
+};
 
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -191,12 +208,16 @@ export default function PisCofinsAssessment({
   taxRegime,
   competence,
   accessToken,
+  userId,
+  userEmail,
 }: {
   companyCode: string;
   companyName: string;
   taxRegime: string;
   competence: string;
   accessToken: string;
+  userId: string;
+  userEmail: string;
 }) {
   const [rows, setRows] = useState<RevenueRow[]>([]);
   const [cancelledRows, setCancelledRows] = useState<CancelledRow[]>([]);
@@ -236,6 +257,7 @@ export default function PisCofinsAssessment({
   const [annualFeeBranches, setAnnualFeeBranches] = useState<string[]>([]);
   const [cancelledBranches, setCancelledBranches] = useState<string[]>([]);
   const [requestedBranches, setRequestedBranches] = useState<string[]>([]);
+  const [finalizedSnapshot, setFinalizedSnapshot] = useState<FinalizedSnapshot | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [restoredStorageKey, setRestoredStorageKey] = useState("");
   const [error, setError] = useState("");
@@ -245,8 +267,10 @@ export default function PisCofinsAssessment({
     getServerActionsTarget,
   );
   const competenceLabel = competence.split("-").reverse().join("/");
-  const completeAssessmentReady = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
-  const hasAssessment = loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded || energyLoaded;
+  const canFinalizeAssessment = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
+  const completeAssessmentReady = canFinalizeAssessment || Boolean(finalizedSnapshot);
+  const hasAssessment = Boolean(finalizedSnapshot) || loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded || energyLoaded || leaseLoaded;
+  const isFinalized = Boolean(finalizedSnapshot);
   const storageKey = `pis-cofins-assessment:${companyCode}:${competence}`;
   const branchQuery = requestedBranches.length
     ? `&branches=${encodeURIComponent(requestedBranches.join(","))}`
@@ -301,6 +325,7 @@ export default function PisCofinsAssessment({
         setAnnualFeeBranches(restoredBranches(assessment?.annualFeeBranches, restoredAnnualFeeRows));
         setCancelledBranches(restoredBranches(assessment?.cancelledBranches, restoredCancelledRows));
         setRequestedBranches(Array.isArray(assessment?.requestedBranches) ? assessment.requestedBranches.map(String) : []);
+        setFinalizedSnapshot(assessment?.finalizedSnapshot && typeof assessment.finalizedSnapshot === "object" ? assessment.finalizedSnapshot as FinalizedSnapshot : null);
       } catch {
         setRows([]);
         setCancelledRows([]);
@@ -319,6 +344,7 @@ export default function PisCofinsAssessment({
         setZeevMessage("");
         setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
         setRequestedBranches([]);
+        setFinalizedSnapshot(null);
       } finally {
         setRestoredStorageKey(storageKey);
         setStorageReady(true);
@@ -354,6 +380,7 @@ export default function PisCofinsAssessment({
       zeevMessage,
       monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
       requestedBranches,
+      finalizedSnapshot,
     };
     void writeAssessmentCache(storageKey, assessment).catch(() => {
       console.warn("Não foi possível salvar a última apuração de PIS/COFINS no cache local.");
@@ -380,6 +407,7 @@ export default function PisCofinsAssessment({
         zeevMessage,
         monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
         requestedBranches,
+        finalizedAt: finalizedSnapshot?.finalizedAt ?? "",
       }));
     } catch {
       try {
@@ -404,14 +432,16 @@ export default function PisCofinsAssessment({
           zeevMessage,
           monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches,
           requestedBranches,
+          finalizedAt: finalizedSnapshot?.finalizedAt ?? "",
         }));
       } catch {
         // O localStorage é apenas um marcador leve. A base completa fica no IndexedDB.
       }
     }
-  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches]);
+  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches, finalizedSnapshot]);
 
   function clearAssessment() {
+    const snapshotToClear = finalizedSnapshot;
     setRows([]);
     setCancelledRows([]);
     setLoaded(false);
@@ -428,6 +458,7 @@ export default function PisCofinsAssessment({
     setLeaseLoaded(false);
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     setRequestedBranches([]);
+    setFinalizedSnapshot(null);
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
@@ -438,9 +469,31 @@ export default function PisCofinsAssessment({
     setError("");
     window.localStorage.removeItem(storageKey);
     void deleteAssessmentCache(storageKey);
+    if (snapshotToClear) {
+      const modulo = `contabil:pis-cofins:${companyCode}`;
+      const setor = `Contabilidade · PIS e COFINS · ${companyCode} — ${companyName}`;
+      void supabase.from("cronograma_entregas").upsert({
+        competencia: competence,
+        modulo,
+        setor,
+        status: "pendente",
+        confirmado_por: userId,
+        confirmado_email: userEmail,
+        confirmado_em: new Date().toISOString(),
+      }, { onConflict: "competencia,modulo" });
+      void supabase.from("cronograma_historico").insert({
+        competencia: competence,
+        modulo,
+        setor,
+        acao: "reaberto",
+        usuario_id: userId,
+        usuario_email: userEmail,
+      });
+    }
   }
 
   async function update() {
+    if (isFinalized) return;
     setLoading(true);
     setError("");
     try {
@@ -477,6 +530,7 @@ export default function PisCofinsAssessment({
   }
 
   async function updateEnergyCredits() {
+    if (isFinalized) return;
     setEnergyLoading(true);
     setEnergyError("");
     setZeevMessage("");
@@ -504,6 +558,7 @@ export default function PisCofinsAssessment({
   }
 
   async function updateLeaseCredits() {
+    if (isFinalized) return;
     setLeaseLoading(true);
     setLeaseError("");
     try {
@@ -734,6 +789,50 @@ export default function PisCofinsAssessment({
     nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis + annualFeeTotals.nonCumulativePis - cancelledTotals.nonCumulativePis,
     nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins + annualFeeTotals.nonCumulativeCofins - cancelledTotals.nonCumulativeCofins,
   }), [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals]);
+  const displayedConsolidatedTotals = finalizedSnapshot?.totals ?? consolidatedTotals;
+
+  async function finalizeAssessment() {
+    if (!canFinalizeAssessment || finalizedSnapshot) return;
+    const finalizedAt = new Date().toISOString();
+    const snapshot: FinalizedSnapshot = {
+      finalized: true,
+      finalizedAt,
+      finalizedBy: userEmail,
+      companyCode,
+      companyName,
+      competence,
+      branches: requestedBranches,
+      totals: consolidatedTotals,
+    };
+    setFinalizedSnapshot(snapshot);
+    setError("");
+
+    const modulo = `contabil:pis-cofins:${companyCode}`;
+    const setor = `Contabilidade · PIS e COFINS · ${companyCode} — ${companyName}`;
+    const { error: scheduleError } = await supabase.from("cronograma_entregas").upsert({
+      competencia: competence,
+      modulo,
+      setor,
+      status: "concluido",
+      confirmado_por: userId,
+      confirmado_email: userEmail,
+      confirmado_em: finalizedAt,
+    }, { onConflict: "competencia,modulo" });
+
+    if (scheduleError) {
+      setError("Apuração finalizada nesta tela, mas o Cronograma não pôde ser atualizado agora.");
+      return;
+    }
+
+    await supabase.from("cronograma_historico").insert({
+      competencia: competence,
+      modulo,
+      setor,
+      acao: "liberado",
+      usuario_id: userId,
+      usuario_email: userEmail,
+    });
+  }
 
   function exportExcel() {
     const data = filteredRows.map((row) => {
@@ -843,6 +942,7 @@ export default function PisCofinsAssessment({
   }
 
   async function updateOtherRevenues() {
+    if (isFinalized) return;
     setOtherRevenueLoading(true);
     setOtherRevenueError("");
     try {
@@ -862,6 +962,7 @@ export default function PisCofinsAssessment({
   }
 
   async function updateAnnualFeeAllocations() {
+    if (isFinalized) return;
     setAnnualFeeLoading(true);
     setAnnualFeeError("");
     try {
@@ -881,6 +982,7 @@ export default function PisCofinsAssessment({
   }
 
   async function updateCancelledInvoices() {
+    if (isFinalized) return;
     setCancelledLoading(true);
     setCancelledError("");
     try {
@@ -1335,7 +1437,7 @@ export default function PisCofinsAssessment({
       ["Notas Canceladas", "Tratamento", "As notas são classificadas como cumulativas ou não cumulativas pelo serviço e seus valores são deduzidos da apuração consolidada.", "Regra operacional Contabilidade Raiz"],
       ["Notas Canceladas", "Entrega desta exportação", `${filteredCancelledRows.length} nota(s); valor líquido excluído ${brl.format(cancelledTotals.net)}; PIS deduzido ${brl.format(cancelledTotals.pis)}; COFINS deduzida ${brl.format(cancelledTotals.cofins)}.`, "Dados da competência exportada"],
       ["Apuração Consolidada", "Fórmula", "Faturamento Mensal + Outras Receitas + Rateios Anuidades - Notas Canceladas, mantendo a separação entre regimes cumulativo e não cumulativo.", "Regra operacional Contabilidade Raiz"],
-      ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(consolidatedTotals.cumulativePis)}; COFINS cumulativa ${brl.format(consolidatedTotals.cumulativeCofins)}; PIS não cumulativo ${brl.format(consolidatedTotals.nonCumulativePis)}; COFINS não cumulativa ${brl.format(consolidatedTotals.nonCumulativeCofins)}.`, "Base consolidada"],
+      ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(displayedConsolidatedTotals.cumulativePis)}; COFINS cumulativa ${brl.format(displayedConsolidatedTotals.cumulativeCofins)}; PIS não cumulativo ${brl.format(displayedConsolidatedTotals.nonCumulativePis)}; COFINS não cumulativa ${brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}.`, "Base consolidada"],
       ["Apuração Completa", "Abas entregues", `${deliveredSheets.join(", ")}. Abas sem saldo não são incluídas.`, "Este arquivo"],
       ["", "", "", ""],
       ["MATRIZ DE CLASSIFICAÇÃO", "SERVIÇO / DESCRIÇÃO", "CLASSIFICAÇÃO", ""],
@@ -1645,6 +1747,14 @@ export default function PisCofinsAssessment({
             <button className="tax-future-action" disabled={!completeAssessmentReady} onClick={exportEntriesCsv} title={completeAssessmentReady ? "Gerar CSV para importação dos lançamentos" : "Atualize e processe as quatro etapas antes de gerar os lançamentos"}>
               <ReceiptText /> Lançamentos
             </button>
+            <button
+              className={finalizedSnapshot ? "tax-finalize-action is-finalized" : "tax-finalize-action"}
+              disabled={!canFinalizeAssessment || Boolean(finalizedSnapshot)}
+              onClick={() => void finalizeAssessment()}
+              title={finalizedSnapshot ? "Apuração já finalizada. Use Limpar para refazer." : "Finalizar e travar a apuração desta empresa"}
+            >
+              <CheckCircle2 /> {finalizedSnapshot ? "Finalizado" : "Finalizar"}
+            </button>
             <button className="tax-clear-action" disabled={!hasAssessment} onClick={clearAssessment} title="Apagar a apuração salva desta empresa e competência">
               <Trash2 /> Limpar
             </button>
@@ -1656,17 +1766,18 @@ export default function PisCofinsAssessment({
           <b>Apuração consolidada</b>
           <span>Soma do Faturamento Mensal, Outras Receitas e Rateios Anuidades, com dedução das Notas Canceladas</span>
         </div>
-        <article><span>PIS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
-        <article><span>COFINS cumulativo</span><b>{brl.format(consolidatedTotals.cumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
-        <article><span>PIS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
-        <article><span>COFINS não cumulativo</span><b>{brl.format(consolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>PIS cumulativo</span><b>{brl.format(displayedConsolidatedTotals.cumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>COFINS cumulativo</span><b>{brl.format(displayedConsolidatedTotals.cumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>PIS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <article><span>COFINS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
       </div>
+      {finalizedSnapshot && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedSnapshot.finalizedBy || "usuário"} em {new Date(finalizedSnapshot.finalizedAt).toLocaleString("pt-BR")}. Para recalcular, use Limpar.</div>}
       <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
       <div className="tax-section-heading">
         <div><b>Faturamento Mensal</b><span>Planilha.NET 2 · ANÁLISE NF MENSALIDADES 1</span></div>
         <button
           className={loaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
-          disabled={loading || !companyCode}
+          disabled={loading || !companyCode || isFinalized}
           onClick={() => void update()}
         >
           <RefreshCw className={loading ? "spin" : ""} />
@@ -1847,7 +1958,7 @@ export default function PisCofinsAssessment({
           <div><b>Outras Receitas</b><span>Razão Completo · contas definidas na aba Base contas</span></div>
           <button
             className={otherRevenueLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
-            disabled={otherRevenueLoading || !companyCode}
+            disabled={otherRevenueLoading || !companyCode || isFinalized}
             onClick={() => void updateOtherRevenues()}
           >
             <RefreshCw className={otherRevenueLoading ? "spin" : ""} />
@@ -1891,7 +2002,7 @@ export default function PisCofinsAssessment({
           <div><b>Rateios Anuidades</b><span>RM Contábil · RAT-* e Rateio Gerado Pela FV em receitas</span></div>
           <button
             className={annualFeeLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
-            disabled={annualFeeLoading || !companyCode}
+            disabled={annualFeeLoading || !companyCode || isFinalized}
             onClick={() => void updateAnnualFeeAllocations()}
           >
             <RefreshCw className={annualFeeLoading ? "spin" : ""} />
@@ -1939,7 +2050,7 @@ export default function PisCofinsAssessment({
           <div><b>Notas Canceladas</b><span>Planilha.NET 37 · NF MUNICIPAIS CANCELADAS</span></div>
           <button
             className={cancelledLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"}
-            disabled={cancelledLoading || !companyCode}
+            disabled={cancelledLoading || !companyCode || isFinalized}
             onClick={() => void updateCancelledInvoices()}
           >
             <RefreshCw className={cancelledLoading ? "spin" : ""} />
@@ -1983,7 +2094,7 @@ export default function PisCofinsAssessment({
       <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
           <div><b>Créditos</b><span>Créditos de PIS e COFINS · conferência contábil e documentos no Zeev</span></div>
-          <button className={(creditsCategory === "energy" ? energyLoaded : leaseLoaded) ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={creditsCategory === "energy" ? energyLoading : leaseLoading} onClick={creditsCategory === "energy" ? updateEnergyCredits : updateLeaseCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Consultar Arrendamentos no Razão 25, conta 2.1.7.01.01.53"}>
+          <button className={(creditsCategory === "energy" ? energyLoaded : leaseLoaded) ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={(creditsCategory === "energy" ? energyLoading : leaseLoading) || isFinalized} onClick={creditsCategory === "energy" ? updateEnergyCredits : updateLeaseCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Consultar Arrendamentos no Razão 25, conta 2.1.7.01.01.53"}>
             <RefreshCw className={(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "is-spinning" : ""} /> {(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "Atualizando" : "Atualizar"}
           </button>
           <button className="tax-detail-export" disabled={creditsCategory === "energy" ? !energyRows.length : !leaseRows.length} onClick={creditsCategory === "energy" ? exportEnergyCredits : exportLeaseCredits} title={creditsCategory === "energy" ? "Exportar os lançamentos de Energia e os tickets localizados" : "Exportar os lançamentos de Arrendamentos"}>

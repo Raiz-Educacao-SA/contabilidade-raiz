@@ -123,6 +123,9 @@ Os resultados dos módulos Financeiro, Compras, Folha de Pagamento e Contábil d
 - Cada etapa mantém sua última apuração até o usuário acionar `Limpar`.
 - Cada etapa pode ser ocultada ou exibida.
 - A apuração consolidada soma PIS e COFINS cumulativos e não cumulativos das etapas, com a dedução correspondente das notas canceladas.
+- O botão `Finalizar` trava os valores consolidados da empresa e competência, mantendo a apuração mesmo ao trocar de página.
+- Ao finalizar, o sistema alimenta o Cronograma de Fechamento na área Contábil como `PIS e COFINS` por empresa.
+- O botão `Limpar` reabre a apuração no cronograma e remove a trava para permitir novo processamento.
 - A exportação completa gera um arquivo Excel com uma planilha por etapa e uma planilha de consolidação.
 - A etapa Lançamentos gera CSV seguindo o modelo contábil e o nome `coligadaNN.csv`.
 
