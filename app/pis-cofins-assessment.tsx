@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Calculator, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
 const subscribeToDocument = () => () => {};
@@ -1125,8 +1125,159 @@ export default function PisCofinsAssessment({
       return true;
     };
 
-    const hasCumulativeBalance = createCompactPacont("PACONT CUMULATIVO", "Cumulativo");
-    const hasNonCumulativeBalance = createCompactPacont(
+    const createPacontTemplateSheet = (
+      sheetName: string,
+      regime: Exclude<TaxRegime, "">,
+      financialBase = 0,
+      financialPis = 0,
+      financialCofins = 0,
+      otherBase = 0,
+      otherPis = 0,
+      otherCofins = 0,
+    ) => {
+      const rate = rates[regime];
+      const monthly = monthlyByRegime(regime);
+      const annual = annualByRegime(regime);
+      const cancelled = cancelledByRegime(regime);
+      const monthlyRevenue = monthly.gross + annual;
+      const discounts = -monthly.discounts;
+      const cancelledDeduction = -cancelled;
+      const otherRevenue = regime === "Não-Cumulativo" ? otherBase : 0;
+      const financialRevenue = regime === "Não-Cumulativo" ? financialBase : 0;
+      const netRevenue = monthlyRevenue + discounts + cancelledDeduction + otherRevenue + financialRevenue;
+      const pisDue = monthlyRevenue * rate.pis + discounts * rate.pis + cancelledDeduction * rate.pis + (regime === "Não-Cumulativo" ? otherPis + financialPis : 0);
+      const cofinsDue = monthlyRevenue * rate.cofins + discounts * rate.cofins + cancelledDeduction * rate.cofins + (regime === "Não-Cumulativo" ? otherCofins + financialCofins : 0);
+
+      if (![netRevenue, pisDue, cofinsDue].some((value) => Math.abs(value) > 0.000001)) return false;
+
+      const pacontRow = (
+        code: string,
+        description: string,
+        amount: number,
+        pis: number,
+        cofins: number,
+        regimeLabel = regime,
+      ): (string | number)[] => [
+        code,
+        description,
+        "",
+        "",
+        0,
+        amount,
+        amount,
+        amount > 0 ? amount : 0,
+        amount < 0 ? amount : 0,
+        0,
+        amount,
+        pis,
+        cofins,
+        0,
+        0,
+        "",
+        regimeLabel,
+      ];
+
+      const decodePacontText = (value: string | number) => {
+        if (typeof value !== "string") return value;
+        return value
+          .replaceAll("Ãƒâ€¡ÃƒÆ’O", "ÇÃO")
+          .replaceAll("Ãƒâ€¡Ãƒâ€¢ES", "ÇÕES")
+          .replaceAll("Ãƒâ€¡ÃƒÆ’", "ÇÃ")
+          .replaceAll("Ãƒâ€°", "É")
+          .replaceAll("ÃƒÅ ", "Ê")
+          .replaceAll("ÃƒÂ", "Á")
+          .replaceAll("ÃƒÂ¡", "á")
+          .replaceAll("ÃƒÂ§", "ç")
+          .replaceAll("ÃƒÂ£", "ã")
+          .replaceAll("ÃƒÂ©", "é")
+          .replaceAll("ÃƒÂª", "ê")
+          .replaceAll("ÃƒÂ³", "ó")
+          .replaceAll("ÃƒÂµ", "õ")
+          .replaceAll("ÃƒÂ­", "í")
+          .replaceAll("ÃƒÂ ", "à")
+          .replaceAll("ÃƒÂ³", "ó")
+          .replaceAll("ÃƒÂ£", "ã");
+      };
+
+      const rows: (string | number)[][] = [
+        ["PACONT - PLANILHA DE APURAÃ‡ÃƒO DAS CONTRIBUIÃ‡Ã•ES", "", "", "", "", "", "", "", "", "", "", "", "", "CÃ³digo", "", "", "RQ_CONT_002"],
+        ["Origem: ContÃ¡bil Raiz EducaÃ§Ã£o", "", "Elaborado por:", "", "", "", "", "", "", "", "", "", "", "RevisÃ£o", "", "", "05"],
+        ["CLIENTE:", companyName, "", "", "", "", "", "", "", "", "", "", "", "Aprovado por:", "", "", ""],
+        ["CNPJ:", "", "", "", "", "", "", "", "", "", "", "", "", "Data:", generatedAtLabel, "", ""],
+        ["TRIBUTAÃ‡ÃƒO:", taxRegime || "Lucro Real", "REGIME:", regime.toUpperCase(), "", "COMPETÃŠNCIA:", competenceLabel, "", "", "", "", "", "", "", "", "", ""],
+        ["MÃ©todo de DeterminaÃ§Ã£o dos CrÃ©ditos:", regime === "Não-Cumulativo" ? "Vinculados Ã  receita bruta auferida no mÃªs" : "Regime cumulativo", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["A) IMPOSTO SOBRE A BASE DE CÃLCULO", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["RECEITAS", "", "", "", "VINCULAÃ‡ÃƒO DA RECEITA (para cred. PIS e COFINS)", "", "", "", "", "", "", "CÃLCULO DO PIS E COFINS", "", "CÃLCULO DO INSS", "", "", ""],
+        ["", "", "", "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "", ""],
+        ["DESCRIÃ‡ÃƒO DAS RECEITAS", "", "", "", "Receitas Enquadradas", "Receitas NÃ£o Enquadradas", "Receita", "Trib. Merc. Interno", "NÃ£o Trib. Merc. Interno", "Merc. Externo", "Base de CÃ¡lculo PIS", "Valor PIS", "Valor COFINS", "Base de CÃ¡lculo INSS", "Valor INSS", "ObservaÃ§Ã£o", "ClassificaÃ§Ã£o"],
+        ["Percentuais de Rateio =========>", "", "", "", regime === "Cumulativo" ? 1 : 0, regime === "Não-Cumulativo" ? 1 : 0, 1, 1, 0, 0, 1, rate.pis, rate.cofins, 0, 0, "", ""],
+        pacontRow("1", "Receita de ServiÃ§os e/ou Vendas", monthlyRevenue, monthlyRevenue * rate.pis, monthlyRevenue * rate.cofins),
+        pacontRow("1.1", "Receitas de Vendas e ServiÃ§os", monthlyRevenue, monthlyRevenue * rate.pis, monthlyRevenue * rate.cofins),
+        pacontRow("1.2", "(-) Receita diferida n/mÃªs", 0, 0, 0),
+        pacontRow("1.3", "(+) Receita diferida mÃªs anterior", 0, 0, 0),
+        pacontRow("1.4", "Outras Receitas", otherRevenue, otherPis, otherCofins, otherRevenue ? "Não-Cumulativo" : regime),
+        pacontRow("1.5", "(-) DeduÃ§Ãµes (especificar)", discounts + cancelledDeduction, (discounts + cancelledDeduction) * rate.pis, (discounts + cancelledDeduction) * rate.cofins),
+        pacontRow("2", "Receitas de ServiÃ§os", 0, 0, 0),
+        pacontRow("2.1", "TransferÃªncias para conta prÃ³pria", 0, 0, 0),
+        pacontRow("2.4", "Receitas Financeiras", financialRevenue, financialPis, financialCofins, financialRevenue ? "Não-Cumulativo" : regime),
+        pacontRow("3", "(-) Vendas canceladas", cancelledDeduction, cancelledDeduction * rate.pis, cancelledDeduction * rate.cofins),
+        pacontRow("4", "(-) Descontos incondicionais", discounts, discounts * rate.pis, discounts * rate.cofins),
+        pacontRow("5", "TOTAL DAS RECEITAS", netRevenue, pisDue, cofinsDue),
+        pacontRow("6", "Receitas Financeiras", financialRevenue, financialPis, financialCofins, financialRevenue ? "Não-Cumulativo" : regime),
+        pacontRow("7", "TOTAIS", netRevenue, pisDue, cofinsDue),
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["B) COMPOSIÃ‡ÃƒO DOS CRÃ‰DITOS", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["CRÃ‰DITOS", "", "", "", "Base de crÃ©dito", "AlÃ­quota PIS", "PIS", "AlÃ­quota COFINS", "COFINS", "", "", "", "", "", "", "", ""],
+        ["Bens, serviÃ§os e demais crÃ©ditos", "", "", "", 0, rate.pis, 0, rate.cofins, 0, "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["C) CONTROLE", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["Receita cumulativa", "", "", "", regime === "Cumulativo" ? Math.max(0, netRevenue) : 0, "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["Receita nÃ£o cumulativa", "", "", "", regime === "Não-Cumulativo" ? Math.max(0, netRevenue) : 0, "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["Total de receita classificada", "", "", "", Math.max(0, netRevenue), "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["D) IMPOSTO A PAGAR", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["PIS a recolher", "", "", "", "", "", "", "", "", "", "", pisDue, "", "", "", "", ""],
+        ["COFINS a recolher", "", "", "", "", "", "", "", "", "", "", "", cofinsDue, "", "", "", ""],
+        ["TOTAL A RECOLHER", "", "", "", "", "", "", "", "", "", "", pisDue, cofinsDue, "", "", "", ""],
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(rows.map((row) => row.map(decodePacontText)));
+      worksheet["!cols"] = [
+        { wch: 12 }, { wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+        { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 },
+        { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 },
+      ];
+      worksheet["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+        { s: { r: 7, c: 0 }, e: { r: 7, c: 16 } },
+        { s: { r: 9, c: 0 }, e: { r: 9, c: 3 } },
+        { s: { r: 9, c: 4 }, e: { r: 9, c: 10 } },
+        { s: { r: 9, c: 11 }, e: { r: 9, c: 12 } },
+        { s: { r: 9, c: 13 }, e: { r: 9, c: 14 } },
+        { s: { r: 28, c: 0 }, e: { r: 28, c: 16 } },
+        { s: { r: 33, c: 0 }, e: { r: 33, c: 16 } },
+        { s: { r: 38, c: 0 }, e: { r: 38, c: 16 } },
+      ];
+      worksheet["!rows"] = rows.map((_, index) => ({ hpt: [0, 7, 9, 28, 33, 38].includes(index) ? 22 : 18 }));
+      for (let row = 0; row < rows.length; row += 1) {
+        for (let column = 0; column <= 16; column += 1) {
+          const currentCell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
+          if (currentCell?.t === "n") {
+            if (row === 12 && [4, 5, 6, 7, 8, 9, 10, 11, 12].includes(column)) currentCell.z = "0.00%";
+            else if (column >= 4 && column <= 14) currentCell.z = "#,##0.00";
+          }
+        }
+      }
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      return true;
+    };
+
+    const hasCumulativeBalance = createPacontTemplateSheet("PACONT CUMULATIVO", "Cumulativo");
+    const hasNonCumulativeBalance = createPacontTemplateSheet(
       "PACONT NÃO CUMULATIVO",
       "Não-Cumulativo",
       otherRevenueTotals.financialBase,

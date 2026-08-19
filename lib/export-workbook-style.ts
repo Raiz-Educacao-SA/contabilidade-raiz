@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 type StyledCell = XLSX.CellObject & { s?: unknown };
 
@@ -65,6 +65,10 @@ function cellText(worksheet: XLSX.WorkSheet, row: number, column: number) {
   return value == null ? "" : String(value);
 }
 
+function normalizeText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
 function setStyle(worksheet: XLSX.WorkSheet, row: number, column: number, style: unknown) {
   const current = cell(worksheet, row, column);
   if (current) current.s = style;
@@ -82,7 +86,7 @@ function isHeaderRow(worksheet: XLSX.WorkSheet, row: number, start: number, end:
   const filled = filledColumns(worksheet, row, start, end);
   if (row === 0 && filled.length >= 1) return true;
   if (filled.length < 2) return false;
-  const joined = filled.map((column) => cellText(worksheet, row, column).toLowerCase()).join(" ");
+  const joined = normalizeText(filled.map((column) => cellText(worksheet, row, column)).join(" "));
   return /(compet[eê]ncia|coligada|empresa|conta|descri[cç][aã]o|indicador|valor|saldo|base|pis|cofins|receita|desconto|diferen[cç]a|status|filial|data|documento)/i.test(joined);
 }
 
@@ -94,11 +98,13 @@ function isSectionRow(worksheet: XLSX.WorkSheet, row: number, start: number, end
 }
 
 function shouldUseMoneyFormat(header: string) {
-  return /(valor|saldo|base|pis|cofins|receita|desconto|d[eé]bito|cr[eé]dito|movimento|ajuste|rateio|faturamento|custo|total|diferen[cç]a)/i.test(header);
+  const normalized = normalizeText(header);
+  return /(valor|saldo|base|pis|cofins|receita|desconto|debito|credito|movimento|ajuste|rateio|faturamento|custo|total|diferenca)/i.test(normalized);
 }
 
 function shouldUsePercentFormat(header: string) {
-  return /(percentual|participa[cç][aã]o|taxa|%)/i.test(header);
+  const normalized = normalizeText(header);
+  return /(percentual|participacao|taxa|%)/i.test(normalized);
 }
 
 function formatColumns(worksheet: XLSX.WorkSheet, range: XLSX.Range) {
@@ -137,12 +143,74 @@ function fitColumns(worksheet: XLSX.WorkSheet, range: XLSX.Range) {
   worksheet["!cols"] = widths;
 }
 
+function stylePacontWorksheet(worksheet: XLSX.WorkSheet, range: XLSX.Range) {
+  const fullTitleStyle = {
+    ...titleStyle,
+    font: { color: { rgb: colors.white }, bold: true, sz: 12 },
+  };
+  const greyBandStyle = {
+    fill: { fgColor: { rgb: "BFBFBF" } },
+    font: { color: { rgb: colors.darkText }, bold: true },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+    border,
+  };
+  const yellowBandStyle = {
+    fill: { fgColor: { rgb: "FFF2CC" } },
+    font: { color: { rgb: colors.darkText }, bold: true },
+    alignment: { vertical: "center", wrapText: true },
+    border,
+  };
+  const totalStyle = {
+    fill: { fgColor: { rgb: colors.paleBlue } },
+    font: { color: { rgb: colors.darkText }, bold: true },
+    alignment: { vertical: "center", wrapText: true },
+    border,
+  };
+
+  for (let row = range.s.r; row <= range.e.r; row += 1) {
+    const first = normalizeText(cellText(worksheet, row, range.s.c));
+    for (let column = range.s.c; column <= range.e.c; column += 1) {
+      const current = cell(worksheet, row, column);
+      if (!current) continue;
+
+      if (row === 0) {
+        current.s = fullTitleStyle;
+      } else if (["a) imposto sobre a base de calculo", "b) composicao dos creditos", "c) controle", "d) imposto a pagar"].includes(first)) {
+        current.s = sectionStyle;
+      } else if ([9, 10, 11].includes(row)) {
+        current.s = row === 9 ? greyBandStyle : headerStyle;
+      } else if (first.includes("percentuais de rateio")) {
+        current.s = yellowBandStyle;
+      } else if (first.includes("total") || first.includes("totais") || first.includes("recolher")) {
+        current.s = totalStyle;
+      } else if (column <= 1 || [13, 14, 15, 16].includes(column)) {
+        current.s = labelStyle;
+      } else {
+        current.s = dataStyle;
+      }
+
+      if (current.t === "n") {
+        if (row === 12 || (row === 30 && [5, 7].includes(column))) current.z = percentFormat;
+        else current.z = moneyFormat;
+      }
+    }
+  }
+
+  worksheet["!freeze"] = { xSplit: 0, ySplit: 12 };
+  worksheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 11, c: range.s.c }, e: { r: 11, c: range.e.c } }) };
+}
+
 export function applyRaizWorkbookStyle(workbook: XLSX.WorkBook) {
   workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
     const ref = worksheet["!ref"];
     if (!ref) return;
     const range = XLSX.utils.decode_range(ref);
+
+    if (sheetName.toUpperCase().startsWith("PACONT")) {
+      stylePacontWorksheet(worksheet, range);
+      return;
+    }
 
     for (let row = range.s.r; row <= range.e.r; row += 1) {
       if (isHeaderRow(worksheet, row, range.s.c, range.e.c)) {
