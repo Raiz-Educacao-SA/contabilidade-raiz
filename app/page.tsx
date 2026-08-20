@@ -1095,7 +1095,7 @@ function AreaHub({
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
-  const executionAreas: Area[] = ["compras", "financeiro", "fiscal", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
+  const executionAreas: Area[] = ["financeiro", "fiscal", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
   const [completedAreas, setCompletedAreas] = useState<string[]>([]);
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
