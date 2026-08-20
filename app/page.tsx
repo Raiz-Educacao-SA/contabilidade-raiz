@@ -57,7 +57,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "arrendamentos";
+type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = "financeiro" | "fiscal" | "compras" | "folha" | "contabil" | "book" | "cronograma";
@@ -95,8 +95,17 @@ const accountingScheduleTasks: { id: AccountingTab; label: string; description: 
   { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
   { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
   { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
+  { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
   { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
   { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
+];
+
+type FinancialScheduleTaskId = "bancaria" | "receita" | "emprestimos" | "parcelamentos";
+const financialScheduleTasks: { id: FinancialScheduleTaskId; label: string; description: string }[] = [
+  { id: "bancaria", label: "Conciliação Bancária", description: "Extratos, saldos e lançamentos" },
+  { id: "receita", label: "Conciliação de Receita", description: "Receita fiscal x contábil" },
+  { id: "emprestimos", label: "Conciliação de Empréstimos", description: "Contratos, parcelas e saldos" },
+  { id: "parcelamentos", label: "Conciliação de Parcelamentos", description: "Parcelamentos e baixas" },
 ];
 
 const modules = {
@@ -625,6 +634,7 @@ export default function Home() {
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "provisoes", label: "Provisões", icon: Save },
+                { id: "despesas", label: "Despesas", icon: ReceiptText },
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
@@ -722,6 +732,8 @@ export default function Home() {
                       ? "Rateio CSC"
                       : accountingTab === "provisoes"
                         ? "Provisões"
+                        : accountingTab === "despesas"
+                          ? "Despesas"
                         : accountingTab === "arrendamentos"
                           ? "Arrendamentos"
                         : "Intercompany"
@@ -967,6 +979,8 @@ export default function Home() {
               <ReceiptText />
             ) : accountingTab === "provisoes" ? (
               <Save />
+            ) : accountingTab === "despesas" ? (
+              <ReceiptText />
             ) : accountingTab === "rateio-csc" ? (
               <ArrowLeftRight />
             ) : (
@@ -978,6 +992,8 @@ export default function Home() {
                 ? "IRPJ/CSLL"
                 : accountingTab === "provisoes"
                   ? "Provisões"
+                : accountingTab === "despesas"
+                  ? "Despesas"
                 : accountingTab === "arrendamentos"
                   ? "Arrendamentos"
                 : accountingTab === "rateio-csc"
@@ -1307,6 +1323,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const accountingDetails = confirmations
     .filter((item) => item.modulo.startsWith("contabil:") && item.status === "concluido")
     .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
+  const financialDetails = confirmations
+    .filter((item) => item.modulo.startsWith("financeiro:") && item.status === "concluido")
+    .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
   const canConfirmSector = (sector: string) =>
     userProfiles.includes("administrador") || (
       sector === "Financeiro" ? userProfiles.includes("financeiro") :
@@ -1322,6 +1341,11 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const accountingTotalCount = accountingScheduleTasks.length * companies.length;
+  const financialDoneCount = financialScheduleTasks.reduce(
+    (total, task) => total + companies.filter((company) => isDone(`financeiro:${task.id}:${company.code}`)).length,
+    0,
+  );
+  const financialTotalCount = financialScheduleTasks.length * companies.length;
 
   useEffect(() => {
     let active = true;
@@ -1388,6 +1412,14 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     }, checked);
   }
 
+  async function toggleFinancialTask(task: (typeof financialScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
+    await saveScheduleItem({
+      key: `financeiro:${task.id}:${company.code}`,
+      sector: `Financeiro · ${task.label} · ${companyLabel(company)}`,
+      label: `${task.label} · ${companyLabel(company)}`,
+    }, checked);
+  }
+
   return (
     <section className="closing-schedule">
       <div className="schedule-overview">
@@ -1447,7 +1479,56 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                   ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
                   : `Prazo decorrido: ${progress}%`}</small>
 
-                {selectedStage.key === "contabil" ? (
+                {selectedStage.key === "financeiro" ? (
+                  <div className="schedule-accounting-checklist">
+                    <header>
+                      <div>
+                        <span>MÓDULO FINANCEIRO</span>
+                        <b>Tarefas realizadas por empresa</b>
+                      </div>
+                      <small>{financialDoneCount}/{financialTotalCount || 0} finalizada(s)</small>
+                    </header>
+                    {financialDetails.length > 0 && (
+                      <div className="schedule-accounting-details">
+                        {financialDetails.map((item) => (
+                          <span key={item.modulo}>{item.setor.replace(/^Financeiro · /, "")}</span>
+                        ))}
+                      </div>
+                    )}
+                    {financialScheduleTasks.map((task) => {
+                      const doneCount = companies.filter((company) => isDone(`financeiro:${task.id}:${company.code}`)).length;
+                      return (
+                        <details key={task.id} className="schedule-accounting-task" open={task.id === "bancaria"}>
+                          <summary>
+                            <span>
+                              <b>{task.label}</b>
+                              <small>{task.description}</small>
+                            </span>
+                            <em>{doneCount}/{companies.length}</em>
+                          </summary>
+                          <div className="schedule-company-list">
+                            {companies.map((company) => {
+                              const modulo = `financeiro:${task.id}:${company.code}`;
+                              const checked = isDone(modulo);
+                              const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
+                              return (
+                                <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={disabled}
+                                    onChange={(event) => void toggleFinancialTask(task, company, event.target.checked)}
+                                  />
+                                  <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                ) : selectedStage.key === "contabil" ? (
                   <div className="schedule-accounting-checklist">
                     <header>
                       <div>
@@ -1543,6 +1624,11 @@ function ClosingHistory() {
     book: "Book Contábil",
   };
   const moduleLabel = (modulo: string) => {
+    if (modulo.startsWith("financeiro:")) {
+      const [, taskId, companyCode] = modulo.split(":");
+      const task = financialScheduleTasks.find((item) => item.id === taskId);
+      return `${task?.label ?? "Item do Módulo Financeiro"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
+    }
     if (modulo.startsWith("contabil:")) {
       const [, taskId, companyCode] = modulo.split(":");
       const task = accountingScheduleTasks.find((item) => item.id === taskId);

@@ -99,19 +99,39 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
 
   return <section className="payroll-flow payroll-command-view">
     <div className="panel payroll-command-header">
-      <div><span className="eyebrow">ROTINA AUTOMATIZADA</span><h2>Conciliação Folha de Pagamento</h2><p>Comande a leitura das duas fontes e execute a análise da coligada e competência selecionadas.</p></div>
-      <div className="payroll-selection"><b>Coligada {companyCode}</b><span>{companyName.replace(/^\s*\d+\s*[—-]\s*/, "")} · {competence.split("-").reverse().join("/")}</span></div>
+      <div className="payroll-command-title">
+        <span className="eyebrow">ROTINA AUTOMATIZADA</span>
+        <h2>Conciliação Folha de Pagamento</h2>
+        <p>Leia as fontes e execute a análise da competência selecionada.</p>
+      </div>
+      <div className="payroll-command-actions">
+        <button type="button" className={`payroll-action-button ${lot ? "is-ready" : ""}`} disabled={lotLoading || busy} onClick={() => void loadLot()}>
+          {lotLoading ? <LoaderCircle className="spinning" /> : <Database />}
+          Atualizar TOTVS
+        </button>
+        <button type="button" className={`payroll-action-button ${drive ? "is-ready" : ""}`} disabled={driveLoading || busy} onClick={() => void loadDrive()}>
+          {driveLoading ? <LoaderCircle className="spinning" /> : <CloudDownload />}
+          Atualizar Drive
+        </button>
+        <button type="button" className={`payroll-action-button is-primary ${analysis ? "is-ready" : ""}`} disabled={!lot || !drive || lotLoading || driveLoading || busy} onClick={() => void runAnalysis()}>
+          {busy ? <LoaderCircle className="spinning" /> : <Play />}
+          Analisar
+        </button>
+        <button type="button" className="payroll-action-button is-ghost" disabled={lotLoading || driveLoading || busy} onClick={reset}>
+          <RotateCcw />
+          Limpar
+        </button>
+      </div>
     </div>
 
     <div className="payroll-command-grid">
-      <CommandCard icon={<Database />} title="1. Ler lote no TOTVS" detail={lotMessage} ready={Boolean(lot)} loading={lotLoading} onClick={loadLot} />
-      <CommandCard icon={<CloudDownload />} title="2. Ler documentos no Drive" detail={driveMessage} ready={Boolean(drive)} loading={driveLoading} onClick={loadDrive} />
-      <CommandCard icon={<Play />} title="3. Executar análise" detail={busy ? "Conciliando lote e documentos..." : "Gerar a conferência e a conclusão do fechamento."} ready={Boolean(analysis)} loading={busy} disabled={!lot || !drive || lotLoading || driveLoading} onClick={runAnalysis} primary />
+      <CommandCard icon={<Database />} title="Lote TOTVS" detail={lotMessage} ready={Boolean(lot)} loading={lotLoading} />
+      <CommandCard icon={<CloudDownload />} title="Documentos no Drive" detail={driveMessage} ready={Boolean(drive)} loading={driveLoading} />
+      <CommandCard icon={<Play />} title="Análise da folha" detail={busy ? "Conciliando lote e documentos..." : analysis ? "Análise finalizada para a competência." : "Liberada após as duas leituras."} ready={Boolean(analysis)} loading={busy} />
     </div>
 
     <div className="payroll-command-footer">
       <span>{lot && drive ? "As duas fontes estão prontas para conciliação." : "A análise será liberada após as duas leituras."}</span>
-      <button type="button" className="chart-toggle" onClick={reset}><RotateCcw /> Reiniciar</button>
     </div>
 
     {message && !analysis && <div className="payroll-message review"><AlertTriangle /><span>{message}</span></div>}
@@ -131,11 +151,11 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   </section>;
 }
 
-function CommandCard({ icon, title, detail, ready, loading, disabled, onClick, primary }: { icon: React.ReactNode; title: string; detail: string; ready: boolean; loading: boolean; disabled?: boolean; onClick: () => void | Promise<void>; primary?: boolean }) {
+function CommandCard({ icon, title, detail, ready, loading }: { icon: React.ReactNode; title: string; detail: string; ready: boolean; loading: boolean }) {
   return <article className={`panel payroll-command-card ${ready ? "ready" : ""}`}>
     <span className="payroll-command-icon">{loading ? <LoaderCircle className="spinning" /> : ready ? <FileCheck2 /> : icon}</span>
     <div><b>{title}</b><p>{detail}</p></div>
-    <button type="button" className={primary ? "primary" : "chart-toggle"} disabled={disabled || loading} onClick={() => void onClick()}>{loading ? "Processando..." : ready && !primary ? "Ler novamente" : title}</button>
+    <small>{loading ? "Atualizando" : ready ? "Concluído" : "Pendente"}</small>
   </article>;
 }
 
