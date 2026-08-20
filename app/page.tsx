@@ -684,26 +684,21 @@ export default function Home() {
         )}
         {selectedModule === "cronograma" && (
           <nav className="schedule-sidebar-nav">
-            <button className={scheduleView === "acompanhamento" ? "active" : ""} onClick={() => setScheduleView("acompanhamento")}>
-              <CalendarDays /> Acompanhamento
-            </button>
-            {scheduleView === "acompanhamento" && (
-              <div className="schedule-sidebar-modules" aria-label="Módulos do cronograma">
-                {scheduleSidebarModules.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={`schedule-sidebar-${id}`}
-                    className={selectedScheduleModule === id ? "active schedule-sidebar-module-active" : ""}
-                    onClick={() => {
-                      setScheduleView("acompanhamento");
-                      setSelectedScheduleModule(id);
-                    }}
-                  >
-                    <Icon />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="schedule-sidebar-modules" aria-label="Módulos do cronograma">
+              {scheduleSidebarModules.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={`schedule-sidebar-${id}`}
+                  className={scheduleView === "acompanhamento" && selectedScheduleModule === id ? "active schedule-sidebar-module-active" : ""}
+                  onClick={() => {
+                    setScheduleView("acompanhamento");
+                    setSelectedScheduleModule(id);
+                  }}
+                >
+                  <Icon />
+                  {label}
+                </button>
+              ))}
+            </div>
             <button className={scheduleView === "historico" ? "active" : ""} onClick={() => setScheduleView("historico")}>
               <ListTree /> Histórico de entregas
             </button>
@@ -755,7 +750,9 @@ export default function Home() {
             <div>
               <b>
                 {selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc")
-                  ? "Período"
+                  ? selectedModule === "cronograma"
+                    ? "Cronograma Fechamento"
+                    : "Período"
                   : selectedModule === "contabil" && (accountingTab === "pis-cofins" || accountingTab === "intercompany")
                   ? "Filtros"
                   : "Filtros da análise"}
@@ -803,6 +800,15 @@ export default function Home() {
                 </select>
               </label>
             </div>
+            {selectedModule === "cronograma" && (
+              <div className="schedule-window-inline">
+                <span>Janela projetada</span>
+                <b>
+                  {formatShortDate(new Date(year, month, 1))} a {formatShortDate(addBusinessDays(new Date(year, month, 1), 10))}
+                </b>
+                <small>Compras até o último dia útil · Contabilidade até D+10</small>
+              </div>
+            )}
           </div>
           {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
             <div
@@ -1320,7 +1326,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const elapsed = today.getTime() - start.getTime();
   const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
   const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
-  const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   const selectedStage = stages.find((stage) => stage.key === selectedScheduleModule) ?? stages[0];
   const accountingDetails = confirmations
     .filter((item) => item.modulo.startsWith("contabil:") && item.status === "concluido")
@@ -1434,19 +1439,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
   return (
     <section className="closing-schedule">
-      <div className="schedule-overview">
-        <div className="schedule-overview-line">
-          <span>PROJEÇÃO DO FECHAMENTO</span>
-          <b>{months[month - 1]} de {year}</b>
-          <small>Visão geral do processo.</small>
-        </div>
-        <div className="schedule-window">
-          <span>Janela projetada</span>
-          <b>{formatDate(start)} a {formatDate(finalDeadline)}</b>
-          <small>Compras até o último dia útil · Contabilidade até D+10</small>
-        </div>
-      </div>
-
       <div className="schedule-master-line">
         <span style={{ width: `${overallProgress}%` }} />
       </div>
@@ -1701,6 +1693,10 @@ function addBusinessDays(date: Date, amount: number) {
     if (result.getDay() !== 0 && result.getDay() !== 6) added += 1;
   }
   return result;
+}
+
+function formatShortDate(date: Date) {
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
 function formatDateInput(date: Date) {
