@@ -129,15 +129,9 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   </div>;
 
   return <section className="payroll-flow payroll-command-view">
-    {actionsHost && createPortal(actionButtons, actionsHost)}
-    <div className="panel payroll-command-header">
-      <div className="payroll-command-title">
-        <span className="eyebrow">ROTINA AUTOMATIZADA</span>
-        <h2>Folha de Pagamento</h2>
-        <p>Leia as fontes e execute a análise da competência.</p>
-      </div>
-      {!actionsHost && actionButtons}
-    </div>
+    {actionsHost ? createPortal(actionButtons, actionsHost) : (
+      <div className="payroll-command-header-actions">{actionButtons}</div>
+    )}
 
     <div className="payroll-command-grid">
       <CommandCard icon={<Database />} title="Lote TOTVS" detail={lotMessage} ready={Boolean(lot)} loading={lotLoading} />
