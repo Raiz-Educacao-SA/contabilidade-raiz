@@ -1337,14 +1337,15 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil")
     );
   const isDone = (modulo: string) => confirmations.some((item) => item.modulo === modulo && item.status === "concluido");
-  const companyLabel = (company: ScheduleCompany) => `${company.code} — ${company.name}`;
+  const scheduleCompanyCode = (company: ScheduleCompany) => String(company.code || "").trim().padStart(2, "0");
+  const companyLabel = (company: ScheduleCompany) => `${scheduleCompanyCode(company)} — ${company.name}`;
   const accountingDoneCount = accountingScheduleTasks.reduce(
-    (total, task) => total + companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length,
+    (total, task) => total + companies.filter((company) => isDone(`contabil:${task.id}:${scheduleCompanyCode(company)}`)).length,
     0,
   );
   const accountingTotalCount = accountingScheduleTasks.length * companies.length;
   const financialDoneCount = financialScheduleTasks.reduce(
-    (total, task) => total + companies.filter((company) => isDone(`financeiro:${task.id}:${company.code}`)).length,
+    (total, task) => total + companies.filter((company) => isDone(`financeiro:${task.id}:${scheduleCompanyCode(company)}`)).length,
     0,
   );
   const financialTotalCount = financialScheduleTasks.length * companies.length;
@@ -1417,7 +1418,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
   async function toggleAccountingTask(task: (typeof accountingScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
     await saveScheduleItem({
-      key: `contabil:${task.id}:${company.code}`,
+      key: `contabil:${task.id}:${scheduleCompanyCode(company)}`,
       sector: `Contabilidade · ${task.label} · ${companyLabel(company)}`,
       label: `${task.label} · ${companyLabel(company)}`,
     }, checked);
@@ -1425,7 +1426,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
   async function toggleFinancialTask(task: (typeof financialScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
     await saveScheduleItem({
-      key: `financeiro:${task.id}:${company.code}`,
+      key: `financeiro:${task.id}:${scheduleCompanyCode(company)}`,
       sector: `Financeiro · ${task.label} · ${companyLabel(company)}`,
       label: `${task.label} · ${companyLabel(company)}`,
     }, checked);
@@ -1477,7 +1478,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     )}
                     <div className="schedule-task-tabs" role="tablist" aria-label="Tarefas do módulo financeiro">
                       {financialScheduleTasks.map((task) => {
-                        const doneCount = companies.filter((company) => isDone(`financeiro:${task.id}:${company.code}`)).length;
+                        const doneCount = companies.filter((company) => isDone(`financeiro:${task.id}:${scheduleCompanyCode(company)}`)).length;
                         const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
                         return (
                           <button
@@ -1502,7 +1503,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         </div>
                         <em>
                           {(() => {
-                            const doneCount = companies.filter((company) => isDone(`financeiro:${activeFinancialTask.id}:${company.code}`)).length;
+                            const doneCount = companies.filter((company) => isDone(`financeiro:${activeFinancialTask.id}:${scheduleCompanyCode(company)}`)).length;
                             const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
                             return `${doneCount}/${companies.length} · ${taskPercent}%`;
                           })()}
@@ -1510,7 +1511,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       </header>
                       <div className="schedule-company-list schedule-company-list-tabs">
                         {companies.map((company) => {
-                          const modulo = `financeiro:${activeFinancialTask.id}:${company.code}`;
+                          const modulo = `financeiro:${activeFinancialTask.id}:${scheduleCompanyCode(company)}`;
                           const checked = isDone(modulo);
                           const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
                           return (
@@ -1546,7 +1547,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     )}
                     <div className="schedule-task-tabs" role="tablist" aria-label="Tarefas do módulo contábil">
                       {accountingScheduleTasks.map((task) => {
-                        const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length;
+                        const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${scheduleCompanyCode(company)}`)).length;
                         const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
                         return (
                           <button
@@ -1571,7 +1572,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         </div>
                         <em>
                           {(() => {
-                            const doneCount = companies.filter((company) => isDone(`contabil:${activeAccountingTask.id}:${company.code}`)).length;
+                            const doneCount = companies.filter((company) => isDone(`contabil:${activeAccountingTask.id}:${scheduleCompanyCode(company)}`)).length;
                             const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
                             return `${doneCount}/${companies.length} · ${taskPercent}%`;
                           })()}
@@ -1579,7 +1580,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       </header>
                       <div className="schedule-company-list schedule-company-list-tabs">
                         {companies.map((company) => {
-                          const modulo = `contabil:${activeAccountingTask.id}:${company.code}`;
+                          const modulo = `contabil:${activeAccountingTask.id}:${scheduleCompanyCode(company)}`;
                           const checked = isDone(modulo);
                           const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
                           return (

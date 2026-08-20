@@ -202,6 +202,28 @@ function restoredBranches<T extends { branch: string }>(saved: unknown, rows: T[
   return Array.isArray(saved) && saved.length ? saved.map(String) : branchValues(rows);
 }
 
+function normalizeScheduleCompanyCode(code: string) {
+  const cleanCode = String(code || "").trim();
+  return cleanCode ? cleanCode.padStart(2, "0") : cleanCode;
+}
+
+function buildPisCofinsScheduleInfo(companyCode: string, companyName: string) {
+  const scheduleCompanyCode = normalizeScheduleCompanyCode(companyCode);
+  const rawCompanyCode = String(companyCode || "").trim();
+  let cleanCompanyName = String(companyName || "").trim();
+
+  if (scheduleCompanyCode || rawCompanyCode) {
+    const prefixCodes = [scheduleCompanyCode, rawCompanyCode].filter(Boolean).join("|");
+    cleanCompanyName = cleanCompanyName.replace(new RegExp(`^(?:${prefixCodes})\\s*[—-]\\s*`), "").trim();
+  }
+
+  const label = `${scheduleCompanyCode} — ${cleanCompanyName || companyName}`;
+  return {
+    modulo: `contabil:pis-cofins:${scheduleCompanyCode}`,
+    setor: `Contabilidade · PIS e COFINS · ${label}`,
+  };
+}
+
 export default function PisCofinsAssessment({
   companyCode,
   companyName,
@@ -470,8 +492,7 @@ export default function PisCofinsAssessment({
     window.localStorage.removeItem(storageKey);
     void deleteAssessmentCache(storageKey);
     if (snapshotToClear) {
-      const modulo = `contabil:pis-cofins:${companyCode}`;
-      const setor = `Contabilidade · PIS e COFINS · ${companyCode} — ${companyName}`;
+      const { modulo, setor } = buildPisCofinsScheduleInfo(companyCode, companyName);
       void supabase.from("cronograma_entregas").upsert({
         competencia: competence,
         modulo,
@@ -807,8 +828,7 @@ export default function PisCofinsAssessment({
     setFinalizedSnapshot(snapshot);
     setError("");
 
-    const modulo = `contabil:pis-cofins:${companyCode}`;
-    const setor = `Contabilidade · PIS e COFINS · ${companyCode} — ${companyName}`;
+    const { modulo, setor } = buildPisCofinsScheduleInfo(companyCode, companyName);
     const { error: scheduleError } = await supabase.from("cronograma_entregas").upsert({
       competencia: competence,
       modulo,
