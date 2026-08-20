@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, CloudDownload, Database, Download, FileCheck2, LoaderCircle, Play, RotateCcw } from "lucide-react";
 import {
   ExtractedDocument,
@@ -33,8 +34,13 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   const [driveMessage, setDriveMessage] = useState("Clique para localizar os documentos oficiais da competência.");
   const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
   const [message, setMessage] = useState("");
+  const [actionsHost, setActionsHost] = useState<HTMLElement | null>(null);
 
   const executiveRows = useMemo(() => analysis && lot ? buildExecutiveRows(analysis, lot) : [], [analysis, lot]);
+
+  useEffect(() => {
+    setActionsHost(document.getElementById("payroll-filter-actions"));
+  }, []);
 
   async function loadLot() {
     setLotLoading(true); setLot(null); setAnalysis(null); setMessage("");
@@ -97,31 +103,34 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
     setDriveMessage("Clique para localizar os documentos oficiais da competência.");
   }
 
+  const actionButtons = <div className="payroll-command-actions">
+    <button type="button" className={`payroll-action-button ${lot ? "is-ready" : ""}`} disabled={lotLoading || busy} onClick={() => void loadLot()}>
+      {lotLoading ? <LoaderCircle className="spinning" /> : <Database />}
+      Atualizar TOTVS
+    </button>
+    <button type="button" className={`payroll-action-button ${drive ? "is-ready" : ""}`} disabled={driveLoading || busy} onClick={() => void loadDrive()}>
+      {driveLoading ? <LoaderCircle className="spinning" /> : <CloudDownload />}
+      Atualizar Drive
+    </button>
+    <button type="button" className={`payroll-action-button is-primary ${analysis ? "is-ready" : ""}`} disabled={!lot || !drive || lotLoading || driveLoading || busy} onClick={() => void runAnalysis()}>
+      {busy ? <LoaderCircle className="spinning" /> : <Play />}
+      Analisar
+    </button>
+    <button type="button" className="payroll-action-button is-ghost" disabled={lotLoading || driveLoading || busy} onClick={reset}>
+      <RotateCcw />
+      Limpar
+    </button>
+  </div>;
+
   return <section className="payroll-flow payroll-command-view">
+    {actionsHost && createPortal(actionButtons, actionsHost)}
     <div className="panel payroll-command-header">
       <div className="payroll-command-title">
         <span className="eyebrow">ROTINA AUTOMATIZADA</span>
-        <h2>Conciliação Folha de Pagamento</h2>
-        <p>Leia as fontes e execute a análise da competência selecionada.</p>
+        <h2>Folha de Pagamento</h2>
+        <p>Leia as fontes e execute a análise da competência.</p>
       </div>
-      <div className="payroll-command-actions">
-        <button type="button" className={`payroll-action-button ${lot ? "is-ready" : ""}`} disabled={lotLoading || busy} onClick={() => void loadLot()}>
-          {lotLoading ? <LoaderCircle className="spinning" /> : <Database />}
-          Atualizar TOTVS
-        </button>
-        <button type="button" className={`payroll-action-button ${drive ? "is-ready" : ""}`} disabled={driveLoading || busy} onClick={() => void loadDrive()}>
-          {driveLoading ? <LoaderCircle className="spinning" /> : <CloudDownload />}
-          Atualizar Drive
-        </button>
-        <button type="button" className={`payroll-action-button is-primary ${analysis ? "is-ready" : ""}`} disabled={!lot || !drive || lotLoading || driveLoading || busy} onClick={() => void runAnalysis()}>
-          {busy ? <LoaderCircle className="spinning" /> : <Play />}
-          Analisar
-        </button>
-        <button type="button" className="payroll-action-button is-ghost" disabled={lotLoading || driveLoading || busy} onClick={reset}>
-          <RotateCcw />
-          Limpar
-        </button>
-      </div>
+      {!actionsHost && actionButtons}
     </div>
 
     <div className="payroll-command-grid">

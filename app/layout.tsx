@@ -4,6 +4,7 @@ import "./logo.css";
 import "./modules.css";
 import "./monthly.css";
 import "./payroll.css";
+import "./payroll-overrides.css";
 
 export const metadata: Metadata = { title: "Contabilidade Raiz", description: "Financeiro, compras, folha de pagamento e book contábil em um único ambiente" };
 

@@ -710,7 +710,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
       >
         <header>
           <div>
@@ -742,7 +742,7 @@ export default function Home() {
           </div>
           <div className="user-chip">{session.user.email}</div>
         </header>
-        <section className={`top-context ${selectedModule === "cronograma" ? "schedule-filters" : ""}`}>
+        <section className={`top-context ${selectedModule === "cronograma" ? "schedule-filters" : ""} ${selectedModule === "folha" ? "payroll-top-context" : ""}`}>
           <div className="filter-heading">
             <span className="filter-icon">
               <SlidersHorizontal />
@@ -814,6 +814,12 @@ export default function Home() {
             <div
               id="pis-cofins-filter-actions"
               className="filter-actions-slot"
+            />
+          )}
+          {selectedModule === "folha" && (
+            <div
+              id="payroll-filter-actions"
+              className="filter-actions-slot payroll-filter-actions"
             />
           )}
         </section>

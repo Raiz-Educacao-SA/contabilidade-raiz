@@ -1,0 +1,157 @@
+.payroll-content > header h1 {
+  margin: 3px 0;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.payroll-content > header p {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.payroll-content > header .eyebrow {
+  font-size: 10px;
+}
+
+.payroll-top-context {
+  margin-top: 16px;
+  padding: 7px;
+  gap: 7px;
+}
+
+.payroll-top-context .filter-heading {
+  padding-right: 8px;
+  gap: 7px;
+}
+
+.payroll-top-context .filter-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.payroll-top-context .filter-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.payroll-top-context .filter-heading b {
+  font-size: 10px;
+}
+
+.payroll-top-context .filter-heading small {
+  font-size: 8px;
+}
+
+.payroll-top-context .filter-fields {
+  grid-template-columns: minmax(250px, 1fr) auto;
+  gap: 6px;
+}
+
+.payroll-top-context label {
+  height: 42px;
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.payroll-top-context label > span {
+  font-size: 9px;
+}
+
+.payroll-top-context input,
+.payroll-top-context select {
+  height: 28px;
+  font-size: 11px;
+}
+
+.payroll-top-context .company-select-stack select {
+  height: 21px;
+}
+
+.payroll-top-context .company-select-stack small {
+  font-size: 7px;
+  padding-left: 6px;
+}
+
+.payroll-top-context .competence-control {
+  grid-template-columns: 82px 130px;
+  gap: 6px;
+}
+
+.payroll-filter-actions {
+  min-width: 470px;
+  justify-content: flex-end;
+}
+
+.payroll-filter-actions .payroll-command-actions {
+  flex-wrap: nowrap;
+  gap: 7px;
+}
+
+.payroll-filter-actions .payroll-action-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.payroll-filter-actions .payroll-action-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.payroll-command-header {
+  margin-top: 8px;
+  padding: 10px 14px;
+}
+
+.payroll-command-title {
+  min-width: 0;
+}
+
+.payroll-command-title .eyebrow {
+  font-size: 10px;
+  letter-spacing: .18em;
+}
+
+.payroll-command-header h2 {
+  margin: 1px 0 3px;
+  font-size: 16px;
+}
+
+.payroll-command-header p {
+  font-size: 11px;
+}
+
+.payroll-command-card {
+  min-height: 96px;
+  padding: 12px;
+}
+
+.payroll-command-card b {
+  font-size: 12px;
+}
+
+.payroll-command-card p {
+  font-size: 10px;
+}
+
+.payroll-command-card small {
+  font-size: 9px;
+}
+
+.payroll-command-footer {
+  font-size: 10px;
+}
+
+@media (max-width: 1250px) {
+  .payroll-top-context {
+    grid-template-columns: 1fr;
+  }
+
+  .payroll-filter-actions {
+    min-width: 0;
+    justify-content: flex-start;
+  }
+}
