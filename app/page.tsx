@@ -1455,49 +1455,18 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       <div className="schedule-dashboard-layout">
         <div className="schedule-module-workspace">
           {(() => {
-            const Icon = selectedStage.icon;
-            const stageDuration = Math.max(1, selectedStage.deadline.getTime() - start.getTime());
-            const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
             const confirmation = confirmations.find((item) => item.modulo === selectedStage.key && item.status === "concluido");
-            const canConfirm = canConfirmSector(selectedStage.sector);
 
             return (
               <>
-                <header className="schedule-module-workspace-header">
-                  <span className="schedule-stage-icon"><Icon /></span>
-                  <div>
-                    <span>{selectedStage.sector.toUpperCase()}</span>
-                    <b>{selectedStage.name}</b>
-                    <small>{selectedStage.detail}</small>
-                  </div>
-                  <div className="schedule-deadline"><span>{selectedStage.milestone}</span><b>{formatDate(selectedStage.deadline)}</b></div>
-                  <label
-                    className={`schedule-ok ${!canConfirm ? "is-disabled" : ""}`}
-                    title={canConfirm ? "Marcar ou desmarcar a entrega deste módulo" : `Liberação exclusiva do setor ${selectedStage.sector}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(confirmation)}
-                      disabled={!canConfirm || scheduleLoading || confirmingModule === selectedStage.key}
-                      onChange={(event) => void toggleStage(selectedStage, event.target.checked)}
-                    />
-                    <span>{confirmingModule === selectedStage.key ? "Salvando..." : "OK"}</span>
-                  </label>
-                </header>
-
-                <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
-                <small className="schedule-module-status">{confirmation
-                  ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
-                  : `Prazo decorrido: ${progress}%`}</small>
-
                 {selectedStage.key === "financeiro" ? (
                   <div className="schedule-accounting-checklist">
                     <header>
                       <div>
                         <span>MÓDULO FINANCEIRO</span>
-                        <b>Tarefas realizadas por empresa</b>
+                        <b>Módulo Financeiro - {months[month - 1]} de {year}</b>
                       </div>
-                      <small>{financialDoneCount}/{financialTotalCount || 0} finalizada(s) · {financialPercent}%</small>
+                      <small>{financialPercent}% · {financialDoneCount}/{financialTotalCount || 0} finalizada(s)</small>
                     </header>
                     {financialDetails.length > 0 && (
                       <div className="schedule-accounting-details">
@@ -1546,13 +1515,13 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                           const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
                           return (
                             <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 disabled={disabled}
                                 onChange={(event) => void toggleFinancialTask(activeFinancialTask, company, event.target.checked)}
                               />
-                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
                             </label>
                           );
                         })}
@@ -1564,9 +1533,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     <header>
                       <div>
                         <span>MÓDULO CONTÁBIL</span>
-                        <b>Tarefas realizadas por empresa</b>
+                        <b>Módulo Contábil - {months[month - 1]} de {year}</b>
                       </div>
-                      <small>{accountingDoneCount}/{accountingTotalCount || 0} finalizada(s) · {accountingPercent}%</small>
+                      <small>{accountingPercent}% · {accountingDoneCount}/{accountingTotalCount || 0} finalizada(s)</small>
                     </header>
                     {accountingDetails.length > 0 && (
                       <div className="schedule-accounting-details">
@@ -1615,13 +1584,13 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                           const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
                           return (
                             <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 disabled={disabled}
                                 onChange={(event) => void toggleAccountingTask(activeAccountingTask, company, event.target.checked)}
                               />
-                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
                             </label>
                           );
                         })}
