@@ -597,6 +597,17 @@
 .workflow-start {
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
 }
+.workflow-start-clickable {
+  cursor: pointer;
+}
+.workflow-start .workflow-action {
+  justify-self: end;
+  margin-left: auto;
+}
+.workflow-start select,
+.workflow-start button {
+  cursor: pointer;
+}
 .workflow-flag {
   min-width: 82px;
   padding: 7px 10px;

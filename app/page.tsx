@@ -1125,6 +1125,15 @@ function AreaHub({
       void supabase.removeChannel(channel);
     };
   }, [scheduleCompetence]);
+
+  const openSchedule = () => onSelect("cronograma");
+  const handleWorkflowStartClick = (event: { target: EventTarget | null }) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest("button, select, input, a")) return;
+    openSchedule();
+  };
+
   return (
     <main className="module-hub">
       <header>
@@ -1151,7 +1160,7 @@ function AreaHub({
         </div>
       </header>
       <section className="closing-workflow" aria-label="Fluxo do fechamento contábil">
-        <div className="workflow-start">
+        <div className="workflow-start workflow-start-clickable" onClick={handleWorkflowStartClick}>
           <span className="workflow-icon"><ScheduleIcon /></span>
           <span className="workflow-copy">
             <small>INÍCIO DO PROCESSO</small>
@@ -1182,7 +1191,7 @@ function AreaHub({
               </select>
             </div>
           </div>
-          <button className="workflow-action" onClick={() => onSelect("cronograma")}>Abrir cronograma <ArrowLeftRight /></button>
+          <button className="workflow-action" onClick={openSchedule}>Abrir cronograma <ArrowLeftRight /></button>
         </div>
 
         <div className="workflow-divider"><span>ETAPAS DE EXECUÇÃO</span></div>
