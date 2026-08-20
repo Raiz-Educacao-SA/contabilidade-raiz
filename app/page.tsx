@@ -779,14 +779,6 @@ export default function Home() {
             </label>}
             <div className="competence-control">
               <label>
-                <span>Ano</span>
-                <input
-                  type="number"
-                  value={year}
-                  onChange={(e) => setYear(Number(e.target.value))}
-                />
-              </label>
-              <label>
                 <span>Mês</span>
                 <select
                   value={month}
@@ -798,6 +790,14 @@ export default function Home() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label>
+                <span>Ano</span>
+                <input
+                  type="number"
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                />
               </label>
             </div>
             {selectedModule === "cronograma" && (
@@ -1157,13 +1157,6 @@ function AreaHub({
             <span>Mês/Ano do fechamento</span>
             <div className="workflow-date-fields">
               <select
-                aria-label="Ano do fechamento"
-                value={closingYear}
-                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
-              >
-                {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-              <select
                 aria-label="Mês do fechamento"
                 value={closingMonth}
                 onChange={(event) => onClosingDateChange(`${closingYear}-${event.target.value}-10`)}
@@ -1171,6 +1164,13 @@ function AreaHub({
                 {months.map((name, index) => (
                   <option key={name} value={String(index + 1).padStart(2, "0")}>{name}</option>
                 ))}
+              </select>
+              <select
+                aria-label="Ano do fechamento"
+                value={closingYear}
+                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
+              >
+                {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>
             </div>
           </div>
@@ -1334,12 +1334,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
   const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
   const selectedStage = stages.find((stage) => stage.key === selectedScheduleModule) ?? stages[0];
-  const accountingDetails = confirmations
-    .filter((item) => item.modulo.startsWith("contabil:") && item.status === "concluido")
-    .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
-  const financialDetails = confirmations
-    .filter((item) => item.modulo.startsWith("financeiro:") && item.status === "concluido")
-    .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
   const canConfirmSector = (sector: string) =>
     userProfiles.includes("administrador") || (
       sector === "Financeiro" ? userProfiles.includes("financeiro") :
@@ -1508,13 +1502,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       </div>
                       <small>{financialPercent}% · {financialDoneCount}/{financialTotalCount || 0} finalizada(s)</small>
                     </header>
-                    {financialDetails.length > 0 && (
-                      <div className="schedule-accounting-details">
-                        {financialDetails.map((item) => (
-                          <span key={item.modulo}>{item.setor.replace(/^Financeiro · /, "")}</span>
-                        ))}
-                      </div>
-                    )}
                     <div className="schedule-task-tabs" role="tablist" aria-label="Tarefas do módulo financeiro">
                       {financialScheduleTasks.map((task) => {
                         const doneCount = companies.filter((company) => isDone(`financeiro:${task.id}:${scheduleCompanyCode(company)}`)).length;
@@ -1605,13 +1592,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       </div>
                       <small>{accountingPercent}% · {accountingDoneCount}/{accountingTotalCount || 0} finalizada(s)</small>
                     </header>
-                    {accountingDetails.length > 0 && (
-                      <div className="schedule-accounting-details">
-                        {accountingDetails.map((item) => (
-                          <span key={item.modulo}>{item.setor.replace(/^Contabilidade · /, "")}</span>
-                        ))}
-                      </div>
-                    )}
                     <div className="schedule-task-tabs" role="tablist" aria-label="Tarefas do módulo contábil">
                       {accountingScheduleTasks.map((task) => {
                         const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${scheduleCompanyCode(company)}`)).length;
