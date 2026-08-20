@@ -1257,6 +1257,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [confirmingModule, setConfirmingModule] = useState("");
+  const [selectedScheduleModule, setSelectedScheduleModule] = useState("contabil");
   const [scheduleError, setScheduleError] = useState("");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
@@ -1273,6 +1274,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
   const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
   const formatDate = (date: Date) => date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const selectedStage = stages.find((stage) => stage.key === selectedScheduleModule) ?? stages[0];
   const accountingDetails = confirmations
     .filter((item) => item.modulo.startsWith("contabil:") && item.status === "concluido")
     .sort((left, right) => left.setor.localeCompare(right.setor, "pt-BR", { numeric: true }));
@@ -1286,6 +1288,11 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     );
   const isDone = (modulo: string) => confirmations.some((item) => item.modulo === modulo && item.status === "concluido");
   const companyLabel = (company: ScheduleCompany) => `${company.code} — ${company.name}`;
+  const accountingDoneCount = accountingScheduleTasks.reduce(
+    (total, task) => total + companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length,
+    0,
+  );
+  const accountingTotalCount = accountingScheduleTasks.length * companies.length;
 
   useEffect(() => {
     let active = true;
@@ -1374,53 +1381,11 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       {scheduleError && <div className="schedule-error">{scheduleError}</div>}
 
       <div className="schedule-dashboard-layout">
-        <div className="schedule-stages">
-        {stages.map((stage, index) => {
-          const Icon = stage.icon;
-          const stageDuration = Math.max(1, stage.deadline.getTime() - start.getTime());
-          const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
-          const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
-          const canConfirm = canConfirmSector(stage.sector);
-          return (
-            <article key={stage.name} className={`${index === stages.length - 1 ? "schedule-final-stage" : ""} ${confirmation ? "schedule-stage-done" : ""}`}>
-              <span className="schedule-stage-icon"><Icon /></span>
-              <div className="schedule-stage-copy">
-                <div><b>{stage.name}</b><span>Responsável: {stage.sector} · {stage.detail}</span></div>
-                {stage.key === "contabil" && accountingDetails.length > 0 && (
-                  <div className="schedule-accounting-details">
-                    {accountingDetails.map((item) => (
-                      <span key={item.modulo}>{item.setor.replace(/^Contabilidade · /, "")}</span>
-                    ))}
-                  </div>
-                )}
-                <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
-                <small>{confirmation
-                  ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
-                  : `Prazo decorrido: ${progress}%`}</small>
-              </div>
-              <div className="schedule-deadline"><span>{stage.milestone}</span><b>{formatDate(stage.deadline)}</b></div>
-              <label
-                className={`schedule-ok ${!canConfirm ? "is-disabled" : ""}`}
-                title={canConfirm ? "Marcar ou desmarcar a entrega deste módulo" : `Liberação exclusiva do setor ${stage.sector}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(confirmation)}
-                  disabled={!canConfirm || scheduleLoading || confirmingModule === stage.key}
-                  onChange={(event) => void toggleStage(stage, event.target.checked)}
-                />
-                <span>{confirmingModule === stage.key ? "Salvando..." : "OK"}</span>
-              </label>
-            </article>
-          );
-        })}
-        </div>
-
-        <aside className="schedule-module-panel" aria-label="Lista de flags por módulo">
+        <aside className="schedule-module-panel" aria-label="Menu de módulos do cronograma">
           <header>
             <div>
-              <span>FLAGS DO FECHAMENTO</span>
-              <b>Lista por módulo</b>
+              <span>MENU DO CRONOGRAMA</span>
+              <b>Módulos</b>
             </div>
             <small>{confirmations.filter((item) => item.status === "concluido").length} OK</small>
           </header>
@@ -1429,60 +1394,126 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
             {stages.map((stage) => {
               const Icon = stage.icon;
               const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
+              const isActive = selectedStage.key === stage.key;
+              const moduleProgress = stage.key === "contabil"
+                ? `${accountingDoneCount}/${accountingTotalCount || 0}`
+                : confirmation ? "1/1" : "0/1";
               return (
-                <div key={`panel-${stage.key}`} className={`schedule-module-card ${confirmation ? "is-done" : ""}`}>
+                <button
+                  key={`panel-${stage.key}`}
+                  type="button"
+                  className={`schedule-module-card ${confirmation ? "is-done" : ""} ${isActive ? "is-active" : ""}`}
+                  onClick={() => setSelectedScheduleModule(stage.key)}
+                >
                   <span><Icon /></span>
                   <div>
                     <b>{stage.name}</b>
-                    <small>{confirmation ? "Liberado" : "Pendente"}</small>
+                    <small>{stage.key === "contabil" ? `${moduleProgress} tarefas` : confirmation ? "Liberado" : "Pendente"}</small>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="schedule-accounting-checklist">
-            <header>
-              <div>
-                <span>MÓDULO CONTÁBIL</span>
-                <b>Tarefas por empresa</b>
-              </div>
-              <small>{companies.length} empresa(s)</small>
-            </header>
-            {accountingScheduleTasks.map((task) => {
-              const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length;
-              return (
-                <details key={task.id} className="schedule-accounting-task" open={task.id === "pis-cofins"}>
-                  <summary>
-                    <span>
-                      <b>{task.label}</b>
-                      <small>{task.description}</small>
-                    </span>
-                    <em>{doneCount}/{companies.length}</em>
-                  </summary>
-                  <div className="schedule-company-list">
-                    {companies.map((company) => {
-                      const modulo = `contabil:${task.id}:${company.code}`;
-                      const checked = isDone(modulo);
-                      const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
-                      return (
-                        <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={disabled}
-                            onChange={(event) => void toggleAccountingTask(task, company, event.target.checked)}
-                          />
-                          <span title={companyLabel(company)}>{companyLabel(company)}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </details>
+                </button>
               );
             })}
           </div>
         </aside>
+
+        <div className="schedule-module-workspace">
+          {(() => {
+            const Icon = selectedStage.icon;
+            const stageDuration = Math.max(1, selectedStage.deadline.getTime() - start.getTime());
+            const progress = Math.max(0, Math.min(100, Math.round((elapsed / stageDuration) * 100)));
+            const confirmation = confirmations.find((item) => item.modulo === selectedStage.key && item.status === "concluido");
+            const canConfirm = canConfirmSector(selectedStage.sector);
+
+            return (
+              <>
+                <header className="schedule-module-workspace-header">
+                  <span className="schedule-stage-icon"><Icon /></span>
+                  <div>
+                    <span>{selectedStage.sector.toUpperCase()}</span>
+                    <b>{selectedStage.name}</b>
+                    <small>{selectedStage.detail}</small>
+                  </div>
+                  <div className="schedule-deadline"><span>{selectedStage.milestone}</span><b>{formatDate(selectedStage.deadline)}</b></div>
+                  <label
+                    className={`schedule-ok ${!canConfirm ? "is-disabled" : ""}`}
+                    title={canConfirm ? "Marcar ou desmarcar a entrega deste módulo" : `Liberação exclusiva do setor ${selectedStage.sector}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(confirmation)}
+                      disabled={!canConfirm || scheduleLoading || confirmingModule === selectedStage.key}
+                      onChange={(event) => void toggleStage(selectedStage, event.target.checked)}
+                    />
+                    <span>{confirmingModule === selectedStage.key ? "Salvando..." : "OK"}</span>
+                  </label>
+                </header>
+
+                <div className="schedule-progress"><span style={{ width: `${progress}%` }} /></div>
+                <small className="schedule-module-status">{confirmation
+                  ? `OK por ${confirmation.confirmado_email} em ${new Date(confirmation.confirmado_em).toLocaleString("pt-BR")}`
+                  : `Prazo decorrido: ${progress}%`}</small>
+
+                {selectedStage.key === "contabil" ? (
+                  <div className="schedule-accounting-checklist">
+                    <header>
+                      <div>
+                        <span>MÓDULO CONTÁBIL</span>
+                        <b>Tarefas realizadas por empresa</b>
+                      </div>
+                      <small>{accountingDoneCount}/{accountingTotalCount || 0} finalizada(s)</small>
+                    </header>
+                    {accountingDetails.length > 0 && (
+                      <div className="schedule-accounting-details">
+                        {accountingDetails.map((item) => (
+                          <span key={item.modulo}>{item.setor.replace(/^Contabilidade · /, "")}</span>
+                        ))}
+                      </div>
+                    )}
+                    {accountingScheduleTasks.map((task) => {
+                      const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length;
+                      return (
+                        <details key={task.id} className="schedule-accounting-task" open={task.id === "pis-cofins"}>
+                          <summary>
+                            <span>
+                              <b>{task.label}</b>
+                              <small>{task.description}</small>
+                            </span>
+                            <em>{doneCount}/{companies.length}</em>
+                          </summary>
+                          <div className="schedule-company-list">
+                            {companies.map((company) => {
+                              const modulo = `contabil:${task.id}:${company.code}`;
+                              const checked = isDone(modulo);
+                              const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
+                              return (
+                                <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={disabled}
+                                    onChange={(event) => void toggleAccountingTask(task, company, event.target.checked)}
+                                  />
+                                  <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="schedule-selected-module-card">
+                    <b>{confirmation ? "Entrega finalizada" : "Entrega pendente"}</b>
+                    <p>{confirmation
+                      ? `Este módulo foi liberado por ${confirmation.confirmado_email}.`
+                      : `O setor ${selectedStage.sector} ainda precisa dar OK para liberar esta etapa do fechamento.`}</p>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
       </div>
     </section>
   );
