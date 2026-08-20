@@ -39,7 +39,13 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   const executiveRows = useMemo(() => analysis && lot ? buildExecutiveRows(analysis, lot) : [], [analysis, lot]);
 
   useEffect(() => {
-    setActionsHost(document.getElementById("payroll-filter-actions"));
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) setActionsHost(document.getElementById("payroll-filter-actions"));
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function loadLot() {

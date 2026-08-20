@@ -1318,6 +1318,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const [scheduleError, setScheduleError] = useState("");
   const [selectedFinancialTask, setSelectedFinancialTask] = useState<FinancialScheduleTaskId>("bancaria");
   const [selectedAccountingTask, setSelectedAccountingTask] = useState<AccountingTab>("pis-cofins");
+  const [detailModule, setDetailModule] = useState("");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
     { key: "compras", name: "Módulo Compras", sector: "Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
@@ -1348,6 +1349,12 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil")
     );
   const isDone = (modulo: string) => confirmations.some((item) => item.modulo === modulo && item.status === "concluido");
+  const getConfirmationDetail = (modulo: string) => {
+    const item = confirmations.find((entry) => entry.modulo === modulo && entry.status === "concluido");
+    if (!item) return "Ainda não finalizado.";
+    const confirmedAt = item.confirmado_em ? new Date(item.confirmado_em).toLocaleString("pt-BR") : "data não registrada";
+    return `Finalizado por ${item.confirmado_email || "usuário não identificado"} em ${confirmedAt}.`;
+  };
   const scheduleCompanyCode = (company: ScheduleCompany) => String(company.code || "").trim().padStart(2, "0");
   const companyLabel = (company: ScheduleCompany) => `${scheduleCompanyCode(company)} — ${company.name}`;
   const accountingDoneCount = accountingScheduleTasks.reduce(
@@ -1366,8 +1373,16 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
 
   useEffect(() => {
-    if (selectedScheduleModule === "financeiro") setSelectedFinancialTask("bancaria");
-    if (selectedScheduleModule === "contabil") setSelectedAccountingTask("pis-cofins");
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      if (selectedScheduleModule === "financeiro") setSelectedFinancialTask("bancaria");
+      if (selectedScheduleModule === "contabil") setSelectedAccountingTask("pis-cofins");
+      setDetailModule("");
+    });
+    return () => {
+      active = false;
+    };
   }, [selectedScheduleModule]);
 
   useEffect(() => {
@@ -1443,6 +1458,32 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     }, checked);
   }
 
+  async function toggleAccountingTaskAll(task: (typeof accountingScheduleTasks)[number], checked: boolean) {
+    const batchKey = `contabil:${task.id}:todas`;
+    setConfirmingModule(batchKey);
+    for (const company of companies) {
+      await saveScheduleItem({
+        key: `contabil:${task.id}:${scheduleCompanyCode(company)}`,
+        sector: `Contabilidade · ${task.label} · ${companyLabel(company)}`,
+        label: `${task.label} · ${companyLabel(company)}`,
+      }, checked);
+    }
+    setConfirmingModule("");
+  }
+
+  async function toggleFinancialTaskAll(task: (typeof financialScheduleTasks)[number], checked: boolean) {
+    const batchKey = `financeiro:${task.id}:todas`;
+    setConfirmingModule(batchKey);
+    for (const company of companies) {
+      await saveScheduleItem({
+        key: `financeiro:${task.id}:${scheduleCompanyCode(company)}`,
+        sector: `Financeiro · ${task.label} · ${companyLabel(company)}`,
+        label: `${task.label} · ${companyLabel(company)}`,
+      }, checked);
+    }
+    setConfirmingModule("");
+  }
+
   return (
     <section className="closing-schedule">
       <div className="schedule-master-line">
@@ -1508,20 +1549,48 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         </em>
                       </header>
                       <div className="schedule-company-list schedule-company-list-tabs">
+                        {(() => {
+                          const allChecked = companies.length > 0 && companies.every((company) => isDone(`financeiro:${activeFinancialTask.id}:${scheduleCompanyCode(company)}`));
+                          const allKey = `financeiro:${activeFinancialTask.id}:todas`;
+                          const allDisabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === allKey;
+                          return (
+                            <div className={`schedule-company-item schedule-company-all ${allChecked ? "is-done" : ""} ${allDisabled ? "is-disabled" : ""}`}>
+                              <span>Todas</span>
+                              <div className="schedule-company-actions">
+                                <input
+                                  type="checkbox"
+                                  checked={allChecked}
+                                  disabled={allDisabled}
+                                  onChange={(event) => void toggleFinancialTaskAll(activeFinancialTask, event.target.checked)}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {companies.map((company) => {
                           const modulo = `financeiro:${activeFinancialTask.id}:${scheduleCompanyCode(company)}`;
                           const checked = isDone(modulo);
                           const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
                           return (
-                            <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                            <div key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
                               <span title={companyLabel(company)}>{companyLabel(company)}</span>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={disabled}
-                                onChange={(event) => void toggleFinancialTask(activeFinancialTask, company, event.target.checked)}
-                              />
-                            </label>
+                              <div className="schedule-company-actions">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={(event) => void toggleFinancialTask(activeFinancialTask, company, event.target.checked)}
+                                />
+                                <button
+                                  type="button"
+                                  className="schedule-detail-button"
+                                  onClick={() => setDetailModule(detailModule === modulo ? "" : modulo)}
+                                >
+                                  Detalhe
+                                </button>
+                              </div>
+                              {detailModule === modulo && <small className="schedule-company-detail">{getConfirmationDetail(modulo)}</small>}
+                            </div>
                           );
                         })}
                       </div>
@@ -1577,20 +1646,48 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         </em>
                       </header>
                       <div className="schedule-company-list schedule-company-list-tabs">
+                        {(() => {
+                          const allChecked = companies.length > 0 && companies.every((company) => isDone(`contabil:${activeAccountingTask.id}:${scheduleCompanyCode(company)}`));
+                          const allKey = `contabil:${activeAccountingTask.id}:todas`;
+                          const allDisabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === allKey;
+                          return (
+                            <div className={`schedule-company-item schedule-company-all ${allChecked ? "is-done" : ""} ${allDisabled ? "is-disabled" : ""}`}>
+                              <span>Todas</span>
+                              <div className="schedule-company-actions">
+                                <input
+                                  type="checkbox"
+                                  checked={allChecked}
+                                  disabled={allDisabled}
+                                  onChange={(event) => void toggleAccountingTaskAll(activeAccountingTask, event.target.checked)}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
                         {companies.map((company) => {
                           const modulo = `contabil:${activeAccountingTask.id}:${scheduleCompanyCode(company)}`;
                           const checked = isDone(modulo);
                           const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
                           return (
-                            <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                            <div key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
                               <span title={companyLabel(company)}>{companyLabel(company)}</span>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={disabled}
-                                onChange={(event) => void toggleAccountingTask(activeAccountingTask, company, event.target.checked)}
-                              />
-                            </label>
+                              <div className="schedule-company-actions">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={(event) => void toggleAccountingTask(activeAccountingTask, company, event.target.checked)}
+                                />
+                                <button
+                                  type="button"
+                                  className="schedule-detail-button"
+                                  onClick={() => setDetailModule(detailModule === modulo ? "" : modulo)}
+                                >
+                                  Detalhe
+                                </button>
+                              </div>
+                              {detailModule === modulo && <small className="schedule-company-detail">{getConfirmationDetail(modulo)}</small>}
+                            </div>
                           );
                         })}
                       </div>
