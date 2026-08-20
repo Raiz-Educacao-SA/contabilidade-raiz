@@ -81,7 +81,6 @@ type ScheduleCompany = {
 type ScheduleModuleKey = "compras" | "financeiro" | "folha" | "fiscal" | "contabil" | "book";
 
 const scheduleSidebarModules = [
-  { id: "compras", label: "Módulo Compras", icon: ShoppingCart },
   { id: "financeiro", label: "Módulo Financeiro", icon: WalletCards },
   { id: "folha", label: "Módulo Folha de Pagamento", icon: UsersRound },
   { id: "fiscal", label: "Módulo Fiscal", icon: FileSpreadsheet },
@@ -1577,7 +1576,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                           const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
                           return (
                             <div key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
-                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                              <span className="schedule-company-name" title={companyLabel(company)}>{companyLabel(company)}</span>
                               <div className="schedule-company-actions">
                                 <input
                                   type="checkbox"
@@ -1667,7 +1666,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                           const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
                           return (
                             <div key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
-                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                              <span className="schedule-company-name" title={companyLabel(company)}>{companyLabel(company)}</span>
                               <div className="schedule-company-actions">
                                 <input
                                   type="checkbox"

@@ -2755,6 +2755,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.schedule-company-item .schedule-company-name {
+  font-family: "Calibri Light", Calibri, "Segoe UI", sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  font-size: 7.5px;
+}
 .schedule-company-all {
   border-color: #bfdbfe;
   background: #eff6ff;
