@@ -78,6 +78,17 @@ type ScheduleCompany = {
   name: string;
 };
 
+type ScheduleModuleKey = "compras" | "financeiro" | "folha" | "fiscal" | "contabil" | "book";
+
+const scheduleSidebarModules = [
+  { id: "compras", label: "Módulo Compras", icon: ShoppingCart },
+  { id: "financeiro", label: "Módulo Financeiro", icon: WalletCards },
+  { id: "folha", label: "Módulo Folha de Pagamento", icon: UsersRound },
+  { id: "fiscal", label: "Módulo Fiscal", icon: FileSpreadsheet },
+  { id: "contabil", label: "Módulo Contábil", icon: BookText },
+  { id: "book", label: "Book Contábil", icon: BookOpenCheck },
+] as const;
+
 const accountingScheduleTasks: { id: AccountingTab; label: string; description: string }[] = [
   { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
   { id: "irpj-csll", label: "IRPJ/CSLL", description: "Apuração do imposto" },
@@ -209,6 +220,7 @@ export default function Home() {
   const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
   const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
+  const [selectedScheduleModule, setSelectedScheduleModule] = useState<ScheduleModuleKey>("contabil");
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
@@ -661,10 +673,27 @@ export default function Home() {
           </nav>
         )}
         {selectedModule === "cronograma" && (
-          <nav>
+          <nav className="schedule-sidebar-nav">
             <button className={scheduleView === "acompanhamento" ? "active" : ""} onClick={() => setScheduleView("acompanhamento")}>
               <CalendarDays /> Acompanhamento
             </button>
+            {scheduleView === "acompanhamento" && (
+              <div className="schedule-sidebar-modules" aria-label="Módulos do cronograma">
+                {scheduleSidebarModules.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={`schedule-sidebar-${id}`}
+                    className={selectedScheduleModule === id ? "active schedule-sidebar-module-active" : ""}
+                    onClick={() => {
+                      setScheduleView("acompanhamento");
+                      setSelectedScheduleModule(id);
+                    }}
+                  >
+                    <Icon />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <button className={scheduleView === "historico" ? "active" : ""} onClick={() => setScheduleView("historico")}>
               <ListTree /> Histórico de entregas
             </button>
@@ -968,6 +997,7 @@ export default function Home() {
             userId={session.user.id}
             userEmail={session.user.email ?? ""}
             userProfiles={userProfiles}
+            selectedScheduleModule={selectedScheduleModule}
             companies={companies.flatMap((item) =>
               item.empresas
                 ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }]
@@ -1252,12 +1282,11 @@ type ScheduleHistoryRow = {
   criado_em: string;
 };
 
-function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles, companies }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[]; companies: ScheduleCompany[] }) {
+function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProfiles, selectedScheduleModule, companies }: { year: number; month: number; closingDate: string; userId: string; userEmail: string; userProfiles: string[]; selectedScheduleModule: ScheduleModuleKey; companies: ScheduleCompany[] }) {
   const scheduleCompetence = `${year}-${String(month).padStart(2, "0")}`;
   const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [confirmingModule, setConfirmingModule] = useState("");
-  const [selectedScheduleModule, setSelectedScheduleModule] = useState("contabil");
   const [scheduleError, setScheduleError] = useState("");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
@@ -1381,41 +1410,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       {scheduleError && <div className="schedule-error">{scheduleError}</div>}
 
       <div className="schedule-dashboard-layout">
-        <aside className="schedule-module-panel" aria-label="Menu de módulos do cronograma">
-          <header>
-            <div>
-              <span>MENU DO CRONOGRAMA</span>
-              <b>Módulos</b>
-            </div>
-            <small>{confirmations.filter((item) => item.status === "concluido").length} OK</small>
-          </header>
-
-          <div className="schedule-module-list">
-            {stages.map((stage) => {
-              const Icon = stage.icon;
-              const confirmation = confirmations.find((item) => item.modulo === stage.key && item.status === "concluido");
-              const isActive = selectedStage.key === stage.key;
-              const moduleProgress = stage.key === "contabil"
-                ? `${accountingDoneCount}/${accountingTotalCount || 0}`
-                : confirmation ? "1/1" : "0/1";
-              return (
-                <button
-                  key={`panel-${stage.key}`}
-                  type="button"
-                  className={`schedule-module-card ${confirmation ? "is-done" : ""} ${isActive ? "is-active" : ""}`}
-                  onClick={() => setSelectedScheduleModule(stage.key)}
-                >
-                  <span><Icon /></span>
-                  <div>
-                    <b>{stage.name}</b>
-                    <small>{stage.key === "contabil" ? `${moduleProgress} tarefas` : confirmation ? "Liberado" : "Pendente"}</small>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
         <div className="schedule-module-workspace">
           {(() => {
             const Icon = selectedStage.icon;

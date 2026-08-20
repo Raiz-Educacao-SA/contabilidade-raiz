@@ -203,6 +203,38 @@
 .book-base-nav button.active {
   box-shadow: inset 3px 0 #6fc5c0;
 }
+.schedule-sidebar-nav {
+  gap: 7px;
+}
+.schedule-sidebar-modules {
+  margin: 2px 10px 8px 24px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(116, 200, 188, 0.35);
+  display: grid;
+  gap: 5px;
+}
+.schedule-sidebar-modules button {
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #aeb7ca;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+.schedule-sidebar-modules button svg {
+  width: 13px;
+  height: 13px;
+}
+.schedule-sidebar-modules button:hover,
+.schedule-sidebar-modules button.schedule-sidebar-module-active {
+  color: #fff;
+  background: #222c48;
+}
+.schedule-sidebar-modules button.schedule-sidebar-module-active {
+  box-shadow: inset 3px 0 #74c8bc;
+}
 .company-sidebar {
   min-height: 0;
   margin-top: 18px;
@@ -2168,7 +2200,7 @@
 }
 .schedule-dashboard-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
