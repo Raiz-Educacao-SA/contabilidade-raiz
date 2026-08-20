@@ -1304,6 +1304,8 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [confirmingModule, setConfirmingModule] = useState("");
   const [scheduleError, setScheduleError] = useState("");
+  const [selectedFinancialTask, setSelectedFinancialTask] = useState<FinancialScheduleTaskId>("bancaria");
+  const [selectedAccountingTask, setSelectedAccountingTask] = useState<AccountingTab>("pis-cofins");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
     { key: "compras", name: "Módulo Compras", sector: "Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
@@ -1346,6 +1348,15 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const financialTotalCount = financialScheduleTasks.length * companies.length;
+  const activeFinancialTask = financialScheduleTasks.find((task) => task.id === selectedFinancialTask) ?? financialScheduleTasks[0]!;
+  const activeAccountingTask = accountingScheduleTasks.find((task) => task.id === selectedAccountingTask) ?? accountingScheduleTasks[0]!;
+  const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
+  const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
+
+  useEffect(() => {
+    if (selectedScheduleModule === "financeiro") setSelectedFinancialTask("bancaria");
+    if (selectedScheduleModule === "contabil") setSelectedAccountingTask("pis-cofins");
+  }, [selectedScheduleModule]);
 
   useEffect(() => {
     let active = true;
@@ -1423,10 +1434,10 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   return (
     <section className="closing-schedule">
       <div className="schedule-overview">
-        <div>
+        <div className="schedule-overview-line">
           <span>PROJEÇÃO DO FECHAMENTO</span>
           <b>{months[month - 1]} de {year}</b>
-          <small>Visão geral do processo, sem separação por empresa.</small>
+          <small>Visão geral do processo.</small>
         </div>
         <div className="schedule-window">
           <span>Janela projetada</span>
@@ -1486,7 +1497,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         <span>MÓDULO FINANCEIRO</span>
                         <b>Tarefas realizadas por empresa</b>
                       </div>
-                      <small>{financialDoneCount}/{financialTotalCount || 0} finalizada(s)</small>
+                      <small>{financialDoneCount}/{financialTotalCount || 0} finalizada(s) · {financialPercent}%</small>
                     </header>
                     {financialDetails.length > 0 && (
                       <div className="schedule-accounting-details">
@@ -1495,38 +1506,58 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         ))}
                       </div>
                     )}
-                    {financialScheduleTasks.map((task) => {
-                      const doneCount = companies.filter((company) => isDone(`financeiro:${task.id}:${company.code}`)).length;
-                      return (
-                        <details key={task.id} className="schedule-accounting-task" open={task.id === "bancaria"}>
-                          <summary>
-                            <span>
-                              <b>{task.label}</b>
-                              <small>{task.description}</small>
-                            </span>
-                            <em>{doneCount}/{companies.length}</em>
-                          </summary>
-                          <div className="schedule-company-list">
-                            {companies.map((company) => {
-                              const modulo = `financeiro:${task.id}:${company.code}`;
-                              const checked = isDone(modulo);
-                              const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
-                              return (
-                                <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={disabled}
-                                    onChange={(event) => void toggleFinancialTask(task, company, event.target.checked)}
-                                  />
-                                  <span title={companyLabel(company)}>{companyLabel(company)}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </details>
-                      );
-                    })}
+                    <div className="schedule-task-tabs" role="tablist" aria-label="Tarefas do módulo financeiro">
+                      {financialScheduleTasks.map((task) => {
+                        const doneCount = companies.filter((company) => isDone(`financeiro:${task.id}:${company.code}`)).length;
+                        const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
+                        return (
+                          <button
+                            key={task.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeFinancialTask.id === task.id}
+                            className={`schedule-task-tab ${activeFinancialTask.id === task.id ? "is-active" : ""} ${doneCount === companies.length && companies.length > 0 ? "is-done" : ""}`}
+                            onClick={() => setSelectedFinancialTask(task.id)}
+                          >
+                            <span>{task.label}</span>
+                            <em>{doneCount}/{companies.length} · {taskPercent}%</em>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="schedule-task-panel" role="tabpanel">
+                      <header className="schedule-task-panel-header">
+                        <div>
+                          <b>{activeFinancialTask.label}</b>
+                          <small>{activeFinancialTask.description}</small>
+                        </div>
+                        <em>
+                          {(() => {
+                            const doneCount = companies.filter((company) => isDone(`financeiro:${activeFinancialTask.id}:${company.code}`)).length;
+                            const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
+                            return `${doneCount}/${companies.length} · ${taskPercent}%`;
+                          })()}
+                        </em>
+                      </header>
+                      <div className="schedule-company-list schedule-company-list-tabs">
+                        {companies.map((company) => {
+                          const modulo = `financeiro:${activeFinancialTask.id}:${company.code}`;
+                          const checked = isDone(modulo);
+                          const disabled = !canConfirmSector("Financeiro") || scheduleLoading || confirmingModule === modulo;
+                          return (
+                            <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={(event) => void toggleFinancialTask(activeFinancialTask, company, event.target.checked)}
+                              />
+                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 ) : selectedStage.key === "contabil" ? (
                   <div className="schedule-accounting-checklist">
@@ -1535,7 +1566,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         <span>MÓDULO CONTÁBIL</span>
                         <b>Tarefas realizadas por empresa</b>
                       </div>
-                      <small>{accountingDoneCount}/{accountingTotalCount || 0} finalizada(s)</small>
+                      <small>{accountingDoneCount}/{accountingTotalCount || 0} finalizada(s) · {accountingPercent}%</small>
                     </header>
                     {accountingDetails.length > 0 && (
                       <div className="schedule-accounting-details">
@@ -1544,38 +1575,58 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                         ))}
                       </div>
                     )}
-                    {accountingScheduleTasks.map((task) => {
-                      const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length;
-                      return (
-                        <details key={task.id} className="schedule-accounting-task" open={task.id === "pis-cofins"}>
-                          <summary>
-                            <span>
-                              <b>{task.label}</b>
-                              <small>{task.description}</small>
-                            </span>
-                            <em>{doneCount}/{companies.length}</em>
-                          </summary>
-                          <div className="schedule-company-list">
-                            {companies.map((company) => {
-                              const modulo = `contabil:${task.id}:${company.code}`;
-                              const checked = isDone(modulo);
-                              const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
-                              return (
-                                <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={disabled}
-                                    onChange={(event) => void toggleAccountingTask(task, company, event.target.checked)}
-                                  />
-                                  <span title={companyLabel(company)}>{companyLabel(company)}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </details>
-                      );
-                    })}
+                    <div className="schedule-task-tabs" role="tablist" aria-label="Tarefas do módulo contábil">
+                      {accountingScheduleTasks.map((task) => {
+                        const doneCount = companies.filter((company) => isDone(`contabil:${task.id}:${company.code}`)).length;
+                        const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
+                        return (
+                          <button
+                            key={task.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeAccountingTask.id === task.id}
+                            className={`schedule-task-tab ${activeAccountingTask.id === task.id ? "is-active" : ""} ${doneCount === companies.length && companies.length > 0 ? "is-done" : ""}`}
+                            onClick={() => setSelectedAccountingTask(task.id)}
+                          >
+                            <span>{task.label}</span>
+                            <em>{doneCount}/{companies.length} · {taskPercent}%</em>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="schedule-task-panel" role="tabpanel">
+                      <header className="schedule-task-panel-header">
+                        <div>
+                          <b>{activeAccountingTask.label}</b>
+                          <small>{activeAccountingTask.description}</small>
+                        </div>
+                        <em>
+                          {(() => {
+                            const doneCount = companies.filter((company) => isDone(`contabil:${activeAccountingTask.id}:${company.code}`)).length;
+                            const taskPercent = companies.length ? Math.round((doneCount / companies.length) * 100) : 0;
+                            return `${doneCount}/${companies.length} · ${taskPercent}%`;
+                          })()}
+                        </em>
+                      </header>
+                      <div className="schedule-company-list schedule-company-list-tabs">
+                        {companies.map((company) => {
+                          const modulo = `contabil:${activeAccountingTask.id}:${company.code}`;
+                          const checked = isDone(modulo);
+                          const disabled = !canConfirmSector("Contabilidade") || scheduleLoading || confirmingModule === modulo;
+                          return (
+                            <label key={modulo} className={`schedule-company-item ${checked ? "is-done" : ""} ${disabled ? "is-disabled" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={disabled}
+                                onChange={(event) => void toggleAccountingTask(activeAccountingTask, company, event.target.checked)}
+                              />
+                              <span title={companyLabel(company)}>{companyLabel(company)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="schedule-selected-module-card">
