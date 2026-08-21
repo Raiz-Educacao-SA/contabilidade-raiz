@@ -30,6 +30,7 @@ const accountRules: AccountRule[] = [
   { reduced: 1028, account: "4.2.1.11.01.01", description: "Recebimento de Multa/Juros", group: "6.3 - Juros Ativos" },
   { reduced: 1029, account: "4.2.1.11.01.02", description: "Receitas de Aplicações Financeiras", group: "6.1 - Rendimentos s/Aplicações financeiras" },
   { reduced: 1030, account: "4.2.1.11.01.03", description: "Descontos Obtidos", group: "6.2 - Descontos Obtidos" },
+  { reduced: 1032, account: "4.2.1.11.01.05", description: "Outras Receitas Financeiras", group: "6.4 - Outras Receitas Financeiras" },
   { reduced: 1033, account: "4.2.1.11.01.06", description: "Variação Cambial Ativa", group: "6.5 - Variação Cambial Ativa - Tributada" },
   { reduced: 1036, account: "4.2.1.12.01.01", description: "(-) Recuperação de Despesas", group: "3.2 Recuperação de Despesas" },
   { reduced: 1037, account: "4.2.1.12.01.02", description: "(-) Reversão de Provisão", group: "" },
