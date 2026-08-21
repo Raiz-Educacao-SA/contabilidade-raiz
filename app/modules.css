@@ -3208,6 +3208,15 @@
 .tax-branch-selector label { display:inline-flex; align-items:center; gap:6px; padding:5px 9px; border:1px solid #d8e1ee; border-radius:8px; background:#fff; color:#172033; font-size:12px; font-weight:700; cursor:pointer; }
 .tax-branch-selector input { width:15px; height:15px; accent-color:#168b5b; }
 
+.module-completion-control { margin-left:auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.module-completion-control small { color:#08764a; font-size:10px; font-weight:800; }
+.module-completion-control button { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:8px 12px; border:0; border-radius:10px; background:#168b5b; color:#fff; font-size:11px; font-weight:900; cursor:pointer; }
+.module-completion-control button.is-finalized { background:#e8f7ef; color:#08764a; border:1px solid #a9dfc5; }
+.module-completion-control button:disabled { opacity:.58; cursor:not-allowed; }
+.module-completion-control button svg { width:15px; height:15px; }
+.module-completion-control > span { flex-basis:100%; color:#b42318; font-size:10px; text-align:right; }
+@media (max-width: 720px) { .module-completion-control { width:100%; margin-left:0; justify-content:flex-start; } }
+
 
 /* Home unificada: todos os módulos compartilham o mesmo cartão. */
 .workflow-overview {

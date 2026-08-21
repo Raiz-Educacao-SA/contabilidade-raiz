@@ -6,6 +6,7 @@ import { Calculator, CheckCircle2, ChevronDown, ChevronUp, Download, ReceiptText
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { supabase } from "@/lib/supabase";
+import { accountingCompletionIdentity, type ScheduleCompletion } from "@/lib/schedule-completion";
 
 const subscribeToDocument = () => () => {};
 const getActionsTarget = () => document.getElementById("pis-cofins-filter-actions");
@@ -202,28 +203,6 @@ function restoredBranches<T extends { branch: string }>(saved: unknown, rows: T[
   return Array.isArray(saved) && saved.length ? saved.map(String) : branchValues(rows);
 }
 
-function normalizeScheduleCompanyCode(code: string) {
-  const cleanCode = String(code || "").trim();
-  return cleanCode ? cleanCode.padStart(2, "0") : cleanCode;
-}
-
-function buildPisCofinsScheduleInfo(companyCode: string, companyName: string) {
-  const scheduleCompanyCode = normalizeScheduleCompanyCode(companyCode);
-  const rawCompanyCode = String(companyCode || "").trim();
-  let cleanCompanyName = String(companyName || "").trim();
-
-  if (scheduleCompanyCode || rawCompanyCode) {
-    const prefixCodes = [scheduleCompanyCode, rawCompanyCode].filter(Boolean).join("|");
-    cleanCompanyName = cleanCompanyName.replace(new RegExp(`^(?:${prefixCodes})\\s*[—-]\\s*`), "").trim();
-  }
-
-  const label = `${scheduleCompanyCode} — ${cleanCompanyName || companyName}`;
-  return {
-    modulo: `contabil:pis-cofins:${scheduleCompanyCode}`,
-    setor: `Contabilidade · PIS e COFINS · ${label}`,
-  };
-}
-
 export default function PisCofinsAssessment({
   companyCode,
   companyName,
@@ -280,6 +259,7 @@ export default function PisCofinsAssessment({
   const [cancelledBranches, setCancelledBranches] = useState<string[]>([]);
   const [requestedBranches, setRequestedBranches] = useState<string[]>([]);
   const [finalizedSnapshot, setFinalizedSnapshot] = useState<FinalizedSnapshot | null>(null);
+  const [sharedCompletion, setSharedCompletion] = useState<ScheduleCompletion | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [restoredStorageKey, setRestoredStorageKey] = useState("");
   const [error, setError] = useState("");
@@ -290,13 +270,45 @@ export default function PisCofinsAssessment({
   );
   const competenceLabel = competence.split("-").reverse().join("/");
   const canFinalizeAssessment = classified && otherRevenueLoaded && annualFeeLoaded && cancelledLoaded;
-  const completeAssessmentReady = canFinalizeAssessment || Boolean(finalizedSnapshot);
-  const hasAssessment = Boolean(finalizedSnapshot) || loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded || energyLoaded || leaseLoaded;
-  const isFinalized = Boolean(finalizedSnapshot);
+  const isFinalized = Boolean(finalizedSnapshot) || sharedCompletion?.status === "concluido";
+  const completeAssessmentReady = canFinalizeAssessment || isFinalized;
+  const hasAssessment = isFinalized || loaded || otherRevenueLoaded || annualFeeLoaded || cancelledLoaded || energyLoaded || leaseLoaded;
   const storageKey = `pis-cofins-assessment:${companyCode}:${competence}`;
+  const scheduleIdentity = accountingCompletionIdentity("pis-cofins", companyCode, companyName);
   const branchQuery = requestedBranches.length
     ? `&branches=${encodeURIComponent(requestedBranches.join(","))}`
     : "";
+
+  useEffect(() => {
+    let active = true;
+    const loadSharedCompletion = async () => {
+      const { data, error: loadError } = await supabase
+        .from("cronograma_entregas")
+        .select("modulo,setor,status,confirmado_email,confirmado_em")
+        .eq("competencia", competence)
+        .eq("modulo", scheduleIdentity.modulo)
+        .maybeSingle();
+      if (active && !loadError) setSharedCompletion(data as ScheduleCompletion | null);
+    };
+    void loadSharedCompletion();
+    const channel = supabase.channel(`pis-cofins-conclusao-${competence}-${companyCode}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${competence}` }, () => void loadSharedCompletion())
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [competence, companyCode, scheduleIdentity.modulo]);
+
+  useEffect(() => {
+    if (!storageReady || !finalizedSnapshot || sharedCompletion?.status === "concluido") return;
+    void supabase.from("cronograma_entregas").upsert({
+      competencia: competence,
+      modulo: scheduleIdentity.modulo,
+      setor: scheduleIdentity.setor,
+      status: "concluido",
+      confirmado_por: userId,
+      confirmado_email: finalizedSnapshot.finalizedBy || userEmail,
+      confirmado_em: finalizedSnapshot.finalizedAt,
+    }, { onConflict: "competencia,modulo" });
+  }, [storageReady, finalizedSnapshot, sharedCompletion?.status, competence, scheduleIdentity.modulo, scheduleIdentity.setor, userId, userEmail]);
 
   useEffect(() => {
     let active = true;
@@ -463,7 +475,7 @@ export default function PisCofinsAssessment({
   }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches, finalizedSnapshot]);
 
   function clearAssessment() {
-    const snapshotToClear = finalizedSnapshot;
+    const snapshotToClear = isFinalized;
     setRows([]);
     setCancelledRows([]);
     setLoaded(false);
@@ -481,6 +493,7 @@ export default function PisCofinsAssessment({
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     setRequestedBranches([]);
     setFinalizedSnapshot(null);
+    setSharedCompletion(snapshotToClear ? { ...scheduleIdentity, status: "pendente", confirmado_email: userEmail, confirmado_em: new Date().toISOString() } : null);
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
@@ -492,7 +505,7 @@ export default function PisCofinsAssessment({
     window.localStorage.removeItem(storageKey);
     void deleteAssessmentCache(storageKey);
     if (snapshotToClear) {
-      const { modulo, setor } = buildPisCofinsScheduleInfo(companyCode, companyName);
+      const { modulo, setor } = scheduleIdentity;
       void supabase.from("cronograma_entregas").upsert({
         competencia: competence,
         modulo,
@@ -825,10 +838,9 @@ export default function PisCofinsAssessment({
       branches: requestedBranches,
       totals: consolidatedTotals,
     };
-    setFinalizedSnapshot(snapshot);
     setError("");
 
-    const { modulo, setor } = buildPisCofinsScheduleInfo(companyCode, companyName);
+    const { modulo, setor } = scheduleIdentity;
     const { error: scheduleError } = await supabase.from("cronograma_entregas").upsert({
       competencia: competence,
       modulo,
@@ -840,9 +852,12 @@ export default function PisCofinsAssessment({
     }, { onConflict: "competencia,modulo" });
 
     if (scheduleError) {
-      setError("Apuração finalizada nesta tela, mas o Cronograma não pôde ser atualizado agora.");
+      setError("A apuração não foi finalizada porque o Cronograma não pôde ser atualizado.");
       return;
     }
+
+    setFinalizedSnapshot(snapshot);
+    setSharedCompletion({ modulo, setor, status: "concluido", confirmado_email: userEmail, confirmado_em: finalizedAt });
 
     await supabase.from("cronograma_historico").insert({
       competencia: competence,
@@ -1768,12 +1783,12 @@ export default function PisCofinsAssessment({
               <ReceiptText /> Lançamentos
             </button>
             <button
-              className={finalizedSnapshot ? "tax-finalize-action is-finalized" : "tax-finalize-action"}
-              disabled={!canFinalizeAssessment || Boolean(finalizedSnapshot)}
+              className={isFinalized ? "tax-finalize-action is-finalized" : "tax-finalize-action"}
+              disabled={!canFinalizeAssessment || isFinalized}
               onClick={() => void finalizeAssessment()}
-              title={finalizedSnapshot ? "Apuração já finalizada. Use Limpar para refazer." : "Finalizar e travar a apuração desta empresa"}
+              title={isFinalized ? "Apuração já finalizada. Use Limpar para refazer." : "Finalizar e travar a apuração desta empresa"}
             >
-              <CheckCircle2 /> {finalizedSnapshot ? "Finalizado" : "Finalizar"}
+              <CheckCircle2 /> {isFinalized ? "Finalizado" : "Finalizar"}
             </button>
             <button className="tax-clear-action" disabled={!hasAssessment} onClick={clearAssessment} title="Apagar a apuração salva desta empresa e competência">
               <Trash2 /> Limpar
@@ -1791,7 +1806,7 @@ export default function PisCofinsAssessment({
         <article><span>PIS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
         <article><span>COFINS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
       </div>
-      {finalizedSnapshot && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedSnapshot.finalizedBy || "usuário"} em {new Date(finalizedSnapshot.finalizedAt).toLocaleString("pt-BR")}. Para recalcular, use Limpar.</div>}
+      {isFinalized && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedSnapshot?.finalizedBy || sharedCompletion?.confirmado_email || "usuário"} em {new Date(finalizedSnapshot?.finalizedAt || sharedCompletion?.confirmado_em || Date.now()).toLocaleString("pt-BR")}. Status compartilhado com o Cronograma. Para recalcular, use Limpar.</div>}
       <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
       <div className="tax-section-heading">
         <div><b>Faturamento Mensal</b><span>Planilha.NET 2 · ANÁLISE NF MENSALIDADES 1</span></div>

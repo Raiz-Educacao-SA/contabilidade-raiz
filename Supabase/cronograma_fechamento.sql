@@ -30,10 +30,10 @@ with check (
     where ue.usuario_id = auth.uid()
       and (
         lower(ue.perfil) = 'administrador'
-        or (modulo = 'financeiro' and lower(ue.perfil) = 'financeiro')
+        or ((modulo = 'financeiro' or modulo like 'financeiro:%') and lower(trim(ue.perfil)) = 'financeiro')
         or (modulo = 'compras' and lower(ue.perfil) = 'compras')
         or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
-        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(ue.perfil) in ('contabil', 'contábil', 'contabilidade'))
+        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
       )
   )
 );
@@ -50,10 +50,10 @@ with check (
     where ue.usuario_id = auth.uid()
       and (
         lower(ue.perfil) = 'administrador'
-        or (modulo = 'financeiro' and lower(ue.perfil) = 'financeiro')
+        or ((modulo = 'financeiro' or modulo like 'financeiro:%') and lower(trim(ue.perfil)) = 'financeiro')
         or (modulo = 'compras' and lower(ue.perfil) = 'compras')
         or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
-        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(ue.perfil) in ('contabil', 'contábil', 'contabilidade'))
+        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
       )
   )
 );
@@ -91,10 +91,10 @@ with check (
     where ue.usuario_id = auth.uid()
       and (
         lower(ue.perfil) = 'administrador'
-        or (modulo = 'financeiro' and lower(ue.perfil) = 'financeiro')
+        or ((modulo = 'financeiro' or modulo like 'financeiro:%') and lower(trim(ue.perfil)) = 'financeiro')
         or (modulo = 'compras' and lower(ue.perfil) = 'compras')
         or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
-        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(ue.perfil) in ('contabil', 'contábil', 'contabilidade'))
+        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
       )
   )
 );
