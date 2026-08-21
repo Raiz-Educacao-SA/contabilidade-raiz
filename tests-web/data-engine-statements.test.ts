@@ -111,6 +111,87 @@ test("preserva o zero à esquerda da coligada na consulta", async () => {
   assert.equal(requestedUrl?.searchParams.get("cod_coligada"), "03");
 });
 
+test("consulta as cinco operações governadas sem devolver a credencial", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const requestedPaths: string[] = [];
+
+  const result = await loadDataEngineStatementSnapshot({
+    apiKey: "server-secret",
+    baseUrl: "https://data-engine.example",
+    codColigada: 10,
+    fetcher: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      requestedPaths.push(url.pathname);
+      assert.equal(new Headers(init?.headers).get("x-api-key"), "server-secret");
+      const itemByPath: Record<string, object> = {
+        "/v1/tesouraria/extratos/saldos": {
+          saldo_id: "saldo-1",
+          cod_coligada: 10,
+        },
+        "/v1/tesouraria/extratos/posicoes": {
+          posicao_aplicacao_id: "posicao-1",
+          cod_coligada: 10,
+        },
+        "/v1/tesouraria/extratos/cobertura": {
+          cobertura_ref: "cobertura-1",
+          cod_coligada: 10,
+        },
+        "/v1/tesouraria/extratos/pendencias": {
+          pendencia_id: "pendencia-1",
+          cod_coligada: 10,
+        },
+      };
+      return Response.json({
+        items: itemByPath[url.pathname] ? [itemByPath[url.pathname]] : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-08-01",
+    toDate: "2026-08-31",
+  });
+
+  assert.deepEqual(requestedPaths.sort(), [
+    "/v1/tesouraria/extratos/cobertura",
+    "/v1/tesouraria/extratos/movimentos",
+    "/v1/tesouraria/extratos/pendencias",
+    "/v1/tesouraria/extratos/posicoes",
+    "/v1/tesouraria/extratos/saldos",
+  ]);
+  assert.deepEqual(result.operations, {
+    cobertura: 1,
+    movimentos: 0,
+    pendencias: 1,
+    posicoes: 1,
+    saldos: 1,
+  });
+  assert.equal(JSON.stringify(result).includes("server-secret"), false);
+});
+
+test("rejeita qualquer operação que devolva outra coligada", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  await assert.rejects(
+    loadDataEngineStatementSnapshot({
+      apiKey: "server-secret",
+      baseUrl: "https://data-engine.example",
+      codColigada: 10,
+      fetcher: async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return Response.json({
+          items:
+            url.pathname === "/v1/tesouraria/extratos/cobertura"
+              ? [{ cobertura_ref: "fora-do-tenant", cod_coligada: 11 }]
+              : [],
+          next_cursor: null,
+        });
+      },
+      fromDate: "2026-08-01",
+      toDate: "2026-08-31",
+    }),
+    /resposta inválida/i,
+  );
+});
+
 test("interrompe paginação quando o cursor se repete", async () => {
   assert.equal(existsSync(moduleUrl), true, "Data Engine statements adapter is missing");
   const { loadDataEngineStatements } = await import(moduleUrl.href);
