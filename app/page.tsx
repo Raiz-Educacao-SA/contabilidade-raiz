@@ -1126,13 +1126,6 @@ function AreaHub({
   }, [scheduleCompetence]);
 
   const openSchedule = () => onSelect("cronograma");
-  const handleWorkflowStartClick = (event: { target: EventTarget | null }) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.closest("button, select, input, a")) return;
-    openSchedule();
-  };
-
   return (
     <main className="module-hub">
       <header>
@@ -1158,17 +1151,19 @@ function AreaHub({
           </button>
         </div>
       </header>
-      <section className="closing-workflow" aria-label="Fluxo do fechamento contábil">
-        <div className="workflow-start workflow-start-clickable" onClick={handleWorkflowStartClick}>
-          <span className="workflow-icon"><ScheduleIcon /></span>
-          <span className="workflow-copy">
-            <small>INÍCIO DO PROCESSO</small>
-            <b>Cronograma de Fechamento</b>
-            <span>Comece por aqui: acompanhe prazos, responsáveis e o andamento de todas as etapas.</span>
-          </span>
-          <span className="workflow-flag">
-            {completedAreas.length}/{workflowModulesTotal} flags
-          </span>
+      <section className="closing-workflow" aria-label="Módulos do fechamento contábil">
+        <div className="workflow-overview">
+          <div className="workflow-overview-copy">
+            <span>FECHAMENTO EM ANDAMENTO</span>
+            <b>{months[Number(closingMonth) - 1]} de {closingYear}</b>
+            <small>{completedAreas.length}/{workflowModulesTotal} módulos concluídos</small>
+          </div>
+          <div className="workflow-overview-progress">
+            <span>
+              <i style={{ width: `${workflowModulesTotal ? Math.round((completedAreas.length / workflowModulesTotal) * 100) : 0}%` }} />
+            </span>
+            <b>{workflowModulesTotal ? Math.round((completedAreas.length / workflowModulesTotal) * 100) : 0}%</b>
+          </div>
           <div className="workflow-date">
             <span>Mês/Ano do fechamento</span>
             <div className="workflow-date-fields">
@@ -1190,45 +1185,99 @@ function AreaHub({
               </select>
             </div>
           </div>
-          <button className="workflow-action" onClick={openSchedule}>Abrir cronograma <ArrowLeftRight /></button>
         </div>
 
-        <div className="workflow-divider"><span>ETAPAS DE EXECUÇÃO</span></div>
-        <div className="workflow-modules">
+        <div className="workflow-divider"><span>MÓDULOS DO FECHAMENTO</span></div>
+        <div className="workflow-modules workflow-modules-unified">
+          <button className="module-card area-cronograma" onClick={openSchedule}>
+            <span className="module-card-top">
+              <span className="module-icon"><ScheduleIcon /></span>
+              <span className="module-status module-status-progress">{completedAreas.length}/{workflowModulesTotal}</span>
+            </span>
+            <span className="module-copy">
+              <b>Cronograma de Fechamento</b>
+              <small>Acompanhe prazos, responsáveis e o andamento de todas as etapas.</small>
+            </span>
+            <span className="module-progress" aria-label="Progresso do cronograma">
+              <i style={{ width: `${workflowModulesTotal ? Math.round((completedAreas.length / workflowModulesTotal) * 100) : 0}%` }} />
+            </span>
+            <span className="module-enter">Abrir cronograma <ArrowLeftRight /></span>
+          </button>
+
           {executionAreas.map((id) => {
             const item = areas[id];
             const Icon = item.icon;
+            const isDone = completedAreas.includes(id);
             return (
               <button
                 key={id}
-                className={`module-card area-${id} ${completedAreas.includes(id) ? "workflow-module-done" : ""}`}
+                className={`module-card area-${id} ${isDone ? "workflow-module-done" : ""}`}
                 onClick={() => onSelect(id)}
               >
-                <span className="module-icon">
-                  <Icon />
+                <span className="module-card-top">
+                  <span className="module-icon"><Icon /></span>
+                  <span className={`module-status ${isDone ? "module-status-done" : ""}`}>
+                    {isDone ? "Concluído" : "Em andamento"}
+                  </span>
                 </span>
                 <span className="module-copy">
                   <b>{item.title}</b>
                   <small>{item.description}</small>
                 </span>
-                <span className="module-enter">
-                  Acessar módulo <ArrowLeftRight />
+                <span className="module-progress" aria-label={`Status de ${item.title}`}>
+                  <i style={{ width: isDone ? "100%" : "0%" }} />
                 </span>
+                <span className="module-enter">Acessar módulo <ArrowLeftRight /></span>
               </button>
             );
           })}
-        </div>
 
-        {allowedAreas.includes("book") && <><div className="workflow-path" aria-hidden="true"><span>Conclusão do fechamento</span><ArrowLeftRight /></div>
-        <button className="workflow-final" onClick={() => onSelect("book")}>
-          <span className="workflow-icon"><BookIcon /></span>
-          <span className="workflow-copy">
-            <small>PRODUTO FINAL</small>
-            <b>Book Contábil</b>
-            <span>Consolida os resultados dos módulos e entrega a visão final do fechamento contábil.</span>
-          </span>
-          <span className="workflow-action">Acessar Book <ArrowLeftRight /></span>
-        </button></>}
+          <article className="module-card area-ativo-fixo module-card-coming-soon" aria-label="Ativo Fixo, em breve">
+            <span className="module-card-top">
+              <span className="module-icon"><Building2 /></span>
+              <span className="module-status module-status-soon">Em breve</span>
+            </span>
+            <span className="module-copy">
+              <b>Ativo Fixo</b>
+              <small>Aquisições, baixas, transferências, depreciação e confronto contábil.</small>
+            </span>
+            <span className="module-enter">Módulo preparado para criação</span>
+          </article>
+
+          <article className="module-card area-demonstracoes-financeiras module-card-coming-soon" aria-label="Demonstrações Financeiras, em breve">
+            <span className="module-card-top">
+              <span className="module-icon"><BarChart3 /></span>
+              <span className="module-status module-status-soon">Em breve</span>
+            </span>
+            <span className="module-copy">
+              <b>Demonstrações Financeiras</b>
+              <small>Balanço patrimonial, DRE, DFC, DMPL e notas explicativas.</small>
+            </span>
+            <span className="module-enter">Módulo preparado para criação</span>
+          </article>
+
+          {allowedAreas.includes("book") && (
+            <button
+              className={`module-card area-book ${completedAreas.includes("book") ? "workflow-module-done" : ""}`}
+              onClick={() => onSelect("book")}
+            >
+              <span className="module-card-top">
+                <span className="module-icon"><BookIcon /></span>
+                <span className={`module-status ${completedAreas.includes("book") ? "module-status-done" : ""}`}>
+                  {completedAreas.includes("book") ? "Concluído" : "Aguardando"}
+                </span>
+              </span>
+              <span className="module-copy">
+                <b>Book Contábil</b>
+                <small>Consolida os resultados dos módulos e entrega a visão final do fechamento.</small>
+              </span>
+              <span className="module-progress" aria-label="Status do Book Contábil">
+                <i style={{ width: completedAreas.includes("book") ? "100%" : "0%" }} />
+              </span>
+              <span className="module-enter">Acessar Book <ArrowLeftRight /></span>
+            </button>
+          )}
+        </div>
       </section>
     </main>
   );
