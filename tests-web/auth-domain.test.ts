@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isAllowedCorporateEmail } from "../lib/auth-domain.ts";
+const moduleUrl = new URL("../lib/auth-domain.ts", import.meta.url);
+const { isAllowedCorporateEmail } = await import(moduleUrl.href);
 
 test("aceita somente o domínio corporativo da Raiz", () => {
   assert.equal(isAllowedCorporateEmail("luanda.silva@raizeducacao.com.br"), true);
