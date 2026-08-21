@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Calculator, CheckCircle2, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import { calculateEnergyCredit } from "@/lib/pis-cofins-credit";
 import { supabase } from "@/lib/supabase";
 import { accountingCompletionIdentity, type ScheduleCompletion } from "@/lib/schedule-completion";
 
@@ -168,6 +169,10 @@ type EnergyCreditRow = {
   ticket: null | { id: string; status: string; link: string; name: string; matchScore: number; documents: { name: string; url: string }[] };
 };
 type LeaseCreditRow = Omit<EnergyCreditRow, "ticket">;
+type EnergyConsumptionEntry = {
+  value: number;
+  confirmedAt: string;
+};
 type ConsolidatedTotals = {
   cumulativePis: number;
   cumulativeCofins: number;
@@ -193,6 +198,11 @@ const rates = {
   Cumulativo: { pis: 0.0065, cofins: 0.03 },
   "Não-Cumulativo": { pis: 0.0165, cofins: 0.076 },
 } as const;
+
+function energyCreditKey(row: Pick<EnergyCreditRow, "branch" | "entryId" | "document">) {
+  return [row.branch, row.entryId, row.document].join("|");
+}
+
 
 function branchValues<T extends { branch: string }>(rows: T[]) {
   return [...new Set(rows.map((row) => String(row.branch || "").trim()).filter(Boolean))]
@@ -248,6 +258,9 @@ export default function PisCofinsAssessment({
   const [energyLoading, setEnergyLoading] = useState(false);
   const [energyLoaded, setEnergyLoaded] = useState(false);
   const [energyError, setEnergyError] = useState("");
+  const [energyConsumptionDrafts, setEnergyConsumptionDrafts] = useState<Record<string, string>>({});
+  const [energyConsumptions, setEnergyConsumptions] = useState<Record<string, EnergyConsumptionEntry>>({});
+  const [activeConsumptionKey, setActiveConsumptionKey] = useState("");
   const [leaseRows, setLeaseRows] = useState<LeaseCreditRow[]>([]);
   const [leaseLoading, setLeaseLoading] = useState(false);
   const [leaseLoaded, setLeaseLoaded] = useState(false);
@@ -331,6 +344,9 @@ export default function PisCofinsAssessment({
         const restoredOtherRevenueRows = Array.isArray(assessment?.otherRevenueRows) ? assessment.otherRevenueRows : [];
         const restoredAnnualFeeRows = Array.isArray(assessment?.annualFeeRows) ? assessment.annualFeeRows : [];
         const restoredEnergyRows = Array.isArray(assessment?.energyRows) ? assessment.energyRows : [];
+        const restoredEnergyConsumptions = assessment?.energyConsumptions && typeof assessment.energyConsumptions === "object"
+          ? assessment.energyConsumptions as Record<string, EnergyConsumptionEntry>
+          : {};
         const restoredLeaseRows = Array.isArray(assessment?.leaseRows) ? assessment.leaseRows : [];
         setRows(restoredRows);
         setCancelledRows(restoredCancelledRows);
@@ -350,6 +366,8 @@ export default function PisCofinsAssessment({
         setCreditsVisible(assessment?.creditsVisible ?? true);
         setCreditsCategory(assessment?.creditsCategory === "leases" ? "leases" : "energy");
         setEnergyRows(restoredEnergyRows);
+        setEnergyConsumptions(restoredEnergyConsumptions);
+        setEnergyConsumptionDrafts(Object.fromEntries(Object.entries(restoredEnergyConsumptions).map(([key, entry]) => [key, String(entry.value)])));
         setEnergyLoaded(Boolean(assessment?.energyLoaded && restoredEnergyRows.length));
         setLeaseRows(restoredLeaseRows);
         setLeaseLoaded(Boolean(assessment?.leaseLoaded && restoredLeaseRows.length));
@@ -372,6 +390,9 @@ export default function PisCofinsAssessment({
         setAnnualFeeLoaded(false);
         setCancelledLoaded(false);
         setEnergyRows([]);
+        setEnergyConsumptions({});
+        setEnergyConsumptionDrafts({});
+        setActiveConsumptionKey("");
         setEnergyLoaded(false);
         setLeaseRows([]);
         setLeaseLoaded(false);
@@ -408,6 +429,7 @@ export default function PisCofinsAssessment({
       creditsVisible,
       creditsCategory,
       energyRows,
+      energyConsumptions,
       energyLoaded,
       leaseRows,
       leaseLoaded,
@@ -472,7 +494,7 @@ export default function PisCofinsAssessment({
         // O localStorage é apenas um marcador leve. A base completa fica no IndexedDB.
       }
     }
-  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches, finalizedSnapshot]);
+  }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyConsumptions, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches, finalizedSnapshot]);
 
   function clearAssessment() {
     const snapshotToClear = isFinalized;
@@ -487,6 +509,9 @@ export default function PisCofinsAssessment({
     setAnnualFeeLoaded(false);
     setCancelledLoaded(false);
     setEnergyRows([]);
+    setEnergyConsumptions({});
+    setEnergyConsumptionDrafts({});
+    setActiveConsumptionKey("");
     setEnergyLoaded(false);
     setLeaseRows([]);
     setLeaseLoaded(false);
@@ -580,6 +605,23 @@ export default function PisCofinsAssessment({
     } finally {
       setEnergyLoading(false);
     }
+  }
+
+  function confirmEnergyConsumption(row: EnergyCreditRow) {
+    if (isFinalized) return;
+    const key = energyCreditKey(row);
+    const value = Number(String(energyConsumptionDrafts[key] || "").replace(",", "."));
+    if (!Number.isFinite(value) || value <= 0) {
+      setEnergyError("Informe um valor de consumo maior que zero antes de confirmar.");
+      return;
+    }
+    setEnergyConsumptions((current) => ({
+      ...current,
+      [key]: { value, confirmedAt: new Date().toISOString() },
+    }));
+    setEnergyConsumptionDrafts((current) => ({ ...current, [key]: String(value) }));
+    setActiveConsumptionKey("");
+    setEnergyError("");
   }
 
   function exportEnergyCredits() {
@@ -817,12 +859,47 @@ export default function PisCofinsAssessment({
     nonCumulativeCofins: 0,
   }), [filteredCancelledRows]);
 
+  const revenueComposition = useMemo(() => {
+    const cumulativeRevenue = totals.cumulativeBase + annualFeeTotals.cumulativeBase - cancelledTotals.cumulativeBase;
+    const nonCumulativeRevenue = totals.nonCumulativeBase + otherRevenueTotals.taxBase + annualFeeTotals.nonCumulativeBase - cancelledTotals.nonCumulativeBase;
+    const totalRevenue = cumulativeRevenue + nonCumulativeRevenue;
+    return {
+      cumulativeRevenue,
+      nonCumulativeRevenue,
+      totalRevenue,
+      cumulativePercentage: totalRevenue > 0 ? cumulativeRevenue / totalRevenue : 0,
+      nonCumulativePercentage: totalRevenue > 0 ? nonCumulativeRevenue / totalRevenue : 0,
+    };
+  }, [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals]);
+
+  const energyConsumptionTotal = useMemo(() => energyRows.reduce(
+    (sum, row) => sum + (energyConsumptions[energyCreditKey(row)]?.value || 0),
+    0,
+  ), [energyRows, energyConsumptions]);
+  const leaseConsumptionTotal = useMemo(
+    () => leaseRows.reduce((sum, row) => sum + Math.max(0, row.value), 0),
+    [leaseRows],
+  );
+  const energyCredit = useMemo(
+    () => calculateEnergyCredit(energyConsumptionTotal, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue),
+    [energyConsumptionTotal, revenueComposition],
+  );
+  const leaseCredit = useMemo(
+    () => calculateEnergyCredit(leaseConsumptionTotal, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue),
+    [leaseConsumptionTotal, revenueComposition],
+  );
+  const totalCredits = useMemo(() => ({
+    eligibleBase: energyCredit.eligibleBase + leaseCredit.eligibleBase,
+    pis: energyCredit.pisCredit + leaseCredit.pisCredit,
+    cofins: energyCredit.cofinsCredit + leaseCredit.cofinsCredit,
+  }), [energyCredit, leaseCredit]);
+
   const consolidatedTotals = useMemo(() => ({
     cumulativePis: totals.cumulativePis + annualFeeTotals.cumulativePis - cancelledTotals.cumulativePis,
     cumulativeCofins: totals.cumulativeCofins + annualFeeTotals.cumulativeCofins - cancelledTotals.cumulativeCofins,
-    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis + annualFeeTotals.nonCumulativePis - cancelledTotals.nonCumulativePis,
-    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins + annualFeeTotals.nonCumulativeCofins - cancelledTotals.nonCumulativeCofins,
-  }), [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals]);
+    nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis + annualFeeTotals.nonCumulativePis - cancelledTotals.nonCumulativePis - totalCredits.pis,
+    nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins + annualFeeTotals.nonCumulativeCofins - cancelledTotals.nonCumulativeCofins - totalCredits.cofins,
+  }), [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals, totalCredits]);
   const displayedConsolidatedTotals = finalizedSnapshot?.totals ?? consolidatedTotals;
 
   async function finalizeAssessment() {
@@ -1799,12 +1876,20 @@ export default function PisCofinsAssessment({
       <div className="tax-consolidated-summary">
         <div className="tax-consolidated-title">
           <b>Apuração consolidada</b>
-          <span>Soma do Faturamento Mensal, Outras Receitas e Rateios Anuidades, com dedução das Notas Canceladas</span>
+          <span>Receitas por regime, créditos proporcionais e tributos líquidos da competência</span>
         </div>
-        <article><span>PIS cumulativo</span><b>{brl.format(displayedConsolidatedTotals.cumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
-        <article><span>COFINS cumulativo</span><b>{brl.format(displayedConsolidatedTotals.cumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
-        <article><span>PIS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativePis)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
-        <article><span>COFINS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}</b><small>Faturamento + outras receitas + rateios − canceladas</small></article>
+        <div className="tax-revenue-composition">
+          <article><span>Receita cumulativa</span><b>{brl.format(revenueComposition.cumulativeRevenue)}</b><small>{(revenueComposition.cumulativePercentage * 100).toFixed(2).replace(".", ",")}% das receitas</small></article>
+          <article><span>Receita não cumulativa</span><b>{brl.format(revenueComposition.nonCumulativeRevenue)}</b><small>{(revenueComposition.nonCumulativePercentage * 100).toFixed(2).replace(".", ",")}% das receitas</small></article>
+          <article><span>Consumo Energia confirmado</span><b>{brl.format(energyConsumptionTotal)}</b><small>Base proporcional {brl.format(energyCredit.eligibleBase)}</small></article>
+          <article><span>Arrendamentos</span><b>{brl.format(leaseConsumptionTotal)}</b><small>Base proporcional {brl.format(leaseCredit.eligibleBase)}</small></article>
+          <article><span>Crédito PIS</span><b>{brl.format(totalCredits.pis)}</b><small>1,65% da base proporcional</small></article>
+          <article><span>Crédito COFINS</span><b>{brl.format(totalCredits.cofins)}</b><small>7,60% da base proporcional</small></article>
+        </div>
+        <article><span>PIS cumulativo</span><b>{brl.format(displayedConsolidatedTotals.cumulativePis)}</b><small>Apuração do regime cumulativo</small></article>
+        <article><span>COFINS cumulativo</span><b>{brl.format(displayedConsolidatedTotals.cumulativeCofins)}</b><small>Apuração do regime cumulativo</small></article>
+        <article><span>PIS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativePis)}</b><small>Apuração menos crédito proporcional</small></article>
+        <article><span>COFINS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}</b><small>Apuração menos crédito proporcional</small></article>
       </div>
       {isFinalized && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedSnapshot?.finalizedBy || sharedCompletion?.confirmado_email || "usuário"} em {new Date(finalizedSnapshot?.finalizedAt || sharedCompletion?.confirmado_em || Date.now()).toLocaleString("pt-BR")}. Status compartilhado com o Cronograma. Para recalcular, use Limpar.</div>}
       <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
@@ -2166,7 +2251,7 @@ export default function PisCofinsAssessment({
                 <article><span>Tickets localizados</span><b>{energyRows.filter((row) => row.ticket).length}</b><small>Vínculo com o Zeev</small></article>
                 <article className={energyRows.some((row) => !row.ticket) ? "has-warning" : ""}><span>Sem ticket</span><b>{energyRows.filter((row) => !row.ticket).length}</b><small>Requer tratamento</small></article>
               </div>
-              {energyRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th><th>Documentos Zeev</th></tr></thead><tbody>{energyRows.map((row) => { const firstDocument = row.ticket?.documents?.[0]; return <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? <div className="zeev-ticket-cell"><b>#{row.ticket.id}</b>{row.ticket.link && <a className="zeev-ticket-action" href={row.ticket.link} target="_blank" rel="noreferrer">Consultar</a>}<button type="button" className="zeev-ticket-action zeev-ticket-download" onClick={() => downloadZeevDocument(row.ticket!.id, firstDocument)}>Baixar</button></div> : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td><td>{row.ticket?.documents?.length ? row.ticket.documents.map((document, index) => <span key={document.url}>{index ? " · " : ""}<a href={document.url} target="_blank" rel="noreferrer">{document.name}</a></span>) : "—"}</td></tr>; })}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
+              {energyRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th><th>Documentos Zeev</th></tr></thead><tbody>{energyRows.map((row) => { const firstDocument = row.ticket?.documents?.[0]; const consumptionKey = energyCreditKey(row); const confirmedConsumption = energyConsumptions[consumptionKey]?.value || 0; return <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? <div className="zeev-ticket-cell"><b>#{row.ticket.id}</b>{row.ticket.link && <a className="zeev-ticket-action" href={row.ticket.link} target="_blank" rel="noreferrer">Consultar</a>}<button type="button" className="zeev-ticket-action zeev-ticket-download" onClick={() => downloadZeevDocument(row.ticket!.id, firstDocument)}>Baixar</button><button type="button" className="zeev-ticket-action zeev-consumption-open" disabled={isFinalized} onClick={() => setActiveConsumptionKey(consumptionKey)}>{confirmedConsumption ? "Editar consumo" : "Incluir consumo"}</button>{activeConsumptionKey === consumptionKey && <span className="zeev-consumption-editor"><input type="text" inputMode="decimal" aria-label="Valor do consumo de energia" placeholder="0,00" value={energyConsumptionDrafts[consumptionKey] || ""} onChange={(event) => setEnergyConsumptionDrafts((current) => ({ ...current, [consumptionKey]: event.target.value }))} /><button type="button" onClick={() => confirmEnergyConsumption(row)}>Confirmar</button></span>}{confirmedConsumption > 0 && <small className="zeev-consumption-confirmed">Consumo: {brl.format(confirmedConsumption)}</small>}</div> : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td><td>{row.ticket?.documents?.length ? row.ticket.documents.map((document, index) => <span key={document.url}>{index ? " · " : ""}<a href={document.url} target="_blank" rel="noreferrer">{document.name}</a></span>) : "—"}</td></tr>; })}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
             </>}
           </>}
         </>}
