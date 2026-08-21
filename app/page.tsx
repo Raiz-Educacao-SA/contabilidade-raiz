@@ -1244,6 +1244,18 @@ function AreaHub({
             <span className="module-enter">Módulo preparado para criação</span>
           </article>
 
+          <article className="module-card area-demonstracoes-financeiras module-card-coming-soon" aria-label="Demonstrações Financeiras, em breve">
+            <span className="module-card-top">
+              <span className="module-icon"><BarChart3 /></span>
+              <span className="module-status module-status-soon">Em breve</span>
+            </span>
+            <span className="module-copy">
+              <b>Demonstrações Financeiras</b>
+              <small>Balanço patrimonial, DRE, DFC, DMPL e notas explicativas.</small>
+            </span>
+            <span className="module-enter">Módulo preparado para criação</span>
+          </article>
+
           {allowedAreas.includes("book") && (
             <button
               className={`module-card area-book ${completedAreas.includes("book") ? "workflow-module-done" : ""}`}
