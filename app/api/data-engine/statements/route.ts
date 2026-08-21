@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  DataEngineHttpError,
   loadDataEngineStatementSnapshot,
   statementPeriod,
 } from "@/lib/data-engine-statements";
 import { isAuthorizedCompany } from "@/lib/server/authorized-company";
+import { getDataEngineOAuthClient } from "@/lib/server/data-engine-oauth";
 
 export const runtime = "nodejs";
 
@@ -35,8 +37,10 @@ export async function GET(request: NextRequest) {
     process.env.DATA_ENGINE_BASE_URL ??
     process.env.DATA_ENGINE_URL ??
     process.env.DATA_ENGINE_API_URL;
-  const apiKey = process.env.DATA_ENGINE_API_KEY;
-  if (!baseUrl || !apiKey) {
+  const clientId = process.env.DATA_ENGINE_CONSUMER_ID;
+  const kid = process.env.DATA_ENGINE_KID;
+  const privateKeyPem = process.env.DATA_ENGINE_PRIVATE_KEY;
+  if (!baseUrl || !clientId || !kid || !privateKeyPem) {
     return NextResponse.json(
       { error: "A integração com o Data Engine não está configurada." },
       { status: 503 },
@@ -44,15 +48,37 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { fromDate, toDate } = statementPeriod(competence);
-    const snapshot = await loadDataEngineStatementSnapshot({
-      apiKey,
+    const oauthClient = getDataEngineOAuthClient({
+      audience: process.env.DATA_ENGINE_JWT_AUDIENCE,
       baseUrl,
-      codColigada: Number(company),
-      codColigadaCode: company.padStart(2, "0"),
-      fromDate,
-      toDate,
+      clientId,
+      kid,
+      privateKeyPem,
+      scope: "read:tesouraria",
+      tokenUrl: process.env.DATA_ENGINE_TOKEN_URL,
     });
+    const { fromDate, toDate } = statementPeriod(competence);
+    const loadSnapshot = (accessToken: string) =>
+      loadDataEngineStatementSnapshot({
+        accessToken,
+        baseUrl,
+        codColigada: Number(company),
+        codColigadaCode: company.padStart(2, "0"),
+        fromDate,
+        toDate,
+      });
+    let accessToken = await oauthClient.getAccessToken();
+    let snapshot;
+    try {
+      snapshot = await loadSnapshot(accessToken);
+    } catch (error) {
+      if (!(error instanceof DataEngineHttpError) || error.status !== 401) {
+        throw error;
+      }
+      oauthClient.invalidateAccessToken(accessToken);
+      accessToken = await oauthClient.getAccessToken();
+      snapshot = await loadSnapshot(accessToken);
+    }
     return NextResponse.json(
       {
         company,
