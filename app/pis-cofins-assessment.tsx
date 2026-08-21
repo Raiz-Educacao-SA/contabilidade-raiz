@@ -633,15 +633,20 @@ export default function PisCofinsAssessment({
     XLSX.writeFile(workbook, `creditos-energia-coligada-${companyCode}-${competence}.xlsx`, { compression: true });
   }
 
+  async function fetchLeaseCredits() {
+    const response = await fetch(`/api/totvs/pis-cofins/credits/leases?company=${companyCode}&competence=${competence}${branchQuery}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Falha ao consultar os lançamentos de Arrendamentos.");
+    return (payload.rows || []) as LeaseCreditRow[];
+  }
+
   async function updateLeaseCredits() {
     if (isFinalized) return;
     setLeaseLoading(true);
     setLeaseError("");
     try {
-      const response = await fetch(`/api/totvs/pis-cofins/credits/leases?company=${companyCode}&competence=${competence}${branchQuery}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Falha ao consultar os lançamentos de Arrendamentos.");
-      setLeaseRows(payload.rows || []);
+      const nextRows = await fetchLeaseCredits();
+      setLeaseRows(nextRows);
       setLeaseLoaded(true);
     } catch (cause) {
       setLeaseError((cause as Error).message);
@@ -1113,7 +1118,7 @@ export default function PisCofinsAssessment({
     }
   }
 
-  function consolidatedExportRows() {
+  function consolidatedExportRows(leaseRowsForExport = leaseRows, totalCreditsForExport = totalCredits) {
     type Components = { monthly: number; other: number; annual: number; cancelled: number; credits: number };
     type BranchConsolidated = Record<"cumulativePis" | "cumulativeCofins" | "nonCumulativePis" | "nonCumulativeCofins", Components>;
     const emptyBranch = (): BranchConsolidated => ({
@@ -1169,7 +1174,7 @@ export default function PisCofinsAssessment({
       target.nonCumulativePis.credits -= credit.pisCredit;
       target.nonCumulativeCofins.credits -= credit.cofinsCredit;
     });
-    leaseRows.filter((row) => row.value > 0).forEach((row) => {
+    leaseRowsForExport.filter((row) => row.value > 0).forEach((row) => {
       const credit = calculateEnergyCredit(row.value, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
       const target = branchTotals(row.branch);
       target.nonCumulativePis.credits -= credit.pisCredit;
@@ -1192,8 +1197,8 @@ export default function PisCofinsAssessment({
     const general = [
       makeRow("TOTAL GERAL", "Todas", "PIS cumulativo", { monthly: totals.cumulativePis, other: 0, annual: annualFeeTotals.cumulativePis, cancelled: -cancelledTotals.cumulativePis, credits: 0 }),
       makeRow("TOTAL GERAL", "Todas", "COFINS cumulativo", { monthly: totals.cumulativeCofins, other: 0, annual: annualFeeTotals.cumulativeCofins, cancelled: -cancelledTotals.cumulativeCofins, credits: 0 }),
-      makeRow("TOTAL GERAL", "Todas", "PIS não cumulativo", { monthly: totals.nonCumulativePis, other: otherRevenueTotals.pis, annual: annualFeeTotals.nonCumulativePis, cancelled: -cancelledTotals.nonCumulativePis, credits: -totalCredits.pis }),
-      makeRow("TOTAL GERAL", "Todas", "COFINS não cumulativo", { monthly: totals.nonCumulativeCofins, other: otherRevenueTotals.cofins, annual: annualFeeTotals.nonCumulativeCofins, cancelled: -cancelledTotals.nonCumulativeCofins, credits: -totalCredits.cofins }),
+      makeRow("TOTAL GERAL", "Todas", "PIS não cumulativo", { monthly: totals.nonCumulativePis, other: otherRevenueTotals.pis, annual: annualFeeTotals.nonCumulativePis, cancelled: -cancelledTotals.nonCumulativePis, credits: -totalCreditsForExport.pis }),
+      makeRow("TOTAL GERAL", "Todas", "COFINS não cumulativo", { monthly: totals.nonCumulativeCofins, other: otherRevenueTotals.cofins, annual: annualFeeTotals.nonCumulativeCofins, cancelled: -cancelledTotals.nonCumulativeCofins, credits: -totalCreditsForExport.cofins }),
     ];
     const branches = [...byBranch.entries()]
       .sort(([left], [right]) => left.localeCompare(right, "pt-BR", { numeric: true }))
@@ -1206,8 +1211,8 @@ export default function PisCofinsAssessment({
     return [...general, ...branches].filter((row) => Math.abs(row["Total consolidado"]) > 0.000001);
   }
 
-  function consolidatedWorksheet() {
-    const consolidatedRows = consolidatedExportRows().filter((row) => Math.abs(row["Total consolidado"]) > 0.000001);
+  function consolidatedWorksheet(leaseRowsForExport = leaseRows, totalCreditsForExport = totalCredits) {
+    const consolidatedRows = consolidatedExportRows(leaseRowsForExport, totalCreditsForExport).filter((row) => Math.abs(row["Total consolidado"]) > 0.000001);
     const cumulativeRevenue = totals.cumulativeBase + annualFeeTotals.cumulativeBase - cancelledTotals.cumulativeBase;
     const nonCumulativeRevenue = totals.nonCumulativeBase + otherRevenueTotals.taxBase + annualFeeTotals.nonCumulativeBase - cancelledTotals.nonCumulativeBase;
     const totalRevenue = cumulativeRevenue + nonCumulativeRevenue;
@@ -1280,6 +1285,37 @@ export default function PisCofinsAssessment({
 
   async function exportCompleteAssessment() {
     setError("");
+    let leaseRowsForExport = leaseRows;
+    if (!leaseLoaded) {
+      setLeaseLoading(true);
+      setLeaseError("");
+      try {
+        leaseRowsForExport = await fetchLeaseCredits();
+        setLeaseRows(leaseRowsForExport);
+        setLeaseLoaded(true);
+      } catch (cause) {
+        const message = (cause as Error).message;
+        setLeaseError(message);
+        setError(`A exportação foi interrompida porque os Arrendamentos não puderam ser carregados: ${message}`);
+        return;
+      } finally {
+        setLeaseLoading(false);
+      }
+    }
+    const leaseConsumptionForExport = leaseRowsForExport.reduce((sum, row) => sum + Math.max(0, row.value), 0);
+    const leaseCreditForExport = calculateEnergyCredit(leaseConsumptionForExport, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+    const totalCreditsForExport = {
+      eligibleBase: energyCredit.eligibleBase + leaseCreditForExport.eligibleBase,
+      pis: energyCredit.pisCredit + leaseCreditForExport.pisCredit,
+      cofins: energyCredit.cofinsCredit + leaseCreditForExport.cofinsCredit,
+    };
+    const consolidatedRowsForExport = consolidatedExportRows(leaseRowsForExport, totalCreditsForExport);
+    const consolidatedTotalsForExport = {
+      cumulativePis: totals.cumulativePis + annualFeeTotals.cumulativePis - cancelledTotals.cumulativePis,
+      cumulativeCofins: totals.cumulativeCofins + annualFeeTotals.cumulativeCofins - cancelledTotals.cumulativeCofins,
+      nonCumulativePis: totals.nonCumulativePis + otherRevenueTotals.pis + annualFeeTotals.nonCumulativePis - cancelledTotals.nonCumulativePis - totalCreditsForExport.pis,
+      nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins + annualFeeTotals.nonCumulativeCofins - cancelledTotals.nonCumulativeCofins - totalCreditsForExport.cofins,
+    };
     // A PACONT é criada do zero para não herdar nomes definidos, fórmulas
     // quebradas, vínculos externos e estilos ocultos do modelo legado.
     const workbook = XLSX.utils.book_new();
@@ -1379,9 +1415,9 @@ export default function PisCofinsAssessment({
       const netRevenue = monthlyRevenue + discounts + cancelledDeduction + otherRevenue + financialRevenue;
       const grossPisDue = monthlyRevenue * rate.pis + discounts * rate.pis + cancelledDeduction * rate.pis + (regime === "Não-Cumulativo" ? otherPis + financialPis : 0);
       const grossCofinsDue = monthlyRevenue * rate.cofins + discounts * rate.cofins + cancelledDeduction * rate.cofins + (regime === "Não-Cumulativo" ? otherCofins + financialCofins : 0);
-      const creditBase = regime === "Não-Cumulativo" ? totalCredits.eligibleBase : 0;
-      const creditPis = regime === "Não-Cumulativo" ? totalCredits.pis : 0;
-      const creditCofins = regime === "Não-Cumulativo" ? totalCredits.cofins : 0;
+      const creditBase = regime === "Não-Cumulativo" ? totalCreditsForExport.eligibleBase : 0;
+      const creditPis = regime === "Não-Cumulativo" ? totalCreditsForExport.pis : 0;
+      const creditCofins = regime === "Não-Cumulativo" ? totalCreditsForExport.cofins : 0;
       const pisDue = grossPisDue - creditPis;
       const cofinsDue = grossCofinsDue - creditCofins;
 
@@ -1538,12 +1574,12 @@ export default function PisCofinsAssessment({
     const deliveredSheets = [
       hasCumulativeBalance ? "PACONT CUMULATIVO" : "",
       hasNonCumulativeBalance ? "PACONT NÃO CUMULATIVO" : "",
-      consolidatedExportRows().some((row) => Math.abs(row["Total consolidado"]) > 0.000001) ? "Base consolidada" : "",
+      consolidatedRowsForExport.some((row) => Math.abs(row["Total consolidado"]) > 0.000001) ? "Base consolidada" : "",
       filteredRows.some((row) => Math.abs(row.netRevenue) > 0.000001) ? "Faturamento Mensal" : "",
       filteredOtherRevenueRows.some((row) => [row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)) ? "Outras Receitas" : "",
       filteredAnnualFeeRows.some((row) => Math.abs(row.netRevenue) > 0.000001) ? "Rateios Anuidades" : "",
       filteredCancelledRows.some((row) => Math.abs(row.netValue) > 0.000001) ? "Notas Canceladas" : "",
-      totalCredits.eligibleBase > 0 ? "Créditos" : "",
+      totalCreditsForExport.eligibleBase > 0 ? "Créditos" : "",
       "Instruções",
     ].filter(Boolean);
     const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
@@ -1571,8 +1607,8 @@ export default function PisCofinsAssessment({
       ["Notas Canceladas", "Tratamento", "As notas são classificadas como cumulativas ou não cumulativas pelo serviço e seus valores são deduzidos da apuração consolidada.", "Regra operacional Contabilidade Raiz"],
       ["Notas Canceladas", "Entrega desta exportação", `${filteredCancelledRows.length} nota(s); valor líquido excluído ${brl.format(cancelledTotals.net)}; PIS deduzido ${brl.format(cancelledTotals.pis)}; COFINS deduzida ${brl.format(cancelledTotals.cofins)}.`, "Dados da competência exportada"],
       ["Apuração Consolidada", "Fórmula", "Faturamento Mensal + Outras Receitas + Rateios Anuidades - Notas Canceladas, mantendo a separação entre regimes cumulativo e não cumulativo.", "Regra operacional Contabilidade Raiz"],
-      ["Créditos", "Fórmula", `Consumo × ${(revenueComposition.nonCumulativePercentage * 100).toFixed(2).replace(".", ",")}% de receitas não cumulativas; PIS 1,65% e COFINS 7,60%. Crédito total: PIS ${brl.format(totalCredits.pis)} e COFINS ${brl.format(totalCredits.cofins)}.`, "Aba Créditos e PACONT NÃO CUMULATIVO"],
-      ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(displayedConsolidatedTotals.cumulativePis)}; COFINS cumulativa ${brl.format(displayedConsolidatedTotals.cumulativeCofins)}; PIS não cumulativo ${brl.format(displayedConsolidatedTotals.nonCumulativePis)}; COFINS não cumulativa ${brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}.`, "Base consolidada"],
+      ["Créditos", "Fórmula", `Energia e Arrendamentos × ${(revenueComposition.nonCumulativePercentage * 100).toFixed(2).replace(".", ",")}% de receitas não cumulativas; PIS 1,65% e COFINS 7,60%. Crédito total: PIS ${brl.format(totalCreditsForExport.pis)} e COFINS ${brl.format(totalCreditsForExport.cofins)}.`, "Aba Créditos e PACONT NÃO CUMULATIVO"],
+      ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(consolidatedTotalsForExport.cumulativePis)}; COFINS cumulativa ${brl.format(consolidatedTotalsForExport.cumulativeCofins)}; PIS não cumulativo ${brl.format(consolidatedTotalsForExport.nonCumulativePis)}; COFINS não cumulativa ${brl.format(consolidatedTotalsForExport.nonCumulativeCofins)}.`, "Base consolidada"],
       ["Apuração Completa", "Abas entregues", `${deliveredSheets.join(", ")}. Abas sem saldo não são incluídas.`, "Este arquivo"],
       ["", "", "", ""],
       ["MATRIZ DE CLASSIFICAÇÃO", "SERVIÇO / DESCRIÇÃO", "CLASSIFICAÇÃO", ""],
@@ -1749,7 +1785,7 @@ export default function PisCofinsAssessment({
           "Crédito COFINS": credit.cofinsCredit,
         }];
       }),
-      ...leaseRows.filter((row) => row.value > 0).map((row) => {
+      ...leaseRowsForExport.filter((row) => row.value > 0).map((row) => {
         const credit = calculateEnergyCredit(row.value, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
         return {
           Origem: "Arrendamentos",
@@ -1771,7 +1807,7 @@ export default function PisCofinsAssessment({
         };
       }),
     ];
-    if (consolidatedExportRows().some((row) => Math.abs(row["Total consolidado"]) > 0.000001)) XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
+    if (consolidatedRowsForExport.some((row) => Math.abs(row["Total consolidado"]) > 0.000001)) XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(leaseRowsForExport, totalCreditsForExport), "Base consolidada");
     if (monthly.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento Mensal");
     if (otherRevenues.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras Receitas");
     if (annualFeeAllocations.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
@@ -1794,7 +1830,16 @@ export default function PisCofinsAssessment({
     }
     XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
     applyRaizWorkbookStyle(workbook);
-    XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
+    const [year, month] = competence.split("-");
+    const companyFileName = companyName
+      .replace(new RegExp(`^${companyCode}\\s*[—–-]?\\s*`, "i"), "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[<>:"/\\|?*]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/ /g, "_");
+    XLSX.writeFile(workbook, `${companyCode}_${companyFileName || "Empresa"}_PACONT_${month}.${year}.xlsx`);
   }
 
   function exportEntriesCsv() {
@@ -2299,8 +2344,8 @@ export default function PisCofinsAssessment({
       <section className={`tax-secondary-section ${creditsVisible ? "" : "is-collapsed"}`}>
         <div className="tax-section-heading">
           <div><b>Créditos</b><span>Créditos de PIS e COFINS · conferência contábil e documentos no Zeev</span></div>
-          <button className={(creditsCategory === "energy" ? energyLoaded : leaseLoaded) ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={(creditsCategory === "energy" ? energyLoading : leaseLoading) || isFinalized} onClick={creditsCategory === "energy" ? updateEnergyCredits : updateLeaseCredits} title={creditsCategory === "energy" ? "Consultar Energia no TOTVS e localizar os tickets no Zeev" : "Consultar Arrendamentos no Razão 25, conta 2.1.7.01.01.53"}>
-            <RefreshCw className={(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "is-spinning" : ""} /> {(creditsCategory === "energy" ? energyLoading : leaseLoading) ? "Atualizando" : "Atualizar"}
+          <button className={energyLoaded && leaseLoaded ? "tax-secondary-update is-ready" : "tax-secondary-update"} disabled={energyLoading || leaseLoading || isFinalized} onClick={() => void Promise.all([updateEnergyCredits(), updateLeaseCredits()])} title="Atualizar simultaneamente Energia e Arrendamentos">
+            <RefreshCw className={energyLoading || leaseLoading ? "is-spinning" : ""} /> {energyLoading || leaseLoading ? "Atualizando" : "Atualizar"}
           </button>
           <button className="tax-detail-export" disabled={creditsCategory === "energy" ? !energyRows.length : !leaseRows.length} onClick={creditsCategory === "energy" ? exportEnergyCredits : exportLeaseCredits} title={creditsCategory === "energy" ? "Exportar os lançamentos de Energia e os tickets localizados" : "Exportar os lançamentos de Arrendamentos"}>
             <Download /> Exportar
