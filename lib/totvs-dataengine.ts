@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { NextRequest } from "next/server";
+import { isAllowedCorporateEmail } from "@/lib/auth-domain";
 
 const DEFAULT_BASE_URL = "https://raizeducacao160286.rm.cloudtotvs.com.br:8051";
 const SQL_ACTION = "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL";
@@ -45,7 +46,9 @@ export async function isAuthorized(request: NextRequest) {
     headers: { authorization, apikey: key },
     cache: "no-store",
   });
-  return response.ok;
+  if (!response.ok) return false;
+  const user = await response.json();
+  return isAllowedCorporateEmail(user?.email);
 }
 
 function configuration() {

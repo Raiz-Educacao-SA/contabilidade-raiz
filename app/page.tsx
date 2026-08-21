@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, supabase } from "@/lib/supabase";
+import { isAllowedCorporateEmail } from "@/lib/auth-domain";
 import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
@@ -335,6 +336,16 @@ export default function Home() {
 
   useEffect(() => {
     let active = true;
+    const applyAuthorizedSession = (current: Session | null) => {
+      if (!active) return;
+      if (current && !isAllowedCorporateEmail(current.user.email)) {
+        setSession(null);
+        setNotice("Acesso permitido somente para e-mails @raizeducacao.com.br.");
+        window.setTimeout(() => { void supabase.auth.signOut(); }, 0);
+        return;
+      }
+      setSession(current);
+    };
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const accessToken = hashParams.get("access_token");
     const refreshToken = hashParams.get("refresh_token");
@@ -344,14 +355,14 @@ export default function Home() {
         .setSession({ access_token: accessToken, refresh_token: refreshToken })
         .then(({ data, error }) => {
           if (!active) return;
-          if (data.session) setSession(data.session);
+          if (data.session) applyAuthorizedSession(data.session);
           if (error) setNotice("Não foi possível aproveitar sua sessão do Contabilidade Raiz. Entre novamente para continuar.");
           window.history.replaceState(null, document.title, `${window.location.pathname}${window.location.search}`);
         });
     }
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return;
-      setSession(data.session);
+      applyAuthorizedSession(data.session);
       if (error)
         setNotice(
           "Sua autenticação não pôde ser confirmada. Entre novamente para continuar.",
@@ -361,7 +372,7 @@ export default function Home() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, current) => {
         if (!active) return;
-        setSession(current);
+        void applyAuthorizedSession(current);
         setLoading(false);
       },
     );
@@ -425,8 +436,12 @@ export default function Home() {
   async function login(event: React.FormEvent) {
     event.preventDefault();
     setNotice("");
+    if (!isAllowedCorporateEmail(email)) {
+      setNotice("Acesso permitido somente para e-mails @raizeducacao.com.br.");
+      return;
+    }
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
     if (error)
