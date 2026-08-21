@@ -3388,6 +3388,13 @@
 .zeev-ticket-cell {
   flex-wrap: wrap;
 }
+.zeev-ticket-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
 .zeev-consumption-open {
   border-color: #2779bd;
   background: #2779bd;
