@@ -1114,13 +1114,13 @@ export default function PisCofinsAssessment({
   }
 
   function consolidatedExportRows() {
-    type Components = { monthly: number; other: number; annual: number; cancelled: number };
+    type Components = { monthly: number; other: number; annual: number; cancelled: number; credits: number };
     type BranchConsolidated = Record<"cumulativePis" | "cumulativeCofins" | "nonCumulativePis" | "nonCumulativeCofins", Components>;
     const emptyBranch = (): BranchConsolidated => ({
-      cumulativePis: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
-      cumulativeCofins: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
-      nonCumulativePis: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
-      nonCumulativeCofins: { monthly: 0, other: 0, annual: 0, cancelled: 0 },
+      cumulativePis: { monthly: 0, other: 0, annual: 0, cancelled: 0, credits: 0 },
+      cumulativeCofins: { monthly: 0, other: 0, annual: 0, cancelled: 0, credits: 0 },
+      nonCumulativePis: { monthly: 0, other: 0, annual: 0, cancelled: 0, credits: 0 },
+      nonCumulativeCofins: { monthly: 0, other: 0, annual: 0, cancelled: 0, credits: 0 },
     });
     const byBranch = new Map<string, BranchConsolidated>();
     const branchTotals = (branch: string) => {
@@ -1161,6 +1161,20 @@ export default function PisCofinsAssessment({
       target[pisKey].cancelled -= row.netValue * rate.pis;
       target[cofinsKey].cancelled -= row.netValue * rate.cofins;
     });
+    energyRows.forEach((row) => {
+      const consumption = energyConsumptions[energyCreditKey(row)]?.value || 0;
+      if (consumption <= 0) return;
+      const credit = calculateEnergyCredit(consumption, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+      const target = branchTotals(row.branch);
+      target.nonCumulativePis.credits -= credit.pisCredit;
+      target.nonCumulativeCofins.credits -= credit.cofinsCredit;
+    });
+    leaseRows.filter((row) => row.value > 0).forEach((row) => {
+      const credit = calculateEnergyCredit(row.value, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+      const target = branchTotals(row.branch);
+      target.nonCumulativePis.credits -= credit.pisCredit;
+      target.nonCumulativeCofins.credits -= credit.cofinsCredit;
+    });
 
     const makeRow = (view: string, branch: string, tax: string, values: Components) => ({
       "Visão": view,
@@ -1172,13 +1186,14 @@ export default function PisCofinsAssessment({
       "Outras Receitas": values.other,
       "Rateios Anuidades": values.annual,
       "Notas Canceladas (dedução)": values.cancelled,
-      "Total consolidado": values.monthly + values.other + values.annual + values.cancelled,
+      "Créditos (dedução)": values.credits,
+      "Total consolidado": values.monthly + values.other + values.annual + values.cancelled + values.credits,
     });
     const general = [
-      makeRow("TOTAL GERAL", "Todas", "PIS cumulativo", { monthly: totals.cumulativePis, other: 0, annual: annualFeeTotals.cumulativePis, cancelled: -cancelledTotals.cumulativePis }),
-      makeRow("TOTAL GERAL", "Todas", "COFINS cumulativo", { monthly: totals.cumulativeCofins, other: 0, annual: annualFeeTotals.cumulativeCofins, cancelled: -cancelledTotals.cumulativeCofins }),
-      makeRow("TOTAL GERAL", "Todas", "PIS não cumulativo", { monthly: totals.nonCumulativePis, other: otherRevenueTotals.pis, annual: annualFeeTotals.nonCumulativePis, cancelled: -cancelledTotals.nonCumulativePis }),
-      makeRow("TOTAL GERAL", "Todas", "COFINS não cumulativo", { monthly: totals.nonCumulativeCofins, other: otherRevenueTotals.cofins, annual: annualFeeTotals.nonCumulativeCofins, cancelled: -cancelledTotals.nonCumulativeCofins }),
+      makeRow("TOTAL GERAL", "Todas", "PIS cumulativo", { monthly: totals.cumulativePis, other: 0, annual: annualFeeTotals.cumulativePis, cancelled: -cancelledTotals.cumulativePis, credits: 0 }),
+      makeRow("TOTAL GERAL", "Todas", "COFINS cumulativo", { monthly: totals.cumulativeCofins, other: 0, annual: annualFeeTotals.cumulativeCofins, cancelled: -cancelledTotals.cumulativeCofins, credits: 0 }),
+      makeRow("TOTAL GERAL", "Todas", "PIS não cumulativo", { monthly: totals.nonCumulativePis, other: otherRevenueTotals.pis, annual: annualFeeTotals.nonCumulativePis, cancelled: -cancelledTotals.nonCumulativePis, credits: -totalCredits.pis }),
+      makeRow("TOTAL GERAL", "Todas", "COFINS não cumulativo", { monthly: totals.nonCumulativeCofins, other: otherRevenueTotals.cofins, annual: annualFeeTotals.nonCumulativeCofins, cancelled: -cancelledTotals.nonCumulativeCofins, credits: -totalCredits.cofins }),
     ];
     const branches = [...byBranch.entries()]
       .sort(([left], [right]) => left.localeCompare(right, "pt-BR", { numeric: true }))
@@ -1218,18 +1233,19 @@ export default function PisCofinsAssessment({
       row["Outras Receitas"],
       row["Rateios Anuidades"],
       row["Notas Canceladas (dedução)"],
+      row["Créditos (dedução)"],
       row["Total consolidado"],
     ]);
     const worksheet = XLSX.utils.aoa_to_sheet([
       ...revenueCompositionRows,
-      ["Visão", "Coligada", "Filial", "Competência", "Tributo", "Faturamento Mensal", "Outras Receitas", "Rateios Anuidades", "Notas Canceladas (dedução)", "Total consolidado"],
+      ["Visão", "Coligada", "Filial", "Competência", "Tributo", "Faturamento Mensal", "Outras Receitas", "Rateios Anuidades", "Notas Canceladas (dedução)", "Créditos (dedução)", "Total consolidado"],
       ...consolidatedTable,
     ]);
-    worksheet["!cols"] = [18, 18, 16, 14, 25, 20, 20, 22, 28, 20].map((wch) => ({ wch }));
+    worksheet["!cols"] = [18, 18, 16, 14, 25, 20, 20, 22, 28, 22, 20].map((wch) => ({ wch }));
     worksheet["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
-      { s: { r: 3, c: 0 }, e: { r: 3, c: 9 } },
-      { s: { r: 9, c: 0 }, e: { r: 9, c: 9 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 10 } },
+      { s: { r: 9, c: 0 }, e: { r: 9, c: 10 } },
     ];
     [5, 6, 7].forEach((row) => {
       const valueCell = worksheet[XLSX.utils.encode_cell({ r: row, c: 1 })];
@@ -1238,7 +1254,7 @@ export default function PisCofinsAssessment({
       if (percentCell?.t === "n") percentCell.z = "0.00%";
     });
     for (let row = 11; row <= 10 + consolidatedRows.length; row += 1) {
-      for (let column = 5; column <= 9; column += 1) {
+      for (let column = 5; column <= 10; column += 1) {
         const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
         if (cell?.t === "n") cell.z = "#,##0.00";
       }
@@ -1361,8 +1377,13 @@ export default function PisCofinsAssessment({
       const otherRevenue = regime === "Não-Cumulativo" ? otherBase : 0;
       const financialRevenue = regime === "Não-Cumulativo" ? financialBase : 0;
       const netRevenue = monthlyRevenue + discounts + cancelledDeduction + otherRevenue + financialRevenue;
-      const pisDue = monthlyRevenue * rate.pis + discounts * rate.pis + cancelledDeduction * rate.pis + (regime === "Não-Cumulativo" ? otherPis + financialPis : 0);
-      const cofinsDue = monthlyRevenue * rate.cofins + discounts * rate.cofins + cancelledDeduction * rate.cofins + (regime === "Não-Cumulativo" ? otherCofins + financialCofins : 0);
+      const grossPisDue = monthlyRevenue * rate.pis + discounts * rate.pis + cancelledDeduction * rate.pis + (regime === "Não-Cumulativo" ? otherPis + financialPis : 0);
+      const grossCofinsDue = monthlyRevenue * rate.cofins + discounts * rate.cofins + cancelledDeduction * rate.cofins + (regime === "Não-Cumulativo" ? otherCofins + financialCofins : 0);
+      const creditBase = regime === "Não-Cumulativo" ? totalCredits.eligibleBase : 0;
+      const creditPis = regime === "Não-Cumulativo" ? totalCredits.pis : 0;
+      const creditCofins = regime === "Não-Cumulativo" ? totalCredits.cofins : 0;
+      const pisDue = grossPisDue - creditPis;
+      const cofinsDue = grossCofinsDue - creditCofins;
 
       if (![netRevenue, pisDue, cofinsDue].some((value) => Math.abs(value) > 0.000001)) return false;
 
@@ -1447,7 +1468,7 @@ export default function PisCofinsAssessment({
         ["B) COMPOSIÃ‡ÃƒO DOS CRÃ‰DITOS", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["CRÃ‰DITOS", "", "", "", "Base de crÃ©dito", "AlÃ­quota PIS", "PIS", "AlÃ­quota COFINS", "COFINS", "", "", "", "", "", "", "", ""],
-        ["Bens, serviÃ§os e demais crÃ©ditos", "", "", "", 0, rate.pis, 0, rate.cofins, 0, "", "", "", "", "", "", "", ""],
+        ["Bens, serviÃ§os e demais crÃ©ditos", "", "", "", creditBase, rate.pis, creditPis, rate.cofins, creditCofins, "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["C) CONTROLE", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["Receita cumulativa", "", "", "", regime === "Cumulativo" ? Math.max(0, netRevenue) : 0, "", "", "", "", "", "", "", "", "", "", "", ""],
@@ -1522,6 +1543,7 @@ export default function PisCofinsAssessment({
       filteredOtherRevenueRows.some((row) => [row.taxBase, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001)) ? "Outras Receitas" : "",
       filteredAnnualFeeRows.some((row) => Math.abs(row.netRevenue) > 0.000001) ? "Rateios Anuidades" : "",
       filteredCancelledRows.some((row) => Math.abs(row.netValue) > 0.000001) ? "Notas Canceladas" : "",
+      totalCredits.eligibleBase > 0 ? "Créditos" : "",
       "Instruções",
     ].filter(Boolean);
     const selectedBranchesLabel = requestedBranches.length ? requestedBranches.join(", ") : "Todas as filiais disponíveis nas bases";
@@ -1549,6 +1571,7 @@ export default function PisCofinsAssessment({
       ["Notas Canceladas", "Tratamento", "As notas são classificadas como cumulativas ou não cumulativas pelo serviço e seus valores são deduzidos da apuração consolidada.", "Regra operacional Contabilidade Raiz"],
       ["Notas Canceladas", "Entrega desta exportação", `${filteredCancelledRows.length} nota(s); valor líquido excluído ${brl.format(cancelledTotals.net)}; PIS deduzido ${brl.format(cancelledTotals.pis)}; COFINS deduzida ${brl.format(cancelledTotals.cofins)}.`, "Dados da competência exportada"],
       ["Apuração Consolidada", "Fórmula", "Faturamento Mensal + Outras Receitas + Rateios Anuidades - Notas Canceladas, mantendo a separação entre regimes cumulativo e não cumulativo.", "Regra operacional Contabilidade Raiz"],
+      ["Créditos", "Fórmula", `Consumo × ${(revenueComposition.nonCumulativePercentage * 100).toFixed(2).replace(".", ",")}% de receitas não cumulativas; PIS 1,65% e COFINS 7,60%. Crédito total: PIS ${brl.format(totalCredits.pis)} e COFINS ${brl.format(totalCredits.cofins)}.`, "Aba Créditos e PACONT NÃO CUMULATIVO"],
       ["Apuração Consolidada", "Entrega desta exportação", `PIS cumulativo ${brl.format(displayedConsolidatedTotals.cumulativePis)}; COFINS cumulativa ${brl.format(displayedConsolidatedTotals.cumulativeCofins)}; PIS não cumulativo ${brl.format(displayedConsolidatedTotals.nonCumulativePis)}; COFINS não cumulativa ${brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}.`, "Base consolidada"],
       ["Apuração Completa", "Abas entregues", `${deliveredSheets.join(", ")}. Abas sem saldo não são incluídas.`, "Este arquivo"],
       ["", "", "", ""],
@@ -1702,11 +1725,73 @@ export default function PisCofinsAssessment({
       Histórico: row.history,
       Tratamento: row.treatment,
     }));
+    const creditRows = [
+      ...energyRows.flatMap((row) => {
+        const consumption = energyConsumptions[energyCreditKey(row)]?.value || 0;
+        if (consumption <= 0) return [];
+        const credit = calculateEnergyCredit(consumption, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+        return [{
+          Origem: "Energia",
+          Coligada: row.company,
+          Filial: row.branch,
+          Competência: competenceLabel,
+          Documento: row.document,
+          Lançamento: row.entryId,
+          "Ticket Zeev": row.ticket?.id || "",
+          "Valor contábil": row.value,
+          "Consumo informado": consumption,
+          "% receita cumulativa": credit.cumulativePercentage,
+          "% receita não cumulativa": credit.nonCumulativePercentage,
+          "Base do crédito": credit.eligibleBase,
+          "Alíquota PIS": rates["Não-Cumulativo"].pis,
+          "Crédito PIS": credit.pisCredit,
+          "Alíquota COFINS": rates["Não-Cumulativo"].cofins,
+          "Crédito COFINS": credit.cofinsCredit,
+        }];
+      }),
+      ...leaseRows.filter((row) => row.value > 0).map((row) => {
+        const credit = calculateEnergyCredit(row.value, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+        return {
+          Origem: "Arrendamentos",
+          Coligada: row.company,
+          Filial: row.branch,
+          Competência: competenceLabel,
+          Documento: row.document,
+          Lançamento: row.entryId,
+          "Ticket Zeev": "",
+          "Valor contábil": row.value,
+          "Consumo informado": row.value,
+          "% receita cumulativa": credit.cumulativePercentage,
+          "% receita não cumulativa": credit.nonCumulativePercentage,
+          "Base do crédito": credit.eligibleBase,
+          "Alíquota PIS": rates["Não-Cumulativo"].pis,
+          "Crédito PIS": credit.pisCredit,
+          "Alíquota COFINS": rates["Não-Cumulativo"].cofins,
+          "Crédito COFINS": credit.cofinsCredit,
+        };
+      }),
+    ];
     if (consolidatedExportRows().some((row) => Math.abs(row["Total consolidado"]) > 0.000001)) XLSX.utils.book_append_sheet(workbook, consolidatedWorksheet(), "Base consolidada");
     if (monthly.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(monthly), "Faturamento Mensal");
     if (otherRevenues.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(otherRevenues), "Outras Receitas");
     if (annualFeeAllocations.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(annualFeeAllocations), "Rateios Anuidades");
     if (cancelled.length) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(cancelled), "Notas Canceladas");
+    if (creditRows.length) {
+      const creditSheet = XLSX.utils.json_to_sheet(creditRows);
+      creditSheet["!cols"] = [16, 12, 12, 14, 18, 16, 16, 18, 20, 22, 26, 20, 16, 18, 18, 20].map((wch) => ({ wch }));
+      creditSheet["!autofilter"] = { ref: creditSheet["!ref"] || "A1:P1" };
+      for (let row = 1; row <= creditRows.length; row += 1) {
+        [7, 8, 11, 13, 15].forEach((column) => {
+          const cell = creditSheet[XLSX.utils.encode_cell({ r: row, c: column })];
+          if (cell?.t === "n") cell.z = "#,##0.00";
+        });
+        [9, 10, 12, 14].forEach((column) => {
+          const cell = creditSheet[XLSX.utils.encode_cell({ r: row, c: column })];
+          if (cell?.t === "n") cell.z = "0.00%";
+        });
+      }
+      XLSX.utils.book_append_sheet(workbook, creditSheet, "Créditos");
+    }
     XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instruções");
     applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `apuracao-completa-pis-cofins-${companyCode}-${competence}.xlsx`);
@@ -2251,7 +2336,7 @@ export default function PisCofinsAssessment({
                 <article><span>Tickets localizados</span><b>{energyRows.filter((row) => row.ticket).length}</b><small>Vínculo com o Zeev</small></article>
                 <article className={energyRows.some((row) => !row.ticket) ? "has-warning" : ""}><span>Sem ticket</span><b>{energyRows.filter((row) => !row.ticket).length}</b><small>Requer tratamento</small></article>
               </div>
-              {energyRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th><th>Documentos Zeev</th></tr></thead><tbody>{energyRows.map((row) => { const firstDocument = row.ticket?.documents?.[0]; const consumptionKey = energyCreditKey(row); const confirmedConsumption = energyConsumptions[consumptionKey]?.value || 0; return <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? <div className="zeev-ticket-cell"><b>#{row.ticket.id}</b>{row.ticket.link && <a className="zeev-ticket-action" href={row.ticket.link} target="_blank" rel="noreferrer">Consultar</a>}<button type="button" className="zeev-ticket-action zeev-ticket-download" onClick={() => downloadZeevDocument(row.ticket!.id, firstDocument)}>Baixar</button><button type="button" className="zeev-ticket-action zeev-consumption-open" disabled={isFinalized} onClick={() => setActiveConsumptionKey(consumptionKey)}>{confirmedConsumption ? "Editar consumo" : "Incluir consumo"}</button>{activeConsumptionKey === consumptionKey && <span className="zeev-consumption-editor"><input type="text" inputMode="decimal" aria-label="Valor do consumo de energia" placeholder="0,00" value={energyConsumptionDrafts[consumptionKey] || ""} onChange={(event) => setEnergyConsumptionDrafts((current) => ({ ...current, [consumptionKey]: event.target.value }))} /><button type="button" onClick={() => confirmEnergyConsumption(row)}>Confirmar</button></span>}{confirmedConsumption > 0 && <small className="zeev-consumption-confirmed">Consumo: {brl.format(confirmedConsumption)}</small>}</div> : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td><td>{row.ticket?.documents?.length ? row.ticket.documents.map((document, index) => <span key={document.url}>{index ? " · " : ""}<a href={document.url} target="_blank" rel="noreferrer">{document.name}</a></span>) : "—"}</td></tr>; })}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
+              {energyRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Fornecedor / complemento</th><th>Centro de custo</th><th>Valor contábil</th><th>Ticket Zeev</th><th>Situação</th><th>Documentos Zeev</th></tr></thead><tbody>{energyRows.map((row) => { const firstDocument = row.ticket?.documents?.[0]; const consumptionKey = energyCreditKey(row); const confirmedConsumption = energyConsumptions[consumptionKey]?.value || 0; return <tr key={`${row.branch}-${row.entryId}-${row.document}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td><td>{row.ticket ? <div className="zeev-ticket-cell"><b>#{row.ticket.id}</b><span className="zeev-ticket-actions">{row.ticket.link && <a className="zeev-ticket-action" href={row.ticket.link} target="_blank" rel="noreferrer">Consultar</a>}<button type="button" className="zeev-ticket-action zeev-ticket-download" onClick={() => downloadZeevDocument(row.ticket!.id, firstDocument)}>Baixar</button><button type="button" className="zeev-ticket-action zeev-consumption-open" disabled={isFinalized} onClick={() => setActiveConsumptionKey(consumptionKey)}>{confirmedConsumption ? "Editar consumo" : "Incluir consumo"}</button></span>{activeConsumptionKey === consumptionKey && <span className="zeev-consumption-editor"><input type="text" inputMode="decimal" aria-label="Valor do consumo de energia" placeholder="0,00" value={energyConsumptionDrafts[consumptionKey] || ""} onChange={(event) => setEnergyConsumptionDrafts((current) => ({ ...current, [consumptionKey]: event.target.value }))} /><button type="button" onClick={() => confirmEnergyConsumption(row)}>Confirmar</button></span>}{confirmedConsumption > 0 && <small className="zeev-consumption-confirmed">Consumo: {brl.format(confirmedConsumption)}</small>}</div> : <span className="tax-badge">Não localizado</span>}</td><td>{row.ticket?.status || "Pendente"}</td><td>{row.ticket?.documents?.length ? row.ticket.documents.map((document, index) => <span key={document.url}>{index ? " · " : ""}<a href={document.url} target="_blank" rel="noreferrer">{document.name}</a></span>) : "—"}</td></tr>; })}</tbody><tfoot><tr><td colSpan={9}>Subtotal da competência</td><td>{brl.format(energyRows.reduce((sum, row) => sum + row.value, 0))}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Energia</b><span>Nenhum lançamento foi encontrado na conta 4.2.1.02.04.01 para os filtros selecionados.</span></div>}
             </>}
           </>}
         </>}
