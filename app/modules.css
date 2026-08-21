@@ -3369,3 +3369,66 @@
     grid-template-columns: 1fr auto;
   }
 }
+
+
+/* Entrada de consumo e composição de créditos PIS/COFINS. */
+.tax-revenue-composition {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  gap: 6px;
+}
+.tax-revenue-composition article {
+  min-width: 0;
+}
+.tax-revenue-composition article:nth-last-child(-n + 2) {
+  border-color: #9fd5b8;
+  background: #f1fbf5;
+}
+.zeev-ticket-cell {
+  flex-wrap: wrap;
+}
+.zeev-consumption-open {
+  border-color: #2779bd;
+  background: #2779bd;
+}
+.zeev-consumption-editor {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) auto;
+  gap: 5px;
+}
+.zeev-consumption-editor input {
+  height: 27px;
+  padding: 4px 7px;
+  font-size: 9px;
+}
+.zeev-consumption-editor button {
+  min-height: 27px;
+  border: 0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #173d68;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
+}
+.zeev-consumption-confirmed {
+  width: 100%;
+  color: #08764a;
+  font-size: 8px;
+  font-weight: 900;
+}
+@media (max-width: 1200px) {
+  .tax-revenue-composition {
+    grid-template-columns: repeat(3, minmax(130px, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .tax-consolidated-summary {
+    grid-template-columns: 1fr;
+  }
+  .tax-revenue-composition {
+    grid-template-columns: 1fr;
+  }
+}
