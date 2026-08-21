@@ -1911,9 +1911,46 @@ export default function PisCofinsAssessment({
       maximumFractionDigits: 2,
       useGrouping: true,
     }).format(Math.abs(value));
+    const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
     const csvRows: string[][] = [["M", "99", "IMPORTAÇÃO DE LANÇAMENTOS", postingDate, "", "", "", "", ""]];
+    const creditsByBranch = new Map<string, { pis: number; cofins: number }>();
+    const addCreditCompensation = (branch: string, pis: number, cofins: number) => {
+      const current = creditsByBranch.get(branch) || { pis: 0, cofins: 0 };
+      current.pis = roundCurrency(current.pis + pis);
+      current.cofins = roundCurrency(current.cofins + cofins);
+      creditsByBranch.set(branch, current);
+    };
+
+    energyRows.forEach((row) => {
+      const consumption = energyConsumptions[energyCreditKey(row)]?.value || 0;
+      if (consumption <= 0) return;
+      const credit = calculateEnergyCredit(consumption, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+      const pis = roundCurrency(credit.pisCredit);
+      const cofins = roundCurrency(credit.cofinsCredit);
+      const branch = String(row.branch || companyCode).trim() || companyCode;
+      if (pis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.06.04", "4.2.1.02.04.01", "14", formatAmount(pis), "71", "CRÉDITO APURADO PIS NÃO CUMULATIVO - ENERGIA ELETRICA - N/MÊS", branch]);
+      if (cofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.05.04", "4.2.1.02.04.01", "14", formatAmount(cofins), "71", "CRÉDITO APURADO COFINS NÃO CUMULATIVO - ENERGIA ELETRICA - N/MÊS", branch]);
+      addCreditCompensation(branch, pis, cofins);
+    });
+    leaseRows.forEach((row) => {
+      if (row.value <= 0) return;
+      const credit = calculateEnergyCredit(row.value, revenueComposition.cumulativeRevenue, revenueComposition.nonCumulativeRevenue);
+      const pis = roundCurrency(credit.pisCredit);
+      const cofins = roundCurrency(credit.cofinsCredit);
+      const branch = String(row.branch || companyCode).trim() || companyCode;
+      if (pis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.06.04", "4.2.1.12.01.18", "16", formatAmount(pis), "71", "CRÉDITO APURADO PIS NÃO CUMULATIVO - ARRENDAMENTO - IMÓVEIS IFRS 16 - N/MÊS", branch]);
+      if (cofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.05.04", "4.2.1.12.01.19", "16", formatAmount(cofins), "71", "CRÉDITO APURADO COFINS NÃO CUMULATIVO - ARRENDAMENTO - IMÓVEIS IFRS 16 - N/MÊS", branch]);
+      addCreditCompensation(branch, pis, cofins);
+    });
+    [...creditsByBranch.entries()]
+      .sort(([left], [right]) => Number(left) - Number(right))
+      .forEach(([branch, credit]) => {
+        if (credit.pis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "2.1.4.01.01.02", "1.1.4.01.06.04", "14", formatAmount(credit.pis), "71", "CRÉDITO COMPENSADO PIS NÃO CUMULATIVO - N/MÊS", branch]);
+        if (credit.cofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "2.1.4.01.01.03", "1.1.4.01.05.04", "14", formatAmount(credit.cofins), "71", "CRÉDITO COMPENSADO COFINS NÃO CUMULATIVO - N/MÊS", branch]);
+      });
+
     const postingTypes = [
-      { key: "cumulativePis" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "PIS CUMULATIVO - COD 8109 - N/MÊS" },
+      { key: "cumulativePis" as const, debit: "3.1.3.01.01.02", credit: "2.1.4.01.01.02", history: "PIS CUMULATIVO - COD 8109 - N/MÊS" },
       { key: "cumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS CUMULATIVO - COD 2172 - N/MÊS" },
       { key: "nonCumulativePis" as const, debit: "3.1.3.01.01.02", credit: "2.1.4.01.01.02", history: "PIS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
       { key: "nonCumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
@@ -1986,7 +2023,7 @@ export default function PisCofinsAssessment({
             >
               <Download /> Apuração completa
             </button>
-            <button className="tax-future-action" disabled={!completeAssessmentReady} onClick={exportEntriesCsv} title={completeAssessmentReady ? "Gerar CSV para importação dos lançamentos" : "Atualize e processe as quatro etapas antes de gerar os lançamentos"}>
+            <button className="tax-future-action" disabled={!completeAssessmentReady || !energyLoaded || !leaseLoaded} onClick={exportEntriesCsv} title={!completeAssessmentReady ? "Atualize e processe as quatro etapas antes de gerar os lançamentos" : !energyLoaded || !leaseLoaded ? "Atualize Energia e Arrendamentos antes de gerar os lançamentos" : "Gerar CSV para importação dos lançamentos, créditos e compensações"}>
               <ReceiptText /> Lançamentos
             </button>
             <button
