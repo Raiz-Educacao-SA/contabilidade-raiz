@@ -1126,13 +1126,6 @@ function AreaHub({
   }, [scheduleCompetence]);
 
   const openSchedule = () => onSelect("cronograma");
-  const handleWorkflowStartClick = (event: { target: EventTarget | null }) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.closest("button, select, input, a")) return;
-    openSchedule();
-  };
-
   return (
     <main className="module-hub">
       <header>
