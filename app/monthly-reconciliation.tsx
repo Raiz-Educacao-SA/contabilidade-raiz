@@ -26,6 +26,7 @@ import {
 import {
   resolveStatementBindings,
   type DataEngineStatement,
+  type DataEngineStatementOperations,
 } from "@/lib/data-engine-statements";
 
 type Statement = {
@@ -97,6 +98,8 @@ export default function MonthlyReconciliationPanel({
   const [dataEngineSources, setDataEngineSources] = useState<
     DataEngineStatement[]
   >([]);
+  const [dataEngineOperations, setDataEngineOperations] =
+    useState<DataEngineStatementOperations | null>(null);
   const [sourceBindings, setSourceBindings] = useState<Record<string, string>>(
     {},
   );
@@ -234,6 +237,7 @@ export default function MonthlyReconciliationPanel({
     const requestIsCurrent = () => dataEngineRequestRef.current === requestId;
     setDataEngineBusy(true);
     setDataEngineSources([]);
+    setDataEngineOperations(null);
     setStatements([]);
     try {
       const response = await fetch(
@@ -248,6 +252,7 @@ export default function MonthlyReconciliationPanel({
         statements?: DataEngineStatement[];
         error?: string;
         records?: number;
+        operations?: DataEngineStatementOperations;
       };
       if (!requestIsCurrent()) return;
       if (!response.ok || data.error)
@@ -256,6 +261,7 @@ export default function MonthlyReconciliationPanel({
         );
       const sources = data.statements ?? [];
       setDataEngineSources(sources);
+      setDataEngineOperations(data.operations ?? null);
       if (applySourceBindings(sources, bankAccounts, sourceBindings)) {
         setNotice(
           `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
@@ -531,6 +537,19 @@ export default function MonthlyReconciliationPanel({
                   ))}
                 </select>
               </label>
+            </article>
+          ))}
+        </div>
+      )}
+      {dataEngineOperations && (
+        <div className="drive-files" aria-label="Saúde das APIs de extratos">
+          {Object.entries(dataEngineOperations).map(([operation, records]) => (
+            <article key={operation}>
+              <CheckCircle2 />
+              <div>
+                <b>{operation}</b>
+                <span>{records} registro(s) autorizado(s)</span>
+              </div>
             </article>
           ))}
         </div>

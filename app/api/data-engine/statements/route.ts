@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  loadDataEngineStatements,
+  loadDataEngineStatementSnapshot,
   statementPeriod,
 } from "@/lib/data-engine-statements";
 import { isAuthorizedCompany } from "@/lib/server/authorized-company";
@@ -31,7 +31,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const baseUrl = process.env.DATA_ENGINE_URL ?? process.env.DATA_ENGINE_API_URL;
+  const baseUrl =
+    process.env.DATA_ENGINE_BASE_URL ??
+    process.env.DATA_ENGINE_URL ??
+    process.env.DATA_ENGINE_API_URL;
   const apiKey = process.env.DATA_ENGINE_API_KEY;
   if (!baseUrl || !apiKey) {
     return NextResponse.json(
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { fromDate, toDate } = statementPeriod(competence);
-    const statements = await loadDataEngineStatements({
+    const snapshot = await loadDataEngineStatementSnapshot({
       apiKey,
       baseUrl,
       codColigada: Number(company),
@@ -54,12 +57,10 @@ export async function GET(request: NextRequest) {
       {
         company,
         competence,
-        records: statements.reduce(
-          (total, statement) => total + statement.rows.length,
-          0,
-        ),
+        records: snapshot.operations.movimentos,
         source: "Raiz Data Engine",
-        statements,
+        statements: snapshot.statements,
+        operations: snapshot.operations,
       },
       { headers: { "cache-control": "private, no-store" } },
     );

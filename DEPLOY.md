@@ -17,7 +17,7 @@ Cadastre em Production, Preview e Development, conforme a política do projeto:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `DATA_ENGINE_URL`
+- `DATA_ENGINE_BASE_URL`
 - `DATA_ENGINE_API_KEY`
 - `TOTVS_WS_PRD_BASE_URL`
 - `TOTVS_WS_PRD_USER`
@@ -28,6 +28,11 @@ Cadastre em Production, Preview e Development, conforme a política do projeto:
 
 A credencial do Data Engine deve ter somente `read:tesouraria`, acesso PII
 governado e a lista explícita de coligadas atendidas pelo portal.
+
+O endpoint produtivo atual é
+`https://raiz-data-engine-production.up.railway.app`. A aplicação consulta as
+cinco operações governadas (`movimentos`, `saldos`, `posicoes`, `cobertura` e
+`pendencias`) exclusivamente pela rota server-side.
 
 ## Gates antes do merge
 

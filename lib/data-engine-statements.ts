@@ -19,6 +19,19 @@ export type DataEngineStatement = {
   };
 };
 
+export type DataEngineStatementOperations = {
+  movimentos: number;
+  saldos: number;
+  posicoes: number;
+  cobertura: number;
+  pendencias: number;
+};
+
+export type DataEngineStatementSnapshot = {
+  statements: DataEngineStatement[];
+  operations: DataEngineStatementOperations;
+};
+
 type Movement = {
   movimento_id: string;
   cod_coligada: number;
@@ -32,6 +45,11 @@ type Movement = {
 
 type MovementPage = {
   items: Movement[];
+  next_cursor: string | null;
+};
+
+type GovernedPage = {
+  items: Array<Record<string, unknown>>;
   next_cursor: string | null;
 };
 
@@ -96,6 +114,30 @@ function parsePage(value: unknown): MovementPage {
   return { items: page.items, next_cursor: page.next_cursor };
 }
 
+function parseGovernedPage(value: unknown, codColigada: number): GovernedPage {
+  if (!value || typeof value !== "object") {
+    throw new Error("Resposta inválida do Data Engine.");
+  }
+  const page = value as Partial<GovernedPage>;
+  if (
+    !Array.isArray(page.items) ||
+    !page.items.every(
+      (item) =>
+        item !== null &&
+        typeof item === "object" &&
+        !Array.isArray(item) &&
+        (item as Record<string, unknown>).cod_coligada === codColigada,
+    ) ||
+    (page.next_cursor !== null && typeof page.next_cursor !== "string")
+  ) {
+    throw new Error("Resposta inválida do Data Engine.");
+  }
+  return {
+    items: page.items as Array<Record<string, unknown>>,
+    next_cursor: page.next_cursor,
+  };
+}
+
 function validateOptions(options: LoadOptions) {
   if (!options.apiKey.trim() || !options.baseUrl.trim()) {
     throw new Error("A integração com o Data Engine não está configurada.");
@@ -153,6 +195,79 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     return account ? [{ account, source }] : [];
   });
   return { duplicateAccountCodes, pairs };
+}
+
+async function countGovernedOperation(
+  path: string,
+  options: LoadOptions,
+): Promise<number> {
+  const fetcher = options.fetcher ?? fetch;
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+  let records = 0;
+
+  for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
+    const url = new URL(path, options.baseUrl);
+    url.searchParams.set(
+      "cod_coligada",
+      options.codColigadaCode ?? String(options.codColigada).padStart(2, "0"),
+    );
+    url.searchParams.set("limit", String(PAGE_SIZE));
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const response = await fetcher(url, {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "x-api-key": options.apiKey,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Data Engine indisponível (HTTP ${response.status}).`);
+    }
+
+    const page = parseGovernedPage(await response.json(), options.codColigada);
+    records += page.items.length;
+    if (!page.next_cursor) break;
+    if (seenCursors.has(page.next_cursor)) {
+      throw new Error("O Data Engine retornou cursor de paginação repetido.");
+    }
+    seenCursors.add(page.next_cursor);
+    cursor = page.next_cursor;
+
+    if (requestCount === MAX_PAGE_REQUESTS - 1) {
+      throw new Error("O Data Engine excedeu o limite de páginas da consulta.");
+    }
+  }
+
+  return records;
+}
+
+export async function loadDataEngineStatementSnapshot(
+  options: LoadOptions,
+): Promise<DataEngineStatementSnapshot> {
+  validateOptions(options);
+  const [statements, saldos, posicoes, cobertura, pendencias] =
+    await Promise.all([
+      loadDataEngineStatements(options),
+      countGovernedOperation("/v1/tesouraria/extratos/saldos", options),
+      countGovernedOperation("/v1/tesouraria/extratos/posicoes", options),
+      countGovernedOperation("/v1/tesouraria/extratos/cobertura", options),
+      countGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
+    ]);
+  return {
+    statements,
+    operations: {
+      movimentos: statements.reduce(
+        (total, statement) => total + statement.rows.length,
+        0,
+      ),
+      saldos,
+      posicoes,
+      cobertura,
+      pendencias,
+    },
+  };
 }
 
 export async function loadDataEngineStatements(
