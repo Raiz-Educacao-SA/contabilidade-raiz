@@ -1944,14 +1944,14 @@ export default function PisCofinsAssessment({
         const energyCofins = roundCurrency(credit.energyCofins);
         const leasePis = roundCurrency(credit.leasePis);
         const leaseCofins = roundCurrency(credit.leaseCofins);
-        if (energyPis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.06.04", "4.2.1.02.04.01", "14", formatAmount(energyPis), "71", "CRÉDITO APURADO PIS NÃO CUMULATIVO - ENERGIA ELETRICA - N/MÊS", branch]);
-        if (energyCofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.05.04", "4.2.1.02.04.01", "14", formatAmount(energyCofins), "71", "CRÉDITO APURADO COFINS NÃO CUMULATIVO - ENERGIA ELETRICA - N/MÊS", branch]);
-        if (leasePis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.06.04", "4.2.1.12.01.18", "16", formatAmount(leasePis), "71", "CRÉDITO APURADO PIS NÃO CUMULATIVO - ARRENDAMENTO - IMÓVEIS IFRS 16 - N/MÊS", branch]);
-        if (leaseCofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.05.04", "4.2.1.12.01.19", "16", formatAmount(leaseCofins), "71", "CRÉDITO APURADO COFINS NÃO CUMULATIVO - ARRENDAMENTO - IMÓVEIS IFRS 16 - N/MÊS", branch]);
+        if (energyPis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.06.04", "4.2.1.02.04.01", "", formatAmount(energyPis), "71", "CRÉDITO APURADO PIS NÃO CUMULATIVO - ENERGIA ELETRICA - N/MÊS", branch]);
+        if (energyCofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.05.04", "4.2.1.02.04.01", "", formatAmount(energyCofins), "71", "CRÉDITO APURADO COFINS NÃO CUMULATIVO - ENERGIA ELETRICA - N/MÊS", branch]);
+        if (leasePis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.06.04", "4.2.1.12.01.18", "", formatAmount(leasePis), "71", "CRÉDITO APURADO PIS NÃO CUMULATIVO - ARRENDAMENTO - IMÓVEIS IFRS 16 - N/MÊS", branch]);
+        if (leaseCofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "1.1.4.01.05.04", "4.2.1.12.01.19", "", formatAmount(leaseCofins), "71", "CRÉDITO APURADO COFINS NÃO CUMULATIVO - ARRENDAMENTO - IMÓVEIS IFRS 16 - N/MÊS", branch]);
         const compensatedPis = roundCurrency(energyPis + leasePis);
         const compensatedCofins = roundCurrency(energyCofins + leaseCofins);
-        if (compensatedPis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "2.1.4.01.01.02", "1.1.4.01.06.04", "14", formatAmount(compensatedPis), "71", "CRÉDITO COMPENSADO PIS NÃO CUMULATIVO - N/MÊS", branch]);
-        if (compensatedCofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "2.1.4.01.01.03", "1.1.4.01.05.04", "14", formatAmount(compensatedCofins), "71", "CRÉDITO COMPENSADO COFINS NÃO CUMULATIVO - N/MÊS", branch]);
+        if (compensatedPis >= 0.005) csvRows.push(["*P", "PIS E COFINS", "2.1.4.01.01.02", "1.1.4.01.06.04", "", formatAmount(compensatedPis), "71", "CRÉDITO COMPENSADO PIS NÃO CUMULATIVO - N/MÊS", branch]);
+        if (compensatedCofins >= 0.005) csvRows.push(["*P", "PIS E COFINS", "2.1.4.01.01.03", "1.1.4.01.05.04", "", formatAmount(compensatedCofins), "71", "CRÉDITO COMPENSADO COFINS NÃO CUMULATIVO - N/MÊS", branch]);
       });
 
     const postingTypes = [
