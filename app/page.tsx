@@ -37,6 +37,8 @@ import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
+import ModuleCompletionControl from "@/app/module-completion-control";
+import { accountingCompletionIdentity, financialCompletionIdentity } from "@/lib/schedule-completion";
 
 type Company = {
   empresa_id: string;
@@ -261,6 +263,22 @@ export default function Home() {
         ...(userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") ? ["folha" as Area] : []),
         ...(userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil") ? ["contabil" as Area, "book" as Area] : []),
       ];
+  const selectedCompanyCode = company?.empresas?.codcoligada ?? "";
+  const selectedCompanyName = company?.empresas?.razao_social ?? "";
+  const moduleCompletionIdentity = (() => {
+    if (!selectedModule || selectedModule === "cronograma") return null;
+    if (selectedModule === "contabil") {
+      if (accountingTab === "pis-cofins") return null;
+      return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
+    }
+    if (["bancaria", "receita", "emprestimos", "parcelamentos"].includes(selectedModule)) {
+      return financialCompletionIdentity(selectedModule, selectedCompanyCode, selectedCompanyName);
+    }
+    const sectors: Partial<Record<Module, string>> = {
+      fiscal: "Fiscal", compras: "Compras", folha: "Folha de Pagamento", book: "Contabilidade",
+    };
+    return sectors[selectedModule] ? { modulo: selectedModule, setor: sectors[selectedModule]! } : null;
+  })();
 
   function openLeaseApp() {
     window.open(buildLeaseAppUrl(session), "_blank", "noreferrer");
@@ -823,6 +841,15 @@ export default function Home() {
             <div
               id="payroll-filter-actions"
               className="filter-actions-slot payroll-filter-actions"
+            />
+          )}
+          {moduleCompletionIdentity && (
+            <ModuleCompletionControl
+              competence={competence}
+              modulo={moduleCompletionIdentity.modulo}
+              setor={moduleCompletionIdentity.setor}
+              userId={session.user.id}
+              userEmail={session.user.email ?? ""}
             />
           )}
         </section>
@@ -1446,7 +1473,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve().then(() => {
+    const loadConfirmations = () => Promise.resolve().then(() => {
       if (!active) return;
       setScheduleLoading(true);
       setScheduleError("");
@@ -1461,7 +1488,12 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
         setScheduleLoading(false);
         });
     });
-    return () => { active = false; };
+    void loadConfirmations();
+    const channel = supabase
+      .channel(`cronograma-detalhado-${scheduleCompetence}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${scheduleCompetence}` }, () => void loadConfirmations())
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
   }, [scheduleCompetence]);
 
   async function saveScheduleItem(item: { key: string; sector: string; label: string }, checked: boolean) {
