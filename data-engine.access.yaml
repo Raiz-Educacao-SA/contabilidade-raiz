@@ -1,0 +1,58 @@
+version: '2026-05-26'
+consumer:
+  id: contabilidade-raiz
+  name: contabilidade-raiz
+  owner_email: luanda.silva@raizeducacao.com.br
+  contact_email: luanda.silva@raizeducacao.com.br
+  environment: production
+  repository: Raiz-Educacao-SA/contabilidade-raiz
+request:
+  purpose: Consultar movimentos, saldos, posições, cobertura e pendências de extratos
+    bancários governados no Data Engine
+  risk_tier: medium
+  expires_at: '2027-08-14T23:59:59Z'
+  idempotency_key: contabilidade-raiz-production-tesouraria-extratos-oauth-v1
+access:
+  llm_allowed: false
+  direct_api_access:
+    enabled: true
+    operations:
+    - operation_id: GET /v1/tesouraria/extratos/movimentos
+      scope: read:tesouraria
+      method: GET
+      path: /v1/tesouraria/extratos/movimentos
+    - operation_id: GET /v1/tesouraria/extratos/saldos
+      scope: read:tesouraria
+      method: GET
+      path: /v1/tesouraria/extratos/saldos
+    - operation_id: GET /v1/tesouraria/extratos/posicoes
+      scope: read:tesouraria
+      method: GET
+      path: /v1/tesouraria/extratos/posicoes
+    - operation_id: GET /v1/tesouraria/extratos/cobertura
+      scope: read:tesouraria
+      method: GET
+      path: /v1/tesouraria/extratos/cobertura
+    - operation_id: GET /v1/tesouraria/extratos/pendencias
+      scope: read:tesouraria
+      method: GET
+      path: /v1/tesouraria/extratos/pendencias
+  coligadas:
+    mode: all
+    reason: Aplicação corporativa oficial de contabilidade e tesouraria, com isolamento
+      por tenant aplicado pelo Data Engine
+  pii:
+    requested: false
+    justification: ''
+auth:
+  method: private_key_jwt
+  alg: ES256
+  jwks_url: https://contabilidade-raiz.vercel.app/api/data-engine/jwks
+  kid: contabilidade-raiz-production-es256-v1
+delivery:
+  mode: none
+metadata:
+  source: agent_cli
+  agent_tool: data-engine-cli
+  agent_tool_version: 0.1.0
+  no_raw_prompt: true

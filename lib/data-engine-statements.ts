@@ -54,7 +54,7 @@ type GovernedPage = {
 };
 
 type LoadOptions = {
-  apiKey: string;
+  accessToken: string;
   baseUrl: string;
   codColigada: number;
   codColigadaCode?: string;
@@ -71,6 +71,15 @@ const PAGE_SIZE = 200;
 const MAX_PAGE_REQUESTS = 500;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_SOURCE_ACCOUNT_ID_LENGTH = 256;
+
+export class DataEngineHttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`Data Engine indisponível (HTTP ${status}).`);
+    this.status = status;
+  }
+}
 
 function isCalendarDate(value: string) {
   if (!ISO_DATE.test(value)) return false;
@@ -139,7 +148,7 @@ function parseGovernedPage(value: unknown, codColigada: number): GovernedPage {
 }
 
 function validateOptions(options: LoadOptions) {
-  if (!options.apiKey.trim() || !options.baseUrl.trim()) {
+  if (!options.accessToken.trim() || !options.baseUrl.trim()) {
     throw new Error("A integração com o Data Engine não está configurada.");
   }
   if (!Number.isSafeInteger(options.codColigada) || options.codColigada <= 0) {
@@ -219,11 +228,11 @@ async function countGovernedOperation(
       cache: "no-store",
       headers: {
         accept: "application/json",
-        "x-api-key": options.apiKey,
+        authorization: `Bearer ${options.accessToken}`,
       },
     });
     if (!response.ok) {
-      throw new Error(`Data Engine indisponível (HTTP ${response.status}).`);
+      throw new DataEngineHttpError(response.status);
     }
 
     const page = parseGovernedPage(await response.json(), options.codColigada);
@@ -294,11 +303,11 @@ export async function loadDataEngineStatements(
       cache: "no-store",
       headers: {
         accept: "application/json",
-        "x-api-key": options.apiKey,
+        authorization: `Bearer ${options.accessToken}`,
       },
     });
     if (!response.ok) {
-      throw new Error(`Data Engine indisponível (HTTP ${response.status}).`);
+      throw new DataEngineHttpError(response.status);
     }
 
     const page = parsePage(await response.json());

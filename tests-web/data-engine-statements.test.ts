@@ -4,7 +4,7 @@ import test from "node:test";
 
 const moduleUrl = new URL("../lib/data-engine-statements.ts", import.meta.url);
 
-test("pagina movimentos do Data Engine e agrupa contas sem expor a chave", async () => {
+test("pagina movimentos do Data Engine e agrupa contas sem expor o token", async () => {
   assert.equal(existsSync(moduleUrl), true, "Data Engine statements adapter is missing");
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   const requests: Array<{ headers: Headers; url: URL }> = [];
@@ -48,7 +48,7 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor a chave", async
   ];
 
   const result = await loadDataEngineStatements({
-    apiKey: "server-secret",
+    accessToken: "short-lived-token",
     baseUrl: "https://data-engine.example",
     codColigada: 10,
     fetcher: async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -60,7 +60,8 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor a chave", async
   });
 
   assert.equal(requests.length, 2);
-  assert.equal(requests[0].headers.get("x-api-key"), "server-secret");
+  assert.equal(requests[0].headers.get("authorization"), "Bearer short-lived-token");
+  assert.equal(requests[0].headers.has("x-api-key"), false);
   assert.equal(requests[0].url.pathname, "/v1/tesouraria/extratos/movimentos");
   assert.equal(requests[0].url.searchParams.get("cod_coligada"), "10");
   assert.equal(requests[0].url.searchParams.get("from_date"), "2026-08-01");
@@ -88,7 +89,7 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor a chave", async
       sourceAccountId: "a".repeat(64),
     },
   ]);
-  assert.equal(JSON.stringify(result).includes("server-secret"), false);
+  assert.equal(JSON.stringify(result).includes("short-lived-token"), false);
 });
 
 test("preserva o zero à esquerda da coligada na consulta", async () => {
@@ -96,7 +97,7 @@ test("preserva o zero à esquerda da coligada na consulta", async () => {
   let requestedUrl: URL | undefined;
 
   await loadDataEngineStatements({
-    apiKey: "server-secret",
+    accessToken: "short-lived-token",
     baseUrl: "https://data-engine.example",
     codColigada: 3,
     codColigadaCode: "03",
@@ -116,13 +117,17 @@ test("consulta as cinco operações governadas sem devolver a credencial", async
   const requestedPaths: string[] = [];
 
   const result = await loadDataEngineStatementSnapshot({
-    apiKey: "server-secret",
+    accessToken: "short-lived-token",
     baseUrl: "https://data-engine.example",
     codColigada: 10,
     fetcher: async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       requestedPaths.push(url.pathname);
-      assert.equal(new Headers(init?.headers).get("x-api-key"), "server-secret");
+      assert.equal(
+        new Headers(init?.headers).get("authorization"),
+        "Bearer short-lived-token",
+      );
+      assert.equal(new Headers(init?.headers).has("x-api-key"), false);
       const itemByPath: Record<string, object> = {
         "/v1/tesouraria/extratos/saldos": {
           saldo_id: "saldo-1",
@@ -164,7 +169,7 @@ test("consulta as cinco operações governadas sem devolver a credencial", async
     posicoes: 1,
     saldos: 1,
   });
-  assert.equal(JSON.stringify(result).includes("server-secret"), false);
+  assert.equal(JSON.stringify(result).includes("short-lived-token"), false);
 });
 
 test("rejeita qualquer operação que devolva outra coligada", async () => {
@@ -172,7 +177,7 @@ test("rejeita qualquer operação que devolva outra coligada", async () => {
 
   await assert.rejects(
     loadDataEngineStatementSnapshot({
-      apiKey: "server-secret",
+      accessToken: "short-lived-token",
       baseUrl: "https://data-engine.example",
       codColigada: 10,
       fetcher: async (input: RequestInfo | URL) => {
@@ -198,7 +203,7 @@ test("interrompe paginação quando o cursor se repete", async () => {
   let requests = 0;
   await assert.rejects(
     loadDataEngineStatements({
-      apiKey: "server-secret",
+      accessToken: "short-lived-token",
       baseUrl: "https://data-engine.example",
       codColigada: 10,
       fetcher: async () => {
@@ -217,7 +222,7 @@ test("rejeita movimento fora da competência solicitada", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   await assert.rejects(
     loadDataEngineStatements({
-      apiKey: "server-secret",
+      accessToken: "short-lived-token",
       baseUrl: "https://data-engine.example",
       codColigada: 10,
       fetcher: async () =>
