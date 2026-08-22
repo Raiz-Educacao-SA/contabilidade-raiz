@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+export { validateMonthly } from "@/lib/reconciliation-monthly";
 
 export type BankRow = { id: string; date: Date; description: string; value: number };
 export type BankMetadata = { agency: string; account: string; period: string; name: string; openingBalance: number | null; closingBalance: number | null };
@@ -13,7 +14,7 @@ export type MatchRow = {
   sourceAccount?: string; sourceBank?: string;
 };
 export type AccountingAccount = { code: string; name: string; rows: AccountingRow[] };
-export type MonthlyValidation = { bankCredits: number; bankDebits: number; accountingDebits: number; accountingCredits: number; bankNet: number; accountingNet: number; movementDifference: number; calculatedClosingBalance: number | null; closingBalanceDifference: number | null; missingDays: { date: string; bank: number; accounting: number; difference: number }[]; reconciled: boolean };
+export type { MonthlyValidation } from "@/lib/reconciliation-monthly";
 
 const normalize = (value: unknown) => String(value ?? "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const primitive = (value: unknown): unknown => {
@@ -224,25 +225,6 @@ export function accountingBankAccounts(accounting: AccountingRow[]) {
   const bankTerms = /BANCO|ITA[UÚ]|BRADESCO|SANTANDER|CAIXA|SICOOB|SICREDI|NUBANK|CONTA CORRENTE|CONTA BANC[AÁ]RIA|APLICA[CÇ][AÃ]O/iu;
   const bankGroups = groups.filter((item) => bankTerms.test(item.name));
   return (bankGroups.length ? bankGroups : groups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
-}
-
-export function validateMonthly(bank: BankRow[], accounting: AccountingRow[], metadata: BankMetadata, tolerance = 0.01): MonthlyValidation {
-  const round = (value: number) => Math.round(value * 100) / 100;
-  const bankCredits = round(bank.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
-  const bankDebits = round(-bank.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
-  const accountingDebits = round(accounting.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
-  const accountingCredits = round(-accounting.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
-  const bankNet = round(bankCredits - bankDebits), accountingNet = round(accountingDebits - accountingCredits);
-  const movementDifference = round(bankNet - accountingNet);
-  const calculatedClosingBalance = metadata.openingBalance == null ? null : round(metadata.openingBalance + bankNet);
-  const closingBalanceDifference = calculatedClosingBalance == null || metadata.closingBalance == null ? null : round(calculatedClosingBalance - metadata.closingBalance);
-  const dates = Array.from(new Set([...bank.map((row) => dayKey(row.date)), ...accounting.map((row) => dayKey(row.date))])).sort();
-  const missingDays = dates.map((date) => {
-    const bankValue = round(bank.filter((row) => dayKey(row.date) === date).reduce((sum, row) => sum + row.value, 0));
-    const accountingValue = round(accounting.filter((row) => dayKey(row.date) === date).reduce((sum, row) => sum + row.value, 0));
-    return { date, bank: bankValue, accounting: accountingValue, difference: round(bankValue - accountingValue) };
-  }).filter((row) => Math.abs(row.difference) > tolerance);
-  return { bankCredits, bankDebits, accountingDebits, accountingCredits, bankNet, accountingNet, movementDifference, calculatedClosingBalance, closingBalanceDifference, missingDays, reconciled: Math.abs(movementDifference) <= tolerance && (closingBalanceDifference == null || Math.abs(closingBalanceDifference) <= tolerance) };
 }
 
 export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceDays = 3, toleranceValue = 0.01) {
