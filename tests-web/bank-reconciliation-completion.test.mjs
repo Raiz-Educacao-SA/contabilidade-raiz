@@ -35,3 +35,9 @@ test("procura primeiro no dia e depois em toda a competência", () => {
 test("usa fonte compacta na ficha de divergências", () => {
   assert.match(monthlyCss, /\.reconciliation-form th,[\s\S]*?font-size: 9px/);
 });
+
+test("compacta as etapas e os valores da conciliação bancária", () => {
+  assert.match(monthlyCss, /\.bank-content \.source-control \{[^}]*padding: 14px/);
+  assert.match(monthlyCss, /\.bank-content \.monthly-account \{[^}]*padding: 14px/);
+  assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 14px/);
+});

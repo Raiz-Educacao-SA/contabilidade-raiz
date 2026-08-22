@@ -30,3 +30,22 @@ test("aponta somente quando o total mensal diverge", async () => {
   assert.equal(validation.movementDifference, 10);
   assert.equal(validation.reconciled, false);
 });
+
+test("considera débitos e créditos na diferença mensal exibida", async () => {
+  const { validateMonthly } = await import(moduleUrl.href);
+  const validation = validateMonthly(
+    [
+      { id: "b1", date: new Date("2026-06-01T00:00:00Z"), description: "Entradas", value: 103203.4 },
+      { id: "b2", date: new Date("2026-06-30T00:00:00Z"), description: "Saídas", value: -107353.66 },
+    ],
+    [
+      { id: "c1", date: new Date("2026-06-01T00:00:00Z"), value: 65277.87, nature: "Débito", account: "1", accountName: "Banco" },
+      { id: "c2", date: new Date("2026-06-30T00:00:00Z"), value: -67353, nature: "Crédito", account: "1", accountName: "Banco" },
+    ],
+    { agency: "", account: "", period: "06/2026", name: "Banco", openingBalance: null, closingBalance: null },
+  );
+
+  assert.equal(validation.bankNet, -4150.26);
+  assert.equal(validation.accountingNet, -2075.13);
+  assert.equal(validation.movementDifference, -2075.13);
+});

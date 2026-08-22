@@ -636,22 +636,46 @@
   border-radius: 16px;
   background: #f8fafc;
 }
-.bank-content .monthly-flow { font-size: 10px; }
-.bank-content .monthly-flow .panel-title h2 { font-size: 15px; }
-.bank-content .monthly-flow .panel-title p { font-size: 11px; }
-.bank-content .monthly-flow .history-actions button { font-size: 10px; padding: 8px 11px; }
-.bank-content .monthly-flow .notice { font-size: 9px; }
-.bank-content .source-control-title > span { font-size: 8px; }
-.bank-content .source-control-title h3 { font-size: 15px; }
-.bank-content .source-control-title p { font-size: 10px; }
-.bank-content .source-steps article b { font-size: 11px; }
-.bank-content .source-steps article span { font-size: 8px; }
-.bank-content .source-steps article button { font-size: 10px; padding: 8px 10px; }
-.bank-content .source-step-number { font-size: 8px; }
+.bank-content .monthly-flow { font-size: 9px; }
+.bank-content .monthly-flow .panel-title h2 { font-size: 14px; }
+.bank-content .monthly-flow .panel-title p { font-size: 10px; }
+.bank-content .monthly-flow .history-actions button { font-size: 9px; padding: 7px 9px; }
+.bank-content .monthly-flow .notice { font-size: 8px; }
+.bank-content .source-control { margin: 10px 0 14px; padding: 14px; border-radius: 12px; }
+.bank-content .source-control-title > span { font-size: 7px; }
+.bank-content .source-control-title h3 { margin: 3px 0; font-size: 13px; }
+.bank-content .source-control-title p { font-size: 9px; }
+.bank-content .source-steps { gap: 8px; margin-top: 12px; }
+.bank-content .source-steps article { gap: 4px 8px; padding: 11px; border-radius: 11px; }
+.bank-content .source-steps article > svg { width: 22px; height: 22px; }
+.bank-content .source-steps article b { font-size: 10px; }
+.bank-content .source-steps article span { font-size: 7px; }
+.bank-content .source-steps article button { margin-top: 5px; font-size: 9px; padding: 6px 8px; }
+.bank-content .source-steps article button svg { width: 14px; }
+.bank-content .source-step-number { right: 8px; top: 7px; width: 18px; height: 18px; font-size: 7px; }
 .bank-content .monthly-results,
 .bank-content .monthly-account,
 .bank-content .monthly-metrics,
 .bank-content .drive-files { font-size: 9px; }
+.bank-content .saved-history { margin-top: 16px; padding: 11px 14px; border-left-width: 4px; border-radius: 10px; }
+.bank-content .saved-history span { font-size: 8px; }
+.bank-content .saved-history h3 { margin: 3px 0; font-size: 12px; }
+.bank-content .saved-history p { font-size: 9px; }
+.bank-content .exceptions-title { margin-top: 18px; }
+.bank-content .exceptions-title > span { font-size: 8px; }
+.bank-content .exceptions-title h3 { margin: 3px 0; font-size: 12px; }
+.bank-content .monthly-results { gap: 12px; margin-top: 16px; }
+.bank-content .monthly-account { padding: 14px; border-width: 1px; border-radius: 12px; }
+.bank-content .monthly-account > header > div { gap: 8px; }
+.bank-content .monthly-account > header svg { width: 22px; height: 22px; }
+.bank-content .monthly-account > header span { font-size: 8px; }
+.bank-content .monthly-account h3 { margin: 3px 0; font-size: 12px; }
+.bank-content .monthly-account > header p { margin: 0; font-size: 9px; }
+.bank-content .monthly-metrics { gap: 8px; margin-top: 12px; }
+.bank-content .monthly-metrics > div { padding: 10px; border-radius: 10px; gap: 3px; }
+.bank-content .monthly-metrics span,
+.bank-content .monthly-metrics small { font-size: 9px; }
+.bank-content .monthly-metrics b { font-size: 14px; line-height: 1.15; }
 .source-control-title > span,
 .exceptions-title > span {
   font-size: 10px;
