@@ -586,7 +586,7 @@ export default function MonthlyReconciliationPanel({
       <div className="source-control">
         <div className="source-control-title">
           <span>ATUALIZAÇÃO DAS FONTES</span>
-          <h3>Preparar a conciliação</h3>
+          <h3>Preparar conciliação por movimento</h3>
           <p>
             Atualize a base contábil e os extratos antes de executar a
             conferência do mês.
