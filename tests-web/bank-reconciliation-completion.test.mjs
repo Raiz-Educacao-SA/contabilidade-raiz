@@ -5,6 +5,7 @@ import test from "node:test";
 const panel = await readFile(new URL("../app/monthly-reconciliation.tsx", import.meta.url), "utf8");
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const reconciliation = await readFile(new URL("../lib/reconciliation.ts", import.meta.url), "utf8");
+const matcher = await readFile(new URL("../lib/reconciliation-matcher.ts", import.meta.url), "utf8");
 const monthlyCss = await readFile(new URL("../app/monthly.css", import.meta.url), "utf8");
 const modulesCss = await readFile(new URL("../app/modules.css", import.meta.url), "utf8");
 
@@ -28,12 +29,21 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /Créditos lançados na contabilidade não identificados no extrato/);
   assert.match(panel, /Sem lançamento na contabilidade/);
   assert.match(panel, /Sem movimento no extrato/);
+  assert.match(panel, /Comparação diária entre extrato e contabilidade/);
+  assert.match(panel, /Diferença nas entradas/);
+  assert.match(panel, /Diferença nas saídas/);
+  assert.match(panel, /Diferença líquida/);
+  assert.match(panel, /Alertas internos informados pela Planilha 18/);
+  assert.doesNotMatch(panel, /Total das pendências detalhadas/);
 });
 
 test("procura primeiro no dia e depois em toda a competência", () => {
-  assert.match(reconciliation, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
-  assert.match(reconciliation, /monthKey\(a\.date\) === monthKey\(b\.date\)/);
-  assert.doesNotMatch(reconciliation, /days <= toleranceDays/);
+  assert.match(matcher, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
+  assert.match(matcher, /monthKey\(a\.date\) === monthKey\(b\.date\)/);
+  assert.match(matcher, /matchDailyGroups\(\)/);
+  assert.match(matcher, /Total diário agrupado/);
+  assert.doesNotMatch(matcher, /days <= toleranceDays/);
+  assert.match(reconciliation, /reconcileMovements/);
 });
 
 test("usa fonte compacta na ficha de divergências", () => {

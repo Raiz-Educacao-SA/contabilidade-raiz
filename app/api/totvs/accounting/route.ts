@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  collectTotvsAccountingDiagnostics,
+  totvsNumber,
+} from "@/lib/totvs-accounting";
 
 export const runtime = "nodejs";
 
@@ -8,18 +12,17 @@ type TotvsResult = {
   DESCRICAO?: string;
   CODCONTA?: string;
   DATACOMPENSACAO?: string;
+  DEBITO?: string;
+  CREDITO?: string;
   DEBITO2?: string;
   CREDITO2?: string;
+  DIF_DEB?: string;
+  DIF_CRED?: string;
 };
 
 const xmlEscape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 const xmlDecode = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, name: string) => xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim();
-const number = (value?: string) => {
-  const parsed = Number(String(value || "0").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -64,18 +67,25 @@ export async function GET(request: NextRequest) {
     const resultXml = xmlDecode(tag(soap, "RealizarConsultaSQLResult") || "");
     const records = Array.from(resultXml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) => {
       const record = match[1];
-      return ["CODCOLPROP", "CODCXA", "DESCRICAO", "CODCONTA", "DATACOMPENSACAO", "DEBITO2", "CREDITO2"].reduce<TotvsResult>((output, field) => ({ ...output, [field]: xmlDecode(tag(record, field) || "") }), {});
+      return ["CODCOLPROP", "CODCXA", "DESCRICAO", "CODCONTA", "DATACOMPENSACAO", "DEBITO", "CREDITO", "DEBITO2", "CREDITO2", "DIF_DEB", "DIF_CRED"].reduce<TotvsResult>((output, field) => ({ ...output, [field]: xmlDecode(tag(record, field) || "") }), {});
     });
     const rows = records.flatMap((record, index) => {
       const common = { date: record.DATACOMPENSACAO || "", account: record.CODCONTA || "", accountName: record.DESCRICAO || record.CODCONTA || "Conta bancária" };
-      const debit = number(record.DEBITO2); const credit = number(record.CREDITO2);
+      const debit = totvsNumber(record.DEBITO2); const credit = totvsNumber(record.CREDITO2);
       return [
         ...(Math.abs(debit) > 0.004 ? [{ ...common, id: `TOTVS-D-${index}`, value: debit, nature: `Débito contábil — caixa ${record.CODCXA || ""}` }] : []),
         ...(Math.abs(credit) > 0.004 ? [{ ...common, id: `TOTVS-C-${index}`, value: -Math.abs(credit), nature: `Crédito contábil — caixa ${record.CODCXA || ""}` }] : []),
       ];
     });
+    const diagnostics = collectTotvsAccountingDiagnostics(records);
+    console.info("[totvs/accounting] consulta concluída", {
+      company,
+      competence,
+      diagnostics: diagnostics.length,
+      records: records.length,
+    });
 
-    return NextResponse.json({ source: "TOTVS RM — METTA1701 / Planilha 18", company, competence, records: records.length, rows }, { headers: { "cache-control": "private, no-store" } });
+    return NextResponse.json({ source: "TOTVS RM — METTA1701 / Planilha 18", company, competence, records: records.length, rows, diagnostics }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 503 });
   }

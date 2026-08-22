@@ -30,6 +30,7 @@ import {
 } from "@/lib/data-engine-statements";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import { financialCompletionIdentity } from "@/lib/schedule-completion";
+import type { TotvsAccountingDiagnostic } from "@/lib/totvs-accounting";
 
 type Statement = {
   fileName: string;
@@ -41,9 +42,11 @@ type AccountResult = Statement & {
   rows: MatchRow[];
   validation: ReturnType<typeof validateMonthly>;
   competence: string;
+  diagnostics?: TotvsAccountingDiagnostic[];
 };
 type WorkflowState = {
   accounting: AccountingRow[];
+  accountingDiagnostics: TotvsAccountingDiagnostic[];
   bankAccounts: AccountingAccount[];
   statements: Statement[];
   results: AccountResult[];
@@ -77,15 +80,24 @@ function loadStoredResults(historyKey: string): AccountResult[] {
   });
   try {
     const parsed = JSON.parse(stored) as AccountResult[];
-    return parsed.map((result) => ({
-      ...result,
-      bank: result.bank.map(reviveRow),
-      account: {
+    return parsed.map((result) => {
+      const bank = result.bank.map(reviveRow);
+      const account = {
         ...result.account,
         rows: result.account.rows.map(reviveRow),
-      },
-      rows: result.rows.map(reviveRow),
-    }));
+      };
+      return {
+        ...result,
+        bank,
+        account,
+        rows: reconcile(bank, account.rows).map((row) => ({
+          ...row,
+          sourceAccount: result.account.code,
+          sourceBank: result.metadata.account || result.fileName,
+        })),
+        validation: validateMonthly(bank, account.rows, result.metadata),
+      };
+    });
   } catch {
     window.localStorage.removeItem(historyKey);
     return [];
@@ -114,6 +126,9 @@ export default function MonthlyReconciliationPanel({
   const [accounting, setAccounting] = useState<AccountingRow[]>(
     () => initialWorkflow?.accounting ?? [],
   );
+  const [accountingDiagnostics, setAccountingDiagnostics] = useState<
+    TotvsAccountingDiagnostic[]
+  >(() => initialWorkflow?.accountingDiagnostics ?? []);
   const [bankAccounts, setBankAccounts] = useState<AccountingAccount[]>(
     () => initialWorkflow?.bankAccounts ?? [],
   );
@@ -210,6 +225,7 @@ export default function MonthlyReconciliationPanel({
   useEffect(() => {
     workflowCache.set(historyKey, {
       accounting,
+      accountingDiagnostics,
       bankAccounts,
       statements,
       results,
@@ -224,6 +240,7 @@ export default function MonthlyReconciliationPanel({
     });
   }, [
     accounting,
+    accountingDiagnostics,
     accountingMessage,
     accountingUpdated,
     bankAccounts,
@@ -282,6 +299,7 @@ export default function MonthlyReconciliationPanel({
       );
       const data = (await response.json()) as {
         rows?: AccountingRow[];
+        diagnostics?: TotvsAccountingDiagnostic[];
         error?: string;
         warning?: string;
       };
@@ -294,13 +312,15 @@ export default function MonthlyReconciliationPanel({
         ...row,
         date: new Date(row.date),
       }));
+      const diagnostics = data.diagnostics ?? [];
       const discovered = accountingBankAccounts(rows);
       setAccounting(rows);
+      setAccountingDiagnostics(diagnostics);
       setBankAccounts(discovered);
       applySourceBindings(dataEngineSources, discovered);
       setAccountingUpdated(true);
       setAccountingMessage(
-        `${discovered.length} conta(s) carregada(s) da Planilha 18`,
+        `${discovered.length} conta(s) carregada(s) da Planilha 18${diagnostics.length ? ` · ${diagnostics.length} alerta(s) interno(s)` : ""}`,
       );
       if (!dataEngineSources.length)
         setNotice(
@@ -411,6 +431,9 @@ export default function MonthlyReconciliationPanel({
           statement.metadata,
         ),
         competence,
+        diagnostics: accountingDiagnostics.filter(
+          (diagnostic) => diagnostic.account === statement.account.code,
+        ),
       };
     });
     keepResults(completed);
@@ -851,23 +874,28 @@ function MonthlyAccountResult({
           <b>{brl(value.bankCredits)}</b>
           <small>Débitos contábeis: {brl(value.accountingDebits)}</small>
         </div>
+        <div className={Math.abs(value.entryDifference) > 0.01 ? "metric-review" : "metric-ok"}>
+          <span>Diferença nas entradas</span>
+          <b>{brl(value.entryDifference)}</b>
+          <small>{Math.abs(value.entryDifference) > 0.01 ? "Revisar entradas e débitos" : "Entradas conferidas"}</small>
+        </div>
         <div>
           <span>Saídas no extrato</span>
           <b>{brl(value.bankDebits)}</b>
           <small>Créditos contábeis: {brl(value.accountingCredits)}</small>
         </div>
-        <div>
-          <span>Movimento líquido</span>
-          <b>{brl(value.bankNet)}</b>
-          <small>Contábil: {brl(value.accountingNet)}</small>
+        <div className={Math.abs(value.exitDifference) > 0.01 ? "metric-review" : "metric-ok"}>
+          <span>Diferença nas saídas</span>
+          <b>{brl(value.exitDifference)}</b>
+          <small>{Math.abs(value.exitDifference) > 0.01 ? "Revisar saídas e créditos" : "Saídas conferidas"}</small>
         </div>
-        <div>
-          <span>Diferença mensal</span>
+        <div className={value.reconciled ? "metric-ok" : "metric-review"}>
+          <span>Diferença líquida mensal</span>
           <b>{brl(value.movementDifference)}</b>
           <small>
             {value.reconciled
-              ? "Sem pendência financeira"
-              : "Existe valor pendente"}
+              ? "Entradas e saídas conferidas"
+              : `Extrato ${brl(value.bankNet)} · Contábil ${brl(value.accountingNet)}`}
           </small>
         </div>
         {result.metadata.closingBalance != null && (
@@ -925,20 +953,14 @@ function ReconciliationFormView({
   const visibleSections = result.validation.reconciled
     ? []
     : sections.filter((section) => section.rows.length > 0);
+  const dailyDifferences = result.validation.dailyDifferences ?? [];
+  const diagnostics = result.diagnostics ?? [];
   const total = (rows: MatchRow[]) =>
     rows.reduce(
       (sum, row) => sum + Math.abs(row.bankValue ?? row.accountingValue ?? 0),
       0,
     );
-  const pendingTotal = sections.reduce(
-    (sum, section) => sum + total(section.rows),
-    0,
-  );
   const statementBalance = result.metadata.closingBalance;
-  const accountingBalance =
-    statementBalance == null
-      ? null
-      : statementBalance - result.validation.movementDifference;
   return (
     <section className="reconciliation-form">
       <header>
@@ -981,31 +1003,100 @@ function ReconciliationFormView({
         <>
           <div className="form-summary">
             <article>
-              <span>Saldo conforme extrato bancário</span>
-              <b>
-                {statementBalance == null
-                  ? "Não informado"
-                  : brl(statementBalance)}
-              </b>
+              <span>Dias com diferença</span>
+              <b>{dailyDifferences.length}</b>
             </article>
             <article>
-              <span>Total das pendências detalhadas</span>
-              <b>{brl(pendingTotal)}</b>
+              <span>Diferença nas entradas</span>
+              <b>{brl(result.validation.entryDifference)}</b>
             </article>
             <article>
-              <span>Saldo contábil apurado</span>
-              <b>
-                {accountingBalance == null
-                  ? "Movimento mensal"
-                  : brl(accountingBalance)}
-              </b>
+              <span>Diferença nas saídas</span>
+              <b>{brl(result.validation.exitDifference)}</b>
             </article>
             <article>
-              <span>Diferença da conciliação</span>
+              <span>Diferença líquida</span>
               <b>{brl(result.validation.movementDifference)}</b>
             </article>
+            <article>
+              <span>Alertas da Planilha 18</span>
+              <b>{diagnostics.length}</b>
+            </article>
           </div>
+          <p className="form-explanation">
+            A diferença financeira é calculada separadamente para entradas e
+            saídas. Os volumes brutos dos itens sem correspondência abaixo não
+            são somados, evitando contar o mesmo movimento nos dois lados.
+          </p>
           <div className="form-sections">
+            {dailyDifferences.length > 0 && (
+              <article className="daily-comparison">
+                <div className="form-section-title">
+                  <b>Comparação diária entre extrato e contabilidade</b>
+                  <strong>{dailyDifferences.length} dia(s) para revisar</strong>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Entradas no extrato</th>
+                        <th>Débitos contábeis</th>
+                        <th>Dif. entradas</th>
+                        <th>Saídas no extrato</th>
+                        <th>Créditos contábeis</th>
+                        <th>Dif. saídas</th>
+                        <th>Dif. líquida</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailyDifferences.map((row) => (
+                        <tr key={row.date}>
+                          <td>{new Date(`${row.date}T00:00:00.000Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
+                          <td>{brl(row.bankCredits)}</td>
+                          <td>{brl(row.accountingDebits)}</td>
+                          <td><b>{brl(row.entryDifference)}</b></td>
+                          <td>{brl(row.bankDebits)}</td>
+                          <td>{brl(row.accountingCredits)}</td>
+                          <td><b>{brl(row.exitDifference)}</b></td>
+                          <td><b>{brl(row.netDifference)}</b></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            )}
+            {diagnostics.length > 0 && (
+              <article className="totvs-diagnostics">
+                <div className="form-section-title">
+                  <b>Alertas internos informados pela Planilha 18</b>
+                  <strong>{diagnostics.length} alerta(s)</strong>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Caixa</th>
+                        <th>Diferença de débito</th>
+                        <th>Diferença de crédito</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {diagnostics.map((diagnostic, index) => (
+                        <tr key={`${diagnostic.date}-${diagnostic.cashCode}-${index}`}>
+                          <td>{new Date(diagnostic.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
+                          <td>{diagnostic.cashCode || "—"}</td>
+                          <td><b>{brl(diagnostic.debitDifference)}</b></td>
+                          <td><b>{brl(diagnostic.creditDifference)}</b></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            )}
             {visibleSections.length === 0 && (
               <article>
                 <div className="form-section-title">
@@ -1022,7 +1113,7 @@ function ReconciliationFormView({
                     {section.key}) {section.title}
                   </b>
                   <strong>
-                    {brl(total(section.rows))}
+                    {section.rows.length} item(ns) · volume bruto {brl(total(section.rows))}
                   </strong>
                 </div>
                 <div className="table-wrap">

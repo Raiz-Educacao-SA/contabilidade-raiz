@@ -7,11 +7,23 @@ export type MonthlyValidation = {
   bankDebits: number;
   accountingDebits: number;
   accountingCredits: number;
+  entryDifference: number;
+  exitDifference: number;
   bankNet: number;
   accountingNet: number;
   movementDifference: number;
   calculatedClosingBalance: number | null;
   closingBalanceDifference: number | null;
+  dailyDifferences: {
+    date: string;
+    bankCredits: number;
+    accountingDebits: number;
+    entryDifference: number;
+    bankDebits: number;
+    accountingCredits: number;
+    exitDifference: number;
+    netDifference: number;
+  }[];
   missingDays: { date: string; bank: number; accounting: number; difference: number }[];
   reconciled: boolean;
 };
@@ -29,22 +41,47 @@ export function validateMonthly(
   const bankDebits = round(-bank.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
   const accountingDebits = round(accounting.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
   const accountingCredits = round(-accounting.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
+  const entryDifference = round(bankCredits - accountingDebits);
+  const exitDifference = round(bankDebits - accountingCredits);
   const bankNet = round(bankCredits - bankDebits);
   const accountingNet = round(accountingDebits - accountingCredits);
-  const movementDifference = round(bankNet - accountingNet);
+  const movementDifference = round(entryDifference - exitDifference);
   const calculatedClosingBalance = metadata.openingBalance == null ? null : round(metadata.openingBalance + bankNet);
   const closingBalanceDifference = calculatedClosingBalance == null || metadata.closingBalance == null ? null : round(calculatedClosingBalance - metadata.closingBalance);
   const dates = Array.from(new Set([...bank.map((row) => dayKey(row.date)), ...accounting.map((row) => dayKey(row.date))])).sort();
-  const missingDays = dates.map((date) => {
-    const bankValue = round(bank.filter((row) => dayKey(row.date) === date).reduce((sum, row) => sum + row.value, 0));
-    const accountingValue = round(accounting.filter((row) => dayKey(row.date) === date).reduce((sum, row) => sum + row.value, 0));
-    return { date, bank: bankValue, accounting: accountingValue, difference: round(bankValue - accountingValue) };
-  }).filter((row) => Math.abs(row.difference) > tolerance);
+  const dailyDifferences = dates.map((date) => {
+    const bankRows = bank.filter((row) => dayKey(row.date) === date);
+    const accountingRows = accounting.filter((row) => dayKey(row.date) === date);
+    const dayBankCredits = round(bankRows.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
+    const dayBankDebits = round(-bankRows.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
+    const dayAccountingDebits = round(accountingRows.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));
+    const dayAccountingCredits = round(-accountingRows.filter((row) => row.value < 0).reduce((sum, row) => sum + row.value, 0));
+    const dayEntryDifference = round(dayBankCredits - dayAccountingDebits);
+    const dayExitDifference = round(dayBankDebits - dayAccountingCredits);
+    return {
+      date,
+      bankCredits: dayBankCredits,
+      accountingDebits: dayAccountingDebits,
+      entryDifference: dayEntryDifference,
+      bankDebits: dayBankDebits,
+      accountingCredits: dayAccountingCredits,
+      exitDifference: dayExitDifference,
+      netDifference: round(dayEntryDifference - dayExitDifference),
+    };
+  }).filter((row) => Math.abs(row.entryDifference) > tolerance || Math.abs(row.exitDifference) > tolerance);
+  const missingDays = dailyDifferences.map((row) => ({
+    date: row.date,
+    bank: round(row.bankCredits - row.bankDebits),
+    accounting: round(row.accountingDebits - row.accountingCredits),
+    difference: row.netDifference,
+  }));
 
   return {
     bankCredits, bankDebits, accountingDebits, accountingCredits,
+    entryDifference, exitDifference,
     bankNet, accountingNet, movementDifference,
     calculatedClosingBalance, closingBalanceDifference, missingDays,
-    reconciled: Math.abs(movementDifference) <= tolerance,
+    dailyDifferences,
+    reconciled: Math.abs(entryDifference) <= tolerance && Math.abs(exitDifference) <= tolerance,
   };
 }
