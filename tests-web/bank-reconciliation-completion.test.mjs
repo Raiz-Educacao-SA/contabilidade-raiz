@@ -6,6 +6,7 @@ const panel = await readFile(new URL("../app/monthly-reconciliation.tsx", import
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const reconciliation = await readFile(new URL("../lib/reconciliation.ts", import.meta.url), "utf8");
 const matcher = await readFile(new URL("../lib/reconciliation-matcher.ts", import.meta.url), "utf8");
+const cycle = await readFile(new URL("../lib/reconciliation-cycle.ts", import.meta.url), "utf8");
 const monthlyCss = await readFile(new URL("../app/monthly.css", import.meta.url), "utf8");
 const modulesCss = await readFile(new URL("../app/modules.css", import.meta.url), "utf8");
 
@@ -113,11 +114,25 @@ test("preserva a conciliação ao mudar de tela e só substitui dados após atua
 });
 
 test("libera a conciliação somente após as duas bases atualizarem com sucesso", () => {
-  assert.match(panel, /accountingUpdated &&[\s\S]*statementsUpdated &&[\s\S]*statementsReady &&[\s\S]*accountingReady/);
+  assert.match(panel, /const accountingFresh = sourceReadyForReconciliation/);
+  assert.match(panel, /const statementsFresh = sourceReadyForReconciliation/);
+  assert.match(cycle, /sourceRevision > reconciliationRevision/);
+  assert.match(panel, /accountingFresh &&[\s\S]*statementsFresh &&[\s\S]*!accountingBusy &&[\s\S]*!dataEngineBusy/);
   assert.match(panel, /setAccountingUpdated\(false\)[\s\S]*setAccountingUpdated\(true\)/);
   assert.match(panel, /setStatementsUpdated\(false\)[\s\S]*setStatementsUpdated\(true\)/);
   assert.match(panel, /disabled=\{!reconciliationReady\}/);
-  assert.match(panel, /Atualize primeiro a base contábil/);
+  assert.match(panel, /Atualize a base contábil e os extratos bancários/);
   assert.match(panel, /Atualize também os extratos bancários/);
-  assert.match(panel, /Bases atualizadas; conciliação liberada/);
+  assert.match(panel, /Bases prontas; clique para executar a conciliação/);
+});
+
+test("bloqueia uma nova conciliação até as duas fontes serem atualizadas novamente", () => {
+  assert.match(panel, /setAccountingRevision\(nextSourceRevision\(\)\)/);
+  assert.match(panel, /setStatementsRevision\(nextSourceRevision\(\)\)/);
+  assert.match(panel, /sourceRevisionSequenceRef\.current \+= 1/);
+  assert.match(panel, /setReconciliationRevision\([\s\S]*completedReconciliationRevision\(accountingRevision, statementsRevision\)/);
+  assert.match(cycle, /Math\.max\(accountingRevision, statementsRevision\)/);
+  assert.match(panel, /atualize as duas bases para executar novamente/);
+  assert.match(panel, /accountingFresh \? "ready" : "waiting"/);
+  assert.match(panel, /statementsFresh \? "ready" : "waiting"/);
 });
