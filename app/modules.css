@@ -1975,17 +1975,24 @@
   height: 13px;
   accent-color: #168657;
 }
+.bank-shell { grid-template-columns: 210px minmax(0, 1fr); }
 .bank-shell .logo b { font-size: 11px; }
 .bank-shell .logo span { font-size: 10px; }
 .bank-shell .module-back,
 .bank-shell aside nav button,
 .bank-shell .logout { font-size: 11px; }
 .bank-shell .current-module { font-size: 10px; line-height: 1.25; }
+.bank-content { padding: 18px clamp(14px, 2vw, 28px) 32px; }
 .bank-content > header .eyebrow { font-size: 7px; }
 .bank-content > header h1 { font-size: 21px; margin: 2px 0; }
 .bank-content > header p { font-size: 9px; }
 .bank-content .user-chip { font-size: 8px; padding: 6px 9px; }
-.bank-content .top-context { margin-top: 14px; }
+.bank-content .top-context { margin: 10px 0 10px; padding: 7px; gap: 7px; }
+.bank-content .filter-heading { padding-right: 9px; gap: 7px; }
+.bank-content .filter-icon { width: 30px; height: 30px; }
+.bank-content .filter-fields,
+.bank-content .competence-control { gap: 6px; }
+.bank-content .top-context label { height: 42px; padding: 3px 8px; }
 .bank-content .filter-heading b { font-size: 8px; }
 .bank-content .filter-heading small { font-size: 7px; }
 .bank-content .top-context label > span { font-size: 7px; }

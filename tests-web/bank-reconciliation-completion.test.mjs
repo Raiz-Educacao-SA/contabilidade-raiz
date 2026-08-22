@@ -34,20 +34,40 @@ test("procura primeiro no dia e depois em toda a competência", () => {
 });
 
 test("usa fonte compacta na ficha de divergências", () => {
-  assert.match(monthlyCss, /\.reconciliation-form th,[\s\S]*?font-size: 9px/);
-  assert.match(monthlyCss, /\.form-identification b \{[\s\S]*?font-size: 10px/);
-  assert.match(monthlyCss, /\.form-summary b \{[\s\S]*?font-size: 13px/);
-  assert.match(monthlyCss, /\.reconciliation-form > header h2 \{[\s\S]*?font-size: 17px/);
+  assert.match(monthlyCss, /\.reconciliation-form th,[\s\S]*?font-size: 8px/);
+  assert.match(monthlyCss, /\.form-identification b \{[\s\S]*?font-size: 8px/);
+  assert.match(monthlyCss, /\.form-summary b \{[\s\S]*?font-size: 10px/);
+  assert.match(monthlyCss, /\.reconciliation-form > header h2 \{[\s\S]*?font-size: 13px/);
+  assert.match(monthlyCss, /\.bank-content \.saved-history h3 \{[^}]*font-size: 10px/);
+  assert.match(monthlyCss, /\.bank-content \.monthly-account h3 \{[^}]*font-size: 10px/);
   assert.match(monthlyCss, /\.bank-content \.reconciliation-form > header h2 \{[^}]*font-size: 12px/);
   assert.match(monthlyCss, /\.bank-content \.form-identification b \{ font-size: 8px/);
   assert.match(monthlyCss, /\.bank-content \.form-summary b \{ font-size: 10px/);
   assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 11px/);
 });
 
+test("gera o relatório consolidado com todos os resultados da conciliação", () => {
+  assert.match(panel, /const reportRows = useMemo\([\s\S]*results\.flatMap\(\(result\) => result\.rows\)/);
+  assert.match(panel, /exportReport\(reportRows, `conciliacao_mensal_\$\{competence\}`\)/);
+  assert.match(panel, /disabled=\{!results\.length\}[\s\S]*onClick=\{downloadConsolidatedReport\}/);
+  assert.match(panel, /Relatório consolidado gerado com/);
+  assert.match(panel, /Erro: não foi possível gerar o relatório consolidado/);
+  assert.doesNotMatch(panel, /disabled=\{!allRows\.length\}/);
+});
+
 test("compacta as etapas e os valores da conciliação bancária", () => {
-  assert.match(monthlyCss, /\.bank-content \.source-control \{[^}]*padding: 14px/);
-  assert.match(monthlyCss, /\.bank-content \.monthly-account \{[^}]*padding: 14px/);
+  assert.match(monthlyCss, /\.bank-content \.source-control \{[^}]*padding: 10px 12px/);
+  assert.match(monthlyCss, /\.bank-content \.monthly-account \{[^}]*padding: 10px 12px/);
   assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 11px/);
+});
+
+test("usa melhor a área útil e reduz os espaços em branco", () => {
+  assert.match(modulesCss, /\.bank-shell \{ grid-template-columns: 210px minmax\(0, 1fr\)/);
+  assert.match(modulesCss, /\.bank-content \{ padding: 18px clamp\(14px, 2vw, 28px\) 32px/);
+  assert.match(monthlyCss, /\.bank-content \.panel\.monthly-flow \{ padding: 16px/);
+  assert.match(monthlyCss, /\.bank-content \.account-coverage \{ margin-top: 10px; padding: 12px/);
+  assert.match(monthlyCss, /\.bank-content \.reconciliation-form \{ margin-top: 10px; padding: 10px/);
+  assert.match(monthlyCss, /\.bank-content \.form-sections \{ gap: 8px; margin-top: 10px/);
 });
 
 test("reduz também as fontes do cabeçalho, filtros e ações", () => {
@@ -76,5 +96,15 @@ test("preserva a conciliação ao mudar de tela e só substitui dados após atua
   assert.match(panel, /workflowCache\.set\(historyKey/);
   assert.doesNotMatch(panel, /setAccounting\(\[\]\)/);
   assert.doesNotMatch(panel, /setDataEngineSources\(\[\]\)/);
-  assert.match(panel, /!accountingBusy && !dataEngineBusy/);
+  assert.match(panel, /!accountingBusy &&\s*!dataEngineBusy/);
+});
+
+test("libera a conciliação somente após as duas bases atualizarem com sucesso", () => {
+  assert.match(panel, /accountingUpdated &&[\s\S]*statementsUpdated &&[\s\S]*statementsReady &&[\s\S]*accountingReady/);
+  assert.match(panel, /setAccountingUpdated\(false\)[\s\S]*setAccountingUpdated\(true\)/);
+  assert.match(panel, /setStatementsUpdated\(false\)[\s\S]*setStatementsUpdated\(true\)/);
+  assert.match(panel, /disabled=\{!reconciliationReady\}/);
+  assert.match(panel, /Atualize primeiro a base contábil/);
+  assert.match(panel, /Atualize também os extratos bancários/);
+  assert.match(panel, /Bases atualizadas; conciliação liberada/);
 });
