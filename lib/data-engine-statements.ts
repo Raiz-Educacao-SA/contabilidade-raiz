@@ -25,6 +25,7 @@ export type DataEngineStatementOperations = {
   posicoes: number;
   cobertura: number;
   pendencias: number;
+  pendenciasUtilizadas: number;
 };
 
 export type DataEngineStatementSnapshot = {
@@ -32,6 +33,8 @@ export type DataEngineStatementSnapshot = {
   operations: DataEngineStatementOperations;
   diagnostics: {
     recognizedWithoutMovements: number;
+    pendingMovementsUsed: number;
+    pendingSourcesUsed: number;
     sourceCandidates: {
       saldos: number;
       posicoes: number;
@@ -368,6 +371,116 @@ function governedSourceIdentity(record: Record<string, unknown>) {
   ]);
 }
 
+function governedInteger(record: Record<string, unknown>, fields: string[]) {
+  for (const field of fields) {
+    const value = record[field];
+    if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+    if (typeof value !== "string" || !/^-?\d+$/.test(value.trim())) continue;
+    const parsed = Number(value);
+    if (Number.isSafeInteger(parsed)) return parsed;
+  }
+  return null;
+}
+
+function governedMoneyInCents(record: Record<string, unknown>) {
+  const explicitCents = governedInteger(record, [
+    "valor_centavos",
+    "amount_cents",
+    "value_cents",
+  ]);
+  if (explicitCents !== null) return explicitCents;
+
+  const rawValue = governedText(record, ["valor", "amount", "value"]);
+  if (!rawValue) return null;
+  const normalized = rawValue
+    .replace(/\s/g, "")
+    .replace(/^R\$/i, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && Number.isSafeInteger(Math.round(parsed * 100))
+    ? Math.round(parsed * 100)
+    : null;
+}
+
+function governedNature(record: Record<string, unknown>): "C" | "D" | null {
+  const value = governedText(record, [
+    "natureza",
+    "nature",
+    "debit_credit",
+    "tipo_movimento",
+    "transaction_type",
+  ])
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  if (["C", "CREDITO", "CREDIT", "ENTRADA"].includes(value)) return "C";
+  if (["D", "DEBITO", "DEBIT", "SAIDA"].includes(value)) return "D";
+  return null;
+}
+
+function pendingRecordToMovement(
+  record: Record<string, unknown>,
+  index: number,
+): Movement | null {
+  const bankId = governedText(record, [
+    "bank_id",
+    "codigo_banco",
+    "bank_code",
+    "cod_banco",
+  ]);
+  const sourceAccountId = governedSourceIdentity(record);
+  const date = governedText(record, [
+    "data_lancamento",
+    "transaction_date",
+    "movement_date",
+    "data_movimento",
+    "dt_lancamento",
+    "data",
+    "date",
+  ]).slice(0, 10);
+  const valueInCents = governedMoneyInCents(record);
+  const nature = governedNature(record);
+  const description = governedText(record, [
+    "descricao_sanitizada",
+    "sanitized_description",
+    "descricao",
+    "description",
+    "historico",
+    "memo",
+  ]);
+  if (
+    !/^0*\d{1,3}$/.test(bankId) ||
+    !sourceAccountId ||
+    sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||
+    !isCalendarDate(date) ||
+    valueInCents === null ||
+    !nature ||
+    !description
+  ) {
+    return null;
+  }
+  const recordId = governedText(record, [
+    "movimento_id",
+    "movement_id",
+    "pendencia_id",
+    "pending_id",
+    "lancamento_id",
+    "transaction_id",
+    "id",
+  ]);
+  return {
+    movimento_id: `pendencia:${recordId || `${sourceAccountId}:${date}:${valueInCents}:${nature}:${index}`}`,
+    cod_coligada: Number(record.cod_coligada),
+    bank_id: bankId.replace(/^0+/, "").padStart(3, "0"),
+    source_account_id: sourceAccountId,
+    data_lancamento: date,
+    valor_centavos: Math.abs(valueInCents),
+    natureza: nature,
+    descricao_sanitizada: description,
+  };
+}
+
 function applicationPositionIdentity(position: Record<string, unknown>) {
   const explicitSource = governedSourceIdentity(position);
   if (explicitSource) return explicitSource;
@@ -596,11 +709,12 @@ async function loadGovernedSourceSummary(
   return { records, sourceRecords: Array.from(sourceRecords.values()) };
 }
 
-async function countGovernedOperation(path: string, options: LoadOptions) {
+async function loadGovernedOperation(path: string, options: LoadOptions) {
   const fetcher = options.fetcher ?? fetch;
   const seenCursors = new Set<string>();
   let cursor: string | null = null;
   let records = 0;
+  const items: Array<Record<string, unknown>> = [];
 
   for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
     const url = new URL(path, options.baseUrl);
@@ -624,6 +738,7 @@ async function countGovernedOperation(path: string, options: LoadOptions) {
 
     const page = parseGovernedPage(await response.json(), options.codColigada);
     records += page.items.length;
+    items.push(...page.items);
     if (!page.next_cursor) break;
     if (seenCursors.has(page.next_cursor)) {
       throw new Error("O Data Engine retornou cursor de paginação repetido.");
@@ -636,7 +751,7 @@ async function countGovernedOperation(path: string, options: LoadOptions) {
     }
   }
 
-  return records;
+  return { items, records };
 }
 
 export async function loadDataEngineStatementSnapshot(
@@ -661,10 +776,39 @@ export async function loadDataEngineStatementSnapshot(
         options,
         false,
       ),
-      countGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
+      loadGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
     ]);
+  const primarySources = new Set(
+    statements.map((statement) => statement.sourceAccountId),
+  );
+  const pendingMovementKeys = new Set<string>();
+  const pendingMovements = pendencias.items
+    .map(pendingRecordToMovement)
+    .filter((movement): movement is Movement => movement !== null)
+    .filter(
+      (movement) =>
+        movement.data_lancamento >= options.fromDate &&
+        movement.data_lancamento <= options.toDate &&
+        !primarySources.has(movement.source_account_id),
+    )
+    .filter((movement) => {
+      const key = [
+        movement.source_account_id,
+        movement.data_lancamento,
+        movement.valor_centavos,
+        movement.natureza,
+        movement.descricao_sanitizada.trim().toUpperCase(),
+      ].join("|");
+      if (pendingMovementKeys.has(key)) return false;
+      pendingMovementKeys.add(key);
+      return true;
+    });
+  const pendingStatements = statementsFromMovements(pendingMovements, options);
+  const statementsWithPendingFallback = [...statements, ...pendingStatements].sort(
+    (left, right) => left.sourceAccountId.localeCompare(right.sourceAccountId),
+  );
   const recognizedStatements = mergeApplicationPositionStatements(
-    statements,
+    statementsWithPendingFallback,
     [
       ...saldos.sourceRecords,
       ...positions.sourceRecords,
@@ -676,7 +820,9 @@ export async function loadDataEngineStatementSnapshot(
     statements: recognizedStatements,
     diagnostics: {
       recognizedWithoutMovements:
-        recognizedStatements.length - statements.length,
+        recognizedStatements.length - statementsWithPendingFallback.length,
+      pendingMovementsUsed: pendingMovements.length,
+      pendingSourcesUsed: pendingStatements.length,
       sourceCandidates: {
         saldos: saldos.sourceRecords.length,
         posicoes: positions.sourceRecords.length,
@@ -691,7 +837,8 @@ export async function loadDataEngineStatementSnapshot(
       saldos: saldos.records,
       posicoes: positions.records,
       cobertura: cobertura.records,
-      pendencias,
+      pendencias: pendencias.records,
+      pendenciasUtilizadas: pendingMovements.length,
     },
   };
 }
@@ -741,6 +888,13 @@ export async function loadDataEngineStatements(
     }
   }
 
+  return statementsFromMovements(movements, options);
+}
+
+function statementsFromMovements(
+  movements: Movement[],
+  options: Pick<LoadOptions, "codColigada" | "fromDate" | "toDate">,
+) {
   const period = `${options.fromDate.slice(5, 7)}/${options.fromDate.slice(0, 4)}`;
   const groups = new Map<string, DataEngineStatement>();
   const movementIds = new Set<string>();

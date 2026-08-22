@@ -166,10 +166,133 @@ test("consulta as cinco operações governadas sem devolver a credencial", async
     cobertura: 1,
     movimentos: 0,
     pendencias: 1,
+    pendenciasUtilizadas: 0,
     posicoes: 1,
     saldos: 1,
   });
   assert.equal(JSON.stringify(result).includes("short-lived-token"), false);
+});
+
+test("usa lançamentos completos das pendências quando a conta não veio em movimentos", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 2,
+    codColigadaCode: "02",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/pendencias"
+            ? [
+                {
+                  pendencia_id: "sicoob-credito",
+                  cod_coligada: 2,
+                  bank_id: "756",
+                  source_account_id: "sicoob-2035519",
+                  data_lancamento: "2026-05-04",
+                  valor_centavos: 150000,
+                  natureza: "C",
+                  descricao_sanitizada: "RECEBIMENTO",
+                },
+                {
+                  pending_id: "sicoob-debito",
+                  cod_coligada: 2,
+                  codigo_banco: "0756",
+                  bank_account_id: "sicoob-2035519",
+                  transaction_date: "2026-05-05T10:30:00Z",
+                  valor: "320,50",
+                  tipo_movimento: "Débito",
+                  historico: "PAGAMENTO",
+                },
+                {
+                  pendencia_id: "sem-natureza",
+                  cod_coligada: 2,
+                  bank_id: "756",
+                  source_account_id: "sicoob-2035519",
+                  data_lancamento: "2026-05-06",
+                  valor_centavos: 100,
+                  descricao_sanitizada: "REGISTRO INCOMPLETO",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].bankId, "756");
+  assert.equal(result.statements[0].sourceAccountId, "sicoob-2035519");
+  assert.deepEqual(
+    result.statements[0].rows.map((row: { value: number }) => row.value),
+    [1500, -320.5],
+  );
+  assert.equal(result.diagnostics.pendingMovementsUsed, 2);
+  assert.equal(result.diagnostics.pendingSourcesUsed, 1);
+  assert.equal(result.operations.movimentos, 0);
+  assert.equal(result.operations.pendencias, 3);
+  assert.equal(result.operations.pendenciasUtilizadas, 2);
+});
+
+test("prioriza movimentos e não duplica a conta com lançamentos das pendências", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 2,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/tesouraria/extratos/movimentos") {
+        return Response.json({
+          items: [
+            {
+              movimento_id: "estruturado-1",
+              cod_coligada: 2,
+              bank_id: "756",
+              source_account_id: "sicoob-2035519",
+              data_lancamento: "2026-05-04",
+              valor_centavos: 150000,
+              natureza: "C",
+              descricao_sanitizada: "RECEBIMENTO ESTRUTURADO",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/pendencias"
+            ? [
+                {
+                  pendencia_id: "pdf-1",
+                  cod_coligada: 2,
+                  bank_id: "756",
+                  source_account_id: "sicoob-2035519",
+                  data_lancamento: "2026-05-05",
+                  valor_centavos: 32050,
+                  natureza: "D",
+                  descricao_sanitizada: "PAGAMENTO PDF",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].rows.length, 1);
+  assert.equal(result.statements[0].rows[0].id, "estruturado-1");
+  assert.equal(result.diagnostics.pendingMovementsUsed, 0);
+  assert.equal(result.operations.pendenciasUtilizadas, 0);
 });
 
 test("reconhece extrato de aplicação pelas posições mesmo sem movimentos", async () => {
