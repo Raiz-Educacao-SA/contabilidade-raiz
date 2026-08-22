@@ -19,12 +19,15 @@ test("não duplica o controle de finalização no cabeçalho geral", () => {
   assert.match(page, /selectedModule === "bancaria"\) return null/);
 });
 
-test("lista somente lançamentos divergentes da contabilidade", () => {
+test("detalha o que não confere entre o extrato e a contabilidade", () => {
+  assert.match(panel, /row\.status === "Somente no banco"/);
   assert.match(panel, /row\.status === "Somente na contabilidade"/);
-  assert.match(panel, /Débitos lançados na contabilidade não identificados no banco/);
-  assert.match(panel, /Créditos lançados na contabilidade não identificados no banco/);
-  assert.doesNotMatch(panel, /Débitos identificados no banco não lançados na contabilidade/);
-  assert.doesNotMatch(panel, /Créditos identificados no banco não lançados na contabilidade/);
+  assert.match(panel, /Entradas no extrato sem lançamento correspondente na contabilidade/);
+  assert.match(panel, /Saídas no extrato sem lançamento correspondente na contabilidade/);
+  assert.match(panel, /Débitos lançados na contabilidade não identificados no extrato/);
+  assert.match(panel, /Créditos lançados na contabilidade não identificados no extrato/);
+  assert.match(panel, /Sem lançamento na contabilidade/);
+  assert.match(panel, /Sem movimento no extrato/);
 });
 
 test("procura primeiro no dia e depois em toda a competência", () => {

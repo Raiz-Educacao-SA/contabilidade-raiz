@@ -280,3 +280,101 @@ test("identifica automaticamente uma correspondência única e aponta coberturas
   assert.equal(uncovered.unmatchedSources.length, 1);
   assert.deepEqual(uncovered.unmatchedAccounts, []);
 });
+
+test("distingue contas Santander pelo conjunto de datas e valores dos movimentos", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = (reference: string, value: number) => ({
+    bankId: "033",
+    sourceAccountId: reference.repeat(64),
+    rows: [
+      {
+        date: "2026-06-12",
+        description: "MOVIMENTO SANTANDER",
+        id: `mov-${reference}`,
+        value,
+      },
+    ],
+    metadata: {
+      account: reference.repeat(12),
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  });
+  const accounts = [
+    {
+      code: "1.1.1.02.01.10",
+      name: "Banco Santander S/A - conta 1001-0",
+      rows: [{ date: new Date("2026-06-12T00:00:00.000Z"), value: -350 }],
+    },
+    {
+      code: "1.1.1.02.01.11",
+      name: "Banco Santander S/A - conta 2002-0",
+      rows: [{ date: new Date("2026-06-12T00:00:00.000Z"), value: -900 }],
+    },
+  ];
+
+  const identified = resolveStatementBindings(
+    [source("a", -350), source("b", -900)],
+    accounts,
+  );
+
+  assert.deepEqual(
+    identified.pairs.map(
+      ({ account, source: statement }: {
+        account: { code: string };
+        source: { sourceAccountId: string };
+      }) => [account.code, statement.sourceAccountId.slice(0, 1)],
+    ),
+    [
+      ["1.1.1.02.01.10", "a"],
+      ["1.1.1.02.01.11", "b"],
+    ],
+  );
+  assert.deepEqual(identified.unmatchedSources, []);
+  assert.deepEqual(identified.unmatchedAccounts, []);
+});
+
+test("mantém Santander sem vínculo quando os movimentos continuam ambíguos", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "33",
+    sourceAccountId: "s".repeat(64),
+    rows: [
+      {
+        date: "2026-06-12",
+        description: "TARIFA",
+        id: "mov-s",
+        value: -35,
+      },
+    ],
+    metadata: {
+      account: "s".repeat(12),
+      agency: "",
+      closingBalance: null,
+      name: "Banco 33",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const accounts = [
+    {
+      code: "1.1.1.02.01.10",
+      name: "Santander conta A",
+      rows: [{ date: new Date("2026-06-12T00:00:00.000Z"), value: -35 }],
+    },
+    {
+      code: "1.1.1.02.01.11",
+      name: "Santander conta B",
+      rows: [{ date: new Date("2026-06-12T00:00:00.000Z"), value: -35 }],
+    },
+  ];
+
+  const identified = resolveStatementBindings([source], accounts);
+
+  assert.equal(identified.pairs.length, 0);
+  assert.equal(identified.unmatchedSources.length, 1);
+  assert.equal(identified.unmatchedAccounts.length, 2);
+});

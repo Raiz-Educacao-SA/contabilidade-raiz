@@ -66,6 +66,10 @@ type LoadOptions = {
 type BindableAccount = {
   code: string;
   name?: string;
+  rows?: Array<{
+    date?: Date | string;
+    value: number;
+  }>;
 };
 
 const PAGE_SIZE = 200;
@@ -212,6 +216,51 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     remainingSources.delete(source.sourceAccountId);
     return true;
   };
+  const day = (value: Date | string | undefined) => {
+    if (!value) return "";
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value).slice(0, 10);
+  };
+  const cents = (value: number) => Math.round(value * 100);
+  const movementEvidence = (source: DataEngineStatement, account: TAccount) => {
+    const accountRows = account.rows ?? [];
+    const used = new Set<number>();
+    let sameDay = 0;
+    let sameMonth = 0;
+
+    for (const sourceRow of source.rows) {
+      const exactIndex = accountRows.findIndex(
+        (row, index) =>
+          !used.has(index) &&
+          cents(row.value) === cents(sourceRow.value) &&
+          day(row.date) === sourceRow.date,
+      );
+      if (exactIndex >= 0) {
+        used.add(exactIndex);
+        sameDay += 1;
+        continue;
+      }
+      const monthIndex = accountRows.findIndex(
+        (row, index) =>
+          !used.has(index) && cents(row.value) === cents(sourceRow.value),
+      );
+      if (monthIndex >= 0) {
+        used.add(monthIndex);
+        sameMonth += 1;
+      }
+    }
+    return sameDay * 1000 + sameMonth;
+  };
+  const bindByMovementEvidence = (
+    source: DataEngineStatement,
+    candidates: TAccount[],
+  ) => {
+    const ranked = candidates
+      .map((account) => ({ account, score: movementEvidence(source, account) }))
+      .sort((left, right) => right.score - left.score);
+    if (!ranked[0]?.score || ranked[0].score === ranked[1]?.score) return false;
+    return bindUnique(source, [ranked[0].account]);
+  };
 
   // Prioridade 1: número da conta presente nos metadados do extrato.
   for (const source of sources) {
@@ -226,10 +275,11 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   for (const source of Array.from(remainingSources.values())) {
     const bankPattern = bankNames[source.bankId.padStart(3, "0")];
     if (!bankPattern) continue;
-    bindUnique(
-      source,
-      Array.from(remainingAccounts.values()).filter((account) => bankPattern.test(account.name ?? "")),
+    const candidates = Array.from(remainingAccounts.values()).filter((account) =>
+      bankPattern.test(account.name ?? ""),
     );
+    if (bindByMovementEvidence(source, candidates)) continue;
+    bindUnique(source, candidates);
   }
   // Último caso seguro: resta exatamente um extrato e uma conta.
   if (remainingSources.size === 1 && remainingAccounts.size === 1) {
