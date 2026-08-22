@@ -172,6 +172,175 @@ test("consulta as cinco operações governadas sem devolver a credencial", async
   assert.equal(JSON.stringify(result).includes("short-lived-token"), false);
 });
 
+test("reconhece extrato de aplicação pelas posições mesmo sem movimentos", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    codColigadaCode: "03",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/posicoes"
+            ? [
+                {
+                  posicao_aplicacao_id: "posicao-1",
+                  cod_coligada: 3,
+                  bank_id: "341",
+                  source_account_id: "aplicacao-itau",
+                  data_posicao: "2026-05-31",
+                  nome_produto: "CDB",
+                  numero_conta: "29165-8",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.deepEqual(result.statements[0], {
+    bankId: "341",
+    sourceAccountId: "aplicacao-itau",
+    rows: [],
+    metadata: {
+      account: "29165-8",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação · CDB",
+      openingBalance: null,
+      period: "05/2026",
+    },
+  });
+  assert.equal(result.operations.posicoes, 1);
+  assert.equal(result.operations.movimentos, 0);
+});
+
+test("não duplica a aplicação quando a mesma fonte já possui movimentos", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/tesouraria/extratos/movimentos") {
+        return Response.json({
+          items: [
+            {
+              movimento_id: "mov-aplicacao",
+              cod_coligada: 3,
+              bank_id: "341",
+              source_account_id: "aplicacao-itau",
+              data_lancamento: "2026-05-31",
+              valor_centavos: 1250,
+              natureza: "C",
+              descricao_sanitizada: "RENDIMENTO",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/posicoes"
+            ? [
+                {
+                  posicao_aplicacao_id: "posicao-1",
+                  cod_coligada: 3,
+                  bank_id: "341",
+                  source_account_id: "aplicacao-itau",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].rows.length, 1);
+  assert.equal(result.operations.posicoes, 1);
+  assert.equal(result.operations.movimentos, 1);
+});
+
+test("vincula a posição de aplicação restante depois das contas bancárias", async () => {
+  const { mergeApplicationPositionStatements, resolveStatementBindings } =
+    await import(moduleUrl.href);
+  const source = (bankId: string, sourceAccountId: string, value: number) => ({
+    bankId,
+    sourceAccountId,
+    rows: [
+      {
+        id: `mov-${sourceAccountId}`,
+        date: "2026-05-15",
+        description: "MOVIMENTO",
+        value,
+      },
+    ],
+    metadata: {
+      account: sourceAccountId,
+      agency: "",
+      closingBalance: null,
+      name: `Banco ${bankId}`,
+      openingBalance: null,
+      period: "05/2026",
+    },
+  });
+  const sources = mergeApplicationPositionStatements(
+    [source("341", "itau-corrente", -350), source("033", "santander", -900)],
+    [
+      {
+        posicao_aplicacao_id: "posicao-1",
+        cod_coligada: 3,
+        source_account_id: "investimento",
+        data_posicao: "2026-05-31",
+        nome_produto: "Aplicação automática",
+      },
+    ],
+    { fromDate: "2026-05-01", toDate: "2026-05-31" },
+  );
+  const accounts = [
+    {
+      code: "1.1.1.02.01.23",
+      name: "Banco Itaú S/A - conta corrente",
+      rows: [{ date: new Date("2026-05-15T00:00:00.000Z"), value: -350 }],
+    },
+    {
+      code: "1.1.1.02.03.03",
+      name: "Banco Santander - conta corrente",
+      rows: [{ date: new Date("2026-05-15T00:00:00.000Z"), value: -900 }],
+    },
+    {
+      code: "1.1.1.03.01.01",
+      name: "Aplicações financeiras",
+      rows: [],
+    },
+  ];
+
+  const resolved = resolveStatementBindings(sources, accounts);
+
+  assert.equal(resolved.pairs.length, 3);
+  assert.deepEqual(resolved.unmatchedAccounts, []);
+  assert.deepEqual(resolved.unmatchedSources, []);
+  assert.equal(
+    resolved.pairs.find(
+      (pair: { source: { sourceAccountId: string } }) =>
+        pair.source.sourceAccountId === "investimento",
+    )?.account.code,
+    "1.1.1.03.01.01",
+  );
+});
+
 test("rejeita qualquer operação que devolva outra coligada", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 

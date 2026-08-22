@@ -423,7 +423,7 @@ export default function MonthlyReconciliationPanel({
         setStatementsUpdated(true);
         setStatementsRevision(nextSourceRevision());
         setNotice(
-          `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
+          `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) reconhecida(s).`,
         );
       }
     } catch (error) {
@@ -449,7 +449,7 @@ export default function MonthlyReconciliationPanel({
         ...row,
         date: new Date(`${row.date}T00:00:00.000Z`),
       }));
-      const sourceName = `Data Engine · Banco ${source.bankId} · ${source.sourceAccountId.slice(0, 12)}`;
+      const sourceName = `Data Engine · ${source.metadata.name || `Banco ${source.bankId}`} · ${source.sourceAccountId.slice(0, 12)}`;
       return {
         account,
         bank,

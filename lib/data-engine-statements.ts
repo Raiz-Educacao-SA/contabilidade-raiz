@@ -296,14 +296,128 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   };
 }
 
-async function countGovernedOperation(
+function governedText(record: Record<string, unknown>, fields: string[]) {
+  for (const field of fields) {
+    const value = record[field];
+    if (typeof value !== "string" && typeof value !== "number") continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function positionBelongsToPeriod(
+  position: Record<string, unknown>,
+  fromDate: string,
+  toDate: string,
+) {
+  const reference = governedText(position, [
+    "data_posicao",
+    "position_date",
+    "data_referencia",
+    "reference_date",
+    "competencia",
+    "periodo",
+    "period",
+  ]);
+  if (!reference) return true;
+  const calendarDate = reference.slice(0, 10);
+  if (ISO_DATE.test(calendarDate)) {
+    return calendarDate >= fromDate && calendarDate <= toDate;
+  }
+  const competence = fromDate.slice(0, 7);
+  if (/^\d{4}-\d{2}/.test(reference)) {
+    return reference.slice(0, 7) === competence;
+  }
+  const monthYear = reference.match(/^(\d{2})\/(\d{4})$/);
+  return monthYear
+    ? `${monthYear[2]}-${monthYear[1]}` === competence
+    : true;
+}
+
+export function mergeApplicationPositionStatements(
+  statements: DataEngineStatement[],
+  positions: Array<Record<string, unknown>>,
+  period: { fromDate: string; toDate: string },
+) {
+  const recognized = [...statements];
+  const knownSources = new Set(
+    statements.map((statement) => statement.sourceAccountId),
+  );
+  const displayPeriod = `${period.fromDate.slice(5, 7)}/${period.fromDate.slice(0, 4)}`;
+
+  for (const position of positions) {
+    const sourceAccountId = governedText(position, ["source_account_id"]);
+    if (
+      !sourceAccountId ||
+      sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||
+      knownSources.has(sourceAccountId) ||
+      !positionBelongsToPeriod(position, period.fromDate, period.toDate)
+    ) {
+      continue;
+    }
+    const bankId = governedText(position, [
+      "bank_id",
+      "codigo_banco",
+      "bank_code",
+    ]) || "000";
+    const account = governedText(position, [
+      "account_number",
+      "numero_conta",
+      "conta_bancaria",
+      "conta",
+    ]) || sourceAccountId.slice(0, 12);
+    const agency = governedText(position, [
+      "agency",
+      "agencia",
+      "branch_number",
+    ]);
+    const product = governedText(position, [
+      "product_name",
+      "nome_produto",
+      "application_name",
+      "nome_aplicacao",
+      "fund_name",
+      "nome_fundo",
+    ]);
+    const bankName = governedText(position, ["bank_name", "nome_banco"]);
+    const name = product
+      ? `Aplicação · ${product}`
+      : bankName
+        ? `${bankName} · Aplicação`
+        : bankId !== "000"
+          ? `Banco ${bankId} · Aplicação`
+          : "Aplicação financeira";
+
+    recognized.push({
+      bankId,
+      sourceAccountId,
+      rows: [],
+      metadata: {
+        agency,
+        account,
+        period: displayPeriod,
+        name,
+        openingBalance: null,
+        closingBalance: null,
+      },
+    });
+    knownSources.add(sourceAccountId);
+  }
+
+  return recognized.sort((left, right) =>
+    left.sourceAccountId.localeCompare(right.sourceAccountId),
+  );
+}
+
+async function loadGovernedOperation(
   path: string,
   options: LoadOptions,
-): Promise<number> {
+): Promise<Array<Record<string, unknown>>> {
   const fetcher = options.fetcher ?? fetch;
   const seenCursors = new Set<string>();
   let cursor: string | null = null;
-  let records = 0;
+  const records: Array<Record<string, unknown>> = [];
 
   for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
     const url = new URL(path, options.baseUrl);
@@ -326,7 +440,7 @@ async function countGovernedOperation(
     }
 
     const page = parseGovernedPage(await response.json(), options.codColigada);
-    records += page.items.length;
+    records.push(...page.items);
     if (!page.next_cursor) break;
     if (seenCursors.has(page.next_cursor)) {
       throw new Error("O Data Engine retornou cursor de paginação repetido.");
@@ -346,25 +460,30 @@ export async function loadDataEngineStatementSnapshot(
   options: LoadOptions,
 ): Promise<DataEngineStatementSnapshot> {
   validateOptions(options);
-  const [statements, saldos, posicoes, cobertura, pendencias] =
+  const [statements, saldos, positions, cobertura, pendencias] =
     await Promise.all([
       loadDataEngineStatements(options),
-      countGovernedOperation("/v1/tesouraria/extratos/saldos", options),
-      countGovernedOperation("/v1/tesouraria/extratos/posicoes", options),
-      countGovernedOperation("/v1/tesouraria/extratos/cobertura", options),
-      countGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
+      loadGovernedOperation("/v1/tesouraria/extratos/saldos", options),
+      loadGovernedOperation("/v1/tesouraria/extratos/posicoes", options),
+      loadGovernedOperation("/v1/tesouraria/extratos/cobertura", options),
+      loadGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
     ]);
-  return {
+  const recognizedStatements = mergeApplicationPositionStatements(
     statements,
+    positions,
+    options,
+  );
+  return {
+    statements: recognizedStatements,
     operations: {
       movimentos: statements.reduce(
         (total, statement) => total + statement.rows.length,
         0,
       ),
-      saldos,
-      posicoes,
-      cobertura,
-      pendencias,
+      saldos: saldos.length,
+      posicoes: positions.length,
+      cobertura: cobertura.length,
+      pendencias: pendencias.length,
     },
   };
 }
