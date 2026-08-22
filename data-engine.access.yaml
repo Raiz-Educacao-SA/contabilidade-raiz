@@ -9,9 +9,9 @@ consumer:
 request:
   purpose: Consultar movimentos, saldos, posições, cobertura e pendências de extratos
     bancários governados no Data Engine
-  risk_tier: medium
+  risk_tier: high
   expires_at: '2027-08-14T23:59:59Z'
-  idempotency_key: contabilidade-raiz-production-tesouraria-extratos-oauth-v1
+  idempotency_key: contabilidade-raiz-production-tesouraria-extratos-oauth-pii-v2
 access:
   llm_allowed: false
   direct_api_access:
@@ -42,8 +42,10 @@ access:
     reason: Aplicação corporativa oficial de contabilidade e tesouraria, com isolamento
       por tenant aplicado pelo Data Engine
   pii:
-    requested: false
-    justification: ''
+    requested: true
+    justification: A conciliação contábil e de tesouraria precisa dos dados nominais
+      presentes nos extratos para identificar contrapartes, validar lançamentos e
+      investigar pendências, sempre com isolamento por coligada no Data Engine.
 auth:
   method: private_key_jwt
   alg: ES256
