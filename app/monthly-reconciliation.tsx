@@ -896,18 +896,29 @@ function ReconciliationFormView({
   companyName: string;
   reconciledBy: string;
 }) {
+  const bankOnly = result.rows.filter((row) => row.status === "Somente no banco");
   const accountingOnly = result.rows.filter(
     (row) => row.status === "Somente na contabilidade",
   );
   const sections = [
     {
       key: "A",
-      title: "Débitos lançados na contabilidade não identificados no banco",
-      rows: accountingOnly.filter((row) => (row.accountingValue ?? 0) > 0),
+      title: "Entradas no extrato sem lançamento correspondente na contabilidade",
+      rows: bankOnly.filter((row) => (row.bankValue ?? 0) > 0),
     },
     {
       key: "B",
-      title: "Créditos lançados na contabilidade não identificados no banco",
+      title: "Saídas no extrato sem lançamento correspondente na contabilidade",
+      rows: bankOnly.filter((row) => (row.bankValue ?? 0) < 0),
+    },
+    {
+      key: "C",
+      title: "Débitos lançados na contabilidade não identificados no extrato",
+      rows: accountingOnly.filter((row) => (row.accountingValue ?? 0) > 0),
+    },
+    {
+      key: "D",
+      title: "Créditos lançados na contabilidade não identificados no extrato",
       rows: accountingOnly.filter((row) => (row.accountingValue ?? 0) < 0),
     },
   ];
@@ -998,10 +1009,10 @@ function ReconciliationFormView({
             {visibleSections.length === 0 && (
               <article>
                 <div className="form-section-title">
-                  <b>Nenhum lançamento contábil divergente foi encontrado</b>
+                  <b>Nenhum movimento divergente foi encontrado nas duas bases</b>
                   <strong>{brl(result.validation.movementDifference)}</strong>
                 </div>
-                <p>A diferença mensal decorre de movimento bancário sem lançamento contábil correspondente.</p>
+                <p>Revise os totais mensais e a identificação da conta bancária.</p>
               </article>
             )}
             {visibleSections.map((section) => (
@@ -1019,7 +1030,7 @@ function ReconciliationFormView({
                     <thead>
                       <tr>
                         <th>Data</th>
-                        <th>Data correspondente</th>
+                        <th>Data na outra base</th>
                         <th>Documento/Histórico</th>
                         <th>Valor</th>
                         <th>Referência</th>
@@ -1052,7 +1063,13 @@ function ReconciliationFormView({
                               ),
                             )}
                           </td>
-                          <td>{row.status}</td>
+                          <td>
+                            {row.status === "Somente no banco"
+                              ? "Sem lançamento na contabilidade"
+                              : row.status === "Somente na contabilidade"
+                                ? "Sem movimento no extrato"
+                                : row.status}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

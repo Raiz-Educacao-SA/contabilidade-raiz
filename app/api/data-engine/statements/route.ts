@@ -79,6 +79,21 @@ export async function GET(request: NextRequest) {
       accessToken = await oauthClient.getAccessToken();
       snapshot = await loadSnapshot(accessToken);
     }
+    const movementsByBank = snapshot.statements.reduce<Record<string, number>>(
+      (summary, statement) => {
+        const bankId = statement.bankId.padStart(3, "0");
+        summary[bankId] = (summary[bankId] ?? 0) + statement.rows.length;
+        return summary;
+      },
+      {},
+    );
+    console.info("[data-engine/statements] consulta concluída", {
+      company,
+      competence,
+      movementsByBank,
+      records: snapshot.operations.movimentos,
+      statementCount: snapshot.statements.length,
+    });
     return NextResponse.json(
       {
         company,
@@ -98,6 +113,11 @@ export async function GET(request: NextRequest) {
       )
         ? error.message
         : "Não foi possível consultar os extratos no Data Engine.";
+    console.error("[data-engine/statements] consulta falhou", {
+      company,
+      competence,
+      error: error instanceof Error ? error.message : "Erro desconhecido",
+    });
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }
