@@ -120,7 +120,10 @@ export default function MonthlyReconciliationPanel({
   const accountingReady = accounting.length > 0;
   const reconciliationReady = statementsReady && accountingReady;
   const allRows = useMemo(
-    () => results.filter((result) => !result.validation.reconciled).flatMap((result) => result.rows),
+    () => results
+      .filter((result) => !result.validation.reconciled)
+      .flatMap((result) => result.rows)
+      .filter((row) => row.status === "Somente na contabilidade"),
     [results],
   );
   const divergentResults = useMemo(
@@ -713,38 +716,16 @@ function ReconciliationFormView({
   const accountingOnly = result.rows.filter(
     (row) => row.status === "Somente na contabilidade",
   );
-  const bankOnly = result.rows.filter(
-    (row) => row.status === "Somente no banco",
-  );
-  const dateDifferences = result.rows.filter(
-    (row) => row.status === "Possível conciliação",
-  );
   const sections = [
-    { key: "A", title: "Cheques pendentes", rows: [] as MatchRow[] },
     {
-      key: "B",
+      key: "A",
       title: "Débitos lançados na contabilidade não identificados no banco",
       rows: accountingOnly.filter((row) => (row.accountingValue ?? 0) > 0),
     },
     {
-      key: "C",
+      key: "B",
       title: "Créditos lançados na contabilidade não identificados no banco",
       rows: accountingOnly.filter((row) => (row.accountingValue ?? 0) < 0),
-    },
-    {
-      key: "D",
-      title: "Débitos identificados no banco não lançados na contabilidade",
-      rows: bankOnly.filter((row) => (row.bankValue ?? 0) < 0),
-    },
-    {
-      key: "E",
-      title: "Créditos identificados no banco não lançados na contabilidade",
-      rows: bankOnly.filter((row) => (row.bankValue ?? 0) > 0),
-    },
-    {
-      key: "F",
-      title: "Lançamentos conciliados com diferença de data",
-      rows: dateDifferences,
     },
   ];
   const visibleSections = result.validation.reconciled
@@ -769,8 +750,8 @@ function ReconciliationFormView({
       <header>
         <span>VISÃO DAS EXCEÇÕES</span>
         <h2>Ficha de Conciliação Bancária</h2>
-        <b className={visibleSections.length === 0 ? "form-ok" : "form-review"}>
-          {visibleSections.length === 0 ? "SEM PENDÊNCIAS" : "VERIFICAR"}
+        <b className={result.validation.reconciled ? "form-ok" : "form-review"}>
+          {result.validation.reconciled ? "SEM PENDÊNCIAS" : "VERIFICAR"}
         </b>
       </header>
       <div className="form-identification">
@@ -795,7 +776,7 @@ function ReconciliationFormView({
           <b>{result.account.name}</b>
         </div>
       </div>
-      {visibleSections.length === 0 ? (
+      {result.validation.reconciled ? (
         <div className="clean-balance">
           <span>Saldo conforme extrato bancário</span>
           <b>
@@ -831,6 +812,15 @@ function ReconciliationFormView({
             </article>
           </div>
           <div className="form-sections">
+            {visibleSections.length === 0 && (
+              <article>
+                <div className="form-section-title">
+                  <b>Nenhum lançamento contábil divergente foi encontrado</b>
+                  <strong>{brl(result.validation.movementDifference)}</strong>
+                </div>
+                <p>A diferença mensal decorre de movimento bancário sem lançamento contábil correspondente.</p>
+              </article>
+            )}
             {visibleSections.map((section) => (
               <article key={section.key}>
                 <div className="form-section-title">
@@ -838,9 +828,7 @@ function ReconciliationFormView({
                     {section.key}) {section.title}
                   </b>
                   <strong>
-                    {section.key === "F"
-                      ? `${section.rows.length} lançamento(s)`
-                      : brl(total(section.rows))}
+                    {brl(total(section.rows))}
                   </strong>
                 </div>
                 <div className="table-wrap">

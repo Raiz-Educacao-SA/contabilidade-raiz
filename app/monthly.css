@@ -423,7 +423,9 @@
 }
 .reconciliation-form th,
 .reconciliation-form td {
-  font-size: 11px;
+  padding: 7px 9px;
+  font-size: 9px;
+  line-height: 1.25;
 }
 .no-exceptions {
   margin-top: 20px;

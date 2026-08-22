@@ -47,6 +47,7 @@ const asDate = (raw: unknown) => {
   return new Date(String(value ?? ""));
 };
 const dayKey = (date: Date) => date.toISOString().slice(0, 10);
+const monthKey = (date: Date) => date.toISOString().slice(0, 7);
 const daysBetween = (a: Date, b: Date) => Math.round(Math.abs(a.getTime() - b.getTime()) / 86400000);
 
 function rowsFromWorkbook(buffer: ArrayBuffer) {
@@ -227,12 +228,12 @@ export function accountingBankAccounts(accounting: AccountingRow[]) {
   return (bankGroups.length ? bankGroups : groups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
 }
 
-export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceDays = 3, toleranceValue = 0.01) {
+export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceValue = 0.01) {
   const usedBank = new Set<number>(), usedAccounting = new Set<number>();
   const matches: MatchRow[] = [];
   const match = (exactDate: boolean) => bank.forEach((b, bi) => {
     if (usedBank.has(bi)) return;
-    const candidates = accounting.map((a, ai) => ({ a, ai, days: daysBetween(a.date, b.date) })).filter(({ a, ai, days }) => !usedAccounting.has(ai) && Math.abs(a.value - b.value) <= toleranceValue && (exactDate ? dayKey(a.date) === dayKey(b.date) : days <= toleranceDays)).sort((x, y) => x.days - y.days);
+    const candidates = accounting.map((a, ai) => ({ a, ai, days: daysBetween(a.date, b.date) })).filter(({ a, ai }) => !usedAccounting.has(ai) && Math.abs(a.value - b.value) <= toleranceValue && (exactDate ? dayKey(a.date) === dayKey(b.date) : monthKey(a.date) === monthKey(b.date))).sort((x, y) => x.days - y.days);
     if (!candidates.length) return;
     const { a, ai, days } = candidates[0]; usedBank.add(bi); usedAccounting.add(ai);
     matches.push({ status: exactDate ? "Conciliado" : "Possível conciliação", bankId: b.id, bankDate: b.date, description: b.description, bankValue: b.value, accountingId: a.id, accountingDate: a.date, nature: a.nature, accountingValue: a.value, days, difference: Math.round((b.value - a.value) * 100) / 100 });
