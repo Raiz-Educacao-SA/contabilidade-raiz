@@ -65,6 +65,7 @@ type LoadOptions = {
 
 type BindableAccount = {
   code: string;
+  name?: string;
 };
 
 const PAGE_SIZE = 200;
@@ -182,28 +183,67 @@ export function statementPeriod(competence: string) {
 export function resolveStatementBindings<TAccount extends BindableAccount>(
   sources: DataEngineStatement[],
   accounts: TAccount[],
-  bindings: Record<string, string>,
 ) {
-  const claims = new Map<string, number>();
+  const normalizeDigits = (value: unknown) =>
+    String(value ?? "").replace(/\D/g, "").replace(/^0+/, "");
+  const compatible = (left: unknown, right: unknown) => {
+    const a = normalizeDigits(left);
+    const b = normalizeDigits(right);
+    return a.length >= 4 && b.length >= 4 && (a === b || a.endsWith(b) || b.endsWith(a));
+  };
+  const bankNames: Record<string, RegExp> = {
+    "001": /BANCO DO BRASIL|\bBB\b/i,
+    "033": /SANTANDER/i,
+    "104": /CAIXA/i,
+    "237": /BRADESCO/i,
+    "341": /ITA[UÚ]/i,
+    "422": /SAFRA/i,
+    "748": /SICREDI/i,
+    "756": /SICOOB/i,
+  };
+  const remainingAccounts = new Map(accounts.map((account) => [account.code, account]));
+  const remainingSources = new Map(sources.map((source) => [source.sourceAccountId, source]));
+  const pairs: Array<{ account: TAccount; source: DataEngineStatement }> = [];
+  const bindUnique = (source: DataEngineStatement, candidates: TAccount[]) => {
+    if (candidates.length !== 1) return false;
+    const account = candidates[0];
+    pairs.push({ account, source });
+    remainingAccounts.delete(account.code);
+    remainingSources.delete(source.sourceAccountId);
+    return true;
+  };
+
+  // Prioridade 1: número da conta presente nos metadados do extrato.
   for (const source of sources) {
-    const accountCode = bindings[source.sourceAccountId];
-    if (accountCode) claims.set(accountCode, (claims.get(accountCode) ?? 0) + 1);
+    bindUnique(
+      source,
+      Array.from(remainingAccounts.values()).filter((account) =>
+        [account.code, account.name].some((value) => compatible(value, source.metadata.account)),
+      ),
+    );
   }
-  const duplicateAccountCodes = Array.from(claims)
-    .filter(([, count]) => count > 1)
-    .map(([accountCode]) => accountCode)
-    .sort();
-  if (duplicateAccountCodes.length) {
-    return { duplicateAccountCodes, pairs: [] as Array<{ account: TAccount; source: DataEngineStatement }> };
+  // Prioridade 2: código do banco quando ele identifica uma única conta contábil.
+  for (const source of Array.from(remainingSources.values())) {
+    const bankPattern = bankNames[source.bankId.padStart(3, "0")];
+    if (!bankPattern) continue;
+    bindUnique(
+      source,
+      Array.from(remainingAccounts.values()).filter((account) => bankPattern.test(account.name ?? "")),
+    );
+  }
+  // Último caso seguro: resta exatamente um extrato e uma conta.
+  if (remainingSources.size === 1 && remainingAccounts.size === 1) {
+    bindUnique(
+      Array.from(remainingSources.values())[0],
+      Array.from(remainingAccounts.values()),
+    );
   }
 
-  const pairs = sources.flatMap((source) => {
-    const account = accounts.find(
-      (candidate) => candidate.code === bindings[source.sourceAccountId],
-    );
-    return account ? [{ account, source }] : [];
-  });
-  return { duplicateAccountCodes, pairs };
+  return {
+    pairs,
+    unmatchedSources: Array.from(remainingSources.values()),
+    unmatchedAccounts: Array.from(remainingAccounts.values()),
+  };
 }
 
 async function countGovernedOperation(
