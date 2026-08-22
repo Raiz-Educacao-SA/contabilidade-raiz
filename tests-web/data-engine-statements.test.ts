@@ -222,6 +222,64 @@ test("reconhece extrato de aplicação pelas posições mesmo sem movimentos", a
   assert.equal(result.operations.movimentos, 0);
 });
 
+test("reconhece a aplicação quando a posição não traz source_account_id", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    codColigadaCode: "03",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/posicoes"
+            ? [
+                {
+                  posicao_aplicacao_id: "posicao-1",
+                  cod_coligada: 3,
+                  data_base: "2026-05-31",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].sourceAccountId, "aplicacao:posicao");
+  assert.equal(result.statements[0].metadata.account, "Aplicação");
+  assert.equal(result.statements[0].metadata.name, "Aplicação financeira");
+});
+
+test("agrupa posições da mesma aplicação sem criar extratos duplicados", async () => {
+  const { mergeApplicationPositionStatements } = await import(moduleUrl.href);
+
+  const result = mergeApplicationPositionStatements(
+    [],
+    [
+      {
+        posicao_aplicacao_id: "posicao-1",
+        cod_coligada: 3,
+        data_posicao: "2026-05-15",
+      },
+      {
+        posicao_aplicacao_id: "posicao-2",
+        cod_coligada: 3,
+        data_posicao: "2026-05-31",
+      },
+    ],
+    { fromDate: "2026-05-01", toDate: "2026-05-31" },
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].sourceAccountId, "aplicacao:posicao");
+});
+
 test("não duplica a aplicação quando a mesma fonte já possui movimentos", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 

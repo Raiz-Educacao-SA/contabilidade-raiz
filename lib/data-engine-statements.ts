@@ -306,6 +306,57 @@ function governedText(record: Record<string, unknown>, fields: string[]) {
   return "";
 }
 
+function applicationPositionIdentity(position: Record<string, unknown>) {
+  const explicitSource = governedText(position, [
+    "source_account_id",
+    "sourceAccountId",
+    "bank_account_id",
+    "account_id",
+    "conta_bancaria_id",
+    "conta_origem_id",
+    "id_conta_origem",
+  ]);
+  if (explicitSource) return explicitSource;
+
+  const bankId = governedText(position, [
+    "bank_id",
+    "codigo_banco",
+    "bank_code",
+    "cod_banco",
+  ]);
+  const agency = governedText(position, [
+    "agency",
+    "agencia",
+    "branch_number",
+    "numero_agencia",
+  ]);
+  const account = governedText(position, [
+    "account_number",
+    "numero_conta",
+    "conta_bancaria",
+    "conta",
+  ]);
+  if (account) {
+    return `aplicacao:${bankId || "000"}:${agency}:${account}`;
+  }
+
+  const product = governedText(position, [
+    "product_name",
+    "nome_produto",
+    "application_name",
+    "nome_aplicacao",
+    "fund_name",
+    "nome_fundo",
+    "tipo_aplicacao",
+  ]);
+  if (product) return `aplicacao:${bankId || "000"}:${product}`;
+
+  // A operação governada pode devolver apenas posicao_aplicacao_id e a
+  // coligada. Nesse contrato, todas as posições sem identificador bancário
+  // explícito representam a mesma fonte de aplicação da competência.
+  return "aplicacao:posicao";
+}
+
 function positionBelongsToPeriod(
   position: Record<string, unknown>,
   fromDate: string,
@@ -313,6 +364,9 @@ function positionBelongsToPeriod(
 ) {
   const reference = governedText(position, [
     "data_posicao",
+    "dt_posicao",
+    "data_base",
+    "data",
     "position_date",
     "data_referencia",
     "reference_date",
@@ -347,7 +401,7 @@ export function mergeApplicationPositionStatements(
   const displayPeriod = `${period.fromDate.slice(5, 7)}/${period.fromDate.slice(0, 4)}`;
 
   for (const position of positions) {
-    const sourceAccountId = governedText(position, ["source_account_id"]);
+    const sourceAccountId = applicationPositionIdentity(position);
     if (
       !sourceAccountId ||
       sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||
@@ -360,17 +414,19 @@ export function mergeApplicationPositionStatements(
       "bank_id",
       "codigo_banco",
       "bank_code",
+      "cod_banco",
     ]) || "000";
     const account = governedText(position, [
       "account_number",
       "numero_conta",
       "conta_bancaria",
       "conta",
-    ]) || sourceAccountId.slice(0, 12);
+    ]);
     const agency = governedText(position, [
       "agency",
       "agencia",
       "branch_number",
+      "numero_agencia",
     ]);
     const product = governedText(position, [
       "product_name",
@@ -379,6 +435,7 @@ export function mergeApplicationPositionStatements(
       "nome_aplicacao",
       "fund_name",
       "nome_fundo",
+      "tipo_aplicacao",
     ]);
     const bankName = governedText(position, ["bank_name", "nome_banco"]);
     const name = product
@@ -395,7 +452,7 @@ export function mergeApplicationPositionStatements(
       rows: [],
       metadata: {
         agency,
-        account,
+        account: account || "Aplicação",
         period: displayPeriod,
         name,
         openingBalance: null,
@@ -456,6 +513,49 @@ async function loadGovernedOperation(
   return records;
 }
 
+async function countGovernedOperation(path: string, options: LoadOptions) {
+  const fetcher = options.fetcher ?? fetch;
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+  let records = 0;
+
+  for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
+    const url = new URL(path, options.baseUrl);
+    url.searchParams.set(
+      "cod_coligada",
+      options.codColigadaCode ?? String(options.codColigada).padStart(2, "0"),
+    );
+    url.searchParams.set("limit", String(PAGE_SIZE));
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const response = await fetcher(url, {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${options.accessToken}`,
+      },
+    });
+    if (!response.ok) {
+      throw new DataEngineHttpError(response.status);
+    }
+
+    const page = parseGovernedPage(await response.json(), options.codColigada);
+    records += page.items.length;
+    if (!page.next_cursor) break;
+    if (seenCursors.has(page.next_cursor)) {
+      throw new Error("O Data Engine retornou cursor de paginação repetido.");
+    }
+    seenCursors.add(page.next_cursor);
+    cursor = page.next_cursor;
+
+    if (requestCount === MAX_PAGE_REQUESTS - 1) {
+      throw new Error("O Data Engine excedeu o limite de páginas da consulta.");
+    }
+  }
+
+  return records;
+}
+
 export async function loadDataEngineStatementSnapshot(
   options: LoadOptions,
 ): Promise<DataEngineStatementSnapshot> {
@@ -463,10 +563,10 @@ export async function loadDataEngineStatementSnapshot(
   const [statements, saldos, positions, cobertura, pendencias] =
     await Promise.all([
       loadDataEngineStatements(options),
-      loadGovernedOperation("/v1/tesouraria/extratos/saldos", options),
+      countGovernedOperation("/v1/tesouraria/extratos/saldos", options),
       loadGovernedOperation("/v1/tesouraria/extratos/posicoes", options),
-      loadGovernedOperation("/v1/tesouraria/extratos/cobertura", options),
-      loadGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
+      countGovernedOperation("/v1/tesouraria/extratos/cobertura", options),
+      countGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
     ]);
   const recognizedStatements = mergeApplicationPositionStatements(
     statements,
@@ -480,10 +580,10 @@ export async function loadDataEngineStatementSnapshot(
         (total, statement) => total + statement.rows.length,
         0,
       ),
-      saldos: saldos.length,
+      saldos,
       posicoes: positions.length,
-      cobertura: cobertura.length,
-      pendencias: pendencias.length,
+      cobertura,
+      pendencias,
     },
   };
 }
