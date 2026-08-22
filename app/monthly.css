@@ -191,6 +191,17 @@
 .monthly-metrics b {
   font-size: 18px;
 }
+.monthly-metrics .metric-review {
+  border-color: #f2bbb5;
+  background: #fffafa;
+}
+.monthly-metrics .metric-review b {
+  color: #b42318;
+}
+.monthly-metrics .metric-ok {
+  border-color: #a8d9c1;
+  background: #f6fcf8;
+}
 .daily-check {
   margin-top: 20px;
 }
@@ -370,7 +381,7 @@
 }
 .form-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   margin-top: 16px;
   background: #cfd3d8;
@@ -386,6 +397,15 @@
 .form-summary b {
   font-size: 10px;
 }
+.form-explanation {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border-left: 3px solid #ef7d00;
+  background: #fff9f0;
+  color: #6d5a42;
+  font-size: 8px;
+  line-height: 1.45;
+}
 .form-sections {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -399,6 +419,14 @@
 }
 .form-sections > article:first-child {
   grid-column: 1/-1;
+}
+.form-sections > .daily-comparison,
+.form-sections > .totvs-diagnostics {
+  grid-column: 1/-1;
+}
+.form-sections > .daily-comparison td b,
+.form-sections > .totvs-diagnostics td b {
+  color: #9f2d20;
 }
 .form-section-title {
   min-height: 40px;
