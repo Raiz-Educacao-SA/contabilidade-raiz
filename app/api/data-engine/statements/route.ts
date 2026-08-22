@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
     console.info("[data-engine/statements] consulta concluída", {
       company,
       competence,
+      diagnostics: snapshot.diagnostics,
       movementsByBank,
       operations: snapshot.operations,
       records: snapshot.operations.movimentos,
@@ -103,6 +104,7 @@ export async function GET(request: NextRequest) {
         source: "Raiz Data Engine",
         statements: snapshot.statements,
         operations: snapshot.operations,
+        diagnostics: snapshot.diagnostics,
       },
       { headers: { "cache-control": "private, no-store" } },
     );

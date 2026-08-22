@@ -30,6 +30,14 @@ export type DataEngineStatementOperations = {
 export type DataEngineStatementSnapshot = {
   statements: DataEngineStatement[];
   operations: DataEngineStatementOperations;
+  diagnostics: {
+    recognizedWithoutMovements: number;
+    sourceCandidates: {
+      saldos: number;
+      posicoes: number;
+      cobertura: number;
+    };
+  };
 };
 
 type Movement = {
@@ -306,8 +314,8 @@ function governedText(record: Record<string, unknown>, fields: string[]) {
   return "";
 }
 
-function applicationPositionIdentity(position: Record<string, unknown>) {
-  const explicitSource = governedText(position, [
+function governedSourceIdentity(record: Record<string, unknown>) {
+  return governedText(record, [
     "source_account_id",
     "sourceAccountId",
     "bank_account_id",
@@ -316,6 +324,10 @@ function applicationPositionIdentity(position: Record<string, unknown>) {
     "conta_origem_id",
     "id_conta_origem",
   ]);
+}
+
+function applicationPositionIdentity(position: Record<string, unknown>) {
+  const explicitSource = governedSourceIdentity(position);
   if (explicitSource) return explicitSource;
 
   const bankId = governedText(position, [
@@ -467,14 +479,16 @@ export function mergeApplicationPositionStatements(
   );
 }
 
-async function loadGovernedOperation(
+async function loadGovernedSourceSummary(
   path: string,
   options: LoadOptions,
-): Promise<Array<Record<string, unknown>>> {
+  allowApplicationFallback: boolean,
+) {
   const fetcher = options.fetcher ?? fetch;
   const seenCursors = new Set<string>();
   let cursor: string | null = null;
-  const records: Array<Record<string, unknown>> = [];
+  let records = 0;
+  const sourceRecords = new Map<string, Record<string, unknown>>();
 
   for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
     const url = new URL(path, options.baseUrl);
@@ -497,7 +511,23 @@ async function loadGovernedOperation(
     }
 
     const page = parseGovernedPage(await response.json(), options.codColigada);
-    records.push(...page.items);
+    records += page.items.length;
+    for (const item of page.items) {
+      if (!positionBelongsToPeriod(item, options.fromDate, options.toDate)) {
+        continue;
+      }
+      const sourceAccountId = allowApplicationFallback
+        ? applicationPositionIdentity(item)
+        : governedSourceIdentity(item);
+      if (
+        !sourceAccountId ||
+        sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||
+        sourceRecords.has(sourceAccountId)
+      ) {
+        continue;
+      }
+      sourceRecords.set(sourceAccountId, item);
+    }
     if (!page.next_cursor) break;
     if (seenCursors.has(page.next_cursor)) {
       throw new Error("O Data Engine retornou cursor de paginação repetido.");
@@ -510,7 +540,7 @@ async function loadGovernedOperation(
     }
   }
 
-  return records;
+  return { records, sourceRecords: Array.from(sourceRecords.values()) };
 }
 
 async function countGovernedOperation(path: string, options: LoadOptions) {
@@ -563,26 +593,51 @@ export async function loadDataEngineStatementSnapshot(
   const [statements, saldos, positions, cobertura, pendencias] =
     await Promise.all([
       loadDataEngineStatements(options),
-      countGovernedOperation("/v1/tesouraria/extratos/saldos", options),
-      loadGovernedOperation("/v1/tesouraria/extratos/posicoes", options),
-      countGovernedOperation("/v1/tesouraria/extratos/cobertura", options),
+      loadGovernedSourceSummary(
+        "/v1/tesouraria/extratos/saldos",
+        options,
+        false,
+      ),
+      loadGovernedSourceSummary(
+        "/v1/tesouraria/extratos/posicoes",
+        options,
+        true,
+      ),
+      loadGovernedSourceSummary(
+        "/v1/tesouraria/extratos/cobertura",
+        options,
+        false,
+      ),
       countGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
     ]);
   const recognizedStatements = mergeApplicationPositionStatements(
     statements,
-    positions,
+    [
+      ...saldos.sourceRecords,
+      ...positions.sourceRecords,
+      ...cobertura.sourceRecords,
+    ],
     options,
   );
   return {
     statements: recognizedStatements,
+    diagnostics: {
+      recognizedWithoutMovements:
+        recognizedStatements.length - statements.length,
+      sourceCandidates: {
+        saldos: saldos.sourceRecords.length,
+        posicoes: positions.sourceRecords.length,
+        cobertura: cobertura.sourceRecords.length,
+      },
+    },
     operations: {
       movimentos: statements.reduce(
         (total, statement) => total + statement.rows.length,
         0,
       ),
-      saldos,
-      posicoes: positions.length,
-      cobertura,
+      saldos: saldos.records,
+      posicoes: positions.records,
+      cobertura: cobertura.records,
       pendencias,
     },
   };
