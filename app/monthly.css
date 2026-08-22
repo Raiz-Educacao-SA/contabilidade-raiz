@@ -1150,10 +1150,32 @@
   font-weight: 900;
 }
 .reconcile-step {
-  border-color: #cfd5f7 !important;
+  border-color: var(--line) !important;
+  background: #fff !important;
 }
 .reconcile-step > svg {
+  color: #9aa4b3 !important;
+}
+.reconcile-step.ready {
+  border-color: #cfd5f7 !important;
+  background: #f9f8ff !important;
+}
+.reconcile-step.ready > svg {
   color: #5142bd !important;
+}
+.source-steps article button.reconciliation-action.is-locked {
+  border: 1px solid #d8dee8 !important;
+  background: #eef1f5 !important;
+  color: #9aa4b3 !important;
+  opacity: 1;
+  cursor: not-allowed;
+}
+.source-steps article button.reconciliation-action.is-ready {
+  background: var(--violet) !important;
+  color: #fff !important;
+}
+.source-steps article button.reconciliation-action.is-ready:hover {
+  background: var(--violet-dark) !important;
 }
 .all-reconciled {
   margin-top: 18px;

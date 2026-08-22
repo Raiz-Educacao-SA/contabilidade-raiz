@@ -132,6 +132,14 @@ test("libera a conciliação somente após as duas bases atualizarem com sucesso
   assert.match(panel, /Bases prontas; clique para executar a conciliação/);
 });
 
+test("mantém o botão automático neutro até as duas bases ficarem prontas", () => {
+  assert.match(panel, /className=\{`primary reconciliation-action \$\{reconciliationReady \? "is-ready" : "is-locked"\}`\}/);
+  assert.match(panel, /disabled=\{!reconciliationReady\}/);
+  assert.match(monthlyCss, /\.reconcile-step\.ready \{[\s\S]*?border-color: #cfd5f7/);
+  assert.match(monthlyCss, /button\.reconciliation-action\.is-locked \{[\s\S]*?background: #eef1f5 !important;[\s\S]*?color: #9aa4b3 !important;/);
+  assert.match(monthlyCss, /button\.reconciliation-action\.is-ready \{[\s\S]*?background: var\(--violet\) !important;/);
+});
+
 test("bloqueia uma nova conciliação até as duas fontes serem atualizadas novamente", () => {
   assert.match(panel, /setAccountingRevision\(nextSourceRevision\(\)\)/);
   assert.match(panel, /setStatementsRevision\(nextSourceRevision\(\)\)/);

@@ -653,7 +653,7 @@ export default function MonthlyReconciliationPanel({
               <span>{reconciliationStatus}</span>
             </div>
             <button
-              className="primary"
+              className={`primary reconciliation-action ${reconciliationReady ? "is-ready" : "is-locked"}`}
               disabled={!reconciliationReady}
               onClick={runAll}
             >
