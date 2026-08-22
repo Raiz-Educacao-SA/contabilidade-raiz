@@ -248,7 +248,7 @@ test("rejeita movimento fora da competência solicitada", async () => {
   );
 });
 
-test("exige vínculo explícito e rejeita duas fontes na mesma conta", async () => {
+test("identifica automaticamente uma correspondência única e aponta coberturas ausentes", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const source = {
     bankId: "341",
@@ -263,23 +263,20 @@ test("exige vínculo explícito e rejeita duas fontes na mesma conta", async () 
       period: "08/2026",
     },
   };
-  const accounts = [{ code: "1.1.1", name: "Banco", rows: [] }];
+  const accounts = [{ code: "1.1.1", name: "Banco Itaú conta cccccccccccc", rows: [] }];
 
-  assert.deepEqual(resolveStatementBindings([source], accounts, {}), {
-    duplicateAccountCodes: [],
-    pairs: [],
-  });
+  const identified = resolveStatementBindings([source], accounts);
+  assert.equal(identified.pairs.length, 1);
+  assert.deepEqual(identified.unmatchedSources, []);
+  assert.deepEqual(identified.unmatchedAccounts, []);
 
   const duplicateSource = {
     ...source,
     sourceAccountId: "d".repeat(64),
     metadata: { ...source.metadata, account: "dddddddddddd" },
   };
-  assert.deepEqual(
-    resolveStatementBindings([source, duplicateSource], accounts, {
-      [source.sourceAccountId]: "1.1.1",
-      [duplicateSource.sourceAccountId]: "1.1.1",
-    }),
-    { duplicateAccountCodes: ["1.1.1"], pairs: [] },
-  );
+  const uncovered = resolveStatementBindings([source, duplicateSource], accounts);
+  assert.equal(uncovered.pairs.length, 1);
+  assert.equal(uncovered.unmatchedSources.length, 1);
+  assert.deepEqual(uncovered.unmatchedAccounts, []);
 });
