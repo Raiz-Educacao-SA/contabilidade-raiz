@@ -5,12 +5,14 @@ import { CheckCircle2, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { ScheduleCompletion } from "@/lib/schedule-completion";
 
-export default function ModuleCompletionControl({ competence, modulo, setor, userId, userEmail }: {
+export default function ModuleCompletionControl({ competence, modulo, setor, userId, userEmail, disabled = false, disabledReason = "" }: {
   competence: string;
   modulo: string;
   setor: string;
   userId: string;
   userEmail: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const [completion, setCompletion] = useState<ScheduleCompletion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,8 +33,10 @@ export default function ModuleCompletionControl({ competence, modulo, setor, use
       setError(loadError ? "Não foi possível consultar o status compartilhado." : "");
       setLoading(false);
     };
-    setLoading(true);
-    void load();
+    void Promise.resolve().then(() => {
+      if (active) setLoading(true);
+      return load();
+    });
     const channel = supabase.channel(`conclusao-${competence}-${modulo}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${competence}` }, () => void load())
       .subscribe();
@@ -64,9 +68,10 @@ export default function ModuleCompletionControl({ competence, modulo, setor, use
   const done = completion?.status === "concluido";
   return <div className="module-completion-control">
     {done && <small>Finalizado por {completion?.confirmado_email || "usuário"}</small>}
-    <button type="button" className={done ? "is-finalized" : ""} disabled={loading || saving} onClick={() => void save(!done)}>
+    <button type="button" className={done ? "is-finalized" : ""} disabled={loading || saving || (!done && disabled)} onClick={() => void save(!done)} title={!done && disabled ? disabledReason : undefined}>
       {done ? <RotateCcw /> : <CheckCircle2 />}{saving ? "Salvando..." : done ? "Reabrir tarefa" : "Finalizar tarefa"}
     </button>
+    {!done && disabled && disabledReason && <small>{disabledReason}</small>}
     {error && <span>{error}</span>}
   </div>;
 }

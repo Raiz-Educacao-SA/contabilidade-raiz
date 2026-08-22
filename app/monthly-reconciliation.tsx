@@ -28,6 +28,8 @@ import {
   type DataEngineStatement,
   type DataEngineStatementOperations,
 } from "@/lib/data-engine-statements";
+import ModuleCompletionControl from "@/app/module-completion-control";
+import { financialCompletionIdentity } from "@/lib/schedule-completion";
 
 type Statement = {
   fileName: string;
@@ -81,6 +83,7 @@ export default function MonthlyReconciliationPanel({
   companyName,
   reconciledBy,
   accessToken,
+  userId,
 }: {
   competence: string;
   companyId: string;
@@ -88,6 +91,7 @@ export default function MonthlyReconciliationPanel({
   companyName: string;
   reconciledBy: string;
   accessToken: string;
+  userId: string;
 }) {
   const [accounting, setAccounting] = useState<AccountingRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<AccountingAccount[]>([]);
@@ -124,6 +128,7 @@ export default function MonthlyReconciliationPanel({
     [results],
   );
   const reconciledCount = results.length - divergentResults.length;
+  const completionIdentity = financialCompletionIdentity("bancaria", companyCode, companyName);
 
   useEffect(
     () => () => {
@@ -361,6 +366,15 @@ export default function MonthlyReconciliationPanel({
           </p>
         </div>
         <div className="history-actions">
+          <ModuleCompletionControl
+            competence={competence}
+            modulo={completionIdentity.modulo}
+            setor={completionIdentity.setor}
+            userId={userId}
+            userEmail={reconciledBy}
+            disabled={!results.length}
+            disabledReason="Execute a conciliação antes de finalizar a tarefa."
+          />
           <button
             className="secondary"
             disabled={!allRows.length}

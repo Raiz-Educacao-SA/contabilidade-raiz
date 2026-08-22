@@ -272,7 +272,8 @@ export default function Home() {
       if (accountingTab === "pis-cofins") return null;
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
-    if (["bancaria", "receita", "emprestimos", "parcelamentos"].includes(selectedModule)) {
+    if (selectedModule === "bancaria") return null;
+    if (["receita", "emprestimos", "parcelamentos"].includes(selectedModule)) {
       return financialCompletionIdentity(selectedModule, selectedCompanyCode, selectedCompanyName);
     }
     const sectors: Partial<Record<Module, string>> = {
@@ -878,6 +879,7 @@ export default function Home() {
             companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
             reconciledBy={session.user.email ?? ""}
             accessToken={session.access_token}
+            userId={session.user.id}
           />
         )}
         {selectedModule === "bancaria" && tab === "contas" && (
