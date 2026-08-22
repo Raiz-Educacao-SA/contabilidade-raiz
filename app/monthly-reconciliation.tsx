@@ -53,6 +53,8 @@ type WorkflowState = {
   unmatchedSources: DataEngineStatement[];
   unmatchedAccounts: AccountingAccount[];
   accountingMessage: string;
+  accountingUpdated: boolean;
+  statementsUpdated: boolean;
 };
 
 const workflowCache = new Map<string, WorkflowState>();
@@ -137,6 +139,12 @@ export default function MonthlyReconciliationPanel({
   );
   const [dataEngineBusy, setDataEngineBusy] = useState(false);
   const [accountingBusy, setAccountingBusy] = useState(false);
+  const [accountingUpdated, setAccountingUpdated] = useState(
+    () => initialWorkflow?.accountingUpdated ?? false,
+  );
+  const [statementsUpdated, setStatementsUpdated] = useState(
+    () => initialWorkflow?.statementsUpdated ?? false,
+  );
   const [accountingMessage, setAccountingMessage] = useState(
     () => initialWorkflow?.accountingMessage ?? "Aguardando atualização no TOTVS",
   );
@@ -145,10 +153,15 @@ export default function MonthlyReconciliationPanel({
   const accountingAbortRef = useRef<AbortController | null>(null);
   const dataEngineAbortRef = useRef<AbortController | null>(null);
   const pending = unmatchedAccounts;
-  const statementsReady = statements.length > 0;
-  const accountingReady = accounting.length > 0;
+  const statementsReady = statementsUpdated && statements.length > 0;
+  const accountingReady = accountingUpdated && accounting.length > 0;
   const reconciliationReady =
-    statementsReady && accountingReady && !accountingBusy && !dataEngineBusy;
+    accountingUpdated &&
+    statementsUpdated &&
+    statementsReady &&
+    accountingReady &&
+    !accountingBusy &&
+    !dataEngineBusy;
   const allRows = useMemo(
     () => results
       .filter((result) => !result.validation.reconciled)
@@ -165,8 +178,19 @@ export default function MonthlyReconciliationPanel({
     [results],
   );
   const reconciledCount = results.length - divergentResults.length;
-  const coverageReady = accountingReady && dataEngineOperations !== null;
+  const coverageReady = accountingUpdated && statementsUpdated;
   const unmatchedTotal = unmatchedAccounts.length + unmatchedSources.length;
+  const reconciliationStatus = !accountingUpdated
+    ? "Atualize primeiro a base contábil"
+    : !statementsUpdated
+      ? "Atualize também os extratos bancários"
+      : !accountingReady
+        ? "Base atualizada, mas nenhuma conta bancária foi encontrada"
+        : !statementsReady
+          ? "Extratos atualizados, mas nenhuma correspondência foi encontrada"
+          : results.length
+            ? `${statements.length} encontrada(s) · ${reconciledCount} conciliada(s) · ${divergentResults.length} divergente(s)`
+            : "Bases atualizadas; conciliação liberada";
   const completionIdentity = financialCompletionIdentity("bancaria", companyCode, companyName);
 
   useEffect(
@@ -198,10 +222,13 @@ export default function MonthlyReconciliationPanel({
       unmatchedSources,
       unmatchedAccounts,
       accountingMessage,
+      accountingUpdated,
+      statementsUpdated,
     });
   }, [
     accounting,
     accountingMessage,
+    accountingUpdated,
     bankAccounts,
     dataEngineOperations,
     dataEngineSources,
@@ -209,6 +236,7 @@ export default function MonthlyReconciliationPanel({
     notice,
     results,
     statements,
+    statementsUpdated,
     unmatchedAccounts,
     unmatchedSources,
   ]);
@@ -245,6 +273,7 @@ export default function MonthlyReconciliationPanel({
     accountingRequestRef.current = requestId;
     const requestIsCurrent = () => accountingRequestRef.current === requestId;
     setAccountingBusy(true);
+    setAccountingUpdated(false);
     try {
       const response = await fetch(
         `/api/totvs/accounting?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -272,6 +301,7 @@ export default function MonthlyReconciliationPanel({
       setAccounting(rows);
       setBankAccounts(discovered);
       applySourceBindings(dataEngineSources, discovered);
+      setAccountingUpdated(true);
       setAccountingMessage(
         `${discovered.length} conta(s) carregada(s) da Planilha 18`,
       );
@@ -301,6 +331,7 @@ export default function MonthlyReconciliationPanel({
     dataEngineRequestRef.current = requestId;
     const requestIsCurrent = () => dataEngineRequestRef.current === requestId;
     setDataEngineBusy(true);
+    setStatementsUpdated(false);
     try {
       const response = await fetch(
         `/api/data-engine/statements?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -325,6 +356,7 @@ export default function MonthlyReconciliationPanel({
       setDataEngineSources(sources);
       setDataEngineOperations(data.operations ?? null);
       if (applySourceBindings(sources, bankAccounts)) {
+        setStatementsUpdated(true);
         setNotice(
           `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
         );
@@ -474,7 +506,7 @@ export default function MonthlyReconciliationPanel({
           </p>
         </div>
         <div className="source-steps">
-          <article className={accountingReady ? "ready" : "waiting"}>
+          <article className={accountingUpdated ? "ready" : "waiting"}>
             <div className="source-step-number">1</div>
             <Database />
             <div>
@@ -486,7 +518,7 @@ export default function MonthlyReconciliationPanel({
               </span>
             </div>
             <button
-              className={`secondary ${accountingReady ? "source-loaded" : ""}`}
+              className={`secondary ${accountingUpdated ? "source-loaded" : ""}`}
               disabled={accountingBusy}
               onClick={refreshAccounting}
             >
@@ -494,7 +526,7 @@ export default function MonthlyReconciliationPanel({
               {accountingBusy ? "Atualizando..." : "Atualizar base contábil"}
             </button>
           </article>
-          <article className={statementsReady ? "ready" : "waiting"}>
+          <article className={statementsUpdated ? "ready" : "waiting"}>
             <div className="source-step-number">2</div>
             <Landmark />
             <div>
@@ -502,13 +534,13 @@ export default function MonthlyReconciliationPanel({
               <span>
                 {dataEngineBusy
                   ? "Consultando o Data Engine..."
-                  : dataEngineSources.length
+                  : statementsUpdated
                     ? `${dataEngineSources.length} conta(s) encontrada(s) no Data Engine`
                     : "Aguardando atualização do Data Engine"}
               </span>
             </div>
             <button
-              className={`secondary ${statementsReady ? "source-loaded-extracts" : ""}`}
+              className={`secondary ${statementsUpdated ? "source-loaded-extracts" : ""}`}
               disabled={dataEngineBusy}
               onClick={scanDataEngine}
             >
@@ -518,18 +550,14 @@ export default function MonthlyReconciliationPanel({
           </article>
           <article
             className={
-              results.length ? "ready reconcile-step" : "waiting reconcile-step"
+              reconciliationReady ? "ready reconcile-step" : "waiting reconcile-step"
             }
           >
             <div className="source-step-number">3</div>
             <ArrowLeftRight />
             <div>
               <b>Conciliação automática</b>
-              <span>
-                {results.length
-                  ? `${statements.length} encontrada(s) · ${reconciledCount} conciliada(s) · ${divergentResults.length} divergente(s)`
-                  : "Compara extrato × contábil pelo movimento total do mês"}
-              </span>
+              <span>{reconciliationStatus}</span>
             </div>
             <button
               className="primary"
