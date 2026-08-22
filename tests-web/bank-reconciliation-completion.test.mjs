@@ -127,17 +127,24 @@ test("libera a conciliação somente após as duas bases atualizarem com sucesso
   assert.match(panel, /setAccountingUpdated\(false\)[\s\S]*setAccountingUpdated\(true\)/);
   assert.match(panel, /setStatementsUpdated\(false\)[\s\S]*setStatementsUpdated\(true\)/);
   assert.match(panel, /disabled=\{!reconciliationReady\}/);
-  assert.match(panel, /Atualize a base contábil e os extratos bancários/);
-  assert.match(panel, /Atualize também os extratos bancários/);
+  assert.match(panel, /Atualize primeiro a base contábil/);
+  assert.match(panel, /Atualize agora os extratos bancários/);
   assert.match(panel, /Bases prontas; clique para executar a conciliação/);
 });
 
-test("mantém o botão automático neutro até as duas bases ficarem prontas", () => {
-  assert.match(panel, /className=\{`primary reconciliation-action \$\{reconciliationReady \? "is-ready" : "is-locked"\}`\}/);
+test("executa as três etapas em sequência e usa cor somente após a conclusão", () => {
+  assert.match(panel, /accountingFresh \? "is-complete" : "is-available"/);
+  assert.match(panel, /disabled=\{accountingBusy \|\| dataEngineBusy\}/);
+  assert.match(panel, /statementsFresh \? "is-complete" : accountingFresh \? "is-available" : "is-locked"/);
+  assert.match(panel, /disabled=\{!accountingFresh \|\| dataEngineBusy\}/);
+  assert.match(panel, /resultsCurrent \? "is-complete" : reconciliationReady \? "is-available" : "is-locked"/);
   assert.match(panel, /disabled=\{!reconciliationReady\}/);
-  assert.match(monthlyCss, /\.reconcile-step\.ready \{[\s\S]*?border-color: #cfd5f7/);
-  assert.match(monthlyCss, /button\.reconciliation-action\.is-locked \{[\s\S]*?background: #eef1f5 !important;[\s\S]*?color: #9aa4b3 !important;/);
-  assert.match(monthlyCss, /button\.reconciliation-action\.is-ready \{[\s\S]*?background: var\(--violet\) !important;/);
+  assert.match(panel, /resultsCurrent \? "Conciliação concluída" : "Conciliação automática"/);
+  assert.match(monthlyCss, /button\.workflow-action\.is-available \{[\s\S]*?background: #fff !important;[\s\S]*?color: #566071 !important;/);
+  assert.match(monthlyCss, /button\.workflow-action\.is-locked \{[\s\S]*?background: #eef1f5 !important;/);
+  assert.match(monthlyCss, /button\.accounting-action\.is-complete \{[\s\S]*?background: var\(--success\) !important;/);
+  assert.match(monthlyCss, /button\.statements-action\.is-complete \{[\s\S]*?background: #f18700 !important;/);
+  assert.match(monthlyCss, /button\.reconciliation-action\.is-complete \{[\s\S]*?background: var\(--violet\) !important;/);
 });
 
 test("bloqueia uma nova conciliação até as duas fontes serem atualizadas novamente", () => {

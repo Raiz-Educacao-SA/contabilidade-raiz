@@ -1119,21 +1119,12 @@
 .source-steps article.ready > svg {
   color: var(--success);
 }
-.source-steps article button.source-loaded {
-  border-color: var(--success) !important;
-  background: var(--success) !important;
-  color: #fff !important;
+.source-steps article.statements-step.ready {
+  border-color: #ffd59a;
+  background: #fffaf2;
 }
-.source-steps article button.source-loaded:hover {
-  background: #14743d !important;
-}
-.source-steps article button.source-loaded-extracts {
-  border-color: #f18700 !important;
-  background: #f18700 !important;
-  color: #fff !important;
-}
-.source-steps article button.source-loaded-extracts:hover {
-  background: #d96f00 !important;
+.source-steps article.statements-step.ready > svg {
+  color: #f18700;
 }
 .source-step-number {
   position: absolute;
@@ -1156,26 +1147,53 @@
 .reconcile-step > svg {
   color: #9aa4b3 !important;
 }
-.reconcile-step.ready {
+.reconcile-step.completed {
   border-color: #cfd5f7 !important;
   background: #f9f8ff !important;
 }
-.reconcile-step.ready > svg {
+.reconcile-step.completed > svg {
   color: #5142bd !important;
 }
-.source-steps article button.reconciliation-action.is-locked {
+.source-steps article button.workflow-action.is-available {
+  border: 1px solid #cfd6e0 !important;
+  background: #fff !important;
+  color: #566071 !important;
+  opacity: 1;
+  cursor: pointer;
+}
+.source-steps article button.workflow-action.is-available:hover {
+  border-color: #9ca8b8 !important;
+  background: #f8fafc !important;
+}
+.source-steps article button.workflow-action.is-locked {
   border: 1px solid #d8dee8 !important;
   background: #eef1f5 !important;
   color: #9aa4b3 !important;
   opacity: 1;
   cursor: not-allowed;
 }
-.source-steps article button.reconciliation-action.is-ready {
-  background: var(--violet) !important;
+.source-steps article button.accounting-action.is-complete {
+  border-color: var(--success) !important;
+  background: var(--success) !important;
   color: #fff !important;
 }
-.source-steps article button.reconciliation-action.is-ready:hover {
-  background: var(--violet-dark) !important;
+.source-steps article button.accounting-action.is-complete:hover {
+  background: #14743d !important;
+}
+.source-steps article button.statements-action.is-complete {
+  border-color: #f18700 !important;
+  background: #f18700 !important;
+  color: #fff !important;
+}
+.source-steps article button.statements-action.is-complete:hover {
+  background: #d96f00 !important;
+}
+.source-steps article button.reconciliation-action.is-complete {
+  border-color: var(--violet) !important;
+  background: var(--violet) !important;
+  color: #fff !important;
+  opacity: 1;
+  cursor: not-allowed;
 }
 .all-reconciled {
   margin-top: 18px;
