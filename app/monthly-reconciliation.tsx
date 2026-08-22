@@ -1010,6 +1010,9 @@ function ReconciliationFormView({
   const visibleSections = result.validation.reconciled
     ? []
     : sections.filter((section) => section.rows.length > 0);
+  const dailyDifferences = result.validation.reconciled
+    ? []
+    : (result.validation.dailyDifferences ?? []);
   const diagnostics = result.diagnostics ?? [];
   const total = (rows: MatchRow[]) =>
     rows.reduce(
@@ -1059,6 +1062,10 @@ function ReconciliationFormView({
         <>
           <div className="form-summary">
             <article>
+              <span>Dias que explicam a diferença</span>
+              <b>{dailyDifferences.length}</b>
+            </article>
+            <article>
               <span>Diferença nas entradas</span>
               <b>{brl(result.validation.entryDifference)}</b>
             </article>
@@ -1076,13 +1083,52 @@ function ReconciliationFormView({
             </article>
           </div>
           <p className="form-explanation">
-            A conferência considera os totais mensais de entradas e saídas.
-            Diferenças de data dentro da mesma competência são desconsideradas
-            quando os valores se compensam no mês. Os volumes brutos dos itens
-            sem correspondência abaixo não são somados, evitando contar o mesmo
-            movimento nos dois lados.
+            A conferência valida primeiro os totais mensais de entradas e
+            saídas. Diferenças de data que se compensam dentro da competência
+            são desconsideradas. Quando o mês não fecha, a análise diária abaixo
+            localiza os dias que formam a diferença mensal. Os volumes brutos
+            dos itens sem correspondência não são somados, evitando contar o
+            mesmo movimento nos dois lados.
           </p>
           <div className="form-sections">
+            {dailyDifferences.length > 0 && (
+              <article className="daily-comparison">
+                <div className="form-section-title">
+                  <b>Localização diária da diferença mensal</b>
+                  <strong>{dailyDifferences.length} dia(s) para revisar</strong>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Entradas no extrato</th>
+                        <th>Débitos contábeis</th>
+                        <th>Dif. entradas</th>
+                        <th>Saídas no extrato</th>
+                        <th>Créditos contábeis</th>
+                        <th>Dif. saídas</th>
+                        <th>Dif. líquida</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailyDifferences.map((row) => (
+                        <tr key={row.date}>
+                          <td>{new Date(`${row.date}T00:00:00.000Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
+                          <td>{brl(row.bankCredits)}</td>
+                          <td>{brl(row.accountingDebits)}</td>
+                          <td><b>{brl(row.entryDifference)}</b></td>
+                          <td>{brl(row.bankDebits)}</td>
+                          <td>{brl(row.accountingCredits)}</td>
+                          <td><b>{brl(row.exitDifference)}</b></td>
+                          <td><b>{brl(row.netDifference)}</b></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            )}
             {diagnostics.length > 0 && (
               <article className="totvs-diagnostics">
                 <div className="form-section-title">

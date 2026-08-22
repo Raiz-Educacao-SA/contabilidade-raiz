@@ -381,7 +381,7 @@
 }
 .form-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   margin-top: 16px;
   background: #cfd3d8;
@@ -420,9 +420,11 @@
 .form-sections > article:first-child {
   grid-column: 1/-1;
 }
+.form-sections > .daily-comparison,
 .form-sections > .totvs-diagnostics {
   grid-column: 1/-1;
 }
+.form-sections > .daily-comparison td b,
 .form-sections > .totvs-diagnostics td b {
   color: #9f2d20;
 }
