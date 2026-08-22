@@ -360,6 +360,81 @@ test("vincula duas referências anônimas consolidadas à única conta de aplica
   assert.equal(result.unmatchedSources.length, 0);
 });
 
+test("pareia aplicação, conta corrente Santander e Sofisa sem misturar as fontes", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const statement = (
+    bankId: string,
+    sourceAccountId: string,
+    value: number,
+  ) => ({
+    bankId,
+    sourceAccountId,
+    rows: [
+      {
+        date: "2026-05-15",
+        description: `MOVIMENTO ${bankId}`,
+        id: `mov-${sourceAccountId}`,
+        value,
+      },
+    ],
+    metadata: {
+      account: "Sem número identificado",
+      agency: "",
+      closingBalance: null,
+      name: `Banco ${bankId}`,
+      openingBalance: null,
+      period: "05/2026",
+    },
+  });
+  const applicationSource = {
+    ...statement("000", "aplicacao", 0),
+    rows: [],
+    metadata: {
+      ...statement("000", "aplicacao", 0).metadata,
+      account: "Aplicação",
+      name: "Aplicação financeira",
+    },
+  };
+  const accounts = [
+    {
+      code: "1.1.1.03.03.09",
+      name: "Banco Santander - conta Aplic.13081360-6 (Raiz)",
+      rows: [{ date: new Date("2026-05-15T00:00:00.000Z"), value: -100 }],
+    },
+    {
+      code: "1.1.1.02.03.02",
+      name: "Banco Santander - conta 13081360-6 (Raiz)",
+      rows: [{ date: new Date("2026-05-20T00:00:00.000Z"), value: -100 }],
+    },
+    {
+      code: "1.1.1.02.15.03",
+      name: "Banco Sofisa - conta c/c 1013253 (Raiz Educação)",
+      rows: [{ date: new Date("2026-05-15T00:00:00.000Z"), value: -200 }],
+    },
+  ];
+
+  const result = resolveStatementBindings(
+    [statement("033", "santander-corrente", -100), statement("637", "sofisa", -200), applicationSource],
+    accounts,
+  );
+
+  assert.deepEqual(
+    Object.fromEntries(
+      result.pairs.map((pair: { account: { code: string }; source: { sourceAccountId: string } }) => [
+        pair.source.sourceAccountId,
+        pair.account.code,
+      ]),
+    ),
+    {
+      aplicacao: "1.1.1.03.03.09",
+      "santander-corrente": "1.1.1.02.03.02",
+      sofisa: "1.1.1.02.15.03",
+    },
+  );
+  assert.deepEqual(result.unmatchedAccounts, []);
+  assert.deepEqual(result.unmatchedSources, []);
+});
+
 test("reconhece aplicação presente em saldos mesmo sem posição ou movimento", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 
