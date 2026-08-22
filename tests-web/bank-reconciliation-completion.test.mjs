@@ -34,6 +34,9 @@ test("procura primeiro no dia e depois em toda a competência", () => {
 
 test("usa fonte compacta na ficha de divergências", () => {
   assert.match(monthlyCss, /\.reconciliation-form th,[\s\S]*?font-size: 9px/);
+  assert.match(monthlyCss, /\.form-identification b \{[\s\S]*?font-size: 10px/);
+  assert.match(monthlyCss, /\.form-summary b \{[\s\S]*?font-size: 13px/);
+  assert.match(monthlyCss, /\.reconciliation-form > header h2 \{[\s\S]*?font-size: 17px/);
 });
 
 test("compacta as etapas e os valores da conciliação bancária", () => {
