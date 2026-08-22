@@ -42,6 +42,20 @@ type AccountResult = Statement & {
   validation: ReturnType<typeof validateMonthly>;
   competence: string;
 };
+type WorkflowState = {
+  accounting: AccountingRow[];
+  bankAccounts: AccountingAccount[];
+  statements: Statement[];
+  results: AccountResult[];
+  notice: string;
+  dataEngineSources: DataEngineStatement[];
+  dataEngineOperations: DataEngineStatementOperations | null;
+  unmatchedSources: DataEngineStatement[];
+  unmatchedAccounts: AccountingAccount[];
+  accountingMessage: string;
+};
+
+const workflowCache = new Map<string, WorkflowState>();
 
 function loadStoredResults(historyKey: string): AccountResult[] {
   if (typeof window === "undefined") return [];
@@ -93,23 +107,38 @@ export default function MonthlyReconciliationPanel({
   accessToken: string;
   userId: string;
 }) {
-  const [accounting, setAccounting] = useState<AccountingRow[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<AccountingAccount[]>([]);
-  const [statements, setStatements] = useState<Statement[]>([]);
   const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
-  const [results, setResults] = useState<AccountResult[]>([]);
-  const [notice, setNotice] = useState("");
+  const [initialWorkflow] = useState(() => workflowCache.get(historyKey));
+  const [accounting, setAccounting] = useState<AccountingRow[]>(
+    () => initialWorkflow?.accounting ?? [],
+  );
+  const [bankAccounts, setBankAccounts] = useState<AccountingAccount[]>(
+    () => initialWorkflow?.bankAccounts ?? [],
+  );
+  const [statements, setStatements] = useState<Statement[]>(
+    () => initialWorkflow?.statements ?? [],
+  );
+  const [results, setResults] = useState<AccountResult[]>(
+    () => initialWorkflow?.results ?? [],
+  );
+  const [notice, setNotice] = useState(() => initialWorkflow?.notice ?? "");
   const [dataEngineSources, setDataEngineSources] = useState<
     DataEngineStatement[]
-  >([]);
+  >(() => initialWorkflow?.dataEngineSources ?? []);
   const [dataEngineOperations, setDataEngineOperations] =
-    useState<DataEngineStatementOperations | null>(null);
-  const [unmatchedSources, setUnmatchedSources] = useState<DataEngineStatement[]>([]);
-  const [unmatchedAccounts, setUnmatchedAccounts] = useState<AccountingAccount[]>([]);
+    useState<DataEngineStatementOperations | null>(
+      () => initialWorkflow?.dataEngineOperations ?? null,
+    );
+  const [unmatchedSources, setUnmatchedSources] = useState<DataEngineStatement[]>(
+    () => initialWorkflow?.unmatchedSources ?? [],
+  );
+  const [unmatchedAccounts, setUnmatchedAccounts] = useState<AccountingAccount[]>(
+    () => initialWorkflow?.unmatchedAccounts ?? [],
+  );
   const [dataEngineBusy, setDataEngineBusy] = useState(false);
   const [accountingBusy, setAccountingBusy] = useState(false);
   const [accountingMessage, setAccountingMessage] = useState(
-    "Aguardando atualização no TOTVS",
+    () => initialWorkflow?.accountingMessage ?? "Aguardando atualização no TOTVS",
   );
   const accountingRequestRef = useRef(0);
   const dataEngineRequestRef = useRef(0);
@@ -118,7 +147,8 @@ export default function MonthlyReconciliationPanel({
   const pending = unmatchedAccounts;
   const statementsReady = statements.length > 0;
   const accountingReady = accounting.length > 0;
-  const reconciliationReady = statementsReady && accountingReady;
+  const reconciliationReady =
+    statementsReady && accountingReady && !accountingBusy && !dataEngineBusy;
   const allRows = useMemo(
     () => results
       .filter((result) => !result.validation.reconciled)
@@ -130,7 +160,13 @@ export default function MonthlyReconciliationPanel({
     () => results.filter((result) => !result.validation.reconciled),
     [results],
   );
+  const resultsByAccount = useMemo(
+    () => new Map(results.map((result) => [result.account.code, result])),
+    [results],
+  );
   const reconciledCount = results.length - divergentResults.length;
+  const coverageReady = accountingReady && dataEngineOperations !== null;
+  const unmatchedTotal = unmatchedAccounts.length + unmatchedSources.length;
   const completionIdentity = financialCompletionIdentity("bancaria", companyCode, companyName);
 
   useEffect(
@@ -142,12 +178,40 @@ export default function MonthlyReconciliationPanel({
   );
 
   useEffect(() => {
+    if (initialWorkflow) return;
     let active = true;
     void Promise.resolve().then(() => {
       if (active) setResults(loadStoredResults(historyKey));
     });
     return () => { active = false; };
-  }, [historyKey]);
+  }, [historyKey, initialWorkflow]);
+
+  useEffect(() => {
+    workflowCache.set(historyKey, {
+      accounting,
+      bankAccounts,
+      statements,
+      results,
+      notice,
+      dataEngineSources,
+      dataEngineOperations,
+      unmatchedSources,
+      unmatchedAccounts,
+      accountingMessage,
+    });
+  }, [
+    accounting,
+    accountingMessage,
+    bankAccounts,
+    dataEngineOperations,
+    dataEngineSources,
+    historyKey,
+    notice,
+    results,
+    statements,
+    unmatchedAccounts,
+    unmatchedSources,
+  ]);
 
   function keepResults(completed: AccountResult[]) {
     setResults((current) => {
@@ -181,9 +245,6 @@ export default function MonthlyReconciliationPanel({
     accountingRequestRef.current = requestId;
     const requestIsCurrent = () => accountingRequestRef.current === requestId;
     setAccountingBusy(true);
-    setAccounting([]);
-    setBankAccounts([]);
-    setStatements([]);
     try {
       const response = await fetch(
         `/api/totvs/accounting?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -240,9 +301,6 @@ export default function MonthlyReconciliationPanel({
     dataEngineRequestRef.current = requestId;
     const requestIsCurrent = () => dataEngineRequestRef.current === requestId;
     setDataEngineBusy(true);
-    setDataEngineSources([]);
-    setDataEngineOperations(null);
-    setStatements([]);
     try {
       const response = await fetch(
         `/api/data-engine/statements?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -469,7 +527,7 @@ export default function MonthlyReconciliationPanel({
               <b>Conciliação automática</b>
               <span>
                 {results.length
-                  ? `${reconciledCount} conciliada(s) e ${divergentResults.length} com divergência`
+                  ? `${statements.length} encontrada(s) · ${reconciledCount} conciliada(s) · ${divergentResults.length} divergente(s)`
                   : "Compara extrato × contábil pelo movimento total do mês"}
               </span>
             </div>
@@ -484,105 +542,189 @@ export default function MonthlyReconciliationPanel({
           </article>
         </div>
       </div>
-      {dataEngineSources.length > 0 && (
-        <div className="drive-files">
-          {dataEngineSources.map((source) => (
-            <article key={source.sourceAccountId}>
-              <Landmark />
-              <div>
-                <b>
-                  Banco {source.bankId} — conta protegida {source.metadata.account}
-                </b>
-                <span>{source.rows.length} movimento(s) nesta competência</span>
-              </div>
-              <b>
-                {statements.some((item) => item.metadata === source.metadata)
-                  ? "Conta contábil identificada automaticamente"
-                  : "Extrato sem conta contábil correspondente"}
-              </b>
-            </article>
-          ))}
-        </div>
-      )}
-      {(unmatchedSources.length > 0 || unmatchedAccounts.length > 0) && (
-        <div className="notice error" role="alert">
-          {unmatchedSources.length > 0 && (
-            <div>{unmatchedSources.length} extrato(s) ficaram sem conta contábil correspondente.</div>
-          )}
-          {unmatchedAccounts.length > 0 && (
-            <div>{unmatchedAccounts.length} conta(s) contábil(eis) da empresa ficaram sem extrato.</div>
-          )}
-        </div>
-      )}
-      {dataEngineOperations && (
-        <div className="drive-files" aria-label="Saúde das APIs de extratos">
-          {Object.entries(dataEngineOperations).map(([operation, records]) => (
-            <article key={operation}>
-              <CheckCircle2 />
-              <div>
-                <b>{operation}</b>
-                <span>{records} registro(s) autorizado(s)</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-      {bankAccounts.length > 0 && (
-        <>
-          <div className="queue-head">
+      {coverageReady && (
+        <section className="account-coverage" aria-labelledby="account-coverage-title">
+          <header className="coverage-heading">
             <div>
-              <h3>2. Extratos por conta</h3>
+              <span>COBERTURA DAS CONTAS</span>
+              <h3 id="account-coverage-title">
+                Contas encontradas e não encontradas
+              </h3>
               <p>
-                O sistema identifica automaticamente a conta de cada extrato e
-                destaca apenas as coberturas ausentes.
+                Compare claramente o que foi localizado nas duas bases e o que
+                ainda está sem correspondência.
               </p>
             </div>
-            <b>
-              {statements.length}/{bankAccounts.length} identificados
+            <b className={`coverage-overall ${unmatchedTotal ? "warning" : "ok"}`}>
+              {unmatchedTotal
+                ? `${unmatchedTotal} item(ns) sem correspondência`
+                : "Cobertura completa"}
             </b>
+          </header>
+
+          <div className="coverage-summary" aria-label="Resumo da cobertura das contas">
+            <article className="matched">
+              <CheckCircle2 />
+              <div>
+                <span>Encontradas nas duas bases</span>
+                <strong>{statements.length}</strong>
+                <small>Conta contábil + extrato</small>
+              </div>
+            </article>
+            <article className="missing-accounting">
+              <Database />
+              <div>
+                <span>Somente na contabilidade</span>
+                <strong>{unmatchedAccounts.length}</strong>
+                <small>Sem extrato correspondente</small>
+              </div>
+            </article>
+            <article className="missing-statement">
+              <Landmark />
+              <div>
+                <span>Somente nos extratos</span>
+                <strong>{unmatchedSources.length}</strong>
+                <small>Sem conta contábil correspondente</small>
+              </div>
+            </article>
           </div>
-          <div className="account-queue">
-            {bankAccounts.map((account) => {
-              const statement = statements.find(
-                (item) => item.account.code === account.code,
-              );
-              const reconciled = results.some(
-                (item) => item.account.code === account.code,
-              );
-              return (
-                <article
-                  key={account.code}
-                  className={statement ? "received" : "requested"}
-                >
-                  <span className="account-state">
-                    {statement ? <CheckCircle2 /> : <Landmark />}
-                  </span>
+
+          <section className="coverage-group matched">
+            <header>
+              <div>
+                <CheckCircle2 />
+                <div>
+                  <h4>Encontradas nas duas bases</h4>
+                  <p>Estas contas têm conta contábil e extrato identificados.</p>
+                </div>
+              </div>
+              <b>{statements.length}</b>
+            </header>
+            <ul className="coverage-list">
+              {statements.length ? (
+                statements.map((statement) => {
+                  const savedResult = resultsByAccount.get(statement.account.code);
+                  const status = savedResult
+                    ? savedResult.validation.reconciled
+                      ? "Conciliada"
+                      : "Com divergência"
+                    : "Pronta para conciliar";
+                  return (
+                    <li key={statement.account.code}>
+                      <span className="coverage-item-icon"><CheckCircle2 /></span>
+                      <div>
+                        <b>{statement.account.code} — {statement.account.name}</b>
+                        <small>
+                          Banco {statement.metadata.name || statement.metadata.account || "identificado"}
+                          {` · ${statement.bank.length} movimento(s) no extrato`}
+                        </small>
+                      </div>
+                      <span className={`coverage-status ${savedResult?.validation.reconciled ? "ok" : savedResult ? "warning" : "ready"}`}>
+                        {status}
+                      </span>
+                      <button
+                        className="reconcile-one"
+                        onClick={() => runOne(statement)}
+                      >
+                        <ArrowLeftRight />
+                        {savedResult ? "Conciliar novamente" : "Conciliar esta conta"}
+                      </button>
+                    </li>
+                  );
+                })
+              ) : (
+                <li className="coverage-empty">
+                  Nenhuma correspondência automática foi encontrada.
+                </li>
+              )}
+            </ul>
+          </section>
+
+          <section className="coverage-group missing">
+            <header>
+              <div>
+                <XCircle />
+                <div>
+                  <h4>Não encontradas</h4>
+                  <p>Estas contas precisam de correção ou complementação da fonte ausente.</p>
+                </div>
+              </div>
+              <b>{unmatchedTotal}</b>
+            </header>
+            <div className="coverage-missing-grid">
+              <section>
+                <header>
+                  <Database />
                   <div>
-                    <b>
-                      {account.code} — {account.name}
-                    </b>
-                    <small>
-                      {statement
-                        ? `${reconciled ? "Conciliação salva" : "Extrato identificado"}: ${statement.fileName}`
-                        : "Conta contábil sem extrato correspondente"}
-                    </small>
+                    <h5>Conta contábil sem extrato</h5>
+                    <span>{unmatchedAccounts.length} conta(s)</span>
                   </div>
-                  {statement && (
-                    <button
-                      className="reconcile-one"
-                      onClick={() => runOne(statement)}
-                    >
-                      <ArrowLeftRight />
-                      {reconciled
-                        ? "Conciliar novamente"
-                        : "Conciliar esta conta"}
-                    </button>
+                </header>
+                <ul className="coverage-list">
+                  {unmatchedAccounts.length ? (
+                    unmatchedAccounts.map((account) => (
+                      <li key={account.code}>
+                        <span className="coverage-item-icon"><Database /></span>
+                        <div>
+                          <b>{account.code} — {account.name}</b>
+                          <small>Não foi encontrado extrato bancário correspondente.</small>
+                        </div>
+                        <span className="coverage-status missing">Falta extrato</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="coverage-empty ok">
+                      <CheckCircle2 /> Nenhuma conta nesta situação.
+                    </li>
                   )}
-                </article>
-              );
-            })}
+                </ul>
+              </section>
+              <section>
+                <header>
+                  <Landmark />
+                  <div>
+                    <h5>Extrato sem conta contábil</h5>
+                    <span>{unmatchedSources.length} extrato(s)</span>
+                  </div>
+                </header>
+                <ul className="coverage-list">
+                  {unmatchedSources.length ? (
+                    unmatchedSources.map((source) => (
+                      <li key={source.sourceAccountId}>
+                        <span className="coverage-item-icon"><Landmark /></span>
+                        <div>
+                          <b>Banco {source.bankId} — referência {source.metadata.account || source.sourceAccountId.slice(0, 12)}</b>
+                          <small>{source.rows.length} movimento(s); nenhuma conta contábil correspondente.</small>
+                        </div>
+                        <span className="coverage-status missing">Falta conta</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="coverage-empty ok">
+                      <CheckCircle2 /> Nenhum extrato nesta situação.
+                    </li>
+                  )}
+                </ul>
+              </section>
+            </div>
+          </section>
+        </section>
+      )}
+      {dataEngineOperations && (
+        <details className="integration-health">
+          <summary>Detalhes técnicos da atualização dos extratos</summary>
+          <div className="drive-files" aria-label="Saúde das APIs de extratos">
+            {Object.entries(dataEngineOperations).map(([operation, records]) => (
+              <article key={operation}>
+                <CheckCircle2 />
+                <div>
+                  <b>{operation}</b>
+                  <span>{records} registro(s) autorizado(s)</span>
+                </div>
+              </article>
+            ))}
           </div>
-        </>
+        </details>
       )}
       {results.length > 0 && (
         <div className="saved-history">
@@ -592,9 +734,9 @@ export default function MonthlyReconciliationPanel({
               Última conciliação — {competence.split("-").reverse().join("/")}
             </h3>
             <p>
-              {reconciledCount} conta(s) conciliada(s). Somente as{" "}
-              {divergentResults.length} conta(s) com divergência aparecem abaixo
-              para tratamento.
+              {results.length} conta(s) encontradas nas duas bases: {reconciledCount}{" "}
+              conciliada(s) e {divergentResults.length} com divergência. Há{" "}
+              {unmatchedTotal} item(ns) sem correspondência entre as fontes.
             </p>
           </div>
         </div>
