@@ -222,6 +222,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     "237": /BRADESCO/i,
     "341": /ITA[UÚ]/i,
     "422": /SAFRA/i,
+    "637": /SOFISA/i,
     "748": /SICREDI/i,
     "756": /SICOOB/i,
   };
@@ -232,6 +233,9 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     anonymousApplicationSeen = true;
     return [source];
   });
+  const hasAnonymousApplicationSource = normalizedSources.some(
+    isAnonymousApplicationStatement,
+  );
   const remainingAccounts = new Map(accounts.map((account) => [account.code, account]));
   const remainingSources = new Map(
     normalizedSources.map((source) => [source.sourceAccountId, source]),
@@ -300,18 +304,8 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       ),
     );
   }
-  // Prioridade 2: código do banco quando ele identifica uma única conta contábil.
-  for (const source of Array.from(remainingSources.values())) {
-    const bankPattern = bankNames[source.bankId.padStart(3, "0")];
-    if (!bankPattern) continue;
-    const candidates = Array.from(remainingAccounts.values()).filter((account) =>
-      bankPattern.test(account.name ?? ""),
-    );
-    if (bindByMovementEvidence(source, candidates)) continue;
-    bindUnique(source, candidates);
-  }
-  // Prioridade 3: uma referência anônima de aplicação pertence à única conta
-  // contábil identificada nominalmente como aplicação ou investimento.
+  // Prioridade 2: a referência anônima de aplicação deve reservar a conta
+  // contábil de aplicação antes que um extrato transacional do mesmo banco a consuma.
   for (const source of Array.from(remainingSources.values())) {
     if (!isAnonymousApplicationStatement(source)) continue;
     bindUnique(
@@ -320,6 +314,22 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
       ),
     );
+  }
+  // Prioridade 3: código do banco quando ele identifica uma única conta contábil.
+  for (const source of Array.from(remainingSources.values())) {
+    const bankPattern = bankNames[source.bankId.padStart(3, "0")];
+    if (!bankPattern) continue;
+    let candidates = Array.from(remainingAccounts.values()).filter((account) =>
+      bankPattern.test(account.name ?? ""),
+    );
+    if (hasAnonymousApplicationSource && source.rows.length > 0) {
+      const transactionAccounts = candidates.filter(
+        (account) => !APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
+      );
+      if (transactionAccounts.length > 0) candidates = transactionAccounts;
+    }
+    if (bindByMovementEvidence(source, candidates)) continue;
+    bindUnique(source, candidates);
   }
   // Último caso seguro: resta exatamente um extrato e uma conta.
   if (remainingSources.size === 1 && remainingAccounts.size === 1) {

@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import { isAccountingAccountEligibleForBankReconciliation } from "@/lib/reconciliation-account-eligibility";
 import { reconcileMovements } from "@/lib/reconciliation-matcher";
 export { validateMonthly } from "@/lib/reconciliation-monthly";
 
@@ -222,9 +223,12 @@ export function detectAccountingAccount(
 export function accountingBankAccounts(accounting: AccountingRow[]) {
   const groups = Array.from(new Map(accounting.map((row) => [row.account, { code: row.account, name: row.accountName, rows: [] as AccountingRow[] }])).values());
   accounting.forEach((row) => groups.find((item) => item.code === row.account)?.rows.push(row));
+  const eligibleGroups = groups.filter((item) =>
+    isAccountingAccountEligibleForBankReconciliation(item.name),
+  );
   const bankTerms = /BANCO|ITA[UÚ]|BRADESCO|SANTANDER|CAIXA|SICOOB|SICREDI|NUBANK|CONTA CORRENTE|CONTA BANC[AÁ]RIA|APLICA[CÇ][AÃ]O/iu;
-  const bankGroups = groups.filter((item) => bankTerms.test(item.name));
-  return (bankGroups.length ? bankGroups : groups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
+  const bankGroups = eligibleGroups.filter((item) => bankTerms.test(item.name));
+  return (bankGroups.length ? bankGroups : eligibleGroups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
 }
 
 export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceValue = 0.01) {
