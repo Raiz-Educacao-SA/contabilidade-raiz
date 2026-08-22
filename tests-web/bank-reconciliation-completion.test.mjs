@@ -104,9 +104,12 @@ test("usa melhor a área útil e reduz os espaços em branco", () => {
 });
 
 test("reduz também as fontes do cabeçalho, filtros e ações", () => {
-  assert.match(modulesCss, /\.bank-content > header h1 \{ font-size: 21px/);
+  assert.match(modulesCss, /\.bank-content > header h1 \{ font-size: 18px/);
   assert.match(modulesCss, /\.bank-content \.filter-heading b \{ font-size: 8px/);
   assert.match(modulesCss, /\.bank-content \.top-context select \{ font-size: 9px/);
+  assert.match(modulesCss, /\.bank-content \.company-select-stack \{ grid-template-rows: 22px auto; gap: 1px; \}/);
+  assert.match(modulesCss, /\.bank-content \.company-select-stack select \{ height: 22px; \}/);
+  assert.match(modulesCss, /\.bank-content \.company-control \{ overflow: hidden; \}/);
   assert.match(monthlyCss, /\.bank-content \.monthly-flow \.panel-title h2 \{ font-size: 12px/);
   assert.match(monthlyCss, /\.bank-content \.monthly-flow \.panel-title p \{ font-size: 8px/);
   assert.match(monthlyCss, /\.bank-content \.monthly-flow \.history-actions button \{ font-size: 8px/);

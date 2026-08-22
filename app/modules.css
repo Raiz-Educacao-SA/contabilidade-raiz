@@ -1984,7 +1984,7 @@
 .bank-shell .current-module { font-size: 10px; line-height: 1.25; }
 .bank-content { padding: 18px clamp(14px, 2vw, 28px) 32px; }
 .bank-content > header .eyebrow { font-size: 7px; }
-.bank-content > header h1 { font-size: 21px; margin: 2px 0; }
+.bank-content > header h1 { font-size: 18px; margin: 2px 0; }
 .bank-content > header p { font-size: 9px; }
 .bank-content .user-chip { font-size: 8px; padding: 6px 9px; }
 .bank-content .top-context { margin: 10px 0 10px; padding: 7px; gap: 7px; }
@@ -1998,7 +1998,17 @@
 .bank-content .top-context label > span { font-size: 7px; }
 .bank-content .top-context input,
 .bank-content .top-context select { font-size: 9px; }
-.bank-content .company-select-stack small { font-size: 6px; }
+.bank-content .company-control { overflow: hidden; }
+.bank-content .company-select-stack { grid-template-rows: 22px auto; gap: 1px; }
+.bank-content .company-select-stack select { height: 22px; }
+.bank-content .company-select-stack small {
+  display: block;
+  overflow: hidden;
+  padding-left: 8px;
+  font-size: 6px;
+  line-height: 1;
+  text-overflow: ellipsis;
+}
 .tax-top-branches .tax-all-branches {
   color: #0f6d4a;
   background: #eaf8f1;
