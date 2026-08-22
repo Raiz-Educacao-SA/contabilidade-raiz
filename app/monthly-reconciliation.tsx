@@ -540,11 +540,12 @@ export default function MonthlyReconciliationPanel({
   return (
     <section className="panel monthly-flow">
       <div className="panel-title">
-        <div>
-          <h2>Conciliação mensal por movimento</h2>
+        <div className="source-control-title">
+          <span>ATUALIZAÇÃO DAS FONTES</span>
+          <h2>Preparar conciliação por movimento</h2>
           <p>
-            Concilie cada conta assim que o extrato chegar ou execute todas
-            juntas ao final.
+            Atualize a base contábil e os extratos antes de executar a
+            conferência do mês.
           </p>
         </div>
         <div className="history-actions">
@@ -584,14 +585,6 @@ export default function MonthlyReconciliationPanel({
         </div>
       )}
       <div className="source-control">
-        <div className="source-control-title">
-          <span>ATUALIZAÇÃO DAS FONTES</span>
-          <h3>Preparar conciliação por movimento</h3>
-          <p>
-            Atualize a base contábil e os extratos antes de executar a
-            conferência do mês.
-          </p>
-        </div>
         <div className="source-steps">
           <article className={`${accountingStepComplete ? "ready" : "waiting"} accounting-step`}>
             <div className="source-step-number">1</div>
