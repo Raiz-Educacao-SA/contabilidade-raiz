@@ -34,6 +34,26 @@ test("aponta somente quando o total mensal diverge", async () => {
   assert.equal(validation.reconciled, false);
 });
 
+test("considera conciliado quando as datas diferem, mas os totais mensais fecham", async () => {
+  const { validateMonthly } = await import(moduleUrl.href);
+  const validation = validateMonthly(
+    [
+      { date: new Date("2026-05-04T00:00:00Z"), value: 100 },
+      { date: new Date("2026-05-10T00:00:00Z"), value: -40 },
+    ],
+    [
+      { date: new Date("2026-05-29T00:00:00Z"), value: 100 },
+      { date: new Date("2026-05-31T00:00:00Z"), value: -40 },
+    ],
+    { openingBalance: null, closingBalance: null },
+  );
+
+  assert.equal(validation.entryDifference, 0);
+  assert.equal(validation.exitDifference, 0);
+  assert.equal(validation.reconciled, true);
+  assert.ok(validation.dailyDifferences.length > 0);
+});
+
 test("considera débitos e créditos na diferença mensal exibida", async () => {
   const { validateMonthly } = await import(moduleUrl.href);
   const validation = validateMonthly(

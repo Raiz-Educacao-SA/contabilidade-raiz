@@ -30,7 +30,9 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /Créditos lançados na contabilidade não identificados no extrato/);
   assert.match(panel, /Sem lançamento na contabilidade/);
   assert.match(panel, /Sem movimento no extrato/);
-  assert.match(panel, /Comparação diária entre extrato e contabilidade/);
+  assert.doesNotMatch(panel, /Comparação diária entre extrato e contabilidade/);
+  assert.doesNotMatch(panel, /Dias com diferença/);
+  assert.match(panel, /Diferenças de data dentro da mesma competência são desconsideradas/);
   assert.match(panel, /Diferença nas entradas/);
   assert.match(panel, /Diferença nas saídas/);
   assert.match(panel, /Diferença líquida/);
@@ -38,11 +40,13 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.doesNotMatch(panel, /Total das pendências detalhadas/);
 });
 
-test("procura primeiro no dia e depois em toda a competência", () => {
+test("procura no dia e depois agrupa os valores que fecham na competência", () => {
   assert.match(matcher, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
   assert.match(matcher, /monthKey\(a\.date\) === monthKey\(b\.date\)/);
   assert.match(matcher, /matchDailyGroups\(\)/);
   assert.match(matcher, /Total diário agrupado/);
+  assert.match(matcher, /matchMonthlyGroups\(\)/);
+  assert.match(matcher, /Total mensal agrupado/);
   assert.doesNotMatch(matcher, /days <= toleranceDays/);
   assert.match(reconciliation, /reconcileMovements/);
 });
