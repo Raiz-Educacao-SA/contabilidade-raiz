@@ -1981,17 +1981,17 @@
 .bank-shell aside nav button,
 .bank-shell .logout { font-size: 11px; }
 .bank-shell .current-module { font-size: 10px; line-height: 1.25; }
-.bank-content > header .eyebrow { font-size: 8px; }
-.bank-content > header h1 { font-size: 25px; margin: 3px 0; }
-.bank-content > header p { font-size: 11px; }
-.bank-content .user-chip { font-size: 10px; padding: 7px 10px; }
-.bank-content .top-context { margin-top: 18px; }
-.bank-content .filter-heading b { font-size: 9px; }
-.bank-content .filter-heading small { font-size: 8px; }
-.bank-content .top-context label > span { font-size: 8px; }
+.bank-content > header .eyebrow { font-size: 7px; }
+.bank-content > header h1 { font-size: 21px; margin: 2px 0; }
+.bank-content > header p { font-size: 9px; }
+.bank-content .user-chip { font-size: 8px; padding: 6px 9px; }
+.bank-content .top-context { margin-top: 14px; }
+.bank-content .filter-heading b { font-size: 8px; }
+.bank-content .filter-heading small { font-size: 7px; }
+.bank-content .top-context label > span { font-size: 7px; }
 .bank-content .top-context input,
-.bank-content .top-context select { font-size: 10px; }
-.bank-content .company-select-stack small { font-size: 7px; }
+.bank-content .top-context select { font-size: 9px; }
+.bank-content .company-select-stack small { font-size: 6px; }
 .tax-top-branches .tax-all-branches {
   color: #0f6d4a;
   background: #eaf8f1;
