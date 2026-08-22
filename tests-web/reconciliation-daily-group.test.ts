@@ -37,3 +37,37 @@ test("mantém como exceção o total diário que realmente não fecha", async ()
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 2);
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 1);
 });
+
+test("desconsidera diferenças de data quando entradas e saídas fecham no mês", async () => {
+  const { reconcileMovements: reconcile } = await import(moduleUrl.href);
+  const rows = reconcile(
+    [
+      { id: "b1", date: new Date("2026-05-04T00:00:00Z"), description: "Entrada 1", value: 69000 },
+      { id: "b2", date: new Date("2026-05-07T00:00:00Z"), description: "Entrada 2", value: 67000 },
+      { id: "b3", date: new Date("2026-05-09T00:00:00Z"), description: "Saída 1", value: -36000 },
+      { id: "b4", date: new Date("2026-05-12T00:00:00Z"), description: "Saída 2", value: -100000 },
+    ],
+    [
+      { id: "c1", date: new Date("2026-05-30T00:00:00Z"), value: 136000, nature: "Débito", account: "1", accountName: "Santander" },
+      { id: "c2", date: new Date("2026-05-31T00:00:00Z"), value: -136000, nature: "Crédito", account: "1", accountName: "Santander" },
+    ],
+  );
+
+  assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 0);
+  assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 0);
+  assert.equal(rows.filter((row: { description?: string }) => row.description?.includes("Total mensal agrupado")).length, 2);
+});
+
+test("mantém a diferença real quando o total mensal não fecha", async () => {
+  const { reconcileMovements: reconcile } = await import(moduleUrl.href);
+  const rows = reconcile(
+    [
+      { id: "b1", date: new Date("2026-05-04T00:00:00Z"), description: "Entrada 1", value: 69000 },
+      { id: "b2", date: new Date("2026-05-07T00:00:00Z"), description: "Entrada 2", value: 67000 },
+    ],
+    [{ id: "c1", date: new Date("2026-05-30T00:00:00Z"), value: 135999, nature: "Débito", account: "1", accountName: "Santander" }],
+  );
+
+  assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 2);
+  assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 1);
+});
