@@ -87,20 +87,24 @@ export async function GET(request: NextRequest) {
       },
       {},
     );
+    const movementRecords = snapshot.statements.reduce(
+      (total, statement) => total + statement.rows.length,
+      0,
+    );
     console.info("[data-engine/statements] consulta concluída", {
       company,
       competence,
       diagnostics: snapshot.diagnostics,
       movementsByBank,
       operations: snapshot.operations,
-      records: snapshot.operations.movimentos,
+      records: movementRecords,
       statementCount: snapshot.statements.length,
     });
     return NextResponse.json(
       {
         company,
         competence,
-        records: snapshot.operations.movimentos,
+        records: movementRecords,
         source: "Raiz Data Engine",
         statements: snapshot.statements,
         operations: snapshot.operations,
