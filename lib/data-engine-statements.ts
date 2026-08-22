@@ -33,6 +33,8 @@ export type DataEngineStatementSnapshot = {
   operations: DataEngineStatementOperations;
   diagnostics: {
     recognizedWithoutMovements: number;
+    pendingFieldsObserved: string[];
+    pendingObjectsInspected: number;
     pendingMovementsUsed: number;
     pendingSourcesUsed: number;
     sourceCandidates: {
@@ -87,6 +89,8 @@ const PAGE_SIZE = 200;
 const MAX_PAGE_REQUESTS = 500;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_SOURCE_ACCOUNT_ID_LENGTH = 256;
+const MAX_PENDING_OBJECTS = 10_000;
+const MAX_PENDING_DEPTH = 6;
 const APPLICATION_ACCOUNT_PATTERN = /APLIC|INVESTIMENTO|CDB|FUNDO/iu;
 
 function isAnonymousApplicationStatement(statement: DataEngineStatement) {
@@ -365,10 +369,30 @@ function governedSourceIdentity(record: Record<string, unknown>) {
     "sourceAccountId",
     "bank_account_id",
     "account_id",
+    "account_ref",
     "conta_bancaria_id",
+    "conta_id",
+    "id_conta",
     "conta_origem_id",
     "id_conta_origem",
   ]);
+}
+
+function governedDecimalInCents(
+  record: Record<string, unknown>,
+  fields: string[],
+) {
+  const rawValue = governedText(record, fields);
+  if (!rawValue) return null;
+  const normalized = rawValue
+    .replace(/\s/g, "")
+    .replace(/^R\$/i, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && Number.isSafeInteger(Math.round(parsed * 100))
+    ? Math.round(parsed * 100)
+    : null;
 }
 
 function governedInteger(record: Record<string, unknown>, fields: string[]) {
@@ -390,17 +414,14 @@ function governedMoneyInCents(record: Record<string, unknown>) {
   ]);
   if (explicitCents !== null) return explicitCents;
 
-  const rawValue = governedText(record, ["valor", "amount", "value"]);
-  if (!rawValue) return null;
-  const normalized = rawValue
-    .replace(/\s/g, "")
-    .replace(/^R\$/i, "")
-    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
-    .replace(",", ".");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) && Number.isSafeInteger(Math.round(parsed * 100))
-    ? Math.round(parsed * 100)
-    : null;
+  return governedDecimalInCents(record, [
+    "valor",
+    "amount",
+    "value",
+    "valor_lancamento",
+    "valor_movimento",
+    "transaction_amount",
+  ]);
 }
 
 function governedNature(record: Record<string, unknown>): "C" | "D" | null {
@@ -410,6 +431,9 @@ function governedNature(record: Record<string, unknown>): "C" | "D" | null {
     "debit_credit",
     "tipo_movimento",
     "transaction_type",
+    "debito_credito",
+    "dc",
+    "tipo",
   ])
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -417,6 +441,121 @@ function governedNature(record: Record<string, unknown>): "C" | "D" | null {
   if (["C", "CREDITO", "CREDIT", "ENTRADA"].includes(value)) return "C";
   if (["D", "DEBITO", "DEBIT", "SAIDA"].includes(value)) return "D";
   return null;
+}
+
+function pendingRecordObjects(root: Record<string, unknown>) {
+  const records: Array<Record<string, unknown>> = [];
+  const queue: Array<{ depth: number; value: unknown }> = [
+    { depth: 0, value: root },
+  ];
+  let queueIndex = 0;
+  const seen = new Set<object>();
+  while (queueIndex < queue.length && records.length < MAX_PENDING_OBJECTS) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
+    if (!current || current.depth > MAX_PENDING_DEPTH) continue;
+    const { value } = current;
+    if (typeof value === "string") {
+      const text = value.trim();
+      if (
+        text.length <= 1_000_000 &&
+        (text.startsWith("{") || text.startsWith("["))
+      ) {
+        try {
+          queue.push({ depth: current.depth + 1, value: JSON.parse(text) });
+        } catch {
+          // Conteúdo textual comum não é um payload JSON.
+        }
+      }
+      continue;
+    }
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        queue.push({ depth: current.depth + 1, value: item });
+      }
+      continue;
+    }
+    const record = value as Record<string, unknown>;
+    records.push(record);
+    for (const nested of Object.values(record)) {
+      if (nested && (typeof nested === "object" || typeof nested === "string")) {
+        queue.push({ depth: current.depth + 1, value: nested });
+      }
+    }
+  }
+  return records;
+}
+
+function pendingContext(
+  root: Record<string, unknown>,
+  records: Array<Record<string, unknown>>,
+) {
+  const texts = (fields: string[]) =>
+    records.map((record) => governedText(record, fields)).filter(Boolean);
+  const explicitBankId = texts([
+    "bank_id",
+    "codigo_banco",
+    "bank_code",
+    "cod_banco",
+    "codigo_compensacao",
+    "banco",
+  ]).find((value) => /^0*\d{1,3}$/.test(value));
+  const bankNames = texts([
+    "bank_name",
+    "nome_banco",
+    "banco",
+    "instituicao",
+    "instituicao_financeira",
+    "file_name",
+    "filename",
+    "nome_arquivo",
+    "object_name",
+  ]).join(" ");
+  const normalizedBankName = bankNames
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  const bankByName: Array<[RegExp, string]> = [
+    [/SICOOB/, "756"],
+    [/SICREDI/, "748"],
+    [/SANTANDER/, "033"],
+    [/ITAU/, "341"],
+    [/CAIXA/, "104"],
+    [/BRADESCO/, "237"],
+    [/SOFISA/, "637"],
+    [/SAFRA/, "422"],
+    [/BANCO DO BRASIL/, "001"],
+  ];
+  const bankId = explicitBankId
+    ? explicitBankId.replace(/^0+/, "").padStart(3, "0")
+    : bankByName.find(([pattern]) => pattern.test(normalizedBankName))?.[1] ?? "";
+  const explicitSource = records
+    .map(governedSourceIdentity)
+    .find(Boolean);
+  const account = texts([
+    "account_number",
+    "numero_conta",
+    "conta_bancaria",
+    "conta",
+    "nr_conta",
+  ])[0] ?? "";
+  const agency = texts([
+    "agency",
+    "agencia",
+    "branch_number",
+    "numero_agencia",
+    "nr_agencia",
+  ])[0] ?? "";
+  const sourceAccountId =
+    explicitSource ||
+    (bankId && account ? `pendencia:${bankId}:${agency}:${account}` : "");
+  return {
+    ...root,
+    ...(bankId ? { bank_id: bankId } : {}),
+    ...(sourceAccountId ? { source_account_id: sourceAccountId } : {}),
+  };
 }
 
 function pendingRecordToMovement(
@@ -433,30 +572,55 @@ function pendingRecordToMovement(
   const date = governedText(record, [
     "data_lancamento",
     "transaction_date",
+    "transactionDate",
     "movement_date",
     "data_movimento",
+    "data_transacao",
+    "data_operacao",
+    "posting_date",
+    "posted_at",
     "dt_lancamento",
     "data",
     "date",
   ]).slice(0, 10);
-  const valueInCents = governedMoneyInCents(record);
-  const nature = governedNature(record);
+  let valueInCents = governedMoneyInCents(record);
+  let nature = governedNature(record);
+  const creditInCents = governedDecimalInCents(record, [
+    "credito",
+    "credit",
+    "credit_amount",
+    "valor_credito",
+  ]);
+  const debitInCents = governedDecimalInCents(record, [
+    "debito",
+    "debit",
+    "debit_amount",
+    "valor_debito",
+  ]);
+  if (valueInCents === null && creditInCents !== null && !debitInCents) {
+    valueInCents = creditInCents;
+    nature ??= "C";
+  } else if (valueInCents === null && debitInCents !== null && !creditInCents) {
+    valueInCents = debitInCents;
+    nature ??= "D";
+  }
   const description = governedText(record, [
     "descricao_sanitizada",
     "sanitized_description",
     "descricao",
     "description",
     "historico",
+    "documento_historico",
+    "detalhe",
     "memo",
-  ]);
+  ]) || "Lançamento do extrato";
   if (
     !/^0*\d{1,3}$/.test(bankId) ||
     !sourceAccountId ||
     sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||
     !isCalendarDate(date) ||
     valueInCents === null ||
-    !nature ||
-    !description
+    !nature
   ) {
     return null;
   }
@@ -469,8 +633,9 @@ function pendingRecordToMovement(
     "transaction_id",
     "id",
   ]);
+  const fallbackIdentity = `${sourceAccountId}:${date}:${valueInCents}:${nature}`;
   return {
-    movimento_id: `pendencia:${recordId || `${sourceAccountId}:${date}:${valueInCents}:${nature}:${index}`}`,
+    movimento_id: `pendencia:${recordId || fallbackIdentity}:${index}`,
     cod_coligada: Number(record.cod_coligada),
     bank_id: bankId.replace(/^0+/, "").padStart(3, "0"),
     source_account_id: sourceAccountId,
@@ -479,6 +644,32 @@ function pendingRecordToMovement(
     natureza: nature,
     descricao_sanitizada: description,
   };
+}
+
+function pendingRecordMovements(
+  root: Record<string, unknown>,
+  recordIndex: number,
+) {
+  const records = pendingRecordObjects(root);
+  const context = pendingContext(root, records);
+  const movements: Movement[] = [];
+  for (const [candidateIndex, record] of records.entries()) {
+    const movement = pendingRecordToMovement(
+      { ...context, ...record },
+      recordIndex * MAX_PENDING_OBJECTS + candidateIndex,
+    );
+    if (movement) movements.push(movement);
+  }
+  const fields = Array.from(
+    new Set(
+      records.flatMap((record) =>
+        Object.keys(record).filter((field) =>
+          /^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(field),
+        ),
+      ),
+    ),
+  );
+  return { fields, inspected: records.length, movements };
 }
 
 function applicationPositionIdentity(position: Record<string, unknown>) {
@@ -781,10 +972,19 @@ export async function loadDataEngineStatementSnapshot(
   const primarySources = new Set(
     statements.map((statement) => statement.sourceAccountId),
   );
+  const pendingExtractions = pendencias.items.map(pendingRecordMovements);
+  const pendingObjectsInspected = pendingExtractions.reduce(
+    (total, extraction) => total + extraction.inspected,
+    0,
+  );
+  const pendingFieldsObserved = Array.from(
+    new Set(pendingExtractions.flatMap((extraction) => extraction.fields)),
+  )
+    .sort()
+    .slice(0, 100);
   const pendingMovementKeys = new Set<string>();
-  const pendingMovements = pendencias.items
-    .map(pendingRecordToMovement)
-    .filter((movement): movement is Movement => movement !== null)
+  const pendingMovements = pendingExtractions
+    .flatMap((extraction) => extraction.movements)
     .filter(
       (movement) =>
         movement.data_lancamento >= options.fromDate &&
@@ -821,6 +1021,8 @@ export async function loadDataEngineStatementSnapshot(
     diagnostics: {
       recognizedWithoutMovements:
         recognizedStatements.length - statementsWithPendingFallback.length,
+      pendingFieldsObserved,
+      pendingObjectsInspected,
       pendingMovementsUsed: pendingMovements.length,
       pendingSourcesUsed: pendingStatements.length,
       sourceCandidates: {

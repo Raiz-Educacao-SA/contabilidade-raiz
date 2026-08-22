@@ -295,6 +295,62 @@ test("prioriza movimentos e não duplica a conta com lançamentos das pendência
   assert.equal(result.operations.pendenciasUtilizadas, 0);
 });
 
+test("localiza lançamentos aninhados no documento PDF pendente", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 2,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/pendencias"
+            ? [
+                {
+                  pendencia_id: "pdf-sicoob",
+                  cod_coligada: 2,
+                  arquivo: {
+                    nome_arquivo: "EXTRATO SICOOB MAIO 2026.pdf",
+                    numero_conta: "2035519-0",
+                  },
+                  conteudo: {
+                    lancamentos: [
+                      {
+                        data_transacao: "2026-05-08",
+                        valor_credito: "1.250,00",
+                        historico: "RECEBIMENTO",
+                      },
+                      {
+                        posting_date: "2026-05-09",
+                        debit_amount: 75.5,
+                        documento_historico: "TARIFA",
+                      },
+                    ],
+                  },
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].bankId, "756");
+  assert.deepEqual(
+    result.statements[0].rows.map((row: { value: number }) => row.value),
+    [1250, -75.5],
+  );
+  assert.ok(result.diagnostics.pendingObjectsInspected >= 5);
+  assert.ok(result.diagnostics.pendingFieldsObserved.includes("lancamentos"));
+  assert.equal(result.diagnostics.pendingMovementsUsed, 2);
+  assert.equal(result.diagnostics.pendingSourcesUsed, 1);
+});
+
 test("reconhece extrato de aplicação pelas posições mesmo sem movimentos", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 
