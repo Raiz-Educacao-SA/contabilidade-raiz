@@ -11,7 +11,7 @@ request:
     bancários governados no Data Engine
   risk_tier: high
   expires_at: '2027-08-14T23:59:59Z'
-  idempotency_key: contabilidade-raiz-production-tesouraria-extratos-oauth-pii-v2
+  idempotency_key: contabilidade-raiz-production-tesouraria-extratos-oauth-pii-explicit-v3
 access:
   llm_allowed: false
   direct_api_access:
@@ -38,9 +38,30 @@ access:
       method: GET
       path: /v1/tesouraria/extratos/pendencias
   coligadas:
-    mode: all
-    reason: Aplicação corporativa oficial de contabilidade e tesouraria, com isolamento
-      por tenant aplicado pelo Data Engine
+    mode: explicit
+    values:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 16
+    - 17
+    - 18
+    - 20
+    - 25
+    - 26
+    - 28
+    - 29
+    - 30
   pii:
     requested: true
     justification: A conciliação contábil e de tesouraria precisa dos dados nominais
