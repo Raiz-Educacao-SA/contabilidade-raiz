@@ -280,6 +280,86 @@ test("agrupa posições da mesma aplicação sem criar extratos duplicados", asy
   assert.equal(result[0].sourceAccountId, "aplicacao:posicao");
 });
 
+test("consolida referências técnicas diferentes da mesma aplicação anônima", async () => {
+  const { mergeApplicationPositionStatements } = await import(moduleUrl.href);
+
+  const result = mergeApplicationPositionStatements(
+    [],
+    [
+      {
+        cod_coligada: 3,
+        source_account_id: "saldo-aplicacao",
+        competencia: "2026-05",
+      },
+      {
+        cod_coligada: 3,
+        source_account_id: "cobertura-aplicacao",
+        competencia: "2026-05",
+      },
+    ],
+    { fromDate: "2026-05-01", toDate: "2026-05-31" },
+  );
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].bankId, "000");
+  assert.equal(result[0].metadata.account, "Aplicação");
+});
+
+test("vincula duas referências anônimas consolidadas à única conta de aplicação", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const anonymousSource = (sourceAccountId: string) => ({
+    bankId: "000",
+    sourceAccountId,
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "05/2026",
+    },
+  });
+
+  const result = resolveStatementBindings(
+    [
+      anonymousSource("saldo-aplicacao"),
+      anonymousSource("cobertura-aplicacao"),
+      {
+        ...anonymousSource("outra-fonte"),
+        bankId: "999",
+        metadata: {
+          ...anonymousSource("outra-fonte").metadata,
+          account: "Sem referência",
+          name: "Outra fonte",
+        },
+      },
+    ],
+    [
+      {
+        code: "1.1.1.03.03.10",
+        name: "Banco Santander - conta Aplic. 13081471-7 (Ox)",
+        rows: [],
+      },
+      {
+        code: "1.1.1.99.99.99",
+        name: "Outra conta sem identificação",
+        rows: [],
+      },
+    ],
+  );
+
+  assert.equal(result.pairs.length, 2);
+  assert.equal(
+    result.pairs.find((pair: { source: { sourceAccountId: string } }) =>
+      pair.source.sourceAccountId === "saldo-aplicacao",
+    )?.account.code,
+    "1.1.1.03.03.10",
+  );
+  assert.equal(result.unmatchedAccounts.length, 0);
+  assert.equal(result.unmatchedSources.length, 0);
+});
+
 test("reconhece aplicação presente em saldos mesmo sem posição ou movimento", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 
