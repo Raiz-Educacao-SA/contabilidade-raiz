@@ -679,7 +679,7 @@
 .bank-content .monthly-flow .notice { margin-bottom: 8px; padding: 8px 10px; font-size: 8px; }
 .bank-content .source-control { margin: 8px 0 10px; padding: 10px 12px; border-radius: 12px; }
 .bank-content .source-control-title > span { font-size: 7px; }
-.bank-content .source-control-title h3 { margin: 3px 0; font-size: 13px; }
+.bank-content .source-control-title h2 { margin: 3px 0; font-size: 13px; }
 .bank-content .source-control-title p { font-size: 9px; }
 .bank-content .source-steps { gap: 8px; margin-top: 8px; }
 .bank-content .source-steps article { gap: 3px 7px; padding: 8px 9px; border-radius: 10px; }
@@ -1062,7 +1062,7 @@
   letter-spacing: 0.14em;
   color: #ef7d00;
 }
-.source-control-title h3,
+.source-control-title h2,
 .exceptions-title h3 {
   margin: 4px 0;
 }
@@ -1074,7 +1074,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 0;
 }
 .source-steps article {
   position: relative;

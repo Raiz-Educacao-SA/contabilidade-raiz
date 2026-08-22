@@ -21,6 +21,19 @@ test("não duplica o controle de finalização no cabeçalho geral", () => {
   assert.match(page, /selectedModule === "bancaria"\) return null/);
 });
 
+test("usa o cabeçalho de preparação no topo sem repetir o título mensal", () => {
+  assert.doesNotMatch(panel, /Conciliação mensal por movimento/);
+  assert.match(
+    panel,
+    /<div className="panel-title">[\s\S]*?<div className="source-control-title">[\s\S]*?<h2>Preparar conciliação por movimento<\/h2>[\s\S]*?<div className="history-actions">/,
+  );
+  assert.doesNotMatch(
+    panel,
+    /<div className="source-control">\s*<div className="source-control-title">/,
+  );
+  assert.match(monthlyCss, /\.source-steps \{[\s\S]*?margin-top: 0;/);
+});
+
 test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /row\.status === "Somente no banco"/);
   assert.match(panel, /row\.status === "Somente na contabilidade"/);
