@@ -162,11 +162,8 @@ export default function MonthlyReconciliationPanel({
     accountingReady &&
     !accountingBusy &&
     !dataEngineBusy;
-  const allRows = useMemo(
-    () => results
-      .filter((result) => !result.validation.reconciled)
-      .flatMap((result) => result.rows)
-      .filter((row) => row.status === "Somente na contabilidade"),
+  const reportRows = useMemo(
+    () => results.flatMap((result) => result.rows),
     [results],
   );
   const divergentResults = useMemo(
@@ -448,6 +445,24 @@ export default function MonthlyReconciliationPanel({
     );
   }
 
+  function downloadConsolidatedReport() {
+    if (!results.length) {
+      setNotice("Execute a conciliação antes de gerar o relatório consolidado.");
+      return;
+    }
+    try {
+      exportReport(reportRows, `conciliacao_mensal_${competence}`);
+      setNotice(
+        `Relatório consolidado gerado com ${results.length} conta(s) e ${reportRows.length} lançamento(s).`,
+      );
+    } catch (error) {
+      console.error("[conciliacao-bancaria] Falha ao gerar relatório", error);
+      setNotice(
+        `Erro: não foi possível gerar o relatório consolidado. ${error instanceof Error ? error.message : "Erro desconhecido."}`,
+      );
+    }
+  }
+
   return (
     <section className="panel monthly-flow">
       <div className="panel-title">
@@ -470,10 +485,8 @@ export default function MonthlyReconciliationPanel({
           />
           <button
             className="secondary"
-            disabled={!allRows.length}
-            onClick={() =>
-              exportReport(allRows, `conciliacao_mensal_${competence}`)
-            }
+            disabled={!results.length}
+            onClick={downloadConsolidatedReport}
           >
             <Download />
             Relatório consolidado

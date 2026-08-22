@@ -46,6 +46,15 @@ test("usa fonte compacta na ficha de divergências", () => {
   assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 11px/);
 });
 
+test("gera o relatório consolidado com todos os resultados da conciliação", () => {
+  assert.match(panel, /const reportRows = useMemo\([\s\S]*results\.flatMap\(\(result\) => result\.rows\)/);
+  assert.match(panel, /exportReport\(reportRows, `conciliacao_mensal_\$\{competence\}`\)/);
+  assert.match(panel, /disabled=\{!results\.length\}[\s\S]*onClick=\{downloadConsolidatedReport\}/);
+  assert.match(panel, /Relatório consolidado gerado com/);
+  assert.match(panel, /Erro: não foi possível gerar o relatório consolidado/);
+  assert.doesNotMatch(panel, /disabled=\{!allRows\.length\}/);
+});
+
 test("compacta as etapas e os valores da conciliação bancária", () => {
   assert.match(monthlyCss, /\.bank-content \.source-control \{[^}]*padding: 10px 12px/);
   assert.match(monthlyCss, /\.bank-content \.monthly-account \{[^}]*padding: 10px 12px/);
