@@ -38,12 +38,16 @@ test("usa fonte compacta na ficha de divergências", () => {
   assert.match(monthlyCss, /\.form-identification b \{[\s\S]*?font-size: 10px/);
   assert.match(monthlyCss, /\.form-summary b \{[\s\S]*?font-size: 13px/);
   assert.match(monthlyCss, /\.reconciliation-form > header h2 \{[\s\S]*?font-size: 17px/);
+  assert.match(monthlyCss, /\.bank-content \.reconciliation-form > header h2 \{[^}]*font-size: 12px/);
+  assert.match(monthlyCss, /\.bank-content \.form-identification b \{ font-size: 8px/);
+  assert.match(monthlyCss, /\.bank-content \.form-summary b \{ font-size: 10px/);
+  assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 11px/);
 });
 
 test("compacta as etapas e os valores da conciliação bancária", () => {
   assert.match(monthlyCss, /\.bank-content \.source-control \{[^}]*padding: 14px/);
   assert.match(monthlyCss, /\.bank-content \.monthly-account \{[^}]*padding: 14px/);
-  assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 14px/);
+  assert.match(monthlyCss, /\.bank-content \.monthly-metrics b \{ font-size: 11px/);
 });
 
 test("reduz também as fontes do cabeçalho, filtros e ações", () => {
