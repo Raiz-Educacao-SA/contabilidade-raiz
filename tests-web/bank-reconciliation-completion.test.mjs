@@ -133,9 +133,9 @@ test("libera a conciliação somente após as duas bases atualizarem com sucesso
 });
 
 test("executa as três etapas em sequência e usa cor somente após a conclusão", () => {
-  assert.match(panel, /accountingFresh \? "is-complete" : "is-available"/);
+  assert.match(panel, /accountingStepComplete \? "is-complete" : "is-available"/);
   assert.match(panel, /disabled=\{accountingBusy \|\| dataEngineBusy\}/);
-  assert.match(panel, /statementsFresh \? "is-complete" : accountingFresh \? "is-available" : "is-locked"/);
+  assert.match(panel, /statementsStepComplete \? "is-complete" : accountingFresh \? "is-available" : "is-locked"/);
   assert.match(panel, /disabled=\{!accountingFresh \|\| dataEngineBusy\}/);
   assert.match(panel, /resultsCurrent \? "is-complete" : reconciliationReady \? "is-available" : "is-locked"/);
   assert.match(panel, /disabled=\{!reconciliationReady\}/);
@@ -154,6 +154,12 @@ test("bloqueia uma nova conciliação até as duas fontes serem atualizadas nova
   assert.match(panel, /setReconciliationRevision\([\s\S]*completedReconciliationRevision\(accountingRevision, statementsRevision\)/);
   assert.match(cycle, /Math\.max\(accountingRevision, statementsRevision\)/);
   assert.match(panel, /atualize as duas bases para executar novamente/);
-  assert.match(panel, /accountingFresh \? "ready" : "waiting"/);
-  assert.match(panel, /statementsFresh \? "ready" : "waiting"/);
+});
+
+test("mantém coloridas as três etapas depois da conciliação automática", () => {
+  assert.match(panel, /const accountingStepComplete = accountingFresh \|\| resultsCurrent/);
+  assert.match(panel, /const statementsStepComplete = statementsFresh \|\| resultsCurrent/);
+  assert.match(panel, /accountingStepComplete \? "ready" : "waiting"/);
+  assert.match(panel, /statementsStepComplete \? "ready" : "waiting"/);
+  assert.match(panel, /resultsCurrent[\s\S]*?"completed reconcile-step"/);
 });

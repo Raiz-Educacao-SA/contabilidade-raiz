@@ -228,6 +228,8 @@ export default function MonthlyReconciliationPanel({
     reconciliationRevision > 0 &&
     accountingRevision <= reconciliationRevision &&
     statementsRevision <= reconciliationRevision;
+  const accountingStepComplete = accountingFresh || resultsCurrent;
+  const statementsStepComplete = statementsFresh || resultsCurrent;
   const coverageReady = accountingUpdated && statementsUpdated;
   const unmatchedTotal = unmatchedAccounts.length + unmatchedSources.length;
   const reconciliationStatus = accountingUpdated && !accounting.length
@@ -591,7 +593,7 @@ export default function MonthlyReconciliationPanel({
           </p>
         </div>
         <div className="source-steps">
-          <article className={`${accountingFresh ? "ready" : "waiting"} accounting-step`}>
+          <article className={`${accountingStepComplete ? "ready" : "waiting"} accounting-step`}>
             <div className="source-step-number">1</div>
             <Database />
             <div>
@@ -607,7 +609,7 @@ export default function MonthlyReconciliationPanel({
               </span>
             </div>
             <button
-              className={`secondary workflow-action accounting-action ${accountingFresh ? "is-complete" : "is-available"}`}
+              className={`secondary workflow-action accounting-action ${accountingStepComplete ? "is-complete" : "is-available"}`}
               disabled={accountingBusy || dataEngineBusy}
               onClick={refreshAccounting}
             >
@@ -615,7 +617,7 @@ export default function MonthlyReconciliationPanel({
               {accountingBusy ? "Atualizando..." : "Atualizar base contábil"}
             </button>
           </article>
-          <article className={`${statementsFresh ? "ready" : "waiting"} statements-step`}>
+          <article className={`${statementsStepComplete ? "ready" : "waiting"} statements-step`}>
             <div className="source-step-number">2</div>
             <Landmark />
             <div>
@@ -631,7 +633,7 @@ export default function MonthlyReconciliationPanel({
               </span>
             </div>
             <button
-              className={`secondary workflow-action statements-action ${statementsFresh ? "is-complete" : accountingFresh ? "is-available" : "is-locked"}`}
+              className={`secondary workflow-action statements-action ${statementsStepComplete ? "is-complete" : accountingFresh ? "is-available" : "is-locked"}`}
               disabled={!accountingFresh || dataEngineBusy}
               onClick={scanDataEngine}
             >
