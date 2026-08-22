@@ -680,8 +680,21 @@
 .bank-content .monthly-metrics { gap: 8px; margin-top: 12px; }
 .bank-content .monthly-metrics > div { padding: 10px; border-radius: 10px; gap: 3px; }
 .bank-content .monthly-metrics span,
-.bank-content .monthly-metrics small { font-size: 9px; }
-.bank-content .monthly-metrics b { font-size: 14px; line-height: 1.15; }
+.bank-content .monthly-metrics small { font-size: 7px; }
+.bank-content .monthly-metrics b { font-size: 11px; line-height: 1.15; }
+.bank-content .reconciliation-form { margin-top: 18px; padding: 12px; }
+.bank-content .reconciliation-form > header { padding-bottom: 10px; }
+.bank-content .reconciliation-form > header span { font-size: 7px; }
+.bank-content .reconciliation-form > header h2 { margin: 2px 0; font-size: 12px; }
+.bank-content .reconciliation-form > header > b { top: 4px; padding: 4px 6px; font-size: 7px; }
+.bank-content .form-identification { margin-top: 10px; }
+.bank-content .form-identification > div { grid-template-columns: 110px 1fr; gap: 7px; padding: 5px 8px; }
+.bank-content .form-identification span,
+.bank-content .form-summary span { font-size: 7px; }
+.bank-content .form-identification b { font-size: 8px; }
+.bank-content .form-summary { margin-top: 10px; }
+.bank-content .form-summary article { padding: 7px 8px; gap: 3px; }
+.bank-content .form-summary b { font-size: 10px; }
 .account-coverage {
   margin-top: 16px;
   padding: 16px;
