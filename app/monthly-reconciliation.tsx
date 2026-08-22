@@ -236,12 +236,10 @@ export default function MonthlyReconciliationPanel({
       ? "Extratos atualizados, mas nenhuma correspondência foi encontrada"
       : resultsCurrent
         ? `${statements.length} encontrada(s) · ${reconciledCount} conciliada(s) · ${divergentResults.length} divergente(s) · atualize as duas bases para executar novamente`
-        : !accountingFresh && !statementsFresh
-      ? "Atualize a base contábil e os extratos bancários"
-      : !accountingFresh
-        ? "Atualize também a base contábil"
+        : !accountingFresh
+      ? "Atualize primeiro a base contábil"
         : !statementsFresh
-          ? "Atualize também os extratos bancários"
+          ? "Atualize agora os extratos bancários"
           : "Bases prontas; clique para executar a conciliação";
   const completionIdentity = financialCompletionIdentity("bancaria", companyCode, companyName);
 
@@ -593,7 +591,7 @@ export default function MonthlyReconciliationPanel({
           </p>
         </div>
         <div className="source-steps">
-          <article className={accountingFresh ? "ready" : "waiting"}>
+          <article className={`${accountingFresh ? "ready" : "waiting"} accounting-step`}>
             <div className="source-step-number">1</div>
             <Database />
             <div>
@@ -609,15 +607,15 @@ export default function MonthlyReconciliationPanel({
               </span>
             </div>
             <button
-              className={`secondary ${accountingFresh ? "source-loaded" : ""}`}
-              disabled={accountingBusy}
+              className={`secondary workflow-action accounting-action ${accountingFresh ? "is-complete" : "is-available"}`}
+              disabled={accountingBusy || dataEngineBusy}
               onClick={refreshAccounting}
             >
               <RefreshCw className={accountingBusy ? "spinning" : ""} />
               {accountingBusy ? "Atualizando..." : "Atualizar base contábil"}
             </button>
           </article>
-          <article className={statementsFresh ? "ready" : "waiting"}>
+          <article className={`${statementsFresh ? "ready" : "waiting"} statements-step`}>
             <div className="source-step-number">2</div>
             <Landmark />
             <div>
@@ -633,8 +631,8 @@ export default function MonthlyReconciliationPanel({
               </span>
             </div>
             <button
-              className={`secondary ${statementsFresh ? "source-loaded-extracts" : ""}`}
-              disabled={dataEngineBusy}
+              className={`secondary workflow-action statements-action ${statementsFresh ? "is-complete" : accountingFresh ? "is-available" : "is-locked"}`}
+              disabled={!accountingFresh || dataEngineBusy}
               onClick={scanDataEngine}
             >
               <RefreshCw className={dataEngineBusy ? "spinning" : ""} />
@@ -643,7 +641,11 @@ export default function MonthlyReconciliationPanel({
           </article>
           <article
             className={
-              reconciliationReady ? "ready reconcile-step" : "waiting reconcile-step"
+              resultsCurrent
+                ? "completed reconcile-step"
+                : reconciliationReady
+                  ? "available reconcile-step"
+                  : "waiting reconcile-step"
             }
           >
             <div className="source-step-number">3</div>
@@ -653,12 +655,12 @@ export default function MonthlyReconciliationPanel({
               <span>{reconciliationStatus}</span>
             </div>
             <button
-              className={`primary reconciliation-action ${reconciliationReady ? "is-ready" : "is-locked"}`}
+              className={`primary workflow-action reconciliation-action ${resultsCurrent ? "is-complete" : reconciliationReady ? "is-available" : "is-locked"}`}
               disabled={!reconciliationReady}
               onClick={runAll}
             >
               <ArrowLeftRight />
-              Conciliação automática
+              {resultsCurrent ? "Conciliação concluída" : "Conciliação automática"}
             </button>
           </article>
         </div>
