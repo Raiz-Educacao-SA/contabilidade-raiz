@@ -100,9 +100,8 @@ export default function MonthlyReconciliationPanel({
   >([]);
   const [dataEngineOperations, setDataEngineOperations] =
     useState<DataEngineStatementOperations | null>(null);
-  const [sourceBindings, setSourceBindings] = useState<Record<string, string>>(
-    {},
-  );
+  const [unmatchedSources, setUnmatchedSources] = useState<DataEngineStatement[]>([]);
+  const [unmatchedAccounts, setUnmatchedAccounts] = useState<AccountingAccount[]>([]);
   const [dataEngineBusy, setDataEngineBusy] = useState(false);
   const [accountingBusy, setAccountingBusy] = useState(false);
   const [accountingMessage, setAccountingMessage] = useState(
@@ -112,15 +111,12 @@ export default function MonthlyReconciliationPanel({
   const dataEngineRequestRef = useRef(0);
   const accountingAbortRef = useRef<AbortController | null>(null);
   const dataEngineAbortRef = useRef<AbortController | null>(null);
-  const pending = bankAccounts.filter(
-    (account) =>
-      !statements.some((statement) => statement.account.code === account.code),
-  );
+  const pending = unmatchedAccounts;
   const statementsReady = statements.length > 0;
   const accountingReady = accounting.length > 0;
   const reconciliationReady = statementsReady && accountingReady;
   const allRows = useMemo(
-    () => results.flatMap((result) => result.rows),
+    () => results.filter((result) => !result.validation.reconciled).flatMap((result) => result.rows),
     [results],
   );
   const divergentResults = useMemo(
@@ -206,7 +202,7 @@ export default function MonthlyReconciliationPanel({
       const discovered = accountingBankAccounts(rows);
       setAccounting(rows);
       setBankAccounts(discovered);
-      applySourceBindings(dataEngineSources, discovered, sourceBindings);
+      applySourceBindings(dataEngineSources, discovered);
       setAccountingMessage(
         `${discovered.length} conta(s) carregada(s) da Planilha 18`,
       );
@@ -262,7 +258,7 @@ export default function MonthlyReconciliationPanel({
       const sources = data.statements ?? [];
       setDataEngineSources(sources);
       setDataEngineOperations(data.operations ?? null);
-      if (applySourceBindings(sources, bankAccounts, sourceBindings)) {
+      if (applySourceBindings(sources, bankAccounts)) {
         setNotice(
           `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) bancária(s).`,
         );
@@ -281,20 +277,10 @@ export default function MonthlyReconciliationPanel({
   function applySourceBindings(
     sources: DataEngineStatement[],
     discoveredAccounts: AccountingAccount[],
-    bindings: Record<string, string>,
   ) {
-    const resolved = resolveStatementBindings(
-      sources,
-      discoveredAccounts,
-      bindings,
-    );
-    if (resolved.duplicateAccountCodes.length) {
-      setStatements([]);
-      setNotice(
-        `Erro: cada conta do Data Engine deve possuir um vínculo contábil exclusivo. Revise: ${resolved.duplicateAccountCodes.join(", ")}.`,
-      );
-      return false;
-    }
+    const resolved = resolveStatementBindings(sources, discoveredAccounts);
+    setUnmatchedSources(resolved.unmatchedSources);
+    setUnmatchedAccounts(resolved.unmatchedAccounts);
     const identified = resolved.pairs.map(({ account, source }) => {
       const bank = source.rows.map((row) => ({
         ...row,
@@ -310,26 +296,6 @@ export default function MonthlyReconciliationPanel({
     });
     setStatements(identified);
     return true;
-  }
-
-  function bindSource(sourceAccountId: string, accountCode: string) {
-    const duplicate = Object.entries(sourceBindings).some(
-      ([currentSourceId, currentAccountCode]) =>
-        currentSourceId !== sourceAccountId &&
-        currentAccountCode === accountCode &&
-        accountCode !== "",
-    );
-    if (duplicate) {
-      setNotice(
-        `Erro: a conta contábil ${accountCode} já está vinculada a outra conta do Data Engine.`,
-      );
-      return;
-    }
-    const next = { ...sourceBindings };
-    if (accountCode) next[sourceAccountId] = accountCode;
-    else delete next[sourceAccountId];
-    setSourceBindings(next);
-    applySourceBindings(dataEngineSources, bankAccounts, next);
   }
 
   function reconcileStatements(selected: Statement[]) {
@@ -487,7 +453,7 @@ export default function MonthlyReconciliationPanel({
               <span>
                 {results.length
                   ? `${reconciledCount} conciliada(s) e ${divergentResults.length} com divergência`
-                  : "Compara extrato × contábil por conta e por dia"}
+                  : "Compara extrato × contábil pelo movimento total do mês"}
               </span>
             </div>
             <button
@@ -512,33 +478,23 @@ export default function MonthlyReconciliationPanel({
                 </b>
                 <span>{source.rows.length} movimento(s) nesta competência</span>
               </div>
-              <label>
-                Conta contábil
-                <select
-                  aria-label={`Conta contábil para ${source.metadata.account}`}
-                  value={sourceBindings[source.sourceAccountId] ?? ""}
-                  onChange={(event) =>
-                    bindSource(source.sourceAccountId, event.target.value)
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {bankAccounts.map((account) => (
-                    <option
-                      key={account.code}
-                      value={account.code}
-                      disabled={Object.entries(sourceBindings).some(
-                        ([currentSourceId, currentAccountCode]) =>
-                          currentSourceId !== source.sourceAccountId &&
-                          currentAccountCode === account.code,
-                      )}
-                    >
-                      {account.code} — {account.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <b>
+                {statements.some((item) => item.metadata === source.metadata)
+                  ? "Conta contábil identificada automaticamente"
+                  : "Extrato sem conta contábil correspondente"}
+              </b>
             </article>
           ))}
+        </div>
+      )}
+      {(unmatchedSources.length > 0 || unmatchedAccounts.length > 0) && (
+        <div className="notice error" role="alert">
+          {unmatchedSources.length > 0 && (
+            <div>{unmatchedSources.length} extrato(s) ficaram sem conta contábil correspondente.</div>
+          )}
+          {unmatchedAccounts.length > 0 && (
+            <div>{unmatchedAccounts.length} conta(s) contábil(eis) da empresa ficaram sem extrato.</div>
+          )}
         </div>
       )}
       {dataEngineOperations && (
@@ -560,8 +516,8 @@ export default function MonthlyReconciliationPanel({
             <div>
               <h3>2. Extratos por conta</h3>
               <p>
-                Vincule cada conta protegida do Data Engine à conta contábil
-                correspondente desta competência.
+                O sistema identifica automaticamente a conta de cada extrato e
+                destaca apenas as coberturas ausentes.
               </p>
             </div>
             <b>
@@ -591,7 +547,7 @@ export default function MonthlyReconciliationPanel({
                     <small>
                       {statement
                         ? `${reconciled ? "Conciliação salva" : "Extrato identificado"}: ${statement.fileName}`
-                        : "Aguardando vínculo com uma conta do Data Engine"}
+                        : "Conta contábil sem extrato correspondente"}
                     </small>
                   </div>
                   {statement && (
@@ -719,43 +675,6 @@ function MonthlyAccountResult({
             <span>Saldo final do extrato</span>
             <b>{brl(result.metadata.closingBalance)}</b>
             <small>Calculado: {brl(value.calculatedClosingBalance ?? 0)}</small>
-          </div>
-        )}
-      </div>
-      <div className="daily-check">
-        <h4>Validação dos movimentos por dia</h4>
-        {value.missingDays.length === 0 ? (
-          <p className="daily-ok">
-            <CheckCircle2 />
-            Nenhum dia com lançamento faltante na contabilidade.
-          </p>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Dia</th>
-                  <th>Movimento no extrato</th>
-                  <th>Movimento contábil</th>
-                  <th>Diferença</th>
-                </tr>
-              </thead>
-              <tbody>
-                {value.missingDays.map((day) => (
-                  <tr key={day.date}>
-                    <td>
-                      {new Date(`${day.date}T00:00:00Z`).toLocaleDateString(
-                        "pt-BR",
-                        { timeZone: "UTC" },
-                      )}
-                    </td>
-                    <td>{brl(day.bank)}</td>
-                    <td>{brl(day.accounting)}</td>
-                    <td>{brl(day.difference)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </div>
