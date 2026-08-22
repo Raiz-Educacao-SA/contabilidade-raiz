@@ -91,6 +91,7 @@ export async function GET(request: NextRequest) {
       company,
       competence,
       movementsByBank,
+      operations: snapshot.operations,
       records: snapshot.operations.movimentos,
       statementCount: snapshot.statements.length,
     });
