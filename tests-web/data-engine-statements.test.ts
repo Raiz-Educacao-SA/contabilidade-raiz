@@ -280,6 +280,82 @@ test("agrupa posições da mesma aplicação sem criar extratos duplicados", asy
   assert.equal(result[0].sourceAccountId, "aplicacao:posicao");
 });
 
+test("reconhece aplicação presente em saldos mesmo sem posição ou movimento", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    codColigadaCode: "03",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/saldos"
+            ? [
+                {
+                  saldo_id: "saldo-aplicacao",
+                  cod_coligada: 3,
+                  source_account_id: "aplicacao-saldo",
+                  bank_id: "341",
+                  data_referencia: "2026-05-31",
+                  nome_produto: "Aplicação automática",
+                  numero_conta: "29165-8",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].sourceAccountId, "aplicacao-saldo");
+  assert.deepEqual(result.diagnostics.sourceCandidates, {
+    saldos: 1,
+    posicoes: 0,
+    cobertura: 0,
+  });
+  assert.equal(result.diagnostics.recognizedWithoutMovements, 1);
+});
+
+test("reconhece fonte de aplicação registrada somente na cobertura", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/cobertura"
+            ? [
+                {
+                  cobertura_ref: "cobertura-aplicacao",
+                  cod_coligada: 3,
+                  source_account_id: "aplicacao-cobertura",
+                  competencia: "2026-05",
+                  nome_aplicacao: "Fundo DI",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-05-01",
+    toDate: "2026-05-31",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].sourceAccountId, "aplicacao-cobertura");
+  assert.equal(result.diagnostics.sourceCandidates.cobertura, 1);
+});
+
 test("não duplica a aplicação quando a mesma fonte já possui movimentos", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 
