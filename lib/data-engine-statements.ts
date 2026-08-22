@@ -84,6 +84,18 @@ const PAGE_SIZE = 200;
 const MAX_PAGE_REQUESTS = 500;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_SOURCE_ACCOUNT_ID_LENGTH = 256;
+const APPLICATION_ACCOUNT_PATTERN = /APLIC|INVESTIMENTO|CDB|FUNDO/iu;
+
+function isAnonymousApplicationStatement(statement: DataEngineStatement) {
+  return (
+    statement.rows.length === 0 &&
+    statement.bankId.padStart(3, "0") === "000" &&
+    APPLICATION_ACCOUNT_PATTERN.test(
+      `${statement.metadata.name} ${statement.metadata.account}`,
+    ) &&
+    !/\d/.test(statement.metadata.account)
+  );
+}
 
 export class DataEngineHttpError extends Error {
   readonly status: number;
@@ -213,8 +225,17 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     "748": /SICREDI/i,
     "756": /SICOOB/i,
   };
+  let anonymousApplicationSeen = false;
+  const normalizedSources = sources.flatMap((source) => {
+    if (!isAnonymousApplicationStatement(source)) return [source];
+    if (anonymousApplicationSeen) return [];
+    anonymousApplicationSeen = true;
+    return [source];
+  });
   const remainingAccounts = new Map(accounts.map((account) => [account.code, account]));
-  const remainingSources = new Map(sources.map((source) => [source.sourceAccountId, source]));
+  const remainingSources = new Map(
+    normalizedSources.map((source) => [source.sourceAccountId, source]),
+  );
   const pairs: Array<{ account: TAccount; source: DataEngineStatement }> = [];
   const bindUnique = (source: DataEngineStatement, candidates: TAccount[]) => {
     if (candidates.length !== 1) return false;
@@ -271,7 +292,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   };
 
   // Prioridade 1: número da conta presente nos metadados do extrato.
-  for (const source of sources) {
+  for (const source of normalizedSources) {
     bindUnique(
       source,
       Array.from(remainingAccounts.values()).filter((account) =>
@@ -288,6 +309,17 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     );
     if (bindByMovementEvidence(source, candidates)) continue;
     bindUnique(source, candidates);
+  }
+  // Prioridade 3: uma referência anônima de aplicação pertence à única conta
+  // contábil identificada nominalmente como aplicação ou investimento.
+  for (const source of Array.from(remainingSources.values())) {
+    if (!isAnonymousApplicationStatement(source)) continue;
+    bindUnique(
+      source,
+      Array.from(remainingAccounts.values()).filter((account) =>
+        APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
+      ),
+    );
   }
   // Último caso seguro: resta exatamente um extrato e uma conta.
   if (remainingSources.size === 1 && remainingAccounts.size === 1) {
@@ -410,6 +442,9 @@ export function mergeApplicationPositionStatements(
   const knownSources = new Set(
     statements.map((statement) => statement.sourceAccountId),
   );
+  let anonymousApplicationSeen = statements.some(
+    isAnonymousApplicationStatement,
+  );
   const displayPeriod = `${period.fromDate.slice(5, 7)}/${period.fromDate.slice(0, 4)}`;
 
   for (const position of positions) {
@@ -458,7 +493,7 @@ export function mergeApplicationPositionStatements(
           ? `Banco ${bankId} · Aplicação`
           : "Aplicação financeira";
 
-    recognized.push({
+    const statement: DataEngineStatement = {
       bankId,
       sourceAccountId,
       rows: [],
@@ -470,8 +505,16 @@ export function mergeApplicationPositionStatements(
         openingBalance: null,
         closingBalance: null,
       },
-    });
+    };
+    if (
+      isAnonymousApplicationStatement(statement) &&
+      anonymousApplicationSeen
+    ) {
+      continue;
+    }
+    recognized.push(statement);
     knownSources.add(sourceAccountId);
+    anonymousApplicationSeen ||= isAnonymousApplicationStatement(statement);
   }
 
   return recognized.sort((left, right) =>
