@@ -6,6 +6,7 @@ const {
   ACCOUNTING_SCHEDULE_TASK_IDS,
   FINANCIAL_SCHEDULE_TASK_IDS,
   calculateClosingScheduleProgress,
+  summarizeScheduleCompanyProgress,
 } = await import(moduleUrl.href);
 
 function completed(modulo: string) {
@@ -69,4 +70,21 @@ test("ignora confirmações gerais antigas de Financeiro e Contábil", () => {
   assert.equal(progress.modulePercent.contabil, 0);
   assert.equal(progress.completedModulesCount, 0);
   assert.equal(progress.overallPercent, 0);
+});
+
+test("resume o andamento de cada empresa para a matriz do cronograma", () => {
+  const records = [
+    completed("financeiro:bancaria:02"),
+    completed("financeiro:emprestimos:02"),
+  ];
+
+  assert.deepEqual(
+    summarizeScheduleCompanyProgress(records, "financeiro", FINANCIAL_SCHEDULE_TASK_IDS, "2"),
+    {
+      completedCount: 2,
+      totalCount: 4,
+      status: "andamento",
+      observation: "2 de 4 atividades concluídas.",
+    },
+  );
 });

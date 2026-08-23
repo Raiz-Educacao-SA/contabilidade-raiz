@@ -26,6 +26,38 @@ function normalizeCompanyCode(code: string) {
   return value ? value.padStart(2, "0") : "";
 }
 
+export function summarizeScheduleCompanyProgress(
+  records: readonly ClosingScheduleRecord[],
+  prefix: "financeiro" | "contabil",
+  taskIds: readonly string[],
+  rawCompanyCode: string,
+) {
+  const companyCode = normalizeCompanyCode(rawCompanyCode);
+  const completed = new Set(
+    records.filter((record) => record.status === "concluido").map((record) => record.modulo),
+  );
+  const completedCount = taskIds.filter((taskId) =>
+    completed.has(`${prefix}:${taskId}:${companyCode}`),
+  ).length;
+  const totalCount = taskIds.length;
+  const status = completedCount === totalCount && totalCount > 0
+    ? "concluido"
+    : completedCount > 0
+      ? "andamento"
+      : "pendente";
+
+  return {
+    completedCount,
+    totalCount,
+    status,
+    observation: status === "concluido"
+      ? "Todas as atividades concluídas."
+      : status === "andamento"
+        ? `${completedCount} de ${totalCount} atividades concluídas.`
+        : "Aguardando início das atividades.",
+  } as const;
+}
+
 function detailedModulePercent(
   completed: Set<string>,
   prefix: "financeiro" | "contabil",
