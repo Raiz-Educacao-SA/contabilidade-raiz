@@ -2131,7 +2131,11 @@
   height: 14px;
 }
 .schedule-content {
+  min-height: 100dvh;
   padding-top: 16px;
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
 }
 .schedule-content > header {
   min-height: 0;
@@ -2225,7 +2229,10 @@
   font-size: 8px;
 }
 .closing-schedule {
-  display: grid;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 9px;
 }
 .schedule-overview {
@@ -2292,10 +2299,12 @@
   gap: 7px;
 }
 .schedule-dashboard-layout {
+  min-height: 0;
+  flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 .schedule-stages article {
   min-height: 72px;
@@ -2451,7 +2460,8 @@
   box-shadow: 0 14px 38px rgba(17, 32, 51, 0.08);
 }
 .schedule-module-workspace {
-  min-height: 380px;
+  min-height: 0;
+  height: 100%;
   padding: 14px;
   border: 1px solid #dfe5ed;
   border-radius: 16px;
@@ -2602,7 +2612,11 @@
   color: #fff;
 }
 .schedule-accounting-checklist {
+  min-height: 0;
+  height: 100%;
   padding-top: 0;
+  display: flex;
+  flex-direction: column;
 }
 .schedule-task-tabs {
   display: flex;
@@ -2816,7 +2830,9 @@
   opacity: 0.65;
 }
 .schedule-matrix-wrap {
-  max-height: 510px;
+  min-height: 0;
+  flex: 1;
+  max-height: none;
   overflow: auto;
   border: 1px solid #d7e0eb;
   border-radius: 13px;
@@ -3016,6 +3032,25 @@
 .history-action.liberado { background: #dcf5e9; color: #08764a; }
 .history-action.reaberto { background: #fff0db; color: #a85a00; }
 @media (max-width: 700px) {
+  .schedule-content {
+    min-height: 0;
+    padding-bottom: 24px;
+    display: block;
+  }
+  .closing-schedule {
+    display: grid;
+  }
+  .schedule-module-workspace {
+    min-height: 380px;
+    height: auto;
+  }
+  .schedule-accounting-checklist {
+    height: auto;
+    display: block;
+  }
+  .schedule-matrix-wrap {
+    max-height: 65dvh;
+  }
   .schedule-overview { align-items: flex-start; flex-direction: column; }
   .schedule-window { text-align: left; }
   .schedule-content .schedule-filters { grid-template-columns: 1fr; }
