@@ -19,6 +19,7 @@ import {
   Plus,
   ReceiptText,
   Save,
+  ShieldCheck,
   ShoppingCart,
   SlidersHorizontal,
   TrendingUp,
@@ -39,6 +40,8 @@ import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
+import AccessManagement from "@/app/access-management";
+import { resolveAllowedModules, type AccessModule } from "@/lib/access-control";
 import { accountingCompletionIdentity, financialCompletionIdentity } from "@/lib/schedule-completion";
 import {
   CLOSING_SCHEDULE_MODULES,
@@ -69,7 +72,7 @@ type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "imobilizado" | "arrendamentos";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
-type Area = "financeiro" | "fiscal" | "compras" | "folha" | "contabil" | "book" | "cronograma";
+type Area = AccessModule;
 type Module =
   | "bancaria"
   | "emprestimos"
@@ -229,7 +232,11 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
+  const [requestingAccess, setRequestingAccess] = useState(false);
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [moduleGrants, setModuleGrants] = useState<AccessModule[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(true);
   const [companyId, setCompanyId] = useState("");
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -239,6 +246,7 @@ export default function Home() {
   const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
   const [selectedScheduleModule, setSelectedScheduleModule] = useState<ScheduleModuleKey>("contabil");
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+  const [managingAccess, setManagingAccess] = useState(false);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
@@ -259,16 +267,7 @@ export default function Home() {
   const canWrite = (company?.perfil ?? "consulta").toLowerCase() !== "consulta";
   const userProfiles = [...new Set(companies.map((item) => item.perfil.trim().toLowerCase()))];
   const isAdministrator = userProfiles.includes("administrador");
-  const allowedAreas: Area[] = isAdministrator
-    ? ["financeiro", "fiscal", "compras", "folha", "contabil", "book", "cronograma"]
-    : [
-        "cronograma",
-        ...(userProfiles.includes("financeiro") ? ["financeiro" as Area] : []),
-        ...(userProfiles.includes("fiscal") ? ["fiscal" as Area] : []),
-        ...(userProfiles.includes("compras") ? ["compras" as Area] : []),
-        ...(userProfiles.some((profile) => profile === "folha" || profile === "folha de pagamento") ? ["folha" as Area] : []),
-        ...(userProfiles.some((profile) => profile === "contabil" || profile === "contabilidade" || profile === "contábil") ? ["contabil" as Area, "book" as Area] : []),
-      ];
+  const allowedAreas: Area[] = resolveAllowedModules(userProfiles, moduleGrants);
   const selectedCompanyCode = company?.empresas?.codcoligada ?? "";
   const selectedCompanyName = company?.empresas?.razao_social ?? "";
   const moduleCompletionIdentity = (() => {
@@ -393,22 +392,33 @@ export default function Home() {
       if (!active) return;
       setCompaniesLoading(true);
       setCompanies([]);
+      setModuleGrants([]);
       setCompanyId("");
       if (!session) return;
-      const { data, error } = await supabase
-        .from("usuarios_empresas")
-        .select(
-          "empresa_id, perfil, empresas(id, codcoligada, razao_social, cnpj)",
-        )
-        .eq("usuario_id", session.user.id);
+      const [companiesResult, grantsResult] = await Promise.all([
+        supabase
+          .from("usuarios_empresas")
+          .select("empresa_id, perfil, empresas(id, codcoligada, razao_social, cnpj)")
+          .eq("usuario_id", session.user.id),
+        supabase
+          .from("usuarios_modulos")
+          .select("modulo")
+          .eq("usuario_id", session.user.id),
+      ]);
       if (!active) return;
-      if (error) {
+      if (companiesResult.error) {
         setNotice("Não foi possível carregar as empresas vinculadas. Atualize a página para tentar novamente.");
         setCompaniesLoading(false);
         return;
       }
-      const rows = (data ?? []) as unknown as Company[];
+      const rows = (companiesResult.data ?? []) as unknown as Company[];
       setCompanies(rows);
+      if (!grantsResult.error) {
+        setModuleGrants((grantsResult.data ?? []).flatMap((row) => {
+          const value = String(row.modulo ?? "") as AccessModule;
+          return ["financeiro", "fiscal", "compras", "folha", "contabil", "book", "cronograma"].includes(value) ? [value] : [];
+        }));
+      }
       setCompanyId((current) => {
         if (rows.some((row) => row.empresa_id === current)) return current;
         const saved = window.localStorage.getItem("contabilidade-raiz:company-id");
@@ -452,6 +462,31 @@ export default function Home() {
     });
     if (error)
       setNotice("Não foi possível entrar. Confira o e-mail e a senha.");
+  }
+  async function requestAccess(event: React.FormEvent) {
+    event.preventDefault();
+    setNotice("");
+    setRequestSent(false);
+    if (!isAllowedCorporateEmail(email)) {
+      setNotice("Somente e-mails @raizeducacao.com.br podem solicitar acesso.");
+      return;
+    }
+    setRequestBusy(true);
+    try {
+      const response = await fetch("/api/access-requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Não foi possível enviar a solicitação.");
+      setRequestSent(true);
+      setNotice(body.message || "Solicitação enviada para aprovação.");
+    } catch (requestError) {
+      setNotice(requestError instanceof Error ? requestError.message : "Não foi possível enviar a solicitação.");
+    } finally {
+      setRequestBusy(false);
+    }
   }
   async function saveAccount(event: React.FormEvent) {
     event.preventDefault();
@@ -513,7 +548,7 @@ export default function Home() {
   if (!session)
     return (
       <main className="center">
-        <form className="login-card" onSubmit={login}>
+        <form className="login-card" onSubmit={requestingAccess ? requestAccess : login}>
           <Image
             className="brand-logo"
             src="/logo-raiz.png"
@@ -522,11 +557,12 @@ export default function Home() {
             height={118}
             priority
           />
-          <span className="eyebrow">CONTABILIDADE CORPORATIVA</span>
-          <h1>Contabilidade Raiz</h1>
+          <span className="eyebrow">{requestingAccess ? "SOLICITAÇÃO DE ACESSO" : "CONTABILIDADE CORPORATIVA"}</span>
+          <h1>{requestingAccess ? "Solicite seu acesso" : "Contabilidade Raiz"}</h1>
           <p>
-            Financeiro, compras, folha de pagamento e fechamento contábil em um
-            único ambiente.
+            {requestingAccess
+              ? "Use seu e-mail corporativo. Após a aprovação, você receberá um link para criar sua senha."
+              : "Financeiro, compras, folha de pagamento e fechamento contábil em um único ambiente."}
           </p>
           <label>
             E-mail
@@ -537,7 +573,7 @@ export default function Home() {
               required
             />
           </label>
-          <label>
+          {!requestingAccess && <label>
             Senha
             <input
               type="password"
@@ -545,10 +581,21 @@ export default function Home() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-          </label>
-          {notice && <div className="notice error">{notice}</div>}
-          <button className="primary" type="submit">
-            Entrar
+          </label>}
+          {notice && <div className={`notice ${requestSent ? "" : "error"}`}>{notice}</div>}
+          <button className="primary" type="submit" disabled={requestBusy || requestSent}>
+            {requestingAccess ? requestBusy ? "Enviando..." : requestSent ? "Solicitação enviada" : "Solicitar acesso" : "Entrar"}
+          </button>
+          <button
+            className="login-switch"
+            type="button"
+            onClick={() => {
+              setRequestingAccess((current) => !current);
+              setRequestSent(false);
+              setNotice("");
+            }}
+          >
+            {requestingAccess ? "Já tenho acesso" : "Ainda não tenho acesso"}
           </button>
         </form>
       </main>
@@ -568,10 +615,19 @@ export default function Home() {
       <main className="center">
         <section className="login-card">
           <h1>Usuário sem empresa vinculada</h1>
-          <p>Vincule o usuário a uma empresa no Supabase para continuar.</p>
+          <p>Peça ao administrador para revisar sua liberação de acesso.</p>
           <button onClick={() => supabase.auth.signOut()}>Sair</button>
         </section>
       </main>
+    );
+  if (isAdministrator && managingAccess)
+    return (
+      <AccessManagement
+        accessToken={session.access_token}
+        email={session.user.email ?? ""}
+        onBack={() => setManagingAccess(false)}
+        onLogout={() => supabase.auth.signOut()}
+      />
     );
   if (!selectedArea)
     return (
@@ -581,6 +637,8 @@ export default function Home() {
         onClosingDateChange={(date) => void updateClosingDate(date)}
         allowedAreas={allowedAreas}
         companyCodes={companies.flatMap((item) => item.empresas ? [item.empresas.codcoligada] : [])}
+        isAdministrator={isAdministrator}
+        onManageAccess={() => setManagingAccess(true)}
         onSelect={(area) => {
           setSelectedArea(area);
           setSelectedModule(area === "financeiro" ? null : area);
@@ -1135,6 +1193,8 @@ function AreaHub({
   onClosingDateChange,
   allowedAreas,
   companyCodes,
+  isAdministrator,
+  onManageAccess,
   onSelect,
   onLogout,
 }: {
@@ -1143,6 +1203,8 @@ function AreaHub({
   onClosingDateChange: (date: string) => void;
   allowedAreas: Area[];
   companyCodes: string[];
+  isAdministrator: boolean;
+  onManageAccess: () => void;
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
@@ -1197,6 +1259,7 @@ function AreaHub({
         </div>
         <div className="hub-user">
           <span>{email}</span>
+          {isAdministrator && <button onClick={onManageAccess}><ShieldCheck /> Administrar acessos</button>}
           <button onClick={onLogout}>
             <LogOut />
             Sair
@@ -1241,7 +1304,7 @@ function AreaHub({
 
         <div className="workflow-divider"><span>MÓDULOS DO FECHAMENTO</span></div>
         <div className="workflow-modules workflow-modules-unified">
-          <button className="module-card area-cronograma" onClick={openSchedule}>
+          {allowedAreas.includes("cronograma") && <button className="module-card area-cronograma" onClick={openSchedule}>
             <span className="module-card-top">
               <span className="module-icon"><ScheduleIcon /></span>
               <span className="module-status module-status-progress">{scheduleProgress.completedModulesCount}/{scheduleProgress.totalModules}</span>
@@ -1254,7 +1317,7 @@ function AreaHub({
               <i style={{ width: `${scheduleProgress.overallPercent}%` }} />
             </span>
             <span className="module-enter">Abrir cronograma <ArrowLeftRight /></span>
-          </button>
+          </button>}
 
           {executionAreas.map((id) => {
             const item = areas[id];

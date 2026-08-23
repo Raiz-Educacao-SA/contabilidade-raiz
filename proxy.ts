@@ -1,8 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedCorporateEmail } from "@/lib/auth-domain";
+import { requiredModulesForApiPath, resolveAllowedModules } from "@/lib/access-control";
 
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname === "/api/data-engine/jwks") {
+  if (
+    request.nextUrl.pathname === "/api/data-engine/jwks"
+    || request.nextUrl.pathname === "/api/access-requests"
+  ) {
     return NextResponse.next();
   }
 
@@ -25,6 +29,33 @@ export async function proxy(request: NextRequest) {
   const user = await response.json();
   if (!isAllowedCorporateEmail(user?.email)) {
     return NextResponse.json({ error: "Acesso permitido somente para e-mails @raizeducacao.com.br." }, { status: 403 });
+  }
+
+  const requiredModules = requiredModulesForApiPath(request.nextUrl.pathname);
+  if (requiredModules.length) {
+    const accessHeaders = { authorization, apikey: anonKey };
+    const [profilesResponse, grantsResponse] = await Promise.all([
+      fetch(
+        `${supabaseUrl}/rest/v1/usuarios_empresas?select=perfil&usuario_id=eq.${encodeURIComponent(user.id)}`,
+        { headers: accessHeaders, cache: "no-store" },
+      ),
+      fetch(
+        `${supabaseUrl}/rest/v1/usuarios_modulos?select=modulo&usuario_id=eq.${encodeURIComponent(user.id)}`,
+        { headers: accessHeaders, cache: "no-store" },
+      ),
+    ]);
+    if (!profilesResponse.ok) {
+      return NextResponse.json({ error: "Não foi possível confirmar as permissões do usuário." }, { status: 403 });
+    }
+    const profiles = (await profilesResponse.json()) as { perfil?: string }[];
+    const grants = grantsResponse.ok ? await grantsResponse.json() as { modulo?: string }[] : [];
+    const allowed = resolveAllowedModules(
+      profiles.map((row) => row.perfil ?? ""),
+      grants.map((row) => row.modulo ?? ""),
+    );
+    if (!requiredModules.some((module) => allowed.includes(module))) {
+      return NextResponse.json({ error: "Seu usuário não possui acesso a este módulo." }, { status: 403 });
+    }
   }
 
   return NextResponse.next();
