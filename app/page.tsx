@@ -1512,6 +1512,7 @@ function ScheduleCompanyMatrix<T extends ScheduleMatrixTask>({
   confirmationDetail,
   onToggle,
   onToggleAll,
+  onToggleCompanyAll,
 }: {
   prefix: "financeiro" | "contabil";
   tasks: readonly T[];
@@ -1526,6 +1527,7 @@ function ScheduleCompanyMatrix<T extends ScheduleMatrixTask>({
   confirmationDetail: (module: string) => string;
   onToggle: (task: T, company: ScheduleCompany, checked: boolean) => Promise<void>;
   onToggleAll: (task: T, checked: boolean) => Promise<void>;
+  onToggleCompanyAll: (company: ScheduleCompany, checked: boolean) => Promise<void>;
 }) {
   const taskIds = tasks.map((task) => task.id);
 
@@ -1556,6 +1558,7 @@ function ScheduleCompanyMatrix<T extends ScheduleMatrixTask>({
                 </th>
               );
             })}
+            <th className="schedule-matrix-company-all-column">Todas</th>
             <th>Status</th>
             <th className="schedule-matrix-observation-column">Observações</th>
           </tr>
@@ -1592,6 +1595,18 @@ function ScheduleCompanyMatrix<T extends ScheduleMatrixTask>({
                     </td>
                   );
                 })}
+                <td className={`schedule-matrix-check schedule-matrix-company-all-column ${progress.status === "concluido" ? "is-done" : ""}`}>
+                  <label title={`Marcar todas as tarefas de ${companyLabel(company)}`}>
+                    <input
+                      type="checkbox"
+                      checked={progress.status === "concluido"}
+                      disabled={!canEdit || loading || confirmingModule === `${prefix}:todas:${companyCode(company)}`}
+                      aria-label={`Todas as tarefas — ${companyLabel(company)}`}
+                      onChange={(event) => void onToggleCompanyAll(company, event.target.checked)}
+                    />
+                    <span aria-hidden="true">{progress.status === "concluido" ? "✓" : ""}</span>
+                  </label>
+                </td>
                 <td>
                   <span className={`schedule-matrix-status is-${progress.status}`}>
                     {progress.status === "concluido" ? "✓ Fechada" : progress.status === "andamento" ? "◐ Em andamento" : "○ Pendente"}
@@ -1612,6 +1627,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const [confirmations, setConfirmations] = useState<ScheduleConfirmation[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [confirmingModule, setConfirmingModule] = useState("");
+  const [confirmingGroup, setConfirmingGroup] = useState("");
   const [scheduleError, setScheduleError] = useState("");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
@@ -1731,7 +1747,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
 
   async function toggleAccountingTaskAll(task: (typeof accountingScheduleTasks)[number], checked: boolean) {
     const batchKey = `contabil:${task.id}:todas`;
-    setConfirmingModule(batchKey);
+    setConfirmingGroup(batchKey);
     for (const company of companies) {
       await saveScheduleItem({
         key: `contabil:${task.id}:${scheduleCompanyCode(company)}`,
@@ -1739,12 +1755,12 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
         label: `${task.label} · ${companyLabel(company)}`,
       }, checked);
     }
-    setConfirmingModule("");
+    setConfirmingGroup("");
   }
 
   async function toggleFinancialTaskAll(task: (typeof financialScheduleTasks)[number], checked: boolean) {
     const batchKey = `financeiro:${task.id}:todas`;
-    setConfirmingModule(batchKey);
+    setConfirmingGroup(batchKey);
     for (const company of companies) {
       await saveScheduleItem({
         key: `financeiro:${task.id}:${scheduleCompanyCode(company)}`,
@@ -1752,7 +1768,23 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
         label: `${task.label} · ${companyLabel(company)}`,
       }, checked);
     }
-    setConfirmingModule("");
+    setConfirmingGroup("");
+  }
+
+  async function toggleAccountingCompanyAll(company: ScheduleCompany, checked: boolean) {
+    setConfirmingGroup(`contabil:todas:${scheduleCompanyCode(company)}`);
+    for (const task of accountingScheduleTasks) {
+      await toggleAccountingTask(task, company, checked);
+    }
+    setConfirmingGroup("");
+  }
+
+  async function toggleFinancialCompanyAll(company: ScheduleCompany, checked: boolean) {
+    setConfirmingGroup(`financeiro:todas:${scheduleCompanyCode(company)}`);
+    for (const task of financialScheduleTasks) {
+      await toggleFinancialTask(task, company, checked);
+    }
+    setConfirmingGroup("");
   }
 
   return (
@@ -1785,7 +1817,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       companies={companies}
                       confirmations={confirmations}
                       loading={scheduleLoading}
-                      confirmingModule={confirmingModule}
+                      confirmingModule={confirmingGroup || confirmingModule}
                       canEdit={canConfirmSector("Financeiro")}
                       companyCode={scheduleCompanyCode}
                       companyLabel={companyLabel}
@@ -1793,6 +1825,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       confirmationDetail={getConfirmationDetail}
                       onToggle={toggleFinancialTask}
                       onToggleAll={toggleFinancialTaskAll}
+                      onToggleCompanyAll={toggleFinancialCompanyAll}
                     />
                   </div>
                 ) : selectedStage.key === "contabil" ? (
@@ -1810,7 +1843,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       companies={companies}
                       confirmations={confirmations}
                       loading={scheduleLoading}
-                      confirmingModule={confirmingModule}
+                      confirmingModule={confirmingGroup || confirmingModule}
                       canEdit={canConfirmSector("Contabilidade")}
                       companyCode={scheduleCompanyCode}
                       companyLabel={companyLabel}
@@ -1818,6 +1851,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       confirmationDetail={getConfirmationDetail}
                       onToggle={toggleAccountingTask}
                       onToggleAll={toggleAccountingTaskAll}
+                      onToggleCompanyAll={toggleAccountingCompanyAll}
                     />
                   </div>
                 ) : (

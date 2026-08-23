@@ -2885,13 +2885,17 @@
   background: #f8fbff;
   color: #0f2742;
   text-align: left;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 900;
   line-height: 1.25;
 }
 .schedule-matrix thead .schedule-matrix-company-column {
   z-index: 4;
   background: #e5eff9;
+}
+.schedule-matrix .schedule-matrix-company-all-column {
+  width: 68px;
+  min-width: 68px;
 }
 .schedule-matrix .schedule-matrix-observation-column {
   width: 190px;
