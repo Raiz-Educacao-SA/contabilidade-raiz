@@ -40,6 +40,12 @@ import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import { accountingCompletionIdentity, financialCompletionIdentity } from "@/lib/schedule-completion";
+import {
+  CLOSING_SCHEDULE_MODULES,
+  FINANCIAL_SCHEDULE_TASK_IDS,
+  calculateClosingScheduleProgress,
+  type ClosingScheduleRecord,
+} from "@/lib/closing-schedule-progress";
 
 type Company = {
   empresa_id: string;
@@ -81,14 +87,13 @@ type ScheduleCompany = {
   name: string;
 };
 
-type ScheduleModuleKey = "compras" | "financeiro" | "folha" | "fiscal" | "contabil" | "book";
+type ScheduleModuleKey = (typeof CLOSING_SCHEDULE_MODULES)[number];
 
 const scheduleSidebarModules = [
   { id: "financeiro", label: "Módulo Financeiro", icon: WalletCards },
   { id: "folha", label: "Módulo Folha de Pagamento", icon: UsersRound },
   { id: "fiscal", label: "Módulo Fiscal", icon: FileSpreadsheet },
   { id: "contabil", label: "Módulo Contábil", icon: BookText },
-  { id: "book", label: "Book Contábil", icon: BookOpenCheck },
 ] as const;
 
 const accountingScheduleTasks: { id: AccountingTab; label: string; description: string }[] = [
@@ -103,7 +108,7 @@ const accountingScheduleTasks: { id: AccountingTab; label: string; description: 
   { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
 ];
 
-type FinancialScheduleTaskId = "bancaria" | "receita" | "emprestimos" | "parcelamentos";
+type FinancialScheduleTaskId = (typeof FINANCIAL_SCHEDULE_TASK_IDS)[number];
 const financialScheduleTasks: { id: FinancialScheduleTaskId; label: string; description: string }[] = [
   { id: "bancaria", label: "Conciliação Bancária", description: "Extratos, saldos e lançamentos" },
   { id: "receita", label: "Conciliação de Receita", description: "Receita fiscal x contábil" },
@@ -575,6 +580,7 @@ export default function Home() {
         closingDate={closingDate}
         onClosingDateChange={(date) => void updateClosingDate(date)}
         allowedAreas={allowedAreas}
+        companyCodes={companies.flatMap((item) => item.empresas ? [item.empresas.codcoligada] : [])}
         onSelect={(area) => {
           setSelectedArea(area);
           setSelectedModule(area === "financeiro" ? null : area);
@@ -843,7 +849,7 @@ export default function Home() {
                 <b>
                   {formatShortDate(new Date(year, month, 1))} a {formatShortDate(addBusinessDays(new Date(year, month, 1), 10))}
                 </b>
-                <small>Compras até o último dia útil · Contabilidade até D+10</small>
+                <small>Financeiro D+3 · Folha D+5 · Fiscal D+6 · Contabilidade na data definida</small>
               </div>
             )}
           </div>
@@ -1128,6 +1134,7 @@ function AreaHub({
   closingDate,
   onClosingDateChange,
   allowedAreas,
+  companyCodes,
   onSelect,
   onLogout,
 }: {
@@ -1135,28 +1142,29 @@ function AreaHub({
   closingDate: string;
   onClosingDateChange: (date: string) => void;
   allowedAreas: Area[];
+  companyCodes: string[];
   onSelect: (area: Area) => void;
   onLogout: () => void;
 }) {
   const executionAreas: Area[] = ["financeiro", "fiscal", "folha", "contabil"].filter((area) => allowedAreas.includes(area as Area)) as Area[];
-  const [completedAreas, setCompletedAreas] = useState<string[]>([]);
+  const [completionRecords, setCompletionRecords] = useState<ClosingScheduleRecord[]>([]);
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
   const closingMonth = closingDate.slice(5, 7);
   const closingYear = closingDate.slice(0, 4);
   const scheduleCompetence = `${closingYear}-${closingMonth}`;
   const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
-  const workflowModulesTotal = executionAreas.length + (allowedAreas.includes("book") ? 1 : 0);
+  const scheduleProgress = calculateClosingScheduleProgress(completionRecords, companyCodes);
+  const bookCompleted = completionRecords.some((record) => record.modulo === "book" && record.status === "concluido");
 
   useEffect(() => {
     let active = true;
     const loadCompletedAreas = async () => {
       const { data } = await supabase
         .from("cronograma_entregas")
-        .select("modulo")
-        .eq("competencia", scheduleCompetence)
-        .eq("status", "concluido");
-      if (active) setCompletedAreas((data ?? []).map((row) => row.modulo));
+        .select("modulo,status")
+        .eq("competencia", scheduleCompetence);
+      if (active) setCompletionRecords((data ?? []) as ClosingScheduleRecord[]);
     };
     void loadCompletedAreas();
     const channel = supabase
@@ -1200,13 +1208,13 @@ function AreaHub({
           <div className="workflow-overview-copy">
             <span>FECHAMENTO EM ANDAMENTO</span>
             <b>{months[Number(closingMonth) - 1]} de {closingYear}</b>
-            <small>{completedAreas.length}/{workflowModulesTotal} módulos concluídos</small>
+            <small>{scheduleProgress.completedModulesCount}/{scheduleProgress.totalModules} módulos concluídos</small>
           </div>
           <div className="workflow-overview-progress">
             <span>
-              <i style={{ width: `${workflowModulesTotal ? Math.round((completedAreas.length / workflowModulesTotal) * 100) : 0}%` }} />
+              <i style={{ width: `${scheduleProgress.overallPercent}%` }} />
             </span>
-            <b>{workflowModulesTotal ? Math.round((completedAreas.length / workflowModulesTotal) * 100) : 0}%</b>
+            <b>{scheduleProgress.overallPercent}%</b>
           </div>
           <div className="workflow-date">
             <span>Mês/Ano do fechamento</span>
@@ -1236,14 +1244,14 @@ function AreaHub({
           <button className="module-card area-cronograma" onClick={openSchedule}>
             <span className="module-card-top">
               <span className="module-icon"><ScheduleIcon /></span>
-              <span className="module-status module-status-progress">{completedAreas.length}/{workflowModulesTotal}</span>
+              <span className="module-status module-status-progress">{scheduleProgress.completedModulesCount}/{scheduleProgress.totalModules}</span>
             </span>
             <span className="module-copy">
               <b>Cronograma de Fechamento</b>
               <small>Acompanhe prazos, responsáveis e o andamento de todas as etapas.</small>
             </span>
             <span className="module-progress" aria-label="Progresso do cronograma">
-              <i style={{ width: `${workflowModulesTotal ? Math.round((completedAreas.length / workflowModulesTotal) * 100) : 0}%` }} />
+              <i style={{ width: `${scheduleProgress.overallPercent}%` }} />
             </span>
             <span className="module-enter">Abrir cronograma <ArrowLeftRight /></span>
           </button>
@@ -1251,7 +1259,8 @@ function AreaHub({
           {executionAreas.map((id) => {
             const item = areas[id];
             const Icon = item.icon;
-            const isDone = completedAreas.includes(id);
+            const modulePercent = scheduleProgress.modulePercent[id as ScheduleModuleKey];
+            const isDone = modulePercent === 100;
             return (
               <button
                 key={id}
@@ -1261,7 +1270,7 @@ function AreaHub({
                 <span className="module-card-top">
                   <span className="module-icon"><Icon /></span>
                   <span className={`module-status ${isDone ? "module-status-done" : ""}`}>
-                    {isDone ? "Concluído" : "Em andamento"}
+                    {isDone ? "Concluído" : modulePercent > 0 ? `${modulePercent}% concluído` : "Em andamento"}
                   </span>
                 </span>
                 <span className="module-copy">
@@ -1269,7 +1278,7 @@ function AreaHub({
                   <small>{item.description}</small>
                 </span>
                 <span className="module-progress" aria-label={`Status de ${item.title}`}>
-                  <i style={{ width: isDone ? "100%" : "0%" }} />
+                  <i style={{ width: `${modulePercent}%` }} />
                 </span>
                 <span className="module-enter">Acessar módulo <ArrowLeftRight /></span>
               </button>
@@ -1302,13 +1311,13 @@ function AreaHub({
 
           {allowedAreas.includes("book") && (
             <button
-              className={`module-card area-book ${completedAreas.includes("book") ? "workflow-module-done" : ""}`}
+              className={`module-card area-book ${bookCompleted ? "workflow-module-done" : ""}`}
               onClick={() => onSelect("book")}
             >
               <span className="module-card-top">
                 <span className="module-icon"><BookIcon /></span>
-                <span className={`module-status ${completedAreas.includes("book") ? "module-status-done" : ""}`}>
-                  {completedAreas.includes("book") ? "Concluído" : "Aguardando"}
+                <span className={`module-status ${bookCompleted ? "module-status-done" : ""}`}>
+                  {bookCompleted ? "Concluído" : "Aguardando"}
                 </span>
               </span>
               <span className="module-copy">
@@ -1316,7 +1325,7 @@ function AreaHub({
                 <small>Consolida os resultados dos módulos e entrega a visão final do fechamento.</small>
               </span>
               <span className="module-progress" aria-label="Status do Book Contábil">
-                <i style={{ width: completedAreas.includes("book") ? "100%" : "0%" }} />
+                <i style={{ width: bookCompleted ? "100%" : "0%" }} />
               </span>
               <span className="module-enter">Acessar Book <ArrowLeftRight /></span>
             </button>
@@ -1430,18 +1439,11 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const [detailModule, setDetailModule] = useState("");
   const monthEnd = lastBusinessDay(year, month);
   const stages = [
-    { key: "compras", name: "Módulo Compras", sector: "Compras", detail: "Finalizar o input de notas", deadline: monthEnd, milestone: "Último dia útil", icon: ShoppingCart },
     { key: "financeiro", name: "Módulo Financeiro", sector: "Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
     { key: "folha", name: "Módulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
     { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Concluir apurações e obrigações fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "D+6", icon: FileSpreadsheet },
     { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
-    { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Disponibilizar o produto final do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Entrega final", icon: BookOpenCheck },
   ];
-  const start = new Date(year, month, 1);
-  const finalDeadline = stages.at(-1)!.deadline;
-  const elapsed = today.getTime() - start.getTime();
-  const duration = Math.max(1, finalDeadline.getTime() - start.getTime());
-  const overallProgress = Math.max(0, Math.min(100, Math.round((elapsed / duration) * 100)));
   const selectedStage = stages.find((stage) => stage.key === selectedScheduleModule) ?? stages[0];
   const canConfirmSector = (sector: string) =>
     userProfiles.includes("administrador") || (
@@ -1474,6 +1476,10 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const activeAccountingTask = accountingScheduleTasks.find((task) => task.id === selectedAccountingTask) ?? accountingScheduleTasks[0]!;
   const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
+  const overallProgress = calculateClosingScheduleProgress(
+    confirmations,
+    companies.map((company) => company.code),
+  ).overallPercent;
 
   useEffect(() => {
     let active = true;
@@ -1544,10 +1550,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       ]);
     }
     setConfirmingModule("");
-  }
-
-  async function toggleStage(stage: (typeof stages)[number], checked: boolean) {
-    await saveScheduleItem({ key: stage.key, sector: stage.sector, label: stage.name }, checked);
   }
 
   async function toggleAccountingTask(task: (typeof accountingScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
@@ -1792,7 +1794,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     <b>{confirmation ? "Entrega finalizada" : "Entrega pendente"}</b>
                     <p>{confirmation
                       ? `Este módulo foi liberado por ${confirmation.confirmado_email}.`
-                      : `O setor ${selectedStage.sector} ainda precisa dar OK para liberar esta etapa do fechamento.`}</p>
+                      : `Finalize o ${selectedStage.name} na área correspondente para que esta etapa alimente o cronograma.`}</p>
                   </div>
                 )}
               </>
