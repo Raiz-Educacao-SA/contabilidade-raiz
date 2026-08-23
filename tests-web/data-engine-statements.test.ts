@@ -197,6 +197,84 @@ test("não duplica o mesmo movimento quando os identificadores técnicos são di
   ]);
 });
 
+test("descarta movimentos do PDF quando a cobertura identifica Excel para a mesma conta", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/tesouraria/extratos/movimentos") {
+        return Response.json({
+          items: [
+            {
+              movimento_id: "movimento-excel",
+              canonical_movement_id: "canonical-excel",
+              cod_coligada: 3,
+              bank_id: "341",
+              source_account_id: sourceAccountId,
+              processing_identity_id: "processamento-excel",
+              data_lancamento: "2026-06-02",
+              valor_centavos: 35100,
+              natureza: "D",
+              descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
+            },
+            {
+              movimento_id: "movimento-pdf",
+              canonical_movement_id: "canonical-pdf",
+              cod_coligada: 3,
+              bank_id: "341",
+              source_account_id: sourceAccountId,
+              processing_identity_id: "processamento-pdf",
+              data_lancamento: "2026-06-02",
+              valor_centavos: 35100,
+              natureza: "D",
+              descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      if (url.pathname === "/v1/tesouraria/extratos/cobertura") {
+        return Response.json({
+          items: [
+            {
+              cod_coligada: 3,
+              source_account_id: sourceAccountId,
+              processing_identity_id: "processamento-excel",
+              evidence_ref: "arquivos/extrato-itau-junho.xlsx",
+            },
+            {
+              cod_coligada: 3,
+              source_account_id: sourceAccountId,
+              processing_identity_id: "processamento-pdf",
+              evidence_ref: "arquivos/extrato-itau-junho.pdf",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      return Response.json({ items: [], next_cursor: null });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.deepEqual(result.statements[0].rows, [
+    {
+      date: "2026-06-02",
+      description: "TARIFA DE CONTA CORRENTE MENSAL",
+      id: "movimento-excel",
+      value: -351,
+    },
+  ]);
+  assert.equal(result.operations.movimentos, 1);
+});
+
 test("mantém movimentos legítimos de mesmo valor quando a descrição é diferente", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-03";

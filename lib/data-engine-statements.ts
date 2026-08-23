@@ -87,6 +87,7 @@ type LoadOptions = {
   codColigadaCode?: string;
   fetcher?: typeof fetch;
   fromDate: string;
+  sourceEvidence?: Array<Record<string, unknown>>;
   toDate: string;
 };
 
@@ -1271,26 +1272,33 @@ export async function loadDataEngineStatementSnapshot(
   options: LoadOptions,
 ): Promise<DataEngineStatementSnapshot> {
   validateOptions(options);
-  const [statements, saldos, positions, cobertura, pendencias] =
-    await Promise.all([
-      loadDataEngineStatements(options),
-      loadGovernedSourceSummary(
-        "/v1/tesouraria/extratos/saldos",
-        options,
-        false,
-      ),
-      loadGovernedSourceSummary(
-        "/v1/tesouraria/extratos/posicoes",
-        options,
-        true,
-      ),
-      loadGovernedSourceSummary(
-        "/v1/tesouraria/extratos/cobertura",
-        options,
-        false,
-      ),
-      loadGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
-    ]);
+  const [saldos, positions, cobertura, pendencias] = await Promise.all([
+    loadGovernedSourceSummary(
+      "/v1/tesouraria/extratos/saldos",
+      options,
+      false,
+    ),
+    loadGovernedSourceSummary(
+      "/v1/tesouraria/extratos/posicoes",
+      options,
+      true,
+    ),
+    loadGovernedSourceSummary(
+      "/v1/tesouraria/extratos/cobertura",
+      options,
+      false,
+    ),
+    loadGovernedOperation("/v1/tesouraria/extratos/pendencias", options),
+  ]);
+  const statements = await loadDataEngineStatements({
+    ...options,
+    sourceEvidence: [
+      ...saldos.items,
+      ...positions.items,
+      ...cobertura.items,
+      ...pendencias.items,
+    ],
+  });
   const primarySources = new Set(
     statements.map((statement) => statement.sourceAccountId),
   );
@@ -1437,7 +1445,10 @@ export async function loadDataEngineStatements(
 
 function statementsFromMovements(
   movements: Movement[],
-  options: Pick<LoadOptions, "codColigada" | "fromDate" | "toDate">,
+  options: Pick<
+    LoadOptions,
+    "codColigada" | "fromDate" | "sourceEvidence" | "toDate"
+  >,
 ) {
   const period = `${options.fromDate.slice(5, 7)}/${options.fromDate.slice(0, 4)}`;
   const groups = new Map<string, DataEngineStatement>();
@@ -1454,24 +1465,22 @@ function statementsFromMovements(
     movementIds.add(movement.movimento_id);
   }
 
-  const sourceFormat = (movement: Movement) => {
-    const sourceMetadata = [
-      movement.file_name,
-      movement.filename,
-      movement.nome_arquivo,
-      movement.object_name,
-      movement.mime_type,
-      movement.content_type,
-      movement.file_extension,
-      movement.source_format,
-      movement.formato,
-      movement.canal,
-    ]
-      .filter((value): value is string => typeof value === "string")
+  type SourceFormat = "excel" | "pdf" | "unknown";
+  const sourceFormatFromRecord = (
+    record: Record<string, unknown>,
+  ): SourceFormat => {
+    const sourceMetadata = Object.entries(record)
+      .filter(([field, value]) =>
+        /(?:arquivo|file|filename|object|path|caminho|mime|content|format|formato|extens|evidence|source|canal)/i.test(
+          field,
+        ) &&
+        (typeof value === "string" || typeof value === "number"),
+      )
+      .map(([, value]) => String(value))
       .join(" ")
       .toLowerCase();
     if (
-      /(?:\.xlsx?|excel|spreadsheet|vnd\.openxmlformats-officedocument\.spreadsheetml|vnd\.ms-excel)/i.test(
+      /(?:\.xls(?:x|m|b)?\b|excel|spreadsheet|vnd\.openxmlformats-officedocument\.spreadsheetml|vnd\.ms-excel)/i.test(
         sourceMetadata,
       )
     ) {
@@ -1481,6 +1490,77 @@ function statementsFromMovements(
       return "pdf" as const;
     }
     return "unknown" as const;
+  };
+
+  const sourceLinkValues = (record: Record<string, unknown>) => {
+    const fields = [
+      "processing_identity_id",
+      "processingIdentityId",
+      "evidence_ref",
+      "evidence_id",
+      "source_file_id",
+      "source_document_id",
+      "file_id",
+      "arquivo_id",
+      "document_id",
+      "documento_id",
+      "documento_hash",
+      "object_id",
+      "object_key",
+      "ingestion_id",
+      "import_id",
+      "upload_id",
+    ];
+    return Array.from(
+      new Set(
+        fields
+          .map((field) => record[field])
+          .filter(
+            (value): value is string | number =>
+              typeof value === "string" || typeof value === "number",
+          )
+          .map((value) => String(value).trim())
+          .filter(Boolean),
+      ),
+    );
+  };
+
+  const evidenceFormatsByLink = new Map<string, Set<SourceFormat>>();
+  const evidenceFormatsByAccount = new Map<string, Set<SourceFormat>>();
+  for (const evidence of options.sourceEvidence ?? []) {
+    const format = sourceFormatFromRecord(evidence);
+    if (format === "unknown") continue;
+    for (const link of sourceLinkValues(evidence)) {
+      const formats = evidenceFormatsByLink.get(link) ?? new Set<SourceFormat>();
+      formats.add(format);
+      evidenceFormatsByLink.set(link, formats);
+    }
+    const sourceAccountId = governedSourceIdentity(evidence);
+    if (sourceAccountId) {
+      const formats =
+        evidenceFormatsByAccount.get(sourceAccountId) ?? new Set<SourceFormat>();
+      formats.add(format);
+      evidenceFormatsByAccount.set(sourceAccountId, formats);
+    }
+  }
+
+  const sourceFormat = (movement: Movement): SourceFormat => {
+    const movementRecord = movement as unknown as Record<string, unknown>;
+    const directFormat = sourceFormatFromRecord(movementRecord);
+    if (directFormat !== "unknown") return directFormat;
+    const linkedFormats = new Set<SourceFormat>();
+    for (const link of sourceLinkValues(movementRecord)) {
+      for (const format of evidenceFormatsByLink.get(link) ?? []) {
+        linkedFormats.add(format);
+      }
+    }
+    if (linkedFormats.size === 1) return Array.from(linkedFormats)[0];
+    const accountFormats = evidenceFormatsByAccount.get(
+      movement.source_account_id,
+    );
+    return accountFormats?.size === 1
+      ? Array.from(accountFormats)[0]
+      : "unknown";
   };
 
   const accountsWithExcel = new Set(
