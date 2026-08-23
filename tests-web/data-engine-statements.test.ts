@@ -690,6 +690,107 @@ test("pareia aplicação, conta corrente Santander e Sofisa sem misturar as font
   assert.deepEqual(result.unmatchedSources, []);
 });
 
+test("separa o extrato de movimento da aplicação misturado à conta corrente Santander", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const row = (id: string, date: string, value: number) => ({
+    id,
+    date,
+    description: `MOVIMENTO ${id}`,
+    value,
+  });
+  const currentSource = {
+    bankId: "033",
+    sourceAccountId: "santander-compartilhado",
+    rows: [
+      row("corrente-01", "2026-06-01", 1000),
+      row("aplicacao-01-a", "2026-06-01", -520.03),
+      row("aplicacao-01-b", "2026-06-01", -479.97),
+      row("corrente-05", "2026-06-05", 8.1),
+      row("aplicacao-05", "2026-06-05", -8.1),
+      row("aplicacao-08", "2026-06-08", 4378),
+      row("corrente-08", "2026-06-08", -4378),
+      row("aplicacao-30", "2026-06-30", 4000),
+      row("corrente-30", "2026-06-30", -4000),
+    ],
+    metadata: {
+      account: "referencia-tecnica",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const applicationSource = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-posicao",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const accounts = [
+    {
+      code: "1.1.1.03.03.10",
+      name: "Banco Santander - conta Aplic. 13081471-7 (Ox)",
+      rows: [
+        { date: new Date("2026-06-01T00:00:00.000Z"), value: -520.03 },
+        { date: new Date("2026-06-01T00:00:00.000Z"), value: -479.97 },
+        { date: new Date("2026-06-05T00:00:00.000Z"), value: -8.1 },
+        { date: new Date("2026-06-08T00:00:00.000Z"), value: 4378 },
+        { date: new Date("2026-06-30T00:00:00.000Z"), value: 4638.11 },
+        { date: new Date("2026-06-30T00:00:00.000Z"), value: -637.82 },
+      ],
+    },
+    {
+      code: "1.1.1.02.03.03",
+      name: "Banco Santander - conta 13081471-7 (Ox)",
+      rows: [
+        { date: new Date("2026-06-01T00:00:00.000Z"), value: 1000 },
+        { date: new Date("2026-06-05T00:00:00.000Z"), value: 8.1 },
+        { date: new Date("2026-06-08T00:00:00.000Z"), value: -4378 },
+        { date: new Date("2026-06-30T00:00:00.000Z"), value: -4000 },
+      ],
+    },
+  ];
+
+  const result = resolveStatementBindings(
+    [currentSource, applicationSource],
+    accounts,
+  );
+  const application = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.03.03.10",
+  );
+  const current = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.03",
+  );
+
+  assert.equal(application?.source.bankId, "033");
+  assert.deepEqual(
+    application?.source.rows.map((item: { id: string }) => item.id),
+    [
+      "aplicacao-01-a",
+      "aplicacao-01-b",
+      "aplicacao-05",
+      "aplicacao-08",
+      "aplicacao-30",
+    ],
+  );
+  assert.deepEqual(
+    current?.source.rows.map((item: { id: string }) => item.id),
+    ["corrente-01", "corrente-05", "corrente-08", "corrente-30"],
+  );
+  assert.deepEqual(result.unmatchedAccounts, []);
+  assert.deepEqual(result.unmatchedSources, []);
+});
+
 test("reconhece aplicação presente em saldos mesmo sem posição ou movimento", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 

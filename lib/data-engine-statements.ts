@@ -228,6 +228,12 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     const b = normalizeDigits(right);
     return a.length >= 4 && b.length >= 4 && (a === b || a.endsWith(b) || b.endsWith(a));
   };
+  const day = (value: Date | string | undefined) => {
+    if (!value) return "";
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return String(value).slice(0, 10);
+  };
+  const cents = (value: number) => Math.round(value * 100);
   const bankNames: Record<string, RegExp> = {
     "001": /BANCO DO BRASIL|\bBB\b/i,
     "033": /SANTANDER/i,
@@ -240,12 +246,127 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     "756": /SICOOB/i,
   };
   let anonymousApplicationSeen = false;
-  const normalizedSources = sources.flatMap((source) => {
+  let normalizedSources = sources.flatMap((source) => {
     if (!isAnonymousApplicationStatement(source)) return [source];
     if (anonymousApplicationSeen) return [];
     anonymousApplicationSeen = true;
     return [source];
   });
+
+  // Alguns PDFs de aplicação do Santander chegam no endpoint de movimentos
+  // com a mesma referência técnica da conta corrente. Nessa situação, cada
+  // transferência aparece dos dois lados (conta corrente e aplicação), mas o
+  // Data Engine não informa em qual extrato cada lado foi lido. A separação só
+  // é feita quando há uma única conta e uma única fonte de aplicação, o banco
+  // é inequívoco e existe a contrapartida oposta no mesmo dia.
+  const applicationAccounts = accounts.filter((account) =>
+    APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
+  );
+  const emptyApplicationSources = normalizedSources.filter(
+    (source) => isApplicationStatement(source) && source.rows.length === 0,
+  );
+  if (applicationAccounts.length === 1 && emptyApplicationSources.length === 1) {
+    const applicationAccount = applicationAccounts[0];
+    const applicationBank = Object.entries(bankNames).find(([, pattern]) =>
+      pattern.test(applicationAccount.name ?? ""),
+    )?.[0];
+    const transactionSources = applicationBank
+      ? normalizedSources.filter(
+          (source) =>
+            !isApplicationStatement(source) &&
+            source.bankId.padStart(3, "0") === applicationBank,
+        )
+      : [];
+
+    if (applicationBank && transactionSources.length === 1) {
+      const transactionSource = transactionSources[0];
+      const dailyTargets = new Map<string, number>();
+      for (const row of applicationAccount.rows ?? []) {
+        const rowDay = day(row.date);
+        if (!rowDay) continue;
+        dailyTargets.set(
+          rowDay,
+          (dailyTargets.get(rowDay) ?? 0) + cents(row.value),
+        );
+      }
+
+      const selectNearTarget = (
+        rows: DataEngineBankRow[],
+        target: number,
+      ) => {
+        const absoluteTarget = Math.abs(target);
+        if (!absoluteTarget) return [] as DataEngineBankRow[];
+        const tolerance = Math.max(100, Math.round(absoluteTarget * 0.001));
+        const candidates = rows.filter((row) => cents(row.value) * target > 0);
+        if (!candidates.length || candidates.length > 24) {
+          return [] as DataEngineBankRow[];
+        }
+        const reachable = new Map<number, number[]>([[0, []]]);
+        const ceiling = absoluteTarget + tolerance;
+        for (const [index, row] of candidates.entries()) {
+          const amount = Math.abs(cents(row.value));
+          const current = Array.from(reachable.entries());
+          for (const [sum, indexes] of current) {
+            const next = sum + amount;
+            if (next > ceiling || reachable.has(next)) continue;
+            reachable.set(next, [...indexes, index]);
+          }
+        }
+        const best = Array.from(reachable.entries())
+          .filter(([sum]) => sum > 0 && Math.abs(sum - absoluteTarget) <= tolerance)
+          .sort(
+            ([leftSum, leftRows], [rightSum, rightRows]) =>
+              Math.abs(leftSum - absoluteTarget) -
+                Math.abs(rightSum - absoluteTarget) ||
+              leftRows.length - rightRows.length,
+          )[0];
+        return best ? best[1].map((index) => candidates[index]) : [];
+      };
+
+      const selectedApplicationRows: DataEngineBankRow[] = [];
+      for (const [date, target] of dailyTargets) {
+        if (!target) continue;
+        const rowsForDay = transactionSource.rows.filter(
+          (row) => row.date === date,
+        );
+        const applicationRows = selectNearTarget(rowsForDay, target);
+        if (!applicationRows.length) continue;
+        const selectedTotal = applicationRows.reduce(
+          (total, row) => total + cents(row.value),
+          0,
+        );
+        const counterpartRows = selectNearTarget(rowsForDay, -selectedTotal);
+        if (!counterpartRows.length) continue;
+        selectedApplicationRows.push(...applicationRows);
+      }
+
+      if (selectedApplicationRows.length) {
+        const applicationRowIds = new Set(
+          selectedApplicationRows.map((row) => row.id),
+        );
+        const applicationSource = emptyApplicationSources[0];
+        normalizedSources = normalizedSources.map((source) => {
+          if (source.sourceAccountId === transactionSource.sourceAccountId) {
+            return {
+              ...source,
+              rows: source.rows.filter((row) => !applicationRowIds.has(row.id)),
+            };
+          }
+          if (source.sourceAccountId === applicationSource.sourceAccountId) {
+            return {
+              ...source,
+              bankId: applicationBank,
+              rows: selectedApplicationRows.sort((left, right) =>
+                left.date.localeCompare(right.date),
+              ),
+            };
+          }
+          return source;
+        });
+      }
+    }
+  }
+
   const hasApplicationSource = normalizedSources.some(isApplicationStatement);
   const remainingAccounts = new Map(accounts.map((account) => [account.code, account]));
   const remainingSources = new Map(
@@ -260,12 +381,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     remainingSources.delete(source.sourceAccountId);
     return true;
   };
-  const day = (value: Date | string | undefined) => {
-    if (!value) return "";
-    if (value instanceof Date) return value.toISOString().slice(0, 10);
-    return String(value).slice(0, 10);
-  };
-  const cents = (value: number) => Math.round(value * 100);
   const movementEvidence = (source: DataEngineStatement, account: TAccount) => {
     const accountRows = account.rows ?? [];
     const used = new Set<number>();
