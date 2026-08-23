@@ -5,6 +5,7 @@ const moduleUrl = new URL("../lib/closing-schedule-progress.ts", import.meta.url
 const {
   ACCOUNTING_SCHEDULE_TASK_IDS,
   FINANCIAL_SCHEDULE_TASK_IDS,
+  PAYROLL_SCHEDULE_TASK_IDS,
   calculateClosingScheduleProgress,
   summarizeScheduleCompanyProgress,
 } = await import(moduleUrl.href);
@@ -16,7 +17,7 @@ function completed(modulo: string) {
 test("conta somente os quatro módulos que alimentam o cronograma", () => {
   const records = [
     completed("fiscal"),
-    completed("folha"),
+    completed("folha:lote:02"),
     completed("book"),
     completed("compras"),
     completed("contabil:pis-cofins:02"),
@@ -26,17 +27,18 @@ test("conta somente os quatro módulos que alimentam o cronograma", () => {
   const progress = calculateClosingScheduleProgress(records, ["2"]);
 
   assert.equal(progress.totalModules, 4);
-  assert.equal(progress.completedModulesCount, 2);
-  assert.deepEqual(progress.completedModules, ["fiscal", "folha"]);
+  assert.equal(progress.completedModulesCount, 1);
+  assert.deepEqual(progress.completedModules, ["fiscal"]);
   assert.equal(progress.modulePercent.financeiro, 25);
   assert.equal(progress.modulePercent.contabil, 11);
-  assert.equal(progress.overallPercent, 59);
+  assert.equal(progress.overallPercent, 38);
 });
 
-test("conclui Financeiro e Contábil apenas quando todas as tarefas e empresas terminarem", () => {
+test("conclui Financeiro, Folha e Contábil apenas quando todas as tarefas e empresas terminarem", () => {
   const companyCodes = ["01", "2"];
   const financialTaskIds = FINANCIAL_SCHEDULE_TASK_IDS as readonly string[];
   const accountingTaskIds = ACCOUNTING_SCHEDULE_TASK_IDS as readonly string[];
+  const payrollTaskIds = PAYROLL_SCHEDULE_TASK_IDS as readonly string[];
   const records = [
     ...financialTaskIds.flatMap((task) =>
       ["01", "02"].map((company) => completed(`financeiro:${task}:${company}`)),
@@ -45,7 +47,9 @@ test("conclui Financeiro e Contábil apenas quando todas as tarefas e empresas t
       ["01", "02"].map((company) => completed(`contabil:${task}:${company}`)),
     ),
     completed("fiscal"),
-    completed("folha"),
+    ...payrollTaskIds.flatMap((task) =>
+      ["01", "02"].map((company) => completed(`folha:${task}:${company}`)),
+    ),
   ];
 
   const progress = calculateClosingScheduleProgress(records, companyCodes);
@@ -60,13 +64,14 @@ test("conclui Financeiro e Contábil apenas quando todas as tarefas e empresas t
   });
 });
 
-test("ignora confirmações gerais antigas de Financeiro e Contábil", () => {
+test("ignora confirmações gerais antigas de Financeiro, Folha e Contábil", () => {
   const progress = calculateClosingScheduleProgress(
-    [completed("financeiro"), completed("contabil")],
+    [completed("financeiro"), completed("folha"), completed("contabil")],
     ["01"],
   );
 
   assert.equal(progress.modulePercent.financeiro, 0);
+  assert.equal(progress.modulePercent.folha, 0);
   assert.equal(progress.modulePercent.contabil, 0);
   assert.equal(progress.completedModulesCount, 0);
   assert.equal(progress.overallPercent, 0);
@@ -85,6 +90,24 @@ test("resume o andamento de cada empresa para a matriz do cronograma", () => {
       totalCount: 4,
       status: "andamento",
       observation: "2 de 4 atividades concluídas.",
+    },
+  );
+});
+
+test("resume separadamente o andamento da Folha por empresa", () => {
+  const records = [
+    completed("folha:lote:03"),
+    completed("folha:inss:03"),
+    completed("folha:fgts:03"),
+  ];
+
+  assert.deepEqual(
+    summarizeScheduleCompanyProgress(records, "folha", PAYROLL_SCHEDULE_TASK_IDS, "3"),
+    {
+      completedCount: 3,
+      totalCount: 6,
+      status: "andamento",
+      observation: "3 de 6 atividades concluídas.",
     },
   );
 });

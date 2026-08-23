@@ -4,6 +4,15 @@ export type ClosingScheduleModule = (typeof CLOSING_SCHEDULE_MODULES)[number];
 
 export const FINANCIAL_SCHEDULE_TASK_IDS = ["bancaria", "receita", "emprestimos", "parcelamentos"] as const;
 
+export const PAYROLL_SCHEDULE_TASK_IDS = [
+  "lote",
+  "liquidos",
+  "inss",
+  "fgts",
+  "irrf",
+  "provisoes",
+] as const;
+
 export const ACCOUNTING_SCHEDULE_TASK_IDS = [
   "pis-cofins",
   "irpj-csll",
@@ -28,7 +37,7 @@ function normalizeCompanyCode(code: string) {
 
 export function summarizeScheduleCompanyProgress(
   records: readonly ClosingScheduleRecord[],
-  prefix: "financeiro" | "contabil",
+  prefix: "financeiro" | "folha" | "contabil",
   taskIds: readonly string[],
   rawCompanyCode: string,
 ) {
@@ -60,7 +69,7 @@ export function summarizeScheduleCompanyProgress(
 
 function detailedModulePercent(
   completed: Set<string>,
-  prefix: "financeiro" | "contabil",
+  prefix: "financeiro" | "folha" | "contabil",
   taskIds: readonly string[],
   companyCodes: readonly string[],
 ) {
@@ -84,7 +93,7 @@ export function calculateClosingScheduleProgress(
   const modulePercent: Record<ClosingScheduleModule, number> = {
     financeiro: detailedModulePercent(completed, "financeiro", FINANCIAL_SCHEDULE_TASK_IDS, companyCodes),
     fiscal: completed.has("fiscal") ? 100 : 0,
-    folha: completed.has("folha") ? 100 : 0,
+    folha: detailedModulePercent(completed, "folha", PAYROLL_SCHEDULE_TASK_IDS, companyCodes),
     contabil: detailedModulePercent(completed, "contabil", ACCOUNTING_SCHEDULE_TASK_IDS, companyCodes),
   };
   const completedModules = CLOSING_SCHEDULE_MODULES.filter((module) => modulePercent[module] === 100);

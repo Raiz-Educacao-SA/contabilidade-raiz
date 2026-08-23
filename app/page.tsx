@@ -46,6 +46,7 @@ import { accountingCompletionIdentity, financialCompletionIdentity } from "@/lib
 import {
   CLOSING_SCHEDULE_MODULES,
   FINANCIAL_SCHEDULE_TASK_IDS,
+  PAYROLL_SCHEDULE_TASK_IDS,
   calculateClosingScheduleProgress,
   summarizeScheduleCompanyProgress,
   type ClosingScheduleRecord,
@@ -118,6 +119,16 @@ const financialScheduleTasks: { id: FinancialScheduleTaskId; label: string; desc
   { id: "receita", label: "Conciliação de Receita", description: "Receita fiscal x contábil" },
   { id: "emprestimos", label: "Conciliação de Empréstimos", description: "Contratos, parcelas e saldos" },
   { id: "parcelamentos", label: "Conciliação de Parcelamentos", description: "Parcelamentos e baixas" },
+];
+
+type PayrollScheduleTaskId = (typeof PAYROLL_SCHEDULE_TASK_IDS)[number];
+const payrollScheduleTasks: { id: PayrollScheduleTaskId; label: string; description: string }[] = [
+  { id: "lote", label: "Conferência do Lote", description: "Equilíbrio entre débitos e créditos do lote" },
+  { id: "liquidos", label: "Líquidos da Folha", description: "Salários, férias, rescisões, RPA e adiantamentos" },
+  { id: "inss", label: "INSS", description: "Conferência da contribuição previdenciária" },
+  { id: "fgts", label: "FGTS", description: "Conferência do fundo de garantia" },
+  { id: "irrf", label: "IRRF", description: "Conferência do imposto de renda retido" },
+  { id: "provisoes", label: "Provisões", description: "Férias, 13º salário e encargos" },
 ];
 
 const modules = {
@@ -1514,7 +1525,7 @@ function ScheduleCompanyMatrix<T extends ScheduleMatrixTask>({
   onToggleAll,
   onToggleCompanyAll,
 }: {
-  prefix: "financeiro" | "contabil";
+  prefix: "financeiro" | "folha" | "contabil";
   tasks: readonly T[];
   companies: ScheduleCompany[];
   confirmations: ScheduleConfirmation[];
@@ -1664,8 +1675,14 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const financialTotalCount = financialScheduleTasks.length * companies.length;
+  const payrollDoneCount = payrollScheduleTasks.reduce(
+    (total, task) => total + companies.filter((company) => isDone(`folha:${task.id}:${scheduleCompanyCode(company)}`)).length,
+    0,
+  );
+  const payrollTotalCount = payrollScheduleTasks.length * companies.length;
   const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
+  const payrollPercent = payrollTotalCount ? Math.round((payrollDoneCount / payrollTotalCount) * 100) : 0;
   const overallProgress = calculateClosingScheduleProgress(
     confirmations,
     companies.map((company) => company.code),
@@ -1745,6 +1762,14 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     }, checked);
   }
 
+  async function togglePayrollTask(task: (typeof payrollScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
+    await saveScheduleItem({
+      key: `folha:${task.id}:${scheduleCompanyCode(company)}`,
+      sector: `Folha de Pagamento · ${task.label} · ${companyLabel(company)}`,
+      label: `${task.label} · ${companyLabel(company)}`,
+    }, checked);
+  }
+
   async function toggleAccountingTaskAll(task: (typeof accountingScheduleTasks)[number], checked: boolean) {
     const batchKey = `contabil:${task.id}:todas`;
     setConfirmingGroup(batchKey);
@@ -1771,6 +1796,19 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     setConfirmingGroup("");
   }
 
+  async function togglePayrollTaskAll(task: (typeof payrollScheduleTasks)[number], checked: boolean) {
+    const batchKey = `folha:${task.id}:todas`;
+    setConfirmingGroup(batchKey);
+    for (const company of companies) {
+      await saveScheduleItem({
+        key: `folha:${task.id}:${scheduleCompanyCode(company)}`,
+        sector: `Folha de Pagamento · ${task.label} · ${companyLabel(company)}`,
+        label: `${task.label} · ${companyLabel(company)}`,
+      }, checked);
+    }
+    setConfirmingGroup("");
+  }
+
   async function toggleAccountingCompanyAll(company: ScheduleCompany, checked: boolean) {
     setConfirmingGroup(`contabil:todas:${scheduleCompanyCode(company)}`);
     for (const task of accountingScheduleTasks) {
@@ -1783,6 +1821,14 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     setConfirmingGroup(`financeiro:todas:${scheduleCompanyCode(company)}`);
     for (const task of financialScheduleTasks) {
       await toggleFinancialTask(task, company, checked);
+    }
+    setConfirmingGroup("");
+  }
+
+  async function togglePayrollCompanyAll(company: ScheduleCompany, checked: boolean) {
+    setConfirmingGroup(`folha:todas:${scheduleCompanyCode(company)}`);
+    for (const task of payrollScheduleTasks) {
+      await togglePayrollTask(task, company, checked);
     }
     setConfirmingGroup("");
   }
@@ -1826,6 +1872,32 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       onToggle={toggleFinancialTask}
                       onToggleAll={toggleFinancialTaskAll}
                       onToggleCompanyAll={toggleFinancialCompanyAll}
+                    />
+                  </div>
+                ) : selectedStage.key === "folha" ? (
+                  <div className="schedule-accounting-checklist">
+                    <header>
+                      <div>
+                        <span>MÓDULO FOLHA DE PAGAMENTO</span>
+                        <b>Módulo Folha de Pagamento - {months[month - 1]} de {year}</b>
+                      </div>
+                      <small>{payrollPercent}% · {payrollDoneCount}/{payrollTotalCount || 0} finalizada(s)</small>
+                    </header>
+                    <ScheduleCompanyMatrix
+                      prefix="folha"
+                      tasks={payrollScheduleTasks}
+                      companies={companies}
+                      confirmations={confirmations}
+                      loading={scheduleLoading}
+                      confirmingModule={confirmingGroup || confirmingModule}
+                      canEdit={canConfirmSector("Folha de Pagamento")}
+                      companyCode={scheduleCompanyCode}
+                      companyLabel={companyLabel}
+                      isDone={isDone}
+                      confirmationDetail={getConfirmationDetail}
+                      onToggle={togglePayrollTask}
+                      onToggleAll={togglePayrollTaskAll}
+                      onToggleCompanyAll={togglePayrollCompanyAll}
                     />
                   </div>
                 ) : selectedStage.key === "contabil" ? (
@@ -1910,6 +1982,11 @@ function ClosingHistory() {
       const [, taskId, companyCode] = modulo.split(":");
       const task = accountingScheduleTasks.find((item) => item.id === taskId);
       return `${task?.label ?? "Item do Módulo Contábil"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
+    }
+    if (modulo.startsWith("folha:")) {
+      const [, taskId, companyCode] = modulo.split(":");
+      const task = payrollScheduleTasks.find((item) => item.id === taskId);
+      return `${task?.label ?? "Item do Módulo Folha de Pagamento"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
     }
     return moduleNames[modulo] ?? modulo;
   };
