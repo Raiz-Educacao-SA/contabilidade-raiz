@@ -48,8 +48,8 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /Dias que explicam a diferença/);
   assert.match(panel, /Diferenças diárias que se compensam dentro da competência/);
   assert.match(panel, /Quando o mês não fecha, a análise abaixo/);
-  assert.match(panel, /Diferença nas entradas/);
-  assert.match(panel, /Diferença nas saídas/);
+  assert.match(panel, /Movimento líquido no extrato/);
+  assert.match(panel, /Movimento líquido contábil/);
   assert.match(panel, /Diferença líquida/);
   assert.match(panel, /Alertas internos informados pela Planilha 18/);
   assert.doesNotMatch(panel, /Total das pendências detalhadas/);
@@ -62,6 +62,8 @@ test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {
   assert.match(matcher, /Total líquido diário agrupado/);
   assert.match(matcher, /matchMonthlyNetGroups\(\)/);
   assert.match(matcher, /Total líquido mensal agrupado/);
+  assert.match(matcher, /groupDailyNetDifferences\(\)/);
+  assert.match(matcher, /Diferença líquida diária agrupada/);
   assert.doesNotMatch(matcher, /days <= toleranceDays/);
   assert.match(reconciliation, /reconcileMovements/);
 });

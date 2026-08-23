@@ -110,10 +110,44 @@ export function reconcileMovements(
       });
     }
   };
+  const groupDailyNetDifferences = () => {
+    const dates = Array.from(new Set([
+      ...bank.filter((_, index) => !usedBank.has(index)).map((row) => dayKey(row.date)),
+      ...accounting.filter((_, index) => !usedAccounting.has(index)).map((row) => dayKey(row.date)),
+    ])).sort();
+    for (const date of dates) {
+      const bankIndexes = bank.flatMap((row, index) =>
+        !usedBank.has(index) && dayKey(row.date) === date ? [index] : [],
+      );
+      const accountingIndexes = accounting.flatMap((row, index) =>
+        !usedAccounting.has(index) && dayKey(row.date) === date ? [index] : [],
+      );
+      if (!bankIndexes.length || !accountingIndexes.length) continue;
+      const bankValue = bankIndexes.reduce((sum, index) => sum + bank[index].value, 0);
+      const accountingValue = accountingIndexes.reduce((sum, index) => sum + accounting[index].value, 0);
+      const difference = Math.round((bankValue - accountingValue) * 100) / 100;
+      bankIndexes.forEach((index) => usedBank.add(index));
+      accountingIndexes.forEach((index) => usedAccounting.add(index));
+      matches.push({
+        status: Math.abs(difference) <= toleranceValue ? "Conciliado" : "Possível conciliação",
+        bankId: `BANCO-DIFERENCA-LIQUIDA-${date}`,
+        bankDate: bank[bankIndexes[0]].date,
+        description: `Diferença líquida diária agrupada — ${bankIndexes.length} movimento(s) no extrato`,
+        bankValue: Math.round(bankValue * 100) / 100,
+        accountingId: `CONTABIL-DIFERENCA-LIQUIDA-${date}`,
+        accountingDate: accounting[accountingIndexes[0]].date,
+        nature: `Total líquido diário de ${accountingIndexes.length} lançamento(s) contábil(eis)`,
+        accountingValue: Math.round(accountingValue * 100) / 100,
+        days: 0,
+        difference,
+      });
+    }
+  };
   match(true);
   matchDailyNetGroups();
   match(false);
   matchMonthlyNetGroups();
+  groupDailyNetDifferences();
   bank.forEach((b, index) => { if (!usedBank.has(index)) matches.push({ status: "Somente no banco", bankId: b.id, bankDate: b.date, description: b.description, bankValue: b.value }); });
   accounting.forEach((a, index) => { if (!usedAccounting.has(index)) matches.push({ status: "Somente na contabilidade", accountingId: a.id, accountingDate: a.date, nature: a.nature, accountingValue: a.value }); });
   return matches;

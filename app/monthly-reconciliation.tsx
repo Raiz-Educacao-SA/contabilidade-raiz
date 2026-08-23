@@ -945,32 +945,20 @@ function MonthlyAccountResult({
           <b>{brl(value.bankCredits)}</b>
           <small>Débitos contábeis: {brl(value.accountingDebits)}</small>
         </div>
-        <div className={!value.reconciled && Math.abs(value.entryDifference) > 0.01 ? "metric-review" : "metric-ok"}>
-          <span>Diferença nas entradas</span>
-          <b>{brl(value.entryDifference)}</b>
-          <small>
-            {value.reconciled && Math.abs(value.entryDifference) > 0.01
-              ? "Compensada na soma líquida"
-              : Math.abs(value.entryDifference) > 0.01
-                ? "Revisar entradas e débitos"
-                : "Entradas conferidas"}
-          </small>
-        </div>
         <div>
           <span>Saídas no extrato</span>
           <b>{brl(value.bankDebits)}</b>
           <small>Créditos contábeis: {brl(value.accountingCredits)}</small>
         </div>
-        <div className={!value.reconciled && Math.abs(value.exitDifference) > 0.01 ? "metric-review" : "metric-ok"}>
-          <span>Diferença nas saídas</span>
-          <b>{brl(value.exitDifference)}</b>
-          <small>
-            {value.reconciled && Math.abs(value.exitDifference) > 0.01
-              ? "Compensada na soma líquida"
-              : Math.abs(value.exitDifference) > 0.01
-                ? "Revisar saídas e créditos"
-                : "Saídas conferidas"}
-          </small>
+        <div>
+          <span>Movimento líquido no extrato</span>
+          <b>{brl(value.bankNet)}</b>
+          <small>Entradas menos saídas</small>
+        </div>
+        <div>
+          <span>Movimento líquido contábil</span>
+          <b>{brl(value.accountingNet)}</b>
+          <small>Débitos menos créditos</small>
         </div>
         <div className={value.reconciled ? "metric-ok" : "metric-review"}>
           <span>Diferença líquida mensal</span>
@@ -1092,12 +1080,12 @@ function ReconciliationFormView({
               <b>{dailyDifferences.length}</b>
             </article>
             <article>
-              <span>Diferença nas entradas</span>
-              <b>{brl(result.validation.entryDifference)}</b>
+              <span>Movimento líquido no extrato</span>
+              <b>{brl(result.validation.bankNet)}</b>
             </article>
             <article>
-              <span>Diferença nas saídas</span>
-              <b>{brl(result.validation.exitDifference)}</b>
+              <span>Movimento líquido contábil</span>
+              <b>{brl(result.validation.accountingNet)}</b>
             </article>
             <article>
               <span>Diferença líquida</span>
@@ -1128,25 +1116,17 @@ function ReconciliationFormView({
                     <thead>
                       <tr>
                         <th>Data</th>
-                        <th>Entradas no extrato</th>
-                        <th>Débitos contábeis</th>
-                        <th>Dif. entradas</th>
-                        <th>Saídas no extrato</th>
-                        <th>Créditos contábeis</th>
-                        <th>Dif. saídas</th>
-                        <th>Dif. líquida</th>
+                        <th>Movimento líquido no extrato</th>
+                        <th>Movimento líquido contábil</th>
+                        <th>Diferença líquida</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dailyDifferences.map((row) => (
                         <tr key={row.date}>
                           <td>{new Date(`${row.date}T00:00:00.000Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
-                          <td>{brl(row.bankCredits)}</td>
-                          <td>{brl(row.accountingDebits)}</td>
-                          <td><b>{brl(row.entryDifference)}</b></td>
-                          <td>{brl(row.bankDebits)}</td>
-                          <td>{brl(row.accountingCredits)}</td>
-                          <td><b>{brl(row.exitDifference)}</b></td>
+                          <td>{brl(row.bankCredits - row.bankDebits)}</td>
+                          <td>{brl(row.accountingDebits - row.accountingCredits)}</td>
                           <td><b>{brl(row.netDifference)}</b></td>
                         </tr>
                       ))}
@@ -1185,7 +1165,7 @@ function ReconciliationFormView({
                 </div>
               </article>
             )}
-            {visibleSections.length === 0 && (
+            {visibleSections.length === 0 && dailyDifferences.length === 0 && (
               <article>
                 <div className="form-section-title">
                   <b>Nenhum movimento divergente foi encontrado nas duas bases</b>
