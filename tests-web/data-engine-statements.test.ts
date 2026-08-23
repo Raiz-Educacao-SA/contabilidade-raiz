@@ -401,6 +401,82 @@ test("reconhece extrato de aplicação pelas posições mesmo sem movimentos", a
   assert.equal(result.operations.movimentos, 0);
 });
 
+test("usa os movimentos do extrato de aplicação e prioriza o principal resgatado", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    codColigadaCode: "03",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/posicoes"
+            ? [
+                {
+                  posicao_aplicacao_id: "movimento-1",
+                  cod_coligada: 3,
+                  bank_id: "033",
+                  source_account_id: "aplicacao-santander",
+                  data_movimento: "01/06/2026",
+                  numero_aplicacao: "00333003",
+                  valor_principal_resgatado: "520,02",
+                  resgates_brutos: "520,04",
+                  nome_produto: "ContaMax",
+                  numero_conta: "13081471-7",
+                },
+                {
+                  posicao_aplicacao_id: "movimento-2",
+                  cod_coligada: 3,
+                  bank_id: "033",
+                  source_account_id: "aplicacao-santander",
+                  data_movimento: "08/06/2026",
+                  numero_aplicacao: "00333003",
+                  aplicacoes: "4.378,00",
+                  nome_produto: "ContaMax",
+                  numero_conta: "13081471-7",
+                },
+                {
+                  posicao_aplicacao_id: "movimento-3",
+                  cod_coligada: 3,
+                  bank_id: "033",
+                  source_account_id: "aplicacao-santander",
+                  data_movimento: "10/06/2026",
+                  numero_aplicacao: "00333003",
+                  valor_principal_resgatado: "788,05",
+                  nome_produto: "ContaMax",
+                  numero_conta: "13081471-7",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].bankId, "033");
+  assert.equal(result.statements[0].metadata.name, "Aplicação · ContaMax");
+  assert.deepEqual(
+    result.statements[0].rows.map((row: { date: string; value: number }) => ({
+      date: row.date,
+      value: row.value,
+    })),
+    [
+      { date: "2026-06-01", value: 520.02 },
+      { date: "2026-06-08", value: -4378 },
+      { date: "2026-06-10", value: 788.05 },
+    ],
+  );
+  assert.equal(result.diagnostics.recognizedWithoutMovements, 0);
+  assert.equal(result.diagnostics.applicationMovementsUsed, 3);
+  assert.ok(result.diagnostics.positionFieldsObserved.includes("data_movimento"));
+});
+
 test("reconhece a aplicação quando a posição não traz source_account_id", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 

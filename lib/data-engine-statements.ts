@@ -32,8 +32,10 @@ export type DataEngineStatementSnapshot = {
   statements: DataEngineStatement[];
   operations: DataEngineStatementOperations;
   diagnostics: {
+    applicationMovementsUsed: number;
     recognizedWithoutMovements: number;
     pendingFieldsObserved: string[];
+    positionFieldsObserved: string[];
     pendingObjectsInspected: number;
     pendingMovementsUsed: number;
     pendingSourcesUsed: number;
@@ -93,13 +95,17 @@ const MAX_PENDING_OBJECTS = 10_000;
 const MAX_PENDING_DEPTH = 6;
 const APPLICATION_ACCOUNT_PATTERN = /APLIC|INVESTIMENTO|CDB|FUNDO/iu;
 
+function isApplicationStatement(statement: DataEngineStatement) {
+  return APPLICATION_ACCOUNT_PATTERN.test(
+    `${statement.sourceAccountId} ${statement.metadata.name} ${statement.metadata.account}`,
+  );
+}
+
 function isAnonymousApplicationStatement(statement: DataEngineStatement) {
   return (
     statement.rows.length === 0 &&
     statement.bankId.padStart(3, "0") === "000" &&
-    APPLICATION_ACCOUNT_PATTERN.test(
-      `${statement.metadata.name} ${statement.metadata.account}`,
-    ) &&
+    isApplicationStatement(statement) &&
     !/\d/.test(statement.metadata.account)
   );
 }
@@ -240,9 +246,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     anonymousApplicationSeen = true;
     return [source];
   });
-  const hasAnonymousApplicationSource = normalizedSources.some(
-    isAnonymousApplicationStatement,
-  );
+  const hasApplicationSource = normalizedSources.some(isApplicationStatement);
   const remainingAccounts = new Map(accounts.map((account) => [account.code, account]));
   const remainingSources = new Map(
     normalizedSources.map((source) => [source.sourceAccountId, source]),
@@ -311,10 +315,10 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       ),
     );
   }
-  // Prioridade 2: a referência anônima de aplicação deve reservar a conta
-  // contábil de aplicação antes que um extrato transacional do mesmo banco a consuma.
+  // Prioridade 2: o extrato de movimento da aplicação deve reservar a conta
+  // contábil de aplicação antes que a conta corrente do mesmo banco a consuma.
   for (const source of Array.from(remainingSources.values())) {
-    if (!isAnonymousApplicationStatement(source)) continue;
+    if (!isApplicationStatement(source)) continue;
     bindUnique(
       source,
       Array.from(remainingAccounts.values()).filter((account) =>
@@ -329,7 +333,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     let candidates = Array.from(remainingAccounts.values()).filter((account) =>
       bankPattern.test(account.name ?? ""),
     );
-    if (hasAnonymousApplicationSource && source.rows.length > 0) {
+    if (hasApplicationSource && source.rows.length > 0) {
       const transactionAccounts = candidates.filter(
         (account) => !APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
       );
@@ -404,6 +408,158 @@ function governedInteger(record: Record<string, unknown>, fields: string[]) {
     if (Number.isSafeInteger(parsed)) return parsed;
   }
   return null;
+}
+
+function governedNamedMoneyInCents(
+  record: Record<string, unknown>,
+  centsFields: string[],
+  decimalFields: string[],
+) {
+  const explicitCents = governedInteger(record, centsFields);
+  return explicitCents ?? governedDecimalInCents(record, decimalFields);
+}
+
+function applicationPositionMovements(
+  positions: Array<Record<string, unknown>>,
+  options: Pick<LoadOptions, "codColigada" | "fromDate" | "toDate">,
+) {
+  const movements: Movement[] = [];
+  const movementKeys = new Set<string>();
+
+  for (const [index, position] of positions.entries()) {
+    const date = governedCalendarDate(position, [
+      "data_movimento",
+      "data_do_movimento",
+      "movement_date",
+      "data_lancamento",
+      "transaction_date",
+      "posting_date",
+    ]);
+    const sourceAccountId = applicationPositionIdentity(position);
+    if (
+      !date ||
+      date < options.fromDate ||
+      date > options.toDate ||
+      !sourceAccountId ||
+      sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH
+    ) {
+      continue;
+    }
+
+    const rawBankId = governedText(position, [
+      "bank_id",
+      "codigo_banco",
+      "bank_code",
+      "cod_banco",
+    ]);
+    const bankId = /^0*\d{1,3}$/.test(rawBankId)
+      ? rawBankId.replace(/^0+/, "").padStart(3, "0")
+      : "000";
+    const applicationNumber = governedText(position, [
+      "numero_aplicacao",
+      "numero_da_aplicacao",
+      "application_number",
+      "nr_aplicacao",
+      "n_aplicacao",
+    ]);
+    const recordId = governedText(position, [
+      "movimento_aplicacao_id",
+      "application_movement_id",
+      "posicao_aplicacao_id",
+      "position_id",
+      "id",
+    ]) || `${sourceAccountId}:${date}:${index}`;
+    const appliedInCents = governedNamedMoneyInCents(
+      position,
+      [
+        "aplicacoes_centavos",
+        "aplicacao_centavos",
+        "valor_aplicacoes_centavos",
+        "valor_aplicacao_centavos",
+        "valor_aplicado_centavos",
+        "application_amount_cents",
+        "applied_amount_cents",
+      ],
+      [
+        "aplicacoes",
+        "aplicacao",
+        "valor_aplicacoes",
+        "valor_aplicacao",
+        "valor_aplicado",
+        "application_amount",
+        "applied_amount",
+        "investimento",
+        "investment_amount",
+      ],
+    );
+    const principalRedeemedInCents = governedNamedMoneyInCents(
+      position,
+      [
+        "valor_principal_resgatado_centavos",
+        "principal_resgatado_centavos",
+        "valor_resgate_principal_centavos",
+        "redemption_principal_cents",
+        "principal_redeemed_cents",
+      ],
+      [
+        "valor_principal_resgatado",
+        "principal_resgatado",
+        "valor_resgate_principal",
+        "redemption_principal",
+        "principal_redeemed",
+      ],
+    );
+    const grossRedeemedInCents = governedNamedMoneyInCents(
+      position,
+      [
+        "resgates_brutos_centavos",
+        "resgate_bruto_centavos",
+        "valor_resgate_centavos",
+        "gross_redemption_cents",
+        "redemption_amount_cents",
+      ],
+      [
+        "resgates_brutos",
+        "resgate_bruto",
+        "valor_resgate",
+        "resgates",
+        "gross_redemption",
+        "redemption_amount",
+      ],
+    );
+    const redeemedInCents = principalRedeemedInCents ?? grossRedeemedInCents;
+    const suffix = applicationNumber ? ` · aplicação ${applicationNumber}` : "";
+
+    const appendMovement = (
+      nature: "C" | "D",
+      amountInCents: number | null,
+      description: string,
+    ) => {
+      if (amountInCents === null || Math.abs(amountInCents) < 1) return;
+      const absoluteCents = Math.abs(amountInCents);
+      const key = `${sourceAccountId}|${date}|${absoluteCents}|${nature}|${description}`;
+      if (movementKeys.has(key)) return;
+      movementKeys.add(key);
+      movements.push({
+        movimento_id: `posicao:${recordId}:${nature}`,
+        cod_coligada: options.codColigada,
+        bank_id: bankId,
+        source_account_id: sourceAccountId,
+        data_lancamento: date,
+        valor_centavos: absoluteCents,
+        natureza: nature,
+        descricao_sanitizada: `${description}${suffix}`,
+      });
+    };
+
+    // Na conta de aplicação, aplicar aumenta o ativo (débito) e resgatar o
+    // principal reduz o ativo (crédito). Rendimentos e tributos pertencem a
+    // outras contas contábeis e não devem distorcer esta conciliação.
+    appendMovement("D", appliedInCents, "Aplicação financeira");
+    appendMovement("C", redeemedInCents, "Resgate do principal");
+  }
+
+  return movements;
 }
 
 function governedMoneyInCents(record: Record<string, unknown>) {
@@ -720,6 +876,15 @@ function positionBelongsToPeriod(
   fromDate: string,
   toDate: string,
 ) {
+  const movementDate = governedCalendarDate(position, [
+    "data_movimento",
+    "data_do_movimento",
+    "movement_date",
+    "data_lancamento",
+    "transaction_date",
+    "posting_date",
+  ]);
+  if (movementDate) return movementDate >= fromDate && movementDate <= toDate;
   const reference = governedText(position, [
     "data_posicao",
     "dt_posicao",
@@ -766,7 +931,6 @@ export function mergeApplicationPositionStatements(
     if (
       !sourceAccountId ||
       sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||
-      knownSources.has(sourceAccountId) ||
       !positionBelongsToPeriod(position, period.fromDate, period.toDate)
     ) {
       continue;
@@ -807,6 +971,22 @@ export function mergeApplicationPositionStatements(
           ? `Banco ${bankId} · Aplicação`
           : "Aplicação financeira";
 
+    if (knownSources.has(sourceAccountId)) {
+      const current = recognized.find(
+        (statement) => statement.sourceAccountId === sourceAccountId,
+      );
+      if (current) {
+        current.bankId = bankId;
+        current.metadata = {
+          ...current.metadata,
+          agency: agency || current.metadata.agency,
+          account: account || current.metadata.account,
+          name,
+        };
+      }
+      continue;
+    }
+
     const statement: DataEngineStatement = {
       bankId,
       sourceAccountId,
@@ -846,6 +1026,7 @@ async function loadGovernedSourceSummary(
   let cursor: string | null = null;
   let records = 0;
   const sourceRecords = new Map<string, Record<string, unknown>>();
+  const items: Array<Record<string, unknown>> = [];
 
   for (let requestCount = 0; requestCount < MAX_PAGE_REQUESTS; requestCount += 1) {
     const url = new URL(path, options.baseUrl);
@@ -873,6 +1054,7 @@ async function loadGovernedSourceSummary(
       if (!positionBelongsToPeriod(item, options.fromDate, options.toDate)) {
         continue;
       }
+      items.push(item);
       const sourceAccountId = allowApplicationFallback
         ? applicationPositionIdentity(item)
         : governedSourceIdentity(item);
@@ -897,7 +1079,20 @@ async function loadGovernedSourceSummary(
     }
   }
 
-  return { records, sourceRecords: Array.from(sourceRecords.values()) };
+  return { items, records, sourceRecords: Array.from(sourceRecords.values()) };
+}
+
+function governedCalendarDate(
+  record: Record<string, unknown>,
+  fields: string[],
+) {
+  const rawDate = governedText(record, fields);
+  const isoDate = rawDate.slice(0, 10);
+  if (isCalendarDate(isoDate)) return isoDate;
+  const brazilianDate = rawDate.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!brazilianDate) return "";
+  const normalized = `${brazilianDate[3]}-${brazilianDate[2]}-${brazilianDate[1]}`;
+  return isCalendarDate(normalized) ? normalized : "";
 }
 
 async function loadGovernedOperation(path: string, options: LoadOptions) {
@@ -982,6 +1177,11 @@ export async function loadDataEngineStatementSnapshot(
   )
     .sort()
     .slice(0, 100);
+  const positionFieldsObserved = Array.from(
+    new Set(positions.items.flatMap((position) => Object.keys(position))),
+  )
+    .sort()
+    .slice(0, 100);
   const pendingMovementKeys = new Set<string>();
   const pendingMovements = pendingExtractions
     .flatMap((extraction) => extraction.movements)
@@ -1004,11 +1204,24 @@ export async function loadDataEngineStatementSnapshot(
       return true;
     });
   const pendingStatements = statementsFromMovements(pendingMovements, options);
-  const statementsWithPendingFallback = [...statements, ...pendingStatements].sort(
-    (left, right) => left.sourceAccountId.localeCompare(right.sourceAccountId),
+  const sourcesWithMovements = new Set([
+    ...primarySources,
+    ...pendingStatements.map((statement) => statement.sourceAccountId),
+  ]);
+  const positionMovements = applicationPositionMovements(
+    positions.items,
+    options,
+  ).filter((movement) => !sourcesWithMovements.has(movement.source_account_id));
+  const positionStatements = statementsFromMovements(positionMovements, options);
+  const statementsWithFallback = [
+    ...statements,
+    ...pendingStatements,
+    ...positionStatements,
+  ].sort((left, right) =>
+    left.sourceAccountId.localeCompare(right.sourceAccountId),
   );
   const recognizedStatements = mergeApplicationPositionStatements(
-    statementsWithPendingFallback,
+    statementsWithFallback,
     [
       ...saldos.sourceRecords,
       ...positions.sourceRecords,
@@ -1019,9 +1232,11 @@ export async function loadDataEngineStatementSnapshot(
   return {
     statements: recognizedStatements,
     diagnostics: {
+      applicationMovementsUsed: positionMovements.length,
       recognizedWithoutMovements:
-        recognizedStatements.length - statementsWithPendingFallback.length,
+        recognizedStatements.length - statementsWithFallback.length,
       pendingFieldsObserved,
+      positionFieldsObserved,
       pendingObjectsInspected,
       pendingMovementsUsed: pendingMovements.length,
       pendingSourcesUsed: pendingStatements.length,
