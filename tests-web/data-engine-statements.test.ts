@@ -105,7 +105,7 @@ test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", 
         items: [
           {
             movimento_id: "mov-pdf-351",
-            canonical_movement_id: "itau-tarifa-2026-06-02-351",
+            canonical_movement_id: "itau-tarifa-pdf-2026-06-02-351",
             cod_coligada: 3,
             bank_id: "341",
             source_account_id: sourceAccountId,
@@ -113,12 +113,12 @@ test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", 
             valor_centavos: 35100,
             natureza: "D",
             descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
-            documento_hash: "documento-pdf",
+            documento_hash: "documento-bancario-351",
             file_name: "extrato-itau-junho.pdf",
           },
           {
             movimento_id: "mov-excel-351",
-            canonical_movement_id: "itau-tarifa-2026-06-02-351",
+            canonical_movement_id: "itau-tarifa-excel-2026-06-02-351",
             cod_coligada: 3,
             bank_id: "341",
             source_account_id: sourceAccountId,
@@ -126,7 +126,7 @@ test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", 
             valor_centavos: 35100,
             natureza: "D",
             descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
-            documento_hash: "documento-excel",
+            documento_hash: "documento-bancario-351",
             file_name: "extrato-itau-junho.xlsx",
           },
         ],
@@ -147,7 +147,7 @@ test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", 
   ]);
 });
 
-test("mantém movimentos legítimos iguais quando os identificadores canônicos são diferentes", async () => {
+test("não duplica o mesmo movimento quando os identificadores técnicos são diferentes", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-03";
   const movement = {
@@ -157,7 +157,56 @@ test("mantém movimentos legítimos iguais quando os identificadores canônicos 
     data_lancamento: "2026-06-02",
     valor_centavos: 35100,
     natureza: "D",
-    descricao_sanitizada: "TARIFA BANCÁRIA",
+    descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
+  } as const;
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            ...movement,
+            movimento_id: "mov-origem-1",
+            canonical_movement_id: "canonical-origem-1",
+            documento_hash: "documento-origem-1",
+          },
+          {
+            ...movement,
+            movimento_id: "mov-origem-2",
+            canonical_movement_id: "canonical-origem-2",
+            documento_hash: "documento-origem-2",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0].rows, [
+    {
+      date: "2026-06-02",
+      description: "TARIFA DE CONTA CORRENTE MENSAL",
+      id: "mov-origem-1",
+      value: -351,
+    },
+  ]);
+});
+
+test("mantém movimentos legítimos de mesmo valor quando a descrição é diferente", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+  const movement = {
+    cod_coligada: 3,
+    bank_id: "341",
+    source_account_id: sourceAccountId,
+    data_lancamento: "2026-06-02",
+    valor_centavos: 35100,
+    natureza: "D",
     file_name: "extrato-itau-junho.xlsx",
   } as const;
 
@@ -172,11 +221,15 @@ test("mantém movimentos legítimos iguais quando os identificadores canônicos 
             ...movement,
             movimento_id: "mov-legitimo-1",
             canonical_movement_id: "canonical-legitimo-1",
+            documento_hash: "documento-legitimo-1",
+            descricao_sanitizada: "TARIFA BANCÁRIA MENSAL",
           },
           {
             ...movement,
             movimento_id: "mov-legitimo-2",
             canonical_movement_id: "canonical-legitimo-2",
+            documento_hash: "documento-legitimo-2",
+            descricao_sanitizada: "TARIFA DE COBRANÇA",
           },
         ],
         next_cursor: null,

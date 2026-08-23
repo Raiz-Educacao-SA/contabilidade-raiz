@@ -1494,18 +1494,50 @@ function statementsFromMovements(
       sourceFormat(movement) !== "pdf",
   );
 
+  const sourcePriority = { unknown: 0, pdf: 1, excel: 2 } as const;
   const canonicalIndexes = new Map<string, number>();
+  const documentIndexes = new Map<string, number>();
+  const businessIndexes = new Map<string, number>();
   const selectedMovements: Movement[] = [];
   for (const movement of preferredMovements) {
     const canonicalId = movement.canonical_movement_id?.trim();
-    if (!canonicalId) {
-      selectedMovements.push(movement);
-      continue;
-    }
-    const canonicalKey = `${movement.source_account_id}|${canonicalId}`;
-    const existingIndex = canonicalIndexes.get(canonicalKey);
+    const documentHash = movement.documento_hash?.trim();
+    const canonicalKey = canonicalId
+      ? `${movement.source_account_id}|${canonicalId}`
+      : "";
+    const documentKey = documentHash
+      ? [
+          movement.source_account_id,
+          movement.data_lancamento,
+          movement.natureza,
+          Math.abs(movement.valor_centavos),
+          documentHash,
+        ].join("|")
+      : "";
+    const businessKey = [
+      movement.source_account_id,
+      movement.data_lancamento,
+      movement.natureza,
+      Math.abs(movement.valor_centavos),
+      movement.descricao_sanitizada
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase(),
+    ].join("|");
+    const existingIndex =
+      (canonicalKey ? canonicalIndexes.get(canonicalKey) : undefined) ??
+      (documentKey ? documentIndexes.get(documentKey) : undefined) ??
+      businessIndexes.get(businessKey);
     if (existingIndex === undefined) {
-      canonicalIndexes.set(canonicalKey, selectedMovements.length);
+      if (canonicalKey) {
+        canonicalIndexes.set(canonicalKey, selectedMovements.length);
+      }
+      if (documentKey) {
+        documentIndexes.set(documentKey, selectedMovements.length);
+      }
+      businessIndexes.set(businessKey, selectedMovements.length);
       selectedMovements.push(movement);
       continue;
     }
@@ -1520,10 +1552,12 @@ function statementsFromMovements(
     ) {
       throw new Error("Resposta inválida do Data Engine.");
     }
-    const sourcePriority = { unknown: 0, pdf: 1, excel: 2 } as const;
     if (sourcePriority[sourceFormat(movement)] > sourcePriority[sourceFormat(existing)]) {
       selectedMovements[existingIndex] = movement;
     }
+    if (canonicalKey) canonicalIndexes.set(canonicalKey, existingIndex);
+    if (documentKey) documentIndexes.set(documentKey, existingIndex);
+    businessIndexes.set(businessKey, existingIndex);
   }
 
   for (const movement of selectedMovements) {
