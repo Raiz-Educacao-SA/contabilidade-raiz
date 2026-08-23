@@ -1578,7 +1578,10 @@ function statementsFromMovements(
   const canonicalIndexes = new Map<string, number>();
   const documentIndexes = new Map<string, number>();
   const businessIndexes = new Map<string, number>();
+  const contentIndexes = new Map<string, number>();
   const selectedMovements: Movement[] = [];
+  const isGeneratedDescription = (description: string) =>
+    /^MOVIMENTO-[A-Z0-9_-]{12,}$/i.test(description.trim());
   for (const movement of preferredMovements) {
     const canonicalId = movement.canonical_movement_id?.trim();
     const documentHash = movement.documento_hash?.trim();
@@ -1606,10 +1609,26 @@ function statementsFromMovements(
         .trim()
         .toUpperCase(),
     ].join("|");
+    const contentKey = [
+      movement.source_account_id,
+      movement.data_lancamento,
+      movement.natureza,
+      Math.abs(movement.valor_centavos),
+    ].join("|");
+    const contentIndex = contentIndexes.get(contentKey);
+    const contentMovement =
+      contentIndex === undefined ? undefined : selectedMovements[contentIndex];
+    const generatedFallbackIndex =
+      contentMovement &&
+      isGeneratedDescription(contentMovement.descricao_sanitizada) !==
+        isGeneratedDescription(movement.descricao_sanitizada)
+        ? contentIndex
+        : undefined;
     const existingIndex =
       (canonicalKey ? canonicalIndexes.get(canonicalKey) : undefined) ??
       (documentKey ? documentIndexes.get(documentKey) : undefined) ??
-      businessIndexes.get(businessKey);
+      businessIndexes.get(businessKey) ??
+      generatedFallbackIndex;
     if (existingIndex === undefined) {
       if (canonicalKey) {
         canonicalIndexes.set(canonicalKey, selectedMovements.length);
@@ -1618,6 +1637,9 @@ function statementsFromMovements(
         documentIndexes.set(documentKey, selectedMovements.length);
       }
       businessIndexes.set(businessKey, selectedMovements.length);
+      if (!contentIndexes.has(contentKey)) {
+        contentIndexes.set(contentKey, selectedMovements.length);
+      }
       selectedMovements.push(movement);
       continue;
     }
@@ -1632,12 +1654,23 @@ function statementsFromMovements(
     ) {
       throw new Error("Resposta inválida do Data Engine.");
     }
-    if (sourcePriority[sourceFormat(movement)] > sourcePriority[sourceFormat(existing)]) {
+    const existingIsGenerated = isGeneratedDescription(
+      existing.descricao_sanitizada,
+    );
+    const movementIsGenerated = isGeneratedDescription(
+      movement.descricao_sanitizada,
+    );
+    if (
+      sourcePriority[sourceFormat(movement)] >
+        sourcePriority[sourceFormat(existing)] ||
+      (existingIsGenerated && !movementIsGenerated)
+    ) {
       selectedMovements[existingIndex] = movement;
     }
     if (canonicalKey) canonicalIndexes.set(canonicalKey, existingIndex);
     if (documentKey) documentIndexes.set(documentKey, existingIndex);
     businessIndexes.set(businessKey, existingIndex);
+    contentIndexes.set(contentKey, existingIndex);
   }
 
   for (const movement of selectedMovements) {

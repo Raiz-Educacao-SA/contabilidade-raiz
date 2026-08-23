@@ -275,6 +275,58 @@ test("descarta movimentos do PDF quando a cobertura identifica Excel para a mesm
   assert.equal(result.operations.movimentos, 1);
 });
 
+test("prefere o histórico real ao movimento genérico do PDF quando a origem não é informada", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            movimento_id: "movimento-pdf-generico",
+            canonical_movement_id: "canonical-pdf-generico",
+            documento_hash: "documento-pdf-generico",
+            cod_coligada: 3,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
+          },
+          {
+            movimento_id: "movimento-excel-descritivo",
+            canonical_movement_id: "canonical-excel-descritivo",
+            documento_hash: "documento-excel-descritivo",
+            cod_coligada: 3,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.deepEqual(result[0].rows, [
+    {
+      date: "2026-06-02",
+      description: "TARIFA DE CONTA CORRENTE MENSAL",
+      id: "movimento-excel-descritivo",
+      value: -351,
+    },
+  ]);
+});
+
 test("mantém movimentos legítimos de mesmo valor quando a descrição é diferente", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-03";
