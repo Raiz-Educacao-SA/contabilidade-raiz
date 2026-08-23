@@ -2948,8 +2948,8 @@
   line-height: 1;
 }
 .schedule-matrix-check.is-done span {
-  border-color: #22a46b;
-  background: #22a46b;
+  border-color: #173d68;
+  background: #173d68;
 }
 .schedule-matrix-check label:focus-within span {
   outline: 3px solid rgba(39, 121, 189, 0.22);
