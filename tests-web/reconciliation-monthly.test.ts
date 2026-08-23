@@ -3,7 +3,7 @@ import test from "node:test";
 
 const moduleUrl = new URL("../lib/reconciliation-monthly.ts", import.meta.url);
 
-test("não mascara diferenças iguais de entrada e saída quando o líquido fecha", async () => {
+test("considera conciliado quando o líquido mensal fecha após somar os movimentos", async () => {
   const { validateMonthly } = await import(moduleUrl.href);
   const bank = [
     { id: "b1", date: new Date("2026-06-01T00:00:00Z"), description: "Entrada", value: 100 },
@@ -18,9 +18,29 @@ test("não mascara diferenças iguais de entrada e saída quando o líquido fech
   assert.equal(validation.movementDifference, 0);
   assert.equal(validation.entryDifference, 40);
   assert.equal(validation.exitDifference, 40);
-  assert.equal(validation.reconciled, false);
+  assert.equal(validation.reconciled, true);
   assert.ok(validation.missingDays.length > 0);
   assert.ok(validation.dailyDifferences.length > 0);
+});
+
+test("prioriza a soma líquida diária quando vários lançamentos contábeis fecham um movimento do extrato", async () => {
+  const { validateMonthly } = await import(moduleUrl.href);
+  const date = new Date("2026-06-30T00:00:00Z");
+  const validation = validateMonthly(
+    [{ date, value: 4000 }],
+    [
+      { date, value: 4637.82 },
+      { date, value: -637.82 },
+    ],
+    { openingBalance: null, closingBalance: null },
+  );
+
+  assert.equal(validation.bankNet, 4000);
+  assert.equal(validation.accountingNet, 4000);
+  assert.equal(validation.movementDifference, 0);
+  assert.equal(validation.reconciled, true);
+  assert.deepEqual(validation.dailyDifferences, []);
+  assert.deepEqual(validation.missingDays, []);
 });
 
 test("aponta somente quando o total mensal diverge", async () => {

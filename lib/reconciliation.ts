@@ -9,7 +9,7 @@ export type BankMetadata = { agency: string; account: string; period: string; na
 export type ParsedBank = { rows: BankRow[]; metadata: BankMetadata };
 export type AccountingRow = { id: string; date: Date; value: number; nature: string; account: string; accountName: string };
 export type MatchRow = {
-  status: "Conciliado" | "Possível conciliação" | "Somente no banco" | "Somente na contabilidade";
+  status: "Conciliado" | "Possível conciliação" | "Somente no banco" | "Somente na contabilidade" | "Diferença diária informativa";
   bankId?: string; bankDate?: Date; description?: string; bankValue?: number;
   accountingId?: string; accountingDate?: Date; nature?: string; accountingValue?: number;
   days?: number; difference?: number;

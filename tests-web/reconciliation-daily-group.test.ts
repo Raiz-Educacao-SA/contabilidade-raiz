@@ -20,7 +20,23 @@ test("concilia vários movimentos do extrato contra um total diário do TOTVS", 
 
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 0);
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 0);
-  assert.equal(rows.filter((row: { description?: string }) => row.description?.includes("Total diário agrupado")).length, 1);
+  assert.equal(rows.filter((row: { description?: string }) => row.description?.includes("Total líquido diário agrupado")).length, 1);
+});
+
+test("concilia R$ 4.000,00 do extrato pela soma líquida dos lançamentos contábeis do dia", async () => {
+  const { reconcileMovements: reconcile } = await import(moduleUrl.href);
+  const date = new Date("2026-06-30T00:00:00Z");
+  const rows = reconcile(
+    [{ id: "b1", date, description: "Aplicação", value: 4000 }],
+    [
+      { id: "c1", date, value: 4637.82, nature: "Débito" },
+      { id: "c2", date, value: -637.82, nature: "Crédito" },
+    ],
+  );
+
+  assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 0);
+  assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 0);
+  assert.equal(rows.filter((row: { description?: string }) => row.description?.includes("Total líquido diário agrupado")).length, 1);
 });
 
 test("mantém como exceção o total diário que realmente não fecha", async () => {
@@ -55,7 +71,7 @@ test("desconsidera diferenças de data quando entradas e saídas fecham no mês"
 
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 0);
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 0);
-  assert.equal(rows.filter((row: { description?: string }) => row.description?.includes("Total mensal agrupado")).length, 2);
+  assert.equal(rows.filter((row: { description?: string }) => row.description?.includes("Total líquido mensal agrupado")).length, 1);
 });
 
 test("mantém a diferença real quando o total mensal não fecha", async () => {

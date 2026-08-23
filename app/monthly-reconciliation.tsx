@@ -211,7 +211,24 @@ export default function MonthlyReconciliationPanel({
     !accountingBusy &&
     !dataEngineBusy;
   const reportRows = useMemo(
-    () => results.flatMap((result) => result.rows),
+    () => [
+      ...results.flatMap((result) => result.rows),
+      ...results.flatMap((result): MatchRow[] => {
+        if (!result.validation.reconciled) return [];
+        return result.validation.dailyDifferences.map((row): MatchRow => ({
+          status: "Diferença diária informativa",
+          bankDate: new Date(`${row.date}T00:00:00.000Z`),
+          description: "Diferença diária compensada no movimento líquido mensal",
+          bankValue: row.bankCredits - row.bankDebits,
+          accountingDate: new Date(`${row.date}T00:00:00.000Z`),
+          nature: "Informativa — não gera pendência na ficha de conciliação",
+          accountingValue: row.accountingDebits - row.accountingCredits,
+          difference: row.netDifference,
+          sourceAccount: result.account.code,
+          sourceBank: result.metadata.account || result.fileName,
+        }));
+      }),
+    ],
     [results],
   );
   const divergentResults = useMemo(
@@ -928,27 +945,39 @@ function MonthlyAccountResult({
           <b>{brl(value.bankCredits)}</b>
           <small>Débitos contábeis: {brl(value.accountingDebits)}</small>
         </div>
-        <div className={Math.abs(value.entryDifference) > 0.01 ? "metric-review" : "metric-ok"}>
+        <div className={!value.reconciled && Math.abs(value.entryDifference) > 0.01 ? "metric-review" : "metric-ok"}>
           <span>Diferença nas entradas</span>
           <b>{brl(value.entryDifference)}</b>
-          <small>{Math.abs(value.entryDifference) > 0.01 ? "Revisar entradas e débitos" : "Entradas conferidas"}</small>
+          <small>
+            {value.reconciled && Math.abs(value.entryDifference) > 0.01
+              ? "Compensada na soma líquida"
+              : Math.abs(value.entryDifference) > 0.01
+                ? "Revisar entradas e débitos"
+                : "Entradas conferidas"}
+          </small>
         </div>
         <div>
           <span>Saídas no extrato</span>
           <b>{brl(value.bankDebits)}</b>
           <small>Créditos contábeis: {brl(value.accountingCredits)}</small>
         </div>
-        <div className={Math.abs(value.exitDifference) > 0.01 ? "metric-review" : "metric-ok"}>
+        <div className={!value.reconciled && Math.abs(value.exitDifference) > 0.01 ? "metric-review" : "metric-ok"}>
           <span>Diferença nas saídas</span>
           <b>{brl(value.exitDifference)}</b>
-          <small>{Math.abs(value.exitDifference) > 0.01 ? "Revisar saídas e créditos" : "Saídas conferidas"}</small>
+          <small>
+            {value.reconciled && Math.abs(value.exitDifference) > 0.01
+              ? "Compensada na soma líquida"
+              : Math.abs(value.exitDifference) > 0.01
+                ? "Revisar saídas e créditos"
+                : "Saídas conferidas"}
+          </small>
         </div>
         <div className={value.reconciled ? "metric-ok" : "metric-review"}>
           <span>Diferença líquida mensal</span>
           <b>{brl(value.movementDifference)}</b>
           <small>
             {value.reconciled
-              ? "Entradas e saídas conferidas"
+              ? "Movimento líquido mensal conferido"
               : `Extrato ${brl(value.bankNet)} · Contábil ${brl(value.accountingNet)}`}
           </small>
         </div>
@@ -1080,12 +1109,12 @@ function ReconciliationFormView({
             </article>
           </div>
           <p className="form-explanation">
-            A conferência valida primeiro os totais mensais de entradas e
-            saídas. Diferenças de data que se compensam dentro da competência
-            são desconsideradas. Quando o mês não fecha, a análise diária abaixo
-            localiza os dias que formam a diferença mensal. Os volumes brutos
-            dos itens sem correspondência não são somados, evitando contar o
-            mesmo movimento nos dois lados.
+            A conferência soma primeiro todos os movimentos de cada dia e
+            compara o resultado líquido do extrato com o contábil. Os dias que
+            ainda não fecham são conferidos pelo total líquido do mês.
+            Diferenças diárias que se compensam dentro da competência são
+            desconsideradas. Quando o mês não fecha, a análise abaixo localiza
+            somente os dias que permanecem com diferença líquida.
           </p>
           <div className="form-sections">
             {dailyDifferences.length > 0 && (

@@ -68,7 +68,7 @@ export function validateMonthly(
       exitDifference: dayExitDifference,
       netDifference: round(dayEntryDifference - dayExitDifference),
     };
-  }).filter((row) => Math.abs(row.entryDifference) > tolerance || Math.abs(row.exitDifference) > tolerance);
+  }).filter((row) => Math.abs(row.netDifference) > tolerance);
   const missingDays = dailyDifferences.map((row) => ({
     date: row.date,
     bank: round(row.bankCredits - row.bankDebits),
@@ -82,6 +82,6 @@ export function validateMonthly(
     bankNet, accountingNet, movementDifference,
     calculatedClosingBalance, closingBalanceDifference, missingDays,
     dailyDifferences,
-    reconciled: Math.abs(entryDifference) <= tolerance && Math.abs(exitDifference) <= tolerance,
+    reconciled: Math.abs(movementDifference) <= tolerance,
   };
 }

@@ -44,80 +44,76 @@ export function reconcileMovements(
     const { a, ai, days } = candidates[0]; usedBank.add(bi); usedAccounting.add(ai);
     matches.push({ status: exactDate ? "Conciliado" : "Possível conciliação", bankId: b.id, bankDate: b.date, description: b.description, bankValue: b.value, accountingId: a.id, accountingDate: a.date, nature: a.nature, accountingValue: a.value, days, difference: Math.round((b.value - a.value) * 100) / 100 });
   });
-  const matchDailyGroups = () => {
+  const matchDailyNetGroups = () => {
     const dates = Array.from(new Set([
       ...bank.filter((_, index) => !usedBank.has(index)).map((row) => dayKey(row.date)),
       ...accounting.filter((_, index) => !usedAccounting.has(index)).map((row) => dayKey(row.date)),
     ])).sort();
     for (const date of dates) {
-      for (const sign of [1, -1]) {
-        const bankIndexes = bank.flatMap((row, index) =>
-          !usedBank.has(index) && dayKey(row.date) === date && Math.sign(row.value) === sign ? [index] : [],
-        );
-        const accountingIndexes = accounting.flatMap((row, index) =>
-          !usedAccounting.has(index) && dayKey(row.date) === date && Math.sign(row.value) === sign ? [index] : [],
-        );
-        if (!bankIndexes.length || !accountingIndexes.length) continue;
-        const bankValue = bankIndexes.reduce((sum, index) => sum + bank[index].value, 0);
-        const accountingValue = accountingIndexes.reduce((sum, index) => sum + accounting[index].value, 0);
-        if (Math.abs(bankValue - accountingValue) > toleranceValue) continue;
-        bankIndexes.forEach((index) => usedBank.add(index));
-        accountingIndexes.forEach((index) => usedAccounting.add(index));
-        matches.push({
-          status: "Conciliado",
-          bankId: `BANCO-AGRUPADO-${date}-${sign}`,
-          bankDate: bank[bankIndexes[0]].date,
-          description: `Total diário agrupado — ${bankIndexes.length} movimento(s) no extrato`,
-          bankValue: Math.round(bankValue * 100) / 100,
-          accountingId: `CONTABIL-AGRUPADO-${date}-${sign}`,
-          accountingDate: accounting[accountingIndexes[0]].date,
-          nature: `Total diário de ${accountingIndexes.length} lançamento(s) contábil(eis)`,
-          accountingValue: Math.round(accountingValue * 100) / 100,
-          days: 0,
-          difference: Math.round((bankValue - accountingValue) * 100) / 100,
-        });
-      }
+      const bankIndexes = bank.flatMap((row, index) =>
+        !usedBank.has(index) && dayKey(row.date) === date ? [index] : [],
+      );
+      const accountingIndexes = accounting.flatMap((row, index) =>
+        !usedAccounting.has(index) && dayKey(row.date) === date ? [index] : [],
+      );
+      if (!bankIndexes.length || !accountingIndexes.length) continue;
+      const bankValue = bankIndexes.reduce((sum, index) => sum + bank[index].value, 0);
+      const accountingValue = accountingIndexes.reduce((sum, index) => sum + accounting[index].value, 0);
+      if (Math.abs(bankValue - accountingValue) > toleranceValue) continue;
+      bankIndexes.forEach((index) => usedBank.add(index));
+      accountingIndexes.forEach((index) => usedAccounting.add(index));
+      matches.push({
+        status: "Conciliado",
+        bankId: `BANCO-AGRUPADO-LIQUIDO-${date}`,
+        bankDate: bank[bankIndexes[0]].date,
+        description: `Total líquido diário agrupado — ${bankIndexes.length} movimento(s) no extrato`,
+        bankValue: Math.round(bankValue * 100) / 100,
+        accountingId: `CONTABIL-AGRUPADO-LIQUIDO-${date}`,
+        accountingDate: accounting[accountingIndexes[0]].date,
+        nature: `Total líquido diário de ${accountingIndexes.length} lançamento(s) contábil(eis)`,
+        accountingValue: Math.round(accountingValue * 100) / 100,
+        days: 0,
+        difference: Math.round((bankValue - accountingValue) * 100) / 100,
+      });
     }
   };
-  const matchMonthlyGroups = () => {
+  const matchMonthlyNetGroups = () => {
     const months = Array.from(new Set([
       ...bank.filter((_, index) => !usedBank.has(index)).map((row) => monthKey(row.date)),
       ...accounting.filter((_, index) => !usedAccounting.has(index)).map((row) => monthKey(row.date)),
     ])).sort();
     for (const month of months) {
-      for (const sign of [1, -1]) {
-        const bankIndexes = bank.flatMap((row, index) =>
-          !usedBank.has(index) && monthKey(row.date) === month && Math.sign(row.value) === sign ? [index] : [],
-        );
-        const accountingIndexes = accounting.flatMap((row, index) =>
-          !usedAccounting.has(index) && monthKey(row.date) === month && Math.sign(row.value) === sign ? [index] : [],
-        );
-        if (!bankIndexes.length || !accountingIndexes.length) continue;
-        const bankValue = bankIndexes.reduce((sum, index) => sum + bank[index].value, 0);
-        const accountingValue = accountingIndexes.reduce((sum, index) => sum + accounting[index].value, 0);
-        if (Math.abs(bankValue - accountingValue) > toleranceValue) continue;
-        bankIndexes.forEach((index) => usedBank.add(index));
-        accountingIndexes.forEach((index) => usedAccounting.add(index));
-        matches.push({
-          status: "Conciliado",
-          bankId: `BANCO-AGRUPADO-MENSAL-${month}-${sign}`,
-          bankDate: bank[bankIndexes[0]].date,
-          description: `Total mensal agrupado — ${bankIndexes.length} movimento(s) no extrato`,
-          bankValue: Math.round(bankValue * 100) / 100,
-          accountingId: `CONTABIL-AGRUPADO-MENSAL-${month}-${sign}`,
-          accountingDate: accounting[accountingIndexes[0]].date,
-          nature: `Total mensal de ${accountingIndexes.length} lançamento(s) contábil(eis)`,
-          accountingValue: Math.round(accountingValue * 100) / 100,
-          days: 0,
-          difference: Math.round((bankValue - accountingValue) * 100) / 100,
-        });
-      }
+      const bankIndexes = bank.flatMap((row, index) =>
+        !usedBank.has(index) && monthKey(row.date) === month ? [index] : [],
+      );
+      const accountingIndexes = accounting.flatMap((row, index) =>
+        !usedAccounting.has(index) && monthKey(row.date) === month ? [index] : [],
+      );
+      if (!bankIndexes.length || !accountingIndexes.length) continue;
+      const bankValue = bankIndexes.reduce((sum, index) => sum + bank[index].value, 0);
+      const accountingValue = accountingIndexes.reduce((sum, index) => sum + accounting[index].value, 0);
+      if (Math.abs(bankValue - accountingValue) > toleranceValue) continue;
+      bankIndexes.forEach((index) => usedBank.add(index));
+      accountingIndexes.forEach((index) => usedAccounting.add(index));
+      matches.push({
+        status: "Conciliado",
+        bankId: `BANCO-AGRUPADO-LIQUIDO-MENSAL-${month}`,
+        bankDate: bank[bankIndexes[0]].date,
+        description: `Total líquido mensal agrupado — ${bankIndexes.length} movimento(s) no extrato`,
+        bankValue: Math.round(bankValue * 100) / 100,
+        accountingId: `CONTABIL-AGRUPADO-LIQUIDO-MENSAL-${month}`,
+        accountingDate: accounting[accountingIndexes[0]].date,
+        nature: `Total líquido mensal de ${accountingIndexes.length} lançamento(s) contábil(eis)`,
+        accountingValue: Math.round(accountingValue * 100) / 100,
+        days: 0,
+        difference: Math.round((bankValue - accountingValue) * 100) / 100,
+      });
     }
   };
   match(true);
-  matchDailyGroups();
+  matchDailyNetGroups();
   match(false);
-  matchMonthlyGroups();
+  matchMonthlyNetGroups();
   bank.forEach((b, index) => { if (!usedBank.has(index)) matches.push({ status: "Somente no banco", bankId: b.id, bankDate: b.date, description: b.description, bankValue: b.value }); });
   accounting.forEach((a, index) => { if (!usedAccounting.has(index)) matches.push({ status: "Somente na contabilidade", accountingId: a.id, accountingDate: a.date, nature: a.nature, accountingValue: a.value }); });
   return matches;

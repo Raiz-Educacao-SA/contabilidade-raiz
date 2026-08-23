@@ -46,8 +46,8 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /const dailyDifferences = result\.validation\.reconciled[\s\S]*\? \[\][\s\S]*result\.validation\.dailyDifferences/);
   assert.match(panel, /Localização diária da diferença mensal/);
   assert.match(panel, /Dias que explicam a diferença/);
-  assert.match(panel, /Diferenças de data que se compensam dentro da competência/);
-  assert.match(panel, /Quando o mês não fecha, a análise diária abaixo/);
+  assert.match(panel, /Diferenças diárias que se compensam dentro da competência/);
+  assert.match(panel, /Quando o mês não fecha, a análise abaixo/);
   assert.match(panel, /Diferença nas entradas/);
   assert.match(panel, /Diferença nas saídas/);
   assert.match(panel, /Diferença líquida/);
@@ -55,13 +55,13 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.doesNotMatch(panel, /Total das pendências detalhadas/);
 });
 
-test("procura no dia e depois agrupa os valores que fecham na competência", () => {
+test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {
   assert.match(matcher, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
   assert.match(matcher, /monthKey\(a\.date\) === monthKey\(b\.date\)/);
-  assert.match(matcher, /matchDailyGroups\(\)/);
-  assert.match(matcher, /Total diário agrupado/);
-  assert.match(matcher, /matchMonthlyGroups\(\)/);
-  assert.match(matcher, /Total mensal agrupado/);
+  assert.match(matcher, /matchDailyNetGroups\(\)/);
+  assert.match(matcher, /Total líquido diário agrupado/);
+  assert.match(matcher, /matchMonthlyNetGroups\(\)/);
+  assert.match(matcher, /Total líquido mensal agrupado/);
   assert.doesNotMatch(matcher, /days <= toleranceDays/);
   assert.match(reconciliation, /reconcileMovements/);
 });
@@ -81,6 +81,8 @@ test("usa fonte compacta na ficha de divergências", () => {
 
 test("gera o relatório consolidado com todos os resultados da conciliação", () => {
   assert.match(panel, /const reportRows = useMemo\([\s\S]*results\.flatMap\(\(result\) => result\.rows\)/);
+  assert.match(panel, /status: "Diferença diária informativa"/);
+  assert.match(panel, /Informativa — não gera pendência na ficha de conciliação/);
   assert.match(panel, /exportReport\(reportRows, `conciliacao_mensal_\$\{competence\}`\)/);
   assert.match(panel, /disabled=\{!results\.length\}[\s\S]*onClick=\{downloadConsolidatedReport\}/);
   assert.match(panel, /Relatório consolidado gerado com/);
