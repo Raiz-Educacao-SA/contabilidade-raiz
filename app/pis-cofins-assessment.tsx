@@ -8,6 +8,7 @@ import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { calculateEnergyCredit } from "@/lib/pis-cofins-credit";
 import { supabase } from "@/lib/supabase";
 import { accountingCompletionIdentity, type ScheduleCompletion } from "@/lib/schedule-completion";
+import { displayNameFromIdentity } from "@/lib/user-display-name";
 
 const subscribeToDocument = () => () => {};
 const getActionsTarget = () => document.getElementById("pis-cofins-filter-actions");
@@ -183,6 +184,7 @@ type FinalizedSnapshot = {
   finalized: true;
   finalizedAt: string;
   finalizedBy: string;
+  finalizedByName?: string;
   companyCode: string;
   companyName: string;
   competence: string;
@@ -221,6 +223,7 @@ export default function PisCofinsAssessment({
   accessToken,
   userId,
   userEmail,
+  userName,
 }: {
   companyCode: string;
   companyName: string;
@@ -229,6 +232,7 @@ export default function PisCofinsAssessment({
   accessToken: string;
   userId: string;
   userEmail: string;
+  userName: string;
 }) {
   const [rows, setRows] = useState<RevenueRow[]>([]);
   const [cancelledRows, setCancelledRows] = useState<CancelledRow[]>([]);
@@ -906,6 +910,9 @@ export default function PisCofinsAssessment({
     nonCumulativeCofins: totals.nonCumulativeCofins + otherRevenueTotals.cofins + annualFeeTotals.nonCumulativeCofins - cancelledTotals.nonCumulativeCofins - totalCredits.cofins,
   }), [totals, otherRevenueTotals, annualFeeTotals, cancelledTotals, totalCredits]);
   const displayedConsolidatedTotals = finalizedSnapshot?.totals ?? consolidatedTotals;
+  const finalizedByDisplayName = finalizedSnapshot?.finalizedByName
+    || displayNameFromIdentity(finalizedSnapshot?.finalizedBy || sharedCompletion?.confirmado_email || userName || userEmail);
+  const finalizedAtDisplay = finalizedSnapshot?.finalizedAt || sharedCompletion?.confirmado_em;
 
   async function finalizeAssessment() {
     if (!canFinalizeAssessment || finalizedSnapshot) return;
@@ -914,6 +921,7 @@ export default function PisCofinsAssessment({
       finalized: true,
       finalizedAt,
       finalizedBy: userEmail,
+      finalizedByName: userName || displayNameFromIdentity(userEmail),
       companyCode,
       companyName,
       competence,
@@ -1321,77 +1329,14 @@ export default function PisCofinsAssessment({
     const workbook = XLSX.utils.book_new();
     const generatedAt = new Date();
     const generatedAtLabel = generatedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const elaboratedBy = finalizedSnapshot?.finalizedByName?.trim()
+      || displayNameFromIdentity(finalizedSnapshot?.finalizedBy || sharedCompletion?.confirmado_email || userName || userEmail);
     const monthlyByRegime = (regime: Exclude<TaxRegime, "">) => filteredRows.filter((row) => row.regime === regime).reduce((sum, row) => ({
       gross: sum.gross + row.grossRevenue,
       discounts: sum.discounts + row.discounts,
     }), { gross: 0, discounts: 0 });
     const annualByRegime = (regime: Exclude<TaxRegime, "">) => filteredAnnualFeeRows.filter((row) => row.regime === regime).reduce((sum, row) => sum + row.netRevenue, 0);
     const cancelledByRegime = (regime: Exclude<TaxRegime, "">) => filteredCancelledRows.filter((row) => row.regime === regime).reduce((sum, row) => sum + row.netValue, 0);
-
-    const createCompactPacont = (
-      sheetName: string,
-      regime: Exclude<TaxRegime, "">,
-      financialBase = 0,
-      financialPis = 0,
-      financialCofins = 0,
-      otherBase = 0,
-      otherPis = 0,
-      otherCofins = 0,
-    ) => {
-      const rate = rates[regime];
-      const monthly = monthlyByRegime(regime);
-      const annual = annualByRegime(regime);
-      const cancelled = cancelledByRegime(regime);
-      const movements = [
-        { description: "Faturamento mensal", base: monthly.gross, pisRate: rate.pis, pis: monthly.gross * rate.pis, cofinsRate: rate.cofins, cofins: monthly.gross * rate.cofins },
-        { description: "Descontos incondicionais", base: -monthly.discounts, pisRate: rate.pis, pis: -monthly.discounts * rate.pis, cofinsRate: rate.cofins, cofins: -monthly.discounts * rate.cofins },
-        { description: "Rateios Anuidades", base: annual, pisRate: rate.pis, pis: annual * rate.pis, cofinsRate: rate.cofins, cofins: annual * rate.cofins },
-        { description: "Notas canceladas", base: -cancelled, pisRate: rate.pis, pis: -cancelled * rate.pis, cofinsRate: rate.cofins, cofins: -cancelled * rate.cofins },
-        ...(regime === "Não-Cumulativo" ? [
-          { description: "Outras receitas", base: otherBase, pisRate: otherBase ? otherPis / otherBase : 0, pis: otherPis, cofinsRate: otherBase ? otherCofins / otherBase : 0, cofins: otherCofins },
-          { description: "Receitas financeiras", base: financialBase, pisRate: financialBase ? financialPis / financialBase : 0, pis: financialPis, cofinsRate: financialBase ? financialCofins / financialBase : 0, cofins: financialCofins },
-        ] : []),
-      ].filter((row) => [row.base, row.pis, row.cofins].some((value) => Math.abs(value) > 0.000001));
-
-      if (!movements.length) return false;
-      const totals = movements.reduce((sum, row) => ({
-        base: sum.base + row.base,
-        pis: sum.pis + row.pis,
-        cofins: sum.cofins + row.cofins,
-      }), { base: 0, pis: 0, cofins: 0 });
-      if (![totals.base, totals.pis, totals.cofins].some((value) => Math.abs(value) > 0.000001)) return false;
-      const rows: (string | number)[][] = [
-        ["PACONT - PLANILHA DE APURAÇÃO DAS CONTRIBUIÇÕES", "", "", "", "", ""],
-        ["Empresa", companyName, "Competência", competenceLabel, "Gerado em", generatedAtLabel],
-        ["Tributação", taxRegime, "Regime PIS/COFINS", regime, "", ""],
-        ["Elaborado por", "", "Revisado por", "", "", ""],
-        ["", "", "", "", "", ""],
-        ["RESUMO DA APURAÇÃO", "", "", "", "", ""],
-        ["Base tributável", totals.base, "PIS apurado", totals.pis, "COFINS apurada", totals.cofins],
-        ["", "", "", "", "", ""],
-        ["Composição", "Base tributável", "Alíquota PIS", "PIS", "Alíquota COFINS", "COFINS"],
-        ...movements.map((row) => [row.description, row.base, row.pisRate, row.pis, row.cofinsRate, row.cofins]),
-        ["TOTAL", totals.base, "", totals.pis, "", totals.cofins],
-      ];
-      const worksheet = XLSX.utils.aoa_to_sheet(rows);
-      worksheet["!cols"] = [{ wch: 31 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }];
-      worksheet["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } },
-      ];
-      for (let row = 6; row < rows.length; row += 1) {
-        [1, 3, 5].forEach((column) => {
-          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
-          if (cell?.t === "n") cell.z = "#,##0.00";
-        });
-        [2, 4].forEach((column) => {
-          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
-          if (cell?.t === "n") cell.z = "0.00%";
-        });
-      }
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-      return true;
-    };
 
     const createPacontTemplateSheet = (
       sheetName: string,
@@ -1450,50 +1395,28 @@ export default function PisCofinsAssessment({
         regimeLabel,
       ];
 
-      const decodePacontText = (value: string | number) => {
-        if (typeof value !== "string") return value;
-        return value
-          .replaceAll("Ãƒâ€¡ÃƒÆ’O", "ÇÃO")
-          .replaceAll("Ãƒâ€¡Ãƒâ€¢ES", "ÇÕES")
-          .replaceAll("Ãƒâ€¡ÃƒÆ’", "ÇÃ")
-          .replaceAll("Ãƒâ€°", "É")
-          .replaceAll("ÃƒÅ ", "Ê")
-          .replaceAll("ÃƒÂ", "Á")
-          .replaceAll("ÃƒÂ¡", "á")
-          .replaceAll("ÃƒÂ§", "ç")
-          .replaceAll("ÃƒÂ£", "ã")
-          .replaceAll("ÃƒÂ©", "é")
-          .replaceAll("ÃƒÂª", "ê")
-          .replaceAll("ÃƒÂ³", "ó")
-          .replaceAll("ÃƒÂµ", "õ")
-          .replaceAll("ÃƒÂ­", "í")
-          .replaceAll("ÃƒÂ ", "à")
-          .replaceAll("ÃƒÂ³", "ó")
-          .replaceAll("ÃƒÂ£", "ã");
-      };
-
       const rows: (string | number)[][] = [
-        ["PACONT - PLANILHA DE APURAÃ‡ÃƒO DAS CONTRIBUIÃ‡Ã•ES", "", "", "", "", "", "", "", "", "", "", "", "", "CÃ³digo", "", "", "RQ_CONT_002"],
-        ["Origem: ContÃ¡bil Raiz EducaÃ§Ã£o", "", "Elaborado por:", "", "", "", "", "", "", "", "", "", "", "RevisÃ£o", "", "", "05"],
+        ["PACONT - PLANILHA DE APURAÇÃO DAS CONTRIBUIÇÕES", "", "", "", "", "", "", "", "", "", "", "", "", "Código", "", "", "RQ_CONT_002"],
+        ["Origem: Contábil Raiz Educação", "", "Elaborado por:", elaboratedBy, "", "", "", "", "", "", "", "", "", "Revisão", "", "", "05"],
         ["CLIENTE:", companyName, "", "", "", "", "", "", "", "", "", "", "", "Aprovado por:", "", "", ""],
         ["CNPJ:", "", "", "", "", "", "", "", "", "", "", "", "", "Data:", generatedAtLabel, "", ""],
-        ["TRIBUTAÃ‡ÃƒO:", taxRegime || "Lucro Real", "REGIME:", regime.toUpperCase(), "", "COMPETÃŠNCIA:", competenceLabel, "", "", "", "", "", "", "", "", "", ""],
-        ["MÃ©todo de DeterminaÃ§Ã£o dos CrÃ©ditos:", regime === "Não-Cumulativo" ? "Vinculados Ã  receita bruta auferida no mÃªs" : "Regime cumulativo", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["Tributação:", taxRegime || "Lucro Real", "REGIME:", regime.toUpperCase(), "", "COMPETÊNCIA:", competenceLabel, "", "", "", "", "", "", "", "", "", ""],
+        ["Método de Determinação dos Créditos:", regime === "Não-Cumulativo" ? "Vinculados à receita bruta auferida no mês" : "Regime cumulativo", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-        ["A) IMPOSTO SOBRE A BASE DE CÃLCULO", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["A) IMPOSTO SOBRE A BASE DE CÁLCULO", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-        ["RECEITAS", "", "", "", "VINCULAÃ‡ÃƒO DA RECEITA (para cred. PIS e COFINS)", "", "", "", "", "", "", "CÃLCULO DO PIS E COFINS", "", "CÃLCULO DO INSS", "", "", ""],
+        ["RECEITAS", "", "", "", "VINCULAÇÃO DA RECEITA (para cred. PIS e COFINS)", "", "", "", "", "", "", "CÁLCULO DO PIS E COFINS", "", "CÁLCULO DO INSS", "", "", ""],
         ["", "", "", "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "", ""],
-        ["DESCRIÃ‡ÃƒO DAS RECEITAS", "", "", "", "Receitas Enquadradas", "Receitas NÃ£o Enquadradas", "Receita", "Trib. Merc. Interno", "NÃ£o Trib. Merc. Interno", "Merc. Externo", "Base de CÃ¡lculo PIS", "Valor PIS", "Valor COFINS", "Base de CÃ¡lculo INSS", "Valor INSS", "ObservaÃ§Ã£o", "ClassificaÃ§Ã£o"],
+        ["DESCRIÇÃO DAS RECEITAS", "", "", "", "Receitas Enquadradas", "Receitas Não Enquadradas", "Receita", "Trib. Merc. Interno", "Não Trib. Merc. Interno", "Merc. Externo", "Base de Cálculo PIS", "Valor PIS", "Valor COFINS", "Base de Cálculo INSS", "Valor INSS", "Observação", "Classificação"],
         ["Percentuais de Rateio =========>", "", "", "", regime === "Cumulativo" ? 1 : 0, regime === "Não-Cumulativo" ? 1 : 0, 1, 1, 0, 0, 1, rate.pis, rate.cofins, 0, 0, "", ""],
-        pacontRow("1", "Receita de ServiÃ§os e/ou Vendas", monthlyRevenue, monthlyRevenue * rate.pis, monthlyRevenue * rate.cofins),
-        pacontRow("1.1", "Receitas de Vendas e ServiÃ§os", monthlyRevenue, monthlyRevenue * rate.pis, monthlyRevenue * rate.cofins),
-        pacontRow("1.2", "(-) Receita diferida n/mÃªs", 0, 0, 0),
-        pacontRow("1.3", "(+) Receita diferida mÃªs anterior", 0, 0, 0),
+        pacontRow("1", "Receita de Serviços e/ou Vendas", monthlyRevenue, monthlyRevenue * rate.pis, monthlyRevenue * rate.cofins),
+        pacontRow("1.1", "Receitas de Vendas e Serviços", monthlyRevenue, monthlyRevenue * rate.pis, monthlyRevenue * rate.cofins),
+        pacontRow("1.2", "(-) Receita diferida n/mês", 0, 0, 0),
+        pacontRow("1.3", "(+) Receita diferida mês anterior", 0, 0, 0),
         pacontRow("1.4", "Outras Receitas", otherRevenue, otherPis, otherCofins, otherRevenue ? "Não-Cumulativo" : regime),
-        pacontRow("1.5", "(-) DeduÃ§Ãµes (especificar)", discounts + cancelledDeduction, (discounts + cancelledDeduction) * rate.pis, (discounts + cancelledDeduction) * rate.cofins),
-        pacontRow("2", "Receitas de ServiÃ§os", 0, 0, 0),
-        pacontRow("2.1", "TransferÃªncias para conta prÃ³pria", 0, 0, 0),
+        pacontRow("1.5", "(-) Deduções (especificar)", discounts + cancelledDeduction, (discounts + cancelledDeduction) * rate.pis, (discounts + cancelledDeduction) * rate.cofins),
+        pacontRow("2", "Receitas de Serviços", 0, 0, 0),
+        pacontRow("2.1", "Transferências para conta própria", 0, 0, 0),
         pacontRow("2.4", "Receitas Financeiras", financialRevenue, financialPis, financialCofins, financialRevenue ? "Não-Cumulativo" : regime),
         pacontRow("3", "(-) Vendas canceladas", cancelledDeduction, cancelledDeduction * rate.pis, cancelledDeduction * rate.cofins),
         pacontRow("4", "(-) Descontos incondicionais", discounts, discounts * rate.pis, discounts * rate.cofins),
@@ -1501,14 +1424,14 @@ export default function PisCofinsAssessment({
         pacontRow("6", "Receitas Financeiras", financialRevenue, financialPis, financialCofins, financialRevenue ? "Não-Cumulativo" : regime),
         pacontRow("7", "TOTAIS", netRevenue, pisDue, cofinsDue),
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-        ["B) COMPOSIÃ‡ÃƒO DOS CRÃ‰DITOS", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["B) Composição dos Créditos", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
-        ["CRÃ‰DITOS", "", "", "", "Base de crÃ©dito", "AlÃ­quota PIS", "PIS", "AlÃ­quota COFINS", "COFINS", "", "", "", "", "", "", "", ""],
-        ["Bens, serviÃ§os e demais crÃ©ditos", "", "", "", creditBase, rate.pis, creditPis, rate.cofins, creditCofins, "", "", "", "", "", "", "", ""],
+        ["Créditos", "", "", "", "Base de crédito", "Alíquota PIS", "PIS", "Alíquota COFINS", "COFINS", "", "", "", "", "", "", "", ""],
+        ["Bens serviços e demais créditos", "", "", "", creditBase, rate.pis, creditPis, rate.cofins, creditCofins, "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["C) CONTROLE", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["Receita cumulativa", "", "", "", regime === "Cumulativo" ? Math.max(0, netRevenue) : 0, "", "", "", "", "", "", "", "", "", "", "", ""],
-        ["Receita nÃ£o cumulativa", "", "", "", regime === "Não-Cumulativo" ? Math.max(0, netRevenue) : 0, "", "", "", "", "", "", "", "", "", "", "", ""],
+        ["Receita não cumulativa", "", "", "", regime === "Não-Cumulativo" ? Math.max(0, netRevenue) : 0, "", "", "", "", "", "", "", "", "", "", "", ""],
         ["Total de receita classificada", "", "", "", Math.max(0, netRevenue), "", "", "", "", "", "", "", "", "", "", "", ""],
         ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
         ["D) IMPOSTO A PAGAR", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
@@ -1517,18 +1440,7 @@ export default function PisCofinsAssessment({
         ["TOTAL A RECOLHER", "", "", "", "", "", "", "", "", "", "", pisDue, cofinsDue, "", "", "", ""],
       ];
 
-      const cleanPacontLabel = (value: string | number) => {
-        const decoded = decodePacontText(value);
-        if (typeof decoded !== "string") return decoded;
-        const upper = decoded.toLocaleUpperCase("pt-BR");
-        if (upper.startsWith("TRIBUTA")) return "Tributação:";
-        if (upper.startsWith("B) COMPOSI") && upper.includes("DOS")) return "B) Composição dos Créditos";
-        if (upper.startsWith("CR") && upper.length <= 16 && !upper.includes("COFINS")) return "Créditos";
-        if (upper.startsWith("BENS")) return "Bens serviços e demais créditos";
-        return decoded;
-      };
-
-      const worksheet = XLSX.utils.aoa_to_sheet(rows.map((row) => row.map(cleanPacontLabel)));
+      const worksheet = XLSX.utils.aoa_to_sheet(rows);
       worksheet["!cols"] = [
         { wch: 12 }, { wch: 38 }, { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
         { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 },
@@ -2063,7 +1975,7 @@ export default function PisCofinsAssessment({
         <article><span>PIS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativePis)}</b><small>Apuração menos crédito proporcional</small></article>
         <article><span>COFINS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}</b><small>Apuração menos crédito proporcional</small></article>
       </div>
-      {isFinalized && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedSnapshot?.finalizedBy || sharedCompletion?.confirmado_email || "usuário"} em {new Date(finalizedSnapshot?.finalizedAt || sharedCompletion?.confirmado_em || Date.now()).toLocaleString("pt-BR")}. Status compartilhado com o Cronograma. Para recalcular, use Limpar.</div>}
+      {isFinalized && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedByDisplayName} em {finalizedAtDisplay ? new Date(finalizedAtDisplay).toLocaleString("pt-BR") : "data não registrada"}. Status compartilhado com o Cronograma. Para recalcular, use Limpar.</div>}
       <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
       <div className="tax-section-heading">
         <div><b>Faturamento Mensal</b><span>Planilha.NET 2 · ANÁLISE NF MENSALIDADES 1</span></div>

@@ -43,6 +43,7 @@ import ModuleCompletionControl from "@/app/module-completion-control";
 import AccessManagement from "@/app/access-management";
 import { resolveAllowedModules, type AccessModule } from "@/lib/access-control";
 import { accountingCompletionIdentity, financialCompletionIdentity } from "@/lib/schedule-completion";
+import { resolveUserDisplayName } from "@/lib/user-display-name";
 import {
   CLOSING_SCHEDULE_MODULES,
   FINANCIAL_SCHEDULE_TASK_IDS,
@@ -1058,6 +1059,7 @@ export default function Home() {
             accessToken={session.access_token}
             userId={session.user.id}
             userEmail={session.user.email ?? ""}
+            userName={resolveUserDisplayName(session.user.user_metadata, session.user.email ?? "")}
           />
         )}
         {selectedModule === "folha" && (
