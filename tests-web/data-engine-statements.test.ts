@@ -92,6 +92,110 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor o token", async
   assert.equal(JSON.stringify(result).includes("short-lived-token"), false);
 });
 
+test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            movimento_id: "mov-pdf-351",
+            canonical_movement_id: "itau-tarifa-2026-06-02-351",
+            cod_coligada: 3,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
+            documento_hash: "documento-pdf",
+            file_name: "extrato-itau-junho.pdf",
+          },
+          {
+            movimento_id: "mov-excel-351",
+            canonical_movement_id: "itau-tarifa-2026-06-02-351",
+            cod_coligada: 3,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
+            documento_hash: "documento-excel",
+            file_name: "extrato-itau-junho.xlsx",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0].rows, [
+    {
+      date: "2026-06-02",
+      description: "TARIFA DE CONTA CORRENTE MENSAL",
+      id: "mov-excel-351",
+      value: -351,
+    },
+  ]);
+});
+
+test("mantém movimentos legítimos iguais quando os identificadores canônicos são diferentes", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+  const movement = {
+    cod_coligada: 3,
+    bank_id: "341",
+    source_account_id: sourceAccountId,
+    data_lancamento: "2026-06-02",
+    valor_centavos: 35100,
+    natureza: "D",
+    descricao_sanitizada: "TARIFA BANCÁRIA",
+    file_name: "extrato-itau-junho.xlsx",
+  } as const;
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            ...movement,
+            movimento_id: "mov-legitimo-1",
+            canonical_movement_id: "canonical-legitimo-1",
+          },
+          {
+            ...movement,
+            movimento_id: "mov-legitimo-2",
+            canonical_movement_id: "canonical-legitimo-2",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].rows.length, 2);
+  assert.equal(
+    result[0].rows.reduce(
+      (total: number, row: { value: number }) => total + row.value,
+      0,
+    ),
+    -702,
+  );
+});
+
 test("preserva o zero à esquerda da coligada na consulta", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   let requestedUrl: URL | undefined;

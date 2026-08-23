@@ -49,6 +49,7 @@ export type DataEngineStatementSnapshot = {
 
 type Movement = {
   movimento_id: string;
+  canonical_movement_id?: string;
   cod_coligada: number;
   bank_id: string;
   source_account_id: string;
@@ -56,6 +57,17 @@ type Movement = {
   valor_centavos: number;
   natureza: "C" | "D";
   descricao_sanitizada: string;
+  documento_hash?: string;
+  canal?: string;
+  file_name?: string;
+  filename?: string;
+  nome_arquivo?: string;
+  object_name?: string;
+  mime_type?: string;
+  content_type?: string;
+  file_extension?: string;
+  source_format?: string;
+  formato?: string;
 };
 
 type MovementPage = {
@@ -1440,6 +1452,81 @@ function statementsFromMovements(
       throw new Error("Resposta inválida do Data Engine.");
     }
     movementIds.add(movement.movimento_id);
+  }
+
+  const sourceFormat = (movement: Movement) => {
+    const sourceMetadata = [
+      movement.file_name,
+      movement.filename,
+      movement.nome_arquivo,
+      movement.object_name,
+      movement.mime_type,
+      movement.content_type,
+      movement.file_extension,
+      movement.source_format,
+      movement.formato,
+      movement.canal,
+    ]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase();
+    if (
+      /(?:\.xlsx?|excel|spreadsheet|vnd\.openxmlformats-officedocument\.spreadsheetml|vnd\.ms-excel)/i.test(
+        sourceMetadata,
+      )
+    ) {
+      return "excel" as const;
+    }
+    if (/(?:\.pdf|application\/pdf|\bpdf\b)/i.test(sourceMetadata)) {
+      return "pdf" as const;
+    }
+    return "unknown" as const;
+  };
+
+  const accountsWithExcel = new Set(
+    movements
+      .filter((movement) => sourceFormat(movement) === "excel")
+      .map((movement) => movement.source_account_id),
+  );
+  const preferredMovements = movements.filter(
+    (movement) =>
+      !accountsWithExcel.has(movement.source_account_id) ||
+      sourceFormat(movement) !== "pdf",
+  );
+
+  const canonicalIndexes = new Map<string, number>();
+  const selectedMovements: Movement[] = [];
+  for (const movement of preferredMovements) {
+    const canonicalId = movement.canonical_movement_id?.trim();
+    if (!canonicalId) {
+      selectedMovements.push(movement);
+      continue;
+    }
+    const canonicalKey = `${movement.source_account_id}|${canonicalId}`;
+    const existingIndex = canonicalIndexes.get(canonicalKey);
+    if (existingIndex === undefined) {
+      canonicalIndexes.set(canonicalKey, selectedMovements.length);
+      selectedMovements.push(movement);
+      continue;
+    }
+    const existing = selectedMovements[existingIndex];
+    if (
+      existing.cod_coligada !== movement.cod_coligada ||
+      existing.bank_id !== movement.bank_id ||
+      existing.source_account_id !== movement.source_account_id ||
+      existing.data_lancamento !== movement.data_lancamento ||
+      existing.valor_centavos !== movement.valor_centavos ||
+      existing.natureza !== movement.natureza
+    ) {
+      throw new Error("Resposta inválida do Data Engine.");
+    }
+    const sourcePriority = { unknown: 0, pdf: 1, excel: 2 } as const;
+    if (sourcePriority[sourceFormat(movement)] > sourcePriority[sourceFormat(existing)]) {
+      selectedMovements[existingIndex] = movement;
+    }
+  }
+
+  for (const movement of selectedMovements) {
     let statement = groups.get(movement.source_account_id);
     if (!statement) {
       statement = {
