@@ -197,6 +197,95 @@ test("não duplica o mesmo movimento quando os identificadores técnicos são di
   ]);
 });
 
+test("não duplica Excel e PDF quando ambos chegam com históricos técnicos distintos", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+  const movement = {
+    cod_coligada: 3,
+    bank_id: "341",
+    source_account_id: sourceAccountId,
+    data_lancamento: "2026-06-02",
+    valor_centavos: 35100,
+    natureza: "D",
+  } as const;
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            ...movement,
+            movimento_id: "mov-pdf-351",
+            descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
+          },
+          {
+            ...movement,
+            movimento_id: "mov-excel-351",
+            descricao_sanitizada: "MOVIMENTO-5D36A68F91C0B5421E7A390F",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0].rows, [
+    {
+      date: "2026-06-02",
+      description: "MOVIMENTO-34283A563A842164ACFF67BE",
+      id: "mov-pdf-351",
+      value: -351,
+    },
+  ]);
+});
+
+test("mantém dois lançamentos reais de mesmo valor e data quando os históricos diferem", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-03";
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 3,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            movimento_id: "mov-tarifa-1",
+            cod_coligada: 3,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "TARIFA DE CONTA CORRENTE MENSAL",
+          },
+          {
+            movimento_id: "mov-pagamento-2",
+            cod_coligada: 3,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "PAGAMENTO FORNECEDOR",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].rows.length, 2);
+});
+
 test("descarta movimentos do PDF quando a cobertura identifica Excel para a mesma conta", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-03";
