@@ -1335,18 +1335,15 @@ function AreaHub({
             const item = areas[id];
             const Icon = item.icon;
             const modulePercent = scheduleProgress.modulePercent[id as ScheduleModuleKey];
-            const isDone = modulePercent === 100;
             return (
               <button
                 key={id}
-                className={`module-card area-${id} ${isDone ? "workflow-module-done" : ""}`}
+                className={`module-card area-${id}`}
                 onClick={() => onSelect(id)}
               >
                 <span className="module-card-top">
                   <span className="module-icon"><Icon /></span>
-                  <span className={`module-status ${isDone ? "module-status-done" : ""}`}>
-                    {isDone ? "Concluído" : modulePercent > 0 ? `${modulePercent}% concluído` : "Em andamento"}
-                  </span>
+                  <span className="module-status">{modulePercent}%</span>
                 </span>
                 <span className="module-copy">
                   <b>{item.title}</b>
@@ -1386,14 +1383,12 @@ function AreaHub({
 
           {allowedAreas.includes("book") && (
             <button
-              className={`module-card area-book ${bookCompleted ? "workflow-module-done" : ""}`}
+              className="module-card area-book"
               onClick={() => onSelect("book")}
             >
               <span className="module-card-top">
                 <span className="module-icon"><BookIcon /></span>
-                <span className={`module-status ${bookCompleted ? "module-status-done" : ""}`}>
-                  {bookCompleted ? "Concluído" : "Aguardando"}
-                </span>
+                <span className="module-status">{bookCompleted ? 100 : 0}%</span>
               </span>
               <span className="module-copy">
                 <b>Book Contábil</b>
