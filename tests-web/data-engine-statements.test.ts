@@ -1849,6 +1849,82 @@ test("separa somente os movimentos reais da aplicação e mantém o restante na 
   assert.deepEqual(result.unmatchedSources, []);
 });
 
+test("separa vários agrupamentos líquidos diários da aplicação no mesmo mês", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "033",
+    sourceAccountId: "santander-misto-global-tree",
+    rows: [
+      { id: "app-01-a", date: "2026-06-01", description: "RESGATE A", value: -1494.52 },
+      { id: "app-01-b", date: "2026-06-01", description: "RESGATE B", value: -1890.98 },
+      { id: "app-01-c", date: "2026-06-01", description: "RESGATE C", value: -38316.63 },
+      { id: "corrente-01", date: "2026-06-01", description: "CORRENTE", value: 210.8 },
+      { id: "app-03-a", date: "2026-06-03", description: "APLICAÇÃO A", value: 300 },
+      { id: "app-03-b", date: "2026-06-03", description: "APLICAÇÃO B", value: 200 },
+      { id: "corrente-03", date: "2026-06-03", description: "CORRENTE", value: 8.76 },
+    ],
+    metadata: {
+      account: "referencia-compartilhada",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const applicationSource = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-posicao-global-tree",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const result = resolveStatementBindings(
+    [source, applicationSource],
+    [
+      {
+        code: "1.1.1.03.03.20",
+        name: "Banco Santander - conta Aplic. 13082100-5",
+        rows: [
+          { date: "2026-06-01", value: -41702.13 },
+          { date: "2026-06-03", value: 500 },
+        ],
+      },
+      {
+        code: "1.1.1.02.03.11",
+        name: "Banco Santander - conta 13082100-5",
+        rows: [
+          { date: "2026-06-01", value: 210.8 },
+          { date: "2026-06-03", value: 8.76 },
+        ],
+      },
+    ],
+  );
+
+  const application = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.03.03.20",
+  );
+  const current = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.11",
+  );
+  assert.deepEqual(
+    application?.source.rows.map((row: { id: string }) => row.id),
+    ["app-01-a", "app-01-b", "app-01-c", "app-03-a", "app-03-b"],
+  );
+  assert.deepEqual(
+    current?.source.rows.map((row: { id: string }) => row.id),
+    ["corrente-01", "corrente-03"],
+  );
+});
+
 test("vincula contas Daycoval pelo total diário quando o banco agrupa lançamentos", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const statement = (id: string, values: number[]) => ({

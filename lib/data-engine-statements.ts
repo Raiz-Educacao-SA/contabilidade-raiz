@@ -444,15 +444,40 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         (total, row) => total + cents(row.value),
         0,
       );
+      const selectedApplicationIds = new Set(
+        selectedApplicationRows.map((row) => row.id),
+      );
+
+      // Um lançamento do extrato pode representar a soma líquida de vários
+      // lançamentos contábeis, e o inverso também ocorre. Completamos primeiro
+      // cada dia para não confundir movimentos da conta corrente com a
+      // aplicação quando há mais de um agrupamento pendente no mês.
+      for (const [date, dailyTarget] of Array.from(dailyTargets).sort(
+        ([left], [right]) => left.localeCompare(right),
+      )) {
+        const alreadySelectedForDay = selectedApplicationRows
+          .filter((row) => row.date === date)
+          .reduce((total, row) => total + cents(row.value), 0);
+        const dailyResidualTarget = dailyTarget - alreadySelectedForDay;
+        if (!dailyResidualTarget) continue;
+        const rowsForDay = transactionSource.rows.filter(
+          (row) => row.date === date && !selectedApplicationIds.has(row.id),
+        );
+        const residualRows = selectNearTarget(rowsForDay, dailyResidualTarget);
+        if (!residualRows.length) continue;
+        selectedApplicationRows.push(...residualRows);
+        residualRows.forEach((row) => selectedApplicationIds.add(row.id));
+      }
+
       let selectedTotal = selectedApplicationRows.reduce(
         (total, row) => total + cents(row.value),
         0,
       );
-      const selectedApplicationIds = new Set(
-        selectedApplicationRows.map((row) => row.id),
-      );
       const residualTarget = monthlyTarget - selectedTotal;
 
+      // Se a data bancária diferir da contabilização, a última parcela pode
+      // estar em outro dia da competência. O fechamento mensal continua sendo
+      // a regra principal.
       if (residualTarget) {
         for (const date of Array.from(dailyTargets.keys()).sort()) {
           const rowsForDay = transactionSource.rows.filter(
