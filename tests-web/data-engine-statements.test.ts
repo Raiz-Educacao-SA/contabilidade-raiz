@@ -2012,10 +2012,6 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
       "corrente-credito-d",
     ],
   );
-  assert.equal(
-    (result.diagnostics.currentComplement as { complete?: boolean })?.complete,
-    true,
-  );
 });
 
 test("vincula contas Daycoval pelo total diário quando o banco agrupa lançamentos", async () => {

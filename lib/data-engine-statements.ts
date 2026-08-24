@@ -234,10 +234,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   sources: DataEngineStatement[],
   accounts: TAccount[],
 ) {
-  const diagnostics: Record<string, unknown> = {
-    accounts: accounts.length,
-    sources: sources.length,
-  };
   const normalizeDigits = (value: unknown) =>
     String(value ?? "").replace(/\D/g, "").replace(/^0+/, "");
   const compatible = (left: unknown, right: unknown) => {
@@ -282,15 +278,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   const emptyApplicationSources = normalizedSources.filter(
     (source) => isApplicationStatement(source) && source.rows.length === 0,
   );
-  diagnostics.applicationAccounts = applicationAccounts.length;
-  diagnostics.applicationSources = normalizedSources
-    .filter(isApplicationStatement)
-    .map((source) => ({
-      bankId: source.bankId,
-      rows: source.rows.length,
-      source: source.sourceAccountId.slice(0, 12),
-    }));
-  diagnostics.emptyApplicationSources = emptyApplicationSources.length;
   if (applicationAccounts.length === 1 && emptyApplicationSources.length === 1) {
     const applicationAccount = applicationAccounts[0];
     const applicationBank = Object.entries(bankNames).find(([, pattern]) =>
@@ -303,12 +290,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             source.bankId.padStart(3, "0") === applicationBank,
         )
       : [];
-    diagnostics.applicationBank = applicationBank ?? "";
-    diagnostics.transactionSources = transactionSources.map((source) => ({
-      bankId: source.bankId,
-      rows: source.rows.length,
-      source: source.sourceAccountId.slice(0, 12),
-    }));
 
     if (applicationBank && transactionSources.length === 1) {
       const transactionSource = transactionSources[0];
@@ -619,12 +600,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       const completeMonthlySplit =
         selectedApplicationRows.length > 0 &&
         Math.abs(selectedTotal - monthlyTarget) <= monthlyTolerance;
-      diagnostics.applicationSelection = {
-        complete: completeMonthlySplit,
-        differenceInCents: selectedTotal - monthlyTarget,
-        selectedRows: selectedApplicationRows.length,
-        sourceRows: transactionSource.rows.length,
-      };
 
       if (completeMonthlySplit) {
         const applicationRowIds = new Set(
@@ -662,7 +637,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
 
           // Quando o PDF de aplicação compartilha a referência da conta
           // corrente, a maior parte dos movimentos já é legítima. Nesse caso,
-          // é mais seguro localizar e retirar somente o excedente diário das
+          // é mais seguro localizar e retirar somente o excedente mensal das
           // colunas auxiliares do que tentar reconstruir todo o extrato.
           if (
             debitExcess >= 0 &&
@@ -694,15 +669,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
               excludedIds.size > 0 &&
               Math.abs(selectedDebitTotal - currentDebitTarget) <= 100 &&
               Math.abs(selectedCreditTotal - currentCreditTarget) <= 100;
-            diagnostics.currentComplement = {
-              complete: complementComplete,
-              creditDifferenceInCents:
-                selectedCreditTotal - currentCreditTarget,
-              debitDifferenceInCents: selectedDebitTotal - currentDebitTarget,
-              excludedRows: excludedIds.size,
-              rawRows: currentRows.length,
-              selectedRows: complementRows.length,
-            };
             if (complementComplete) {
               currentRows = complementRows.sort((left, right) =>
                 left.date.localeCompare(right.date),
@@ -784,36 +750,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           const currentCoverage = currentAbsoluteTarget
             ? currentAbsoluteSelected / currentAbsoluteTarget
             : 0;
-          const summarizeGroups = (rows: DataEngineBankRow[]) => {
-            const groups = new Map<
-              string,
-              { count: number; gross: number; net: number }
-            >();
-            for (const row of rows) {
-              const key = row.description.slice(0, 40);
-              const group = groups.get(key) ?? { count: 0, gross: 0, net: 0 };
-              const value = cents(row.value);
-              group.count += 1;
-              group.gross += Math.abs(value);
-              group.net += value;
-              groups.set(key, group);
-            }
-            return Array.from(groups, ([description, group]) => ({
-              description,
-              ...group,
-            })).sort((left, right) => right.count - left.count);
-          };
-
-          diagnostics.currentSelection = {
-            coverage: Number(currentCoverage.toFixed(4)),
-            groups: summarizeGroups(currentRows),
-            monthlyDifferenceInCents:
-              currentSelectedTotal - currentMonthlyTarget,
-            rawRows: currentRows.length,
-            selectedGroups: summarizeGroups(selectedCurrentRows),
-            selectedRows: selectedCurrentRows.length,
-          };
-
           // Alguns PDFs de aplicação expõem principal, bruto, rendimento e
           // líquido como se fossem movimentos distintos. Só removemos essas
           // colunas auxiliares quando os movimentos selecionados cobrem pelo
@@ -987,7 +923,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   }
 
   return {
-    diagnostics,
     pairs,
     unmatchedSources: Array.from(remainingSources.values()),
     unmatchedAccounts: Array.from(remainingAccounts.values()),

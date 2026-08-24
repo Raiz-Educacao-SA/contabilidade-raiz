@@ -557,19 +557,11 @@ export default function MonthlyReconciliationPanel({
       const sources = data.statements ?? [];
       setDataEngineSources(sources);
       setDataEngineOperations(data.operations ?? null);
-      const resolved = applySourceBindings(sources, bankAccounts);
-      if (resolved) {
+      if (applySourceBindings(sources, bankAccounts)) {
         setStatementsUpdated(true);
         setStatementsRevision(nextSourceRevision());
-        const diagnosticEnabled =
-          typeof window !== "undefined" &&
-          new URLSearchParams(window.location.search).has(
-            "diagnostico-conciliacao",
-          );
         setNotice(
-          diagnosticEnabled
-            ? `Diagnóstico técnico: ${JSON.stringify(resolved.diagnostics)}`
-            : `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) reconhecida(s).`,
+          `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) reconhecida(s).`,
         );
       }
     } catch (error) {
@@ -604,7 +596,7 @@ export default function MonthlyReconciliationPanel({
       };
     });
     setStatements(identified);
-    return resolved;
+    return true;
   }
 
   function reconcileStatements(selected: Statement[]) {
