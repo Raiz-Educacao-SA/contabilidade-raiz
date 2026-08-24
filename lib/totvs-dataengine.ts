@@ -5,12 +5,21 @@ import { isAllowedCorporateEmail } from "@/lib/auth-domain";
 
 const DEFAULT_BASE_URL = "https://raizeducacao160286.rm.cloudtotvs.com.br:8051";
 const SQL_ACTION = "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL";
+const READ_VIEW_ACTION = "http://www.totvs.com/IwsDataServer/ReadView";
 
 export type DataEngineQuery = {
   code: string;
   system: string;
   parameters: string;
   company?: number | string;
+  timeoutMs?: number;
+  errorMessage?: string;
+};
+
+export type DataServerViewQuery = {
+  dataServerName: string;
+  filter: string;
+  context: string;
   timeoutMs?: number;
   errorMessage?: string;
 };
@@ -88,4 +97,31 @@ export async function queryDataEngine({
   }
   const result = decodeXml(xmlTag(soap, "RealizarConsultaSQLResult"));
   return Array.from(result.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) => match[1]);
+}
+
+export async function readDataServerView({
+  dataServerName,
+  filter,
+  context,
+  timeoutMs = 290_000,
+  errorMessage = "O TOTVS não conseguiu consultar a visão solicitada.",
+}: DataServerViewQuery): Promise<string> {
+  const { baseUrl, authorization } = configuration();
+  const envelope = `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><ReadView xmlns="http://www.totvs.com/"><DataServerName>${escapeXml(dataServerName)}</DataServerName><Filtro>${escapeXml(filter)}</Filtro><Contexto>${escapeXml(context)}</Contexto></ReadView></soap:Body></soap:Envelope>`;
+  const response = await fetch(`${baseUrl}/wsDataServer/IwsDataServer`, {
+    method: "POST",
+    headers: {
+      authorization,
+      "content-type": "text/xml; charset=utf-8",
+      soapaction: READ_VIEW_ACTION,
+    },
+    body: envelope,
+    cache: "no-store",
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const soap = await response.text();
+  if (!response.ok || /<(?:\w+:)?Fault[ >]/i.test(soap)) {
+    throw new Error(decodeXml(xmlTag(soap, "faultstring", "faultcode")) || errorMessage);
+  }
+  return decodeXml(xmlTag(soap, "ReadViewResult"));
 }
