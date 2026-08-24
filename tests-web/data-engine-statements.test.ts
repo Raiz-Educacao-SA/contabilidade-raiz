@@ -613,6 +613,64 @@ test("usa lançamentos completos das pendências quando a conta não veio em mov
   assert.equal(result.operations.movimentos, 0);
   assert.equal(result.operations.pendencias, 3);
   assert.equal(result.operations.pendenciasUtilizadas, 2);
+  assert.deepEqual(result.diagnostics.pendingSummary, {
+    evidenceExtensions: {},
+    evidenceForPeriod: 0,
+    kinds: { "não informado": 3 },
+    reasons: { "não informado": 3 },
+    sourceAccounts: 1,
+    statuses: { "não informado": 3 },
+  });
+});
+
+test("resume pendências do Data Engine sem expor as referências dos arquivos", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 14,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/pendencias"
+            ? [
+                {
+                  cod_coligada: 14,
+                  evidence_ref: "segredo/06_2026_SANTANDER.xlsx",
+                  pendencia_id: "pendencia-xlsx",
+                  pendencia_kind: "parser",
+                  pendencia_status: "open",
+                  reason_code: "missing_movements",
+                  source_account_id: "conta-didacta",
+                },
+                {
+                  cod_coligada: 14,
+                  evidence_ref: "segredo/06_2026_SANTANDER.pdf",
+                  pendencia_id: "pendencia-pdf",
+                  pendencia_kind: "parser",
+                  pendencia_status: "open",
+                  reason_code: "missing_movements",
+                  source_account_id: "conta-didacta",
+                },
+              ]
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.deepEqual(result.diagnostics.pendingSummary, {
+    evidenceExtensions: { ".pdf": 1, ".xlsx": 1 },
+    evidenceForPeriod: 2,
+    kinds: { parser: 2 },
+    reasons: { missing_movements: 2 },
+    sourceAccounts: 1,
+    statuses: { open: 2 },
+  });
+  assert.equal(JSON.stringify(result.diagnostics).includes("segredo"), false);
 });
 
 test("prioriza movimentos e não duplica a conta com lançamentos das pendências", async () => {

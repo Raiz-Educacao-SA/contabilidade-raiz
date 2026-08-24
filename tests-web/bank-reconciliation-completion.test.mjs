@@ -80,8 +80,33 @@ test("mantém uma ficha detalhada por vez e usa cache para grandes históricos",
     /expanded=\{expandedResultCode === result\.account\.code\}/,
   );
   assert.match(panel, /expanded && \([\s\S]*?<ReconciliationFormView/);
-  assert.match(panel, /Ver ficha detalhada/);
+  assert.match(panel, /Ver ficha de conciliação/);
   assert.match(monthlyCss, /\.reconciliation-detail-toggle \{/);
+});
+
+test("mantém fichas recolhidas também para as contas conciliadas", () => {
+  assert.match(
+    panel,
+    /const reconciledResults = useMemo\([\s\S]*result\.validation\.reconciled/,
+  );
+  assert.match(panel, /reconciledResults\.map\(\(result\) =>/);
+  assert.match(panel, /As fichas permanecem recolhidas/);
+  assert.match(
+    panel,
+    /value\.reconciled \? \([\s\S]*Movimento líquido no extrato[\s\S]*Movimento líquido contábil/,
+  );
+  assert.match(
+    panel,
+    /result\.validation\.reconciled \? \([\s\S]*reconciled-form-summary[\s\S]*result\.validation\.bankNet[\s\S]*result\.validation\.accountingNet/,
+  );
+  assert.match(
+    monthlyCss,
+    /\.monthly-metrics\.reconciled-metrics \{[\s\S]*grid-template-columns: repeat\(2/,
+  );
+  assert.match(
+    monthlyCss,
+    /\.form-summary\.reconciled-form-summary \{[\s\S]*grid-template-columns: repeat\(2/,
+  );
 });
 
 test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {

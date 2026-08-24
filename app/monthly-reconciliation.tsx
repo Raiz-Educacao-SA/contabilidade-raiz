@@ -347,11 +347,15 @@ export default function MonthlyReconciliationPanel({
     () => results.filter((result) => !result.validation.reconciled),
     [results],
   );
+  const reconciledResults = useMemo(
+    () => results.filter((result) => result.validation.reconciled),
+    [results],
+  );
   const resultsByAccount = useMemo(
     () => new Map(results.map((result) => [result.account.code, result])),
     [results],
   );
-  const reconciledCount = results.length - divergentResults.length;
+  const reconciledCount = reconciledResults.length;
   const resultsCurrent =
     results.length > 0 &&
     reconciliationRevision > 0 &&
@@ -997,16 +1001,33 @@ export default function MonthlyReconciliationPanel({
           </div>
         </div>
       )}
-      {results.length > 0 && divergentResults.length === 0 && (
-        <div className="all-reconciled">
-          <CheckCircle2 />
-          <div>
-            <b>Todas as contas estão conciliadas</b>
-            <span>
-              Nenhuma ficha de tratamento foi aberta para esta competência.
-            </span>
+      {reconciledResults.length > 0 && (
+        <>
+          <div className="exceptions-title reconciled-title">
+            <span>CONCILIAÇÃO CONCLUÍDA</span>
+            <h3>Contas conciliadas</h3>
+            <p>
+              As fichas permanecem recolhidas. Abra uma conta para consultar os
+              movimentos mensais conferidos.
+            </p>
           </div>
-        </div>
+          <div className="monthly-results">
+            {reconciledResults.map((result) => (
+              <MonthlyAccountResult
+                key={result.account.code}
+                result={result}
+                companyName={companyName}
+                reconciledBy={reconciledBy}
+                expanded={expandedResultCode === result.account.code}
+                onToggle={() =>
+                  setExpandedResultCode((current) =>
+                    current === result.account.code ? null : result.account.code,
+                  )
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
       {divergentResults.length > 0 && (
         <>
@@ -1070,37 +1091,50 @@ function MonthlyAccountResult({
           </div>
         </div>
       </header>
-      <div className="monthly-metrics">
-        <div>
-          <span>Entradas no extrato</span>
-          <b>{brl(value.bankCredits)}</b>
-          <small>Débitos contábeis: {brl(value.accountingDebits)}</small>
-        </div>
-        <div>
-          <span>Saídas no extrato</span>
-          <b>{brl(value.bankDebits)}</b>
-          <small>Créditos contábeis: {brl(value.accountingCredits)}</small>
-        </div>
-        <div>
-          <span>Movimento líquido no extrato</span>
-          <b>{brl(value.bankNet)}</b>
-          <small>Entradas menos saídas</small>
-        </div>
-        <div>
-          <span>Movimento líquido contábil</span>
-          <b>{brl(value.accountingNet)}</b>
-          <small>Débitos menos créditos</small>
-        </div>
-        <div className={value.reconciled ? "metric-ok" : "metric-review"}>
-          <span>Diferença líquida mensal</span>
-          <b>{brl(value.movementDifference)}</b>
-          <small>
-            {value.reconciled
-              ? "Movimento líquido mensal conferido"
-              : `Extrato ${brl(value.bankNet)} · Contábil ${brl(value.accountingNet)}`}
-          </small>
-        </div>
-        {result.metadata.closingBalance != null && (
+      <div className={`monthly-metrics ${value.reconciled ? "reconciled-metrics" : ""}`}>
+        {value.reconciled ? (
+          <>
+            <div>
+              <span>Movimento líquido no extrato</span>
+              <b>{brl(value.bankNet)}</b>
+              <small>Valor movimentado no extrato bancário</small>
+            </div>
+            <div>
+              <span>Movimento líquido contábil</span>
+              <b>{brl(value.accountingNet)}</b>
+              <small>Valor movimentado na contabilidade</small>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <span>Entradas no extrato</span>
+              <b>{brl(value.bankCredits)}</b>
+              <small>Débitos contábeis: {brl(value.accountingDebits)}</small>
+            </div>
+            <div>
+              <span>Saídas no extrato</span>
+              <b>{brl(value.bankDebits)}</b>
+              <small>Créditos contábeis: {brl(value.accountingCredits)}</small>
+            </div>
+            <div>
+              <span>Movimento líquido no extrato</span>
+              <b>{brl(value.bankNet)}</b>
+              <small>Entradas menos saídas</small>
+            </div>
+            <div>
+              <span>Movimento líquido contábil</span>
+              <b>{brl(value.accountingNet)}</b>
+              <small>Débitos menos créditos</small>
+            </div>
+            <div className="metric-review">
+              <span>Diferença líquida mensal</span>
+              <b>{brl(value.movementDifference)}</b>
+              <small>{`Extrato ${brl(value.bankNet)} · Contábil ${brl(value.accountingNet)}`}</small>
+            </div>
+          </>
+        )}
+        {!value.reconciled && result.metadata.closingBalance != null && (
           <div>
             <span>Saldo final do extrato</span>
             <b>{brl(result.metadata.closingBalance)}</b>
@@ -1114,7 +1148,7 @@ function MonthlyAccountResult({
         aria-expanded={expanded}
         onClick={onToggle}
       >
-        {expanded ? "Ocultar ficha detalhada" : "Ver ficha detalhada"}
+        {expanded ? "Ocultar ficha de conciliação" : "Ver ficha de conciliação"}
       </button>
       {expanded && (
         <ReconciliationFormView
@@ -1172,7 +1206,6 @@ function ReconciliationFormView({
         result.validation.movementDifference,
       );
   const diagnostics = result.diagnostics ?? [];
-  const statementBalance = result.metadata.closingBalance;
   return (
     <section className="reconciliation-form">
       <header>
@@ -1205,11 +1238,15 @@ function ReconciliationFormView({
         </div>
       </div>
       {result.validation.reconciled ? (
-        <div className="clean-balance">
-          <span>Saldo conforme extrato bancário</span>
-          <b>
-            {statementBalance == null ? "Não informado" : brl(statementBalance)}
-          </b>
+        <div className="form-summary reconciled-form-summary">
+          <article>
+            <span>Movimento líquido no extrato</span>
+            <b>{brl(result.validation.bankNet)}</b>
+          </article>
+          <article>
+            <span>Movimento líquido contábil</span>
+            <b>{brl(result.validation.accountingNet)}</b>
+          </article>
         </div>
       ) : (
         <>

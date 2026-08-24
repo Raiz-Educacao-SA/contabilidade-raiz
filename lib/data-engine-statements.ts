@@ -39,6 +39,14 @@ export type DataEngineStatementSnapshot = {
     pendingObjectsInspected: number;
     pendingMovementsUsed: number;
     pendingSourcesUsed: number;
+    pendingSummary: {
+      evidenceExtensions: Record<string, number>;
+      evidenceForPeriod: number;
+      kinds: Record<string, number>;
+      reasons: Record<string, number>;
+      sourceAccounts: number;
+      statuses: Record<string, number>;
+    };
     sourceCandidates: {
       saldos: number;
       posicoes: number;
@@ -982,6 +990,81 @@ function governedInteger(record: Record<string, unknown>, fields: string[]) {
   return null;
 }
 
+function countGovernedValues(
+  records: Array<Record<string, unknown>>,
+  fields: string[],
+) {
+  const counts = new Map<string, number>();
+  for (const record of records) {
+    const value = governedText(record, fields) || "não informado";
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return Object.fromEntries(
+    Array.from(counts.entries()).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  );
+}
+
+function pendingEvidenceSummary(
+  records: Array<Record<string, unknown>>,
+  options: Pick<LoadOptions, "fromDate">,
+) {
+  const [year, month] = options.fromDate.slice(0, 7).split("-");
+  const monthNames = [
+    "JANEIRO",
+    "FEVEREIRO",
+    "MARCO",
+    "ABRIL",
+    "MAIO",
+    "JUNHO",
+    "JULHO",
+    "AGOSTO",
+    "SETEMBRO",
+    "OUTUBRO",
+    "NOVEMBRO",
+    "DEZEMBRO",
+  ];
+  const periodTokens = [
+    `${year}-${month}`,
+    `${month}-${year}`,
+    `${month}_${year}`,
+    `${month}.${year}`,
+    `${month}${year}`,
+    `${monthNames[Number(month) - 1]} ${year}`,
+  ];
+  const extensions = new Map<string, number>();
+  let evidenceForPeriod = 0;
+  for (const record of records) {
+    const reference = governedText(record, [
+      "evidence_ref",
+      "file_name",
+      "filename",
+      "nome_arquivo",
+      "object_name",
+    ]);
+    if (!reference) continue;
+    const normalized = reference
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+    const extension = normalized.match(/\.([A-Z0-9]{2,8})(?:$|[?#])/u)?.[1];
+    const key = extension ? `.${extension.toLowerCase()}` : "sem extensão";
+    extensions.set(key, (extensions.get(key) ?? 0) + 1);
+    if (periodTokens.some((token) => normalized.includes(token))) {
+      evidenceForPeriod += 1;
+    }
+  }
+  return {
+    evidenceExtensions: Object.fromEntries(
+      Array.from(extensions.entries()).sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    ),
+    evidenceForPeriod,
+  };
+}
+
 function governedNamedMoneyInCents(
   record: Record<string, unknown>,
   centsFields: string[],
@@ -1824,6 +1907,7 @@ export async function loadDataEngineStatementSnapshot(
     statements.map((statement) => statement.sourceAccountId),
   );
   const pendingExtractions = pendencias.items.map(pendingRecordMovements);
+  const pendingEvidence = pendingEvidenceSummary(pendencias.items, options);
   const pendingObjectsInspected = pendingExtractions.reduce(
     (total, extraction) => total + extraction.inspected,
     0,
@@ -1896,6 +1980,17 @@ export async function loadDataEngineStatementSnapshot(
       pendingObjectsInspected,
       pendingMovementsUsed: pendingMovements.length,
       pendingSourcesUsed: pendingStatements.length,
+      pendingSummary: {
+        ...pendingEvidence,
+        kinds: countGovernedValues(pendencias.items, ["pendencia_kind"]),
+        reasons: countGovernedValues(pendencias.items, ["reason_code"]),
+        sourceAccounts: new Set(
+          pendencias.items
+            .map((record) => governedSourceIdentity(record))
+            .filter(Boolean),
+        ).size,
+        statuses: countGovernedValues(pendencias.items, ["pendencia_status"]),
+      },
       sourceCandidates: {
         saldos: saldos.sourceRecords.length,
         posicoes: positions.sourceRecords.length,
