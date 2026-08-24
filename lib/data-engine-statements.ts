@@ -521,15 +521,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           const currentAccountingRows = [...(currentAccounts[0].rows ?? [])].sort(
             (left, right) => day(left.date).localeCompare(day(right.date)),
           );
-          const currentDailyTargets = new Map<string, number>();
-          for (const row of currentAccountingRows) {
-            const rowDay = day(row.date);
-            if (!rowDay) continue;
-            currentDailyTargets.set(
-              rowDay,
-              (currentDailyTargets.get(rowDay) ?? 0) + cents(row.value),
-            );
-          }
           const selectedCurrentRows: DataEngineBankRow[] = [];
           const selectedCurrentIds = new Set<string>();
           for (const accountingRow of currentAccountingRows) {
@@ -550,24 +541,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             if (!candidate) continue;
             selectedCurrentRows.push(candidate);
             selectedCurrentIds.add(candidate.id);
-          }
-          for (const [date, dailyTarget] of Array.from(currentDailyTargets).sort(
-            ([left], [right]) => left.localeCompare(right),
-          )) {
-            const alreadySelectedForDay = selectedCurrentRows
-              .filter((row) => row.date === date)
-              .reduce((total, row) => total + cents(row.value), 0);
-            const dailyResidualTarget = dailyTarget - alreadySelectedForDay;
-            if (!dailyResidualTarget) continue;
-            const residualRows = selectNearTarget(
-              currentRows.filter(
-                (row) =>
-                  row.date === date && !selectedCurrentIds.has(row.id),
-              ),
-              dailyResidualTarget,
-            );
-            selectedCurrentRows.push(...residualRows);
-            residualRows.forEach((row) => selectedCurrentIds.add(row.id));
           }
           const currentMonthlyTarget = currentAccountingRows.reduce(
             (total, row) => total + cents(row.value),
