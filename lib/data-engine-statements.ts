@@ -427,48 +427,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         return best ? best.indexes.map((index) => candidates[index]) : [];
       };
 
-      const selectSmallGroupNearTarget = (
-        rows: DataEngineBankRow[],
-        target: number,
-      ) => {
-        const absoluteTarget = Math.abs(target);
-        const tolerance = 100;
-        const candidates = rows.filter((row) => cents(row.value) * target > 0);
-        let best: { difference: number; rows: DataEngineBankRow[] } | null = null;
-        const consider = (selected: DataEngineBankRow[]) => {
-          const total = selected.reduce(
-            (sum, row) => sum + Math.abs(cents(row.value)),
-            0,
-          );
-          const difference = Math.abs(total - absoluteTarget);
-          if (
-            difference <= tolerance &&
-            (!best ||
-              difference < best.difference ||
-              (difference === best.difference && selected.length < best.rows.length))
-          ) {
-            best = { difference, rows: selected };
-          }
-        };
-        for (let first = 0; first < candidates.length; first += 1) {
-          consider([candidates[first]]);
-          for (let second = first + 1; second < candidates.length; second += 1) {
-            consider([candidates[first], candidates[second]]);
-            if (candidates.length > 32) continue;
-            for (let third = second + 1; third < candidates.length; third += 1) {
-              consider([
-                candidates[first],
-                candidates[second],
-                candidates[third],
-              ]);
-            }
-          }
-        }
-        return (
-          best as { difference: number; rows: DataEngineBankRow[] } | null
-        )?.rows ?? [];
-      };
-
       const selectedIds = new Set<string>();
       const exactCandidates: DataEngineBankRow[] = [];
       const accountingRows = [...(applicationAccount.rows ?? [])].sort(
@@ -597,6 +555,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
               .filter(
                 (row) =>
                   !selectedCurrentIds.has(row.id) &&
+                  day(row.date) === accountingDay &&
                   cents(row.value) === accountingValue,
               )
               .sort(
@@ -630,7 +589,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                 .reduce((total, row) => total + cents(row.value), 0);
               const residualTarget = accountingTarget - alreadySelected;
               if (!residualTarget) continue;
-              const residualRows = selectSmallGroupNearTarget(
+              const residualRows = selectNearTarget(
                 currentRows.filter(
                   (row) =>
                     row.date === date && !selectedCurrentIds.has(row.id),

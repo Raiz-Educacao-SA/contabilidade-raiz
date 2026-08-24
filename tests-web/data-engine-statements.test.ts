@@ -1933,10 +1933,13 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
     rows: [
       { id: "app", date: "2026-06-10", description: "LÍQUIDO APLICAÇÃO", value: -100 },
       { id: "corrente-debito-a", date: "2026-06-10", description: "DÉBITO A", value: 400 },
-      { id: "corrente-debito-b", date: "2026-06-10", description: "DÉBITO B", value: 300 },
-      { id: "corrente-debito-c", date: "2026-06-10", description: "DÉBITO C", value: 300 },
-      { id: "corrente-credito-a", date: "2026-06-10", description: "CRÉDITO A", value: -600 },
-      { id: "corrente-credito-b", date: "2026-06-10", description: "CRÉDITO B", value: -400 },
+      { id: "corrente-debito-b", date: "2026-06-10", description: "DÉBITO B", value: 250 },
+      { id: "corrente-debito-c", date: "2026-06-10", description: "DÉBITO C", value: 200 },
+      { id: "corrente-debito-d", date: "2026-06-10", description: "DÉBITO D", value: 150 },
+      { id: "corrente-credito-a", date: "2026-06-10", description: "CRÉDITO A", value: -400 },
+      { id: "corrente-credito-b", date: "2026-06-10", description: "CRÉDITO B", value: -250 },
+      { id: "corrente-credito-c", date: "2026-06-10", description: "CRÉDITO C", value: -200 },
+      { id: "corrente-credito-d", date: "2026-06-10", description: "CRÉDITO D", value: -150 },
       { id: "coluna-auxiliar", date: "2026-06-10", description: "RENDIMENTO AUXILIAR", value: 13.45 },
     ],
     metadata: {
@@ -1998,8 +2001,11 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
       "corrente-debito-a",
       "corrente-debito-b",
       "corrente-debito-c",
+      "corrente-debito-d",
       "corrente-credito-a",
       "corrente-credito-b",
+      "corrente-credito-c",
+      "corrente-credito-d",
     ],
   );
 });
