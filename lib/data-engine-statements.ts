@@ -636,6 +636,14 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             ? currentAbsoluteSelected / currentAbsoluteTarget
             : 0;
 
+          console.info("[data-engine/statements] seleção da conta corrente compartilhada", {
+            coverage: Number(currentCoverage.toFixed(4)),
+            monthlyDifferenceInCents:
+              currentSelectedTotal - currentMonthlyTarget,
+            rawRows: currentRows.length,
+            selectedRows: selectedCurrentRows.length,
+          });
+
           // Alguns PDFs de aplicação expõem principal, bruto, rendimento e
           // líquido como se fossem movimentos distintos. Só removemos essas
           // colunas auxiliares quando os movimentos selecionados cobrem pelo
