@@ -1932,8 +1932,11 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
     sourceAccountId: "santander-pdf-multicolunas",
     rows: [
       { id: "app", date: "2026-06-10", description: "LÍQUIDO APLICAÇÃO", value: -100 },
-      { id: "corrente-debito", date: "2026-06-10", description: "DÉBITO", value: 1000 },
-      { id: "corrente-credito", date: "2026-06-10", description: "CRÉDITO", value: -1000 },
+      { id: "corrente-debito-a", date: "2026-06-10", description: "DÉBITO A", value: 400 },
+      { id: "corrente-debito-b", date: "2026-06-10", description: "DÉBITO B", value: 300 },
+      { id: "corrente-debito-c", date: "2026-06-10", description: "DÉBITO C", value: 300 },
+      { id: "corrente-credito-a", date: "2026-06-10", description: "CRÉDITO A", value: -600 },
+      { id: "corrente-credito-b", date: "2026-06-10", description: "CRÉDITO B", value: -400 },
       { id: "coluna-auxiliar", date: "2026-06-10", description: "RENDIMENTO AUXILIAR", value: 13.45 },
     ],
     metadata: {
@@ -1991,7 +1994,13 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
   );
   assert.deepEqual(
     current?.source.rows.map((row: { id: string }) => row.id),
-    ["corrente-debito", "corrente-credito"],
+    [
+      "corrente-debito-a",
+      "corrente-debito-b",
+      "corrente-debito-c",
+      "corrente-credito-a",
+      "corrente-credito-b",
+    ],
   );
 });
 
