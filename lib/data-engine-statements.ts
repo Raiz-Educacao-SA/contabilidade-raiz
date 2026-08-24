@@ -268,58 +268,13 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   });
 
   // Alguns PDFs de aplicação do Santander chegam no endpoint de movimentos
-  // com a mesma referência técnica da conta corrente. Nessa situação, cada
-  // transferência aparece dos dois lados (conta corrente e aplicação), mas o
-  // Data Engine não informa em qual extrato cada lado foi lido. A separação só
+  // com a mesma referência técnica da conta corrente. Nessa situação, o Data
+  // Engine não informa a qual extrato pertence cada lançamento. A separação só
   // é feita quando há uma única conta e uma única fonte de aplicação, o banco
-  // é inequívoco e existe a contrapartida oposta no mesmo dia.
+  // é inequívoco e os movimentos reais fecham com a conta contábil no mês.
   const applicationAccounts = accounts.filter((account) =>
     APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
   );
-  // O Data Engine pode particionar um único extrato de aplicação em mais
-  // de uma referência de produto. Quando a empresa possui uma única conta
-  // contábil de aplicação, todas essas partes pertencem à mesma conciliação.
-  // Consolidamos antes do vínculo para evitar que a primeira referência consuma
-  // a conta e as demais apareçam incorretamente como extratos sem conta.
-  const applicationSources = normalizedSources.filter(isApplicationStatement);
-  if (applicationAccounts.length === 1 && applicationSources.length > 1) {
-    const applicationSourceIds = new Set(
-      applicationSources.map((source) => source.sourceAccountId),
-    );
-    const consolidatedRows = Array.from(
-      new Map(
-        applicationSources
-          .flatMap((source) => source.rows)
-          .map((row) => [
-            [row.id, row.date, cents(row.value)].join("|"),
-            row,
-          ]),
-      ).values(),
-    ).sort((left, right) =>
-      left.date.localeCompare(right.date) || left.id.localeCompare(right.id),
-    );
-    const identifiedBank = applicationSources.find(
-      (source) => source.bankId.padStart(3, "0") !== "000",
-    )?.bankId;
-    normalizedSources = [
-      ...normalizedSources.filter(
-        (source) => !applicationSourceIds.has(source.sourceAccountId),
-      ),
-      {
-        ...applicationSources[0],
-        bankId: identifiedBank ?? applicationSources[0].bankId,
-        sourceAccountId: `aplicacao:consolidada:${applicationAccounts[0].code}`,
-        rows: consolidatedRows,
-        metadata: {
-          ...applicationSources[0].metadata,
-          account: "Aplicação",
-          name: "Aplicação financeira",
-        },
-      },
-    ].sort((left, right) =>
-      left.sourceAccountId.localeCompare(right.sourceAccountId),
-    );
-  }
   const emptyApplicationSources = normalizedSources.filter(
     (source) => isApplicationStatement(source) && source.rows.length === 0,
   );
@@ -354,7 +309,9 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       ) => {
         const absoluteTarget = Math.abs(target);
         if (!absoluteTarget) return [] as DataEngineBankRow[];
-        const tolerance = Math.max(100, Math.round(absoluteTarget * 0.001));
+        // Um desvio de até R$ 1,00 permite identificar lançamentos líquidos
+        // sujeitos a centavos de IOF/IR sem esconder diferenças relevantes.
+        const tolerance = 100;
         const candidates = rows.filter((row) => cents(row.value) * target > 0);
         if (!candidates.length) {
           return [] as DataEngineBankRow[];
@@ -458,11 +415,9 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       );
 
       // A conta corrente e a aplicação podem chegar misturadas na mesma
-      // referência técnica. Primeiro localizamos os valores da aplicação no
-      // mês inteiro (a data bancária pode diferir da contabilização). Depois,
-      // só aceitamos os grupos que possuem a contrapartida oposta no próprio
-      // extrato. Isso evita que uma separação parcial transforme transferências
-      // internas em diferenças artificiais de centenas de milhares de reais.
+      // referência técnica. Primeiro localizamos os valores exatos da aplicação
+      // no mês inteiro, pois a data bancária pode diferir da contabilização.
+      // Em seguida, completamos o saldo residual pela soma líquida do dia.
       for (const accountingRow of accountingRows) {
         const accountingValue = cents(accountingRow.value);
         const accountingDay = day(accountingRow.date);
@@ -483,31 +438,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         exactCandidates.push(candidate);
       }
 
-      const selectedApplicationRows: DataEngineBankRow[] = [];
-      const exactByDate = new Map<string, DataEngineBankRow[]>();
-      for (const row of exactCandidates) {
-        exactByDate.set(row.date, [...(exactByDate.get(row.date) ?? []), row]);
-      }
-      for (const [date, selectedForDay] of exactByDate) {
-        const selectedTotal = selectedForDay.reduce(
-          (total, row) => total + cents(row.value),
-          0,
-        );
-        if (!selectedTotal) {
-          selectedApplicationRows.push(...selectedForDay);
-          continue;
-        }
-        const selectedForDayIds = new Set(selectedForDay.map((row) => row.id));
-        const counterpartRows = selectNearTarget(
-          transactionSource.rows.filter(
-            (row) => row.date === date && !selectedForDayIds.has(row.id),
-          ),
-          -selectedTotal,
-        );
-        if (counterpartRows.length) {
-          selectedApplicationRows.push(...selectedForDay);
-        }
-      }
+      const selectedApplicationRows: DataEngineBankRow[] = [...exactCandidates];
 
       const monthlyTarget = accountingRows.reduce(
         (total, row) => total + cents(row.value),
@@ -530,16 +461,10 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           );
           const residualRows = selectNearTarget(rowsForDay, residualTarget);
           if (!residualRows.length) continue;
-          const residualIds = new Set(residualRows.map((row) => row.id));
           const residualTotal = residualRows.reduce(
             (total, row) => total + cents(row.value),
             0,
           );
-          const counterpartRows = selectNearTarget(
-            rowsForDay.filter((row) => !residualIds.has(row.id)),
-            -residualTotal,
-          );
-          if (!counterpartRows.length) continue;
           selectedApplicationRows.push(...residualRows);
           residualRows.forEach((row) => selectedApplicationIds.add(row.id));
           selectedTotal += residualTotal;
@@ -547,10 +472,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         }
       }
 
-      const monthlyTolerance = Math.max(
-        100,
-        Math.round(Math.abs(monthlyTarget) * 0.001),
-      );
+      const monthlyTolerance = 100;
       const completeMonthlySplit =
         selectedApplicationRows.length > 0 &&
         Math.abs(selectedTotal - monthlyTarget) <= monthlyTolerance;
@@ -578,68 +500,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           }
           return source;
         });
-      } else {
-        // Há extratos em que o Data Engine entrega toda a movimentação da
-        // aplicação dentro da única referência Santander disponível. Quando a
-        // conta corrente fecha o mês com líquido zero e a direção dos valores
-        // diários acompanha claramente a aplicação, o confronto correto é
-        // feito com o conjunto mensal completo. Assim não apresentamos duas
-        // divergências artificiais para a mesma movimentação bancária.
-        const transactionAccounts = accounts.filter(
-          (account) =>
-            account.code !== applicationAccount.code &&
-            !APPLICATION_ACCOUNT_PATTERN.test(account.name ?? "") &&
-            bankNames[applicationBank]?.test(account.name ?? ""),
-        );
-        const transactionMonthly =
-          transactionAccounts.length === 1
-            ? (transactionAccounts[0].rows ?? []).reduce(
-                (total, row) => total + cents(row.value),
-                0,
-              )
-            : Number.NaN;
-        const sourceDaily = new Map<string, number>();
-        for (const row of transactionSource.rows) {
-          sourceDaily.set(
-            row.date,
-            (sourceDaily.get(row.date) ?? 0) + cents(row.value),
-          );
-        }
-        const applicationDays = Array.from(dailyTargets).filter(
-          ([, total]) => total !== 0,
-        );
-        const alignedDays = applicationDays.filter(([date, total]) => {
-          const sourceTotal = sourceDaily.get(date) ?? 0;
-          return sourceTotal !== 0 && Math.sign(sourceTotal) === Math.sign(total);
-        }).length;
-        const minimumAlignedDays = Math.max(
-          5,
-          Math.ceil(applicationDays.length * 0.7),
-        );
-        const useCompleteMovementStatement =
-          transactionAccounts.length === 1 &&
-          Math.abs(transactionMonthly) <= 100 &&
-          applicationDays.length >= 5 &&
-          alignedDays >= minimumAlignedDays;
-
-        if (useCompleteMovementStatement) {
-          const applicationSource = emptyApplicationSources[0];
-          normalizedSources = normalizedSources.map((source) => {
-            if (source.sourceAccountId === transactionSource.sourceAccountId) {
-              return { ...source, rows: [] };
-            }
-            if (source.sourceAccountId === applicationSource.sourceAccountId) {
-              return {
-                ...source,
-                bankId: applicationBank,
-                rows: [...transactionSource.rows].sort((left, right) =>
-                  left.date.localeCompare(right.date),
-                ),
-              };
-            }
-            return source;
-          });
-        }
       }
     }
   }
@@ -863,7 +723,6 @@ function applicationPositionMovements(
       "data_lancamento",
       "transaction_date",
       "posting_date",
-      "position_at",
     ]);
     const sourceAccountId = applicationPositionIdentity(position);
     if (
@@ -921,16 +780,6 @@ function applicationPositionMovements(
         "investimento",
         "investment_amount",
       ],
-    );
-    const governedNetAmountInCents = governedNamedMoneyInCents(
-      position,
-      ["net_amount_centavos", "net_value_centavos"],
-      ["net_amount", "net_value"],
-    );
-    const governedGrossAmountInCents = governedNamedMoneyInCents(
-      position,
-      ["gross_amount_centavos", "gross_value_centavos"],
-      ["gross_amount", "gross_value"],
     );
     const principalRedeemedInCents = governedNamedMoneyInCents(
       position,
@@ -1012,27 +861,12 @@ function applicationPositionMovements(
       });
     };
 
-    // O contrato atual do Data Engine entrega os movimentos do extrato de
-    // aplicação em posições, separados dos movimentos da conta corrente.
-    // Valor positivo representa resgate e valor negativo representa aplicação.
-    // Os campos antigos permanecem compatíveis com documentos já processados.
-    const governedMovementInCents =
-      governedNetAmountInCents !== null &&
-      Math.abs(governedNetAmountInCents) >= 1
-        ? governedNetAmountInCents
-        : governedGrossAmountInCents;
-    if (governedMovementInCents !== null) {
-      appendMovement(
-        governedMovementInCents < 0 ? "C" : "D",
-        governedMovementInCents,
-        governedMovementInCents < 0
-          ? "Aplicação financeira"
-          : "Resgate líquido da aplicação",
-      );
-    } else {
-      appendMovement("C", appliedInCents, "Aplicação financeira");
-      appendMovement("D", redeemedInCents, "Resgate líquido da aplicação");
-    }
+    // Posições só podem virar movimentos quando o contrato traz uma data
+    // transacional e campos explicitamente identificados como aplicação ou
+    // resgate. position_at e os valores bruto/líquido descrevem a posição do
+    // investimento; tratá-los como lançamentos elimina ou duplica o extrato.
+    appendMovement("C", appliedInCents, "Aplicação financeira");
+    appendMovement("D", redeemedInCents, "Resgate líquido da aplicação");
   }
 
   return movements;
@@ -1306,14 +1140,6 @@ function pendingRecordMovements(
 }
 
 function applicationPositionIdentity(position: Record<string, unknown>) {
-  const productReference = governedText(position, [
-    "product_ref_hash",
-    "product_reference_hash",
-    "application_ref_hash",
-    "application_reference_hash",
-  ]);
-  if (productReference) return `aplicacao:produto:${productReference}`;
-
   const explicitSource = governedSourceIdentity(position);
   if (explicitSource) return explicitSource;
 

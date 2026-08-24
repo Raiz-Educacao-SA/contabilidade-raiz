@@ -904,9 +904,8 @@ test("soma no dia 01/06 os valores líquidos do extrato de movimento Santander",
   );
 });
 
-test("mantém a conta corrente e cria separadamente os movimentos da aplicação", async () => {
-  const { loadDataEngineStatementSnapshot, resolveStatementBindings } =
-    await import(moduleUrl.href);
+test("preserva os lançamentos do extrato quando o contrato de posições traz apenas saldos", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
   const processingIdentity = "processamento-aplicacao-global-tree";
   const positionRows: Array<[string, string, number]> = [
     ["pos-1", "2026-06-01T00:00:00Z", 149452],
@@ -949,8 +948,7 @@ test("mantém a conta corrente e cria separadamente os movimentos da aplicação
                 cod_coligada: 9,
                 source_account_id: "pdf-santander-misturado",
                 processing_identity_id: processingIdentity,
-                product_ref_hash:
-                  id === "pos-1" ? "contamax-renda-fixa" : "contamax-00333003",
+                product_ref_hash: "contamax-00333003",
                 position_at: positionAt,
                 gross_amount_centavos: netAmount,
                 net_amount_centavos: netAmount,
@@ -963,18 +961,14 @@ test("mantém a conta corrente e cria separadamente os movimentos da aplicação
     toDate: "2026-06-30",
   });
 
-  assert.equal(result.diagnostics.applicationMovementsUsed, 4);
-  assert.equal(result.statements.length, 3);
-  const currentStatement = result.statements.find(
-    (statement: { sourceAccountId: string }) =>
-      statement.sourceAccountId === "pdf-santander-misturado",
-  );
-  const applicationStatements = result.statements.filter(
-    (statement: { sourceAccountId: string }) =>
-      statement.sourceAccountId.startsWith("aplicacao:produto:"),
+  assert.equal(result.diagnostics.applicationMovementsUsed, 0);
+  assert.equal(result.statements.length, 1);
+  assert.equal(
+    result.statements[0].sourceAccountId,
+    "pdf-santander-misturado",
   );
   assert.deepEqual(
-    currentStatement?.rows.map((row: { date: string; value: number }) => ({
+    result.statements[0].rows.map((row: { date: string; value: number }) => ({
       date: row.date,
       value: row.value,
     })),
@@ -982,55 +976,6 @@ test("mantém a conta corrente e cria separadamente os movimentos da aplicação
       { date: "2026-06-01", value: -41491.33 },
     ],
   );
-  assert.deepEqual(
-    applicationStatements
-      .flatMap((statement: { rows: Array<{ date: string; value: number }> }) =>
-        statement.rows.map((row: { date: string; value: number }) => ({
-          date: row.date,
-          value: row.value,
-        })),
-      )
-      .sort((
-        left: { date: string; value: number },
-        right: { date: string; value: number },
-      ) =>
-        left.date.localeCompare(right.date) || left.value - right.value,
-      ),
-    [
-      { date: "2026-06-01", value: -38316.63 },
-      { date: "2026-06-01", value: -1890.98 },
-      { date: "2026-06-01", value: -1494.52 },
-      { date: "2026-06-08", value: 100000 },
-    ],
-  );
-
-  const bindings = resolveStatementBindings(result.statements, [
-    {
-      code: "1.1.1.03.03.20",
-      name: "Banco Santander - conta Aplic. 13082100-5",
-      rows: applicationStatements.flatMap(
-        (statement: { rows: Array<{ date: string; value: number }> }) =>
-          statement.rows,
-      ),
-    },
-    {
-      code: "1.1.1.02.03.11",
-      name: "Banco Santander - conta 13082100-5",
-      rows: [{ date: "2026-06-01", value: -41491.33 }],
-    },
-  ]);
-  const boundApplication = bindings.pairs.find(
-    (pair: { account: { code: string } }) =>
-      pair.account.code === "1.1.1.03.03.20",
-  );
-  const boundCurrent = bindings.pairs.find(
-    (pair: { account: { code: string } }) =>
-      pair.account.code === "1.1.1.02.03.11",
-  );
-  assert.equal(boundApplication?.source.rows.length, 4);
-  assert.equal(boundCurrent?.source.rows.length, 1);
-  assert.deepEqual(bindings.unmatchedAccounts, []);
-  assert.deepEqual(bindings.unmatchedSources, []);
 });
 
 test("reconhece a aplicação quando a posição não traz source_account_id", async () => {
@@ -1809,19 +1754,27 @@ test("não aceita separação parcial entre aplicação e conta corrente", async
   assert.equal(currentPair?.source.rows.length, 2);
 });
 
-test("usa o extrato de movimento completo quando ele representa a aplicação e a conta corrente fecha zerada", async () => {
+test("separa somente os movimentos reais da aplicação e mantém o restante na conta corrente", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
-  const dates = ["01", "02", "03", "04", "05"];
-  const statementValues = [99, -81, 88, -69, 45];
-  const applicationValues = [100, -80, 90, -70, 50];
+  const applicationRows = [
+    { id: "aplicacao-01-a", date: "2026-06-01", value: -1494.52 },
+    { id: "aplicacao-01-b", date: "2026-06-01", value: -1890.98 },
+    { id: "aplicacao-01-c", date: "2026-06-01", value: -38316.63 },
+    { id: "aplicacao-24", date: "2026-06-24", value: -3933.11 },
+    { id: "aplicacao-30-liquido", date: "2026-06-30", value: 4000 },
+  ];
+  const currentRows = [
+    { id: "corrente-01", date: "2026-06-01", value: 210.8 },
+    { id: "corrente-03", date: "2026-06-03", value: 876 },
+    { id: "corrente-24", date: "2026-06-24", value: 11156 },
+    { id: "corrente-29", date: "2026-06-29", value: 1040 },
+  ];
   const currentSource = {
     bankId: "033",
     sourceAccountId: "santander-compartilhado",
-    rows: dates.map((date, index) => ({
-      id: `movimento-${date}`,
-      date: `2026-06-${date}`,
-      description: "MOVIMENTO DA APLICAÇÃO",
-      value: statementValues[index],
+    rows: [...applicationRows, ...currentRows].map((row) => ({
+      ...row,
+      description: "MOVIMENTO SANTANDER",
     })),
     metadata: {
       account: "12345-6",
@@ -1851,18 +1804,19 @@ test("usa o extrato de movimento completo quando ele representa a aplicação e 
       {
         code: "1.1.1.03.03.20",
         name: "Banco Santander - conta Aplic. 12345-6",
-        rows: dates.map((date, index) => ({
-          date: `2026-06-${date}`,
-          value: applicationValues[index],
-        })),
+        rows: [
+          { date: "2026-06-01", value: -1494.52 },
+          { date: "2026-06-01", value: -1890.98 },
+          { date: "2026-06-01", value: -38316.63 },
+          { date: "2026-06-24", value: -3933.11 },
+          { date: "2026-06-30", value: 4638.11 },
+          { date: "2026-06-30", value: -637.82 },
+        ],
       },
       {
         code: "1.1.1.02.03.20",
         name: "Banco Santander - conta 12345-6",
-        rows: [
-          { date: "2026-06-01", value: 50 },
-          { date: "2026-06-02", value: -50 },
-        ],
+        rows: currentRows.map(({ date, value }) => ({ date, value })),
       },
     ],
   );
@@ -1875,9 +1829,12 @@ test("usa o extrato de movimento completo quando ele representa a aplicação e 
   );
   assert.deepEqual(
     applicationPair?.source.rows.map((row: { id: string }) => row.id),
-    dates.map((date) => `movimento-${date}`),
+    applicationRows.map((row) => row.id),
   );
-  assert.equal(currentPair?.source.rows.length, 0);
+  assert.deepEqual(
+    currentPair?.source.rows.map((row: { id: string }) => row.id),
+    currentRows.map((row) => row.id),
+  );
   assert.deepEqual(result.unmatchedAccounts, []);
   assert.deepEqual(result.unmatchedSources, []);
 });
