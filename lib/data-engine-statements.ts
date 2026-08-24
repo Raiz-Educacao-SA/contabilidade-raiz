@@ -660,12 +660,33 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           const currentCoverage = currentAbsoluteTarget
             ? currentAbsoluteSelected / currentAbsoluteTarget
             : 0;
+          const summarizeGroups = (rows: DataEngineBankRow[]) => {
+            const groups = new Map<
+              string,
+              { count: number; gross: number; net: number }
+            >();
+            for (const row of rows) {
+              const key = row.description.slice(0, 40);
+              const group = groups.get(key) ?? { count: 0, gross: 0, net: 0 };
+              const value = cents(row.value);
+              group.count += 1;
+              group.gross += Math.abs(value);
+              group.net += value;
+              groups.set(key, group);
+            }
+            return Array.from(groups, ([description, group]) => ({
+              description,
+              ...group,
+            })).sort((left, right) => right.count - left.count);
+          };
 
           diagnostics.currentSelection = {
             coverage: Number(currentCoverage.toFixed(4)),
+            groups: summarizeGroups(currentRows),
             monthlyDifferenceInCents:
               currentSelectedTotal - currentMonthlyTarget,
             rawRows: currentRows.length,
+            selectedGroups: summarizeGroups(selectedCurrentRows),
             selectedRows: selectedCurrentRows.length,
           };
 
