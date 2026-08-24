@@ -2,6 +2,17 @@ type MonthlyBankRow = { date: Date; value: number };
 type MonthlyAccountingRow = { date: Date; value: number };
 type MonthlyMetadata = { openingBalance: number | null; closingBalance: number | null };
 
+export type MonthlyDailyDifference = {
+  date: string;
+  bankCredits: number;
+  accountingDebits: number;
+  entryDifference: number;
+  bankDebits: number;
+  accountingCredits: number;
+  exitDifference: number;
+  netDifference: number;
+};
+
 export type MonthlyValidation = {
   bankCredits: number;
   bankDebits: number;
@@ -14,21 +25,75 @@ export type MonthlyValidation = {
   movementDifference: number;
   calculatedClosingBalance: number | null;
   closingBalanceDifference: number | null;
-  dailyDifferences: {
-    date: string;
-    bankCredits: number;
-    accountingDebits: number;
-    entryDifference: number;
-    bankDebits: number;
-    accountingCredits: number;
-    exitDifference: number;
-    netDifference: number;
-  }[];
+  dailyDifferences: MonthlyDailyDifference[];
   missingDays: { date: string; bank: number; accounting: number; difference: number }[];
   reconciled: boolean;
 };
 
 const dayKey = (date: Date) => date.toISOString().slice(0, 10);
+
+export function selectMonthlyDifferenceDays(
+  rows: MonthlyDailyDifference[],
+  monthlyDifference: number,
+  tolerance = 0.01,
+) {
+  if (rows.length <= 1 || rows.length > 31) return rows;
+  const values = rows.map((row) => Math.round(row.netDifference * 100));
+  const target = Math.round(monthlyDifference * 100);
+  const toleranceInCents = Math.max(0, Math.round(tolerance * 100));
+  const split = Math.floor(rows.length / 2);
+  const leftValues = values.slice(0, split);
+  const rightValues = values.slice(split);
+
+  const enumerate = (items: number[]) => {
+    const size = 1 << items.length;
+    const sums = new Float64Array(size);
+    const counts = new Uint8Array(size);
+    for (let mask = 1; mask < size; mask += 1) {
+      const bit = mask & -mask;
+      const index = 31 - Math.clz32(bit);
+      const previous = mask ^ bit;
+      sums[mask] = sums[previous] + items[index];
+      counts[mask] = counts[previous] + 1;
+    }
+    return { counts, sums };
+  };
+
+  const left = enumerate(leftValues);
+  const right = enumerate(rightValues);
+  const bestRightBySum = new Map<number, { count: number; mask: number }>();
+  for (let mask = 0; mask < right.sums.length; mask += 1) {
+    const sum = right.sums[mask];
+    const current = bestRightBySum.get(sum);
+    if (!current || right.counts[mask] < current.count) {
+      bestRightBySum.set(sum, { count: right.counts[mask], mask });
+    }
+  }
+
+  let bestCount = rows.length;
+  let bestLeftMask = (1 << leftValues.length) - 1;
+  let bestRightMask = (1 << rightValues.length) - 1;
+  for (let leftMask = 0; leftMask < left.sums.length; leftMask += 1) {
+    if (left.counts[leftMask] >= bestCount) continue;
+    const needed = target - left.sums[leftMask];
+    for (let offset = -toleranceInCents; offset <= toleranceInCents; offset += 1) {
+      const rightMatch = bestRightBySum.get(needed + offset);
+      if (!rightMatch) continue;
+      const count = left.counts[leftMask] + rightMatch.count;
+      if (count < bestCount) {
+        bestCount = count;
+        bestLeftMask = leftMask;
+        bestRightMask = rightMatch.mask;
+      }
+    }
+  }
+
+  return rows.filter((_, index) =>
+    index < split
+      ? Boolean(bestLeftMask & (1 << index))
+      : Boolean(bestRightMask & (1 << (index - split))),
+  );
+}
 
 export function validateMonthly(
   bank: MonthlyBankRow[],

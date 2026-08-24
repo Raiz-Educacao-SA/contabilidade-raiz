@@ -114,3 +114,51 @@ test("separa corretamente as diferenças de entradas e saídas do Santander", as
   assert.equal(validation.movementDifference, 988.99);
   assert.equal(validation.reconciled, false);
 });
+
+test("desconsidera os dias que se compensam e mantém somente os que explicam a diferença mensal", async () => {
+  const { selectMonthlyDifferenceDays } = await import(moduleUrl.href);
+  const row = (date: string, netDifference: number) => ({
+    date,
+    bankCredits: 0,
+    accountingDebits: 0,
+    entryDifference: 0,
+    bankDebits: 0,
+    accountingCredits: 0,
+    exitDifference: 0,
+    netDifference,
+  });
+  const dailyDifferences = [
+    row("2026-06-01", 210.8),
+    row("2026-06-03", 876),
+    row("2026-06-11", -100000),
+    row("2026-06-12", 100000),
+    row("2026-06-15", -100000),
+    row("2026-06-18", 100000),
+    row("2026-06-22", 100),
+    row("2026-06-24", 11156),
+    row("2026-06-25", 20),
+    row("2026-06-26", 3.1),
+    row("2026-06-29", 1040),
+    row("2026-06-30", 9.33),
+  ];
+
+  const selected = selectMonthlyDifferenceDays(dailyDifferences, 13415.23);
+
+  assert.deepEqual(
+    selected.map((item: { date: string }) => item.date),
+    [
+      "2026-06-01",
+      "2026-06-03",
+      "2026-06-22",
+      "2026-06-24",
+      "2026-06-25",
+      "2026-06-26",
+      "2026-06-29",
+      "2026-06-30",
+    ],
+  );
+  assert.equal(
+    Math.round(selected.reduce((total: number, item: { netDifference: number }) => total + item.netDifference, 0) * 100) / 100,
+    13415.23,
+  );
+});

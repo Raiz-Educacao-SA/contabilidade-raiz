@@ -21,6 +21,7 @@ import {
   brl,
   exportReport,
   reconcile,
+  selectMonthlyDifferenceDays,
   validateMonthly,
 } from "@/lib/reconciliation";
 import {
@@ -1166,7 +1167,10 @@ function ReconciliationFormView({
     : sections.filter((section) => section.rows.length > 0);
   const dailyDifferences = result.validation.reconciled
     ? []
-    : (result.validation.dailyDifferences ?? []);
+    : selectMonthlyDifferenceDays(
+        result.validation.dailyDifferences ?? [],
+        result.validation.movementDifference,
+      );
   const diagnostics = result.diagnostics ?? [];
   const statementBalance = result.metadata.closingBalance;
   return (

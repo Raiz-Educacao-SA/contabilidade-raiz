@@ -43,7 +43,7 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /Créditos lançados na contabilidade não identificados no extrato/);
   assert.match(panel, /Sem lançamento na contabilidade/);
   assert.match(panel, /Sem movimento no extrato/);
-  assert.match(panel, /const dailyDifferences = result\.validation\.reconciled[\s\S]*\? \[\][\s\S]*result\.validation\.dailyDifferences/);
+  assert.match(panel, /const dailyDifferences = result\.validation\.reconciled[\s\S]*\? \[\][\s\S]*selectMonthlyDifferenceDays\([\s\S]*result\.validation\.dailyDifferences[\s\S]*result\.validation\.movementDifference/);
   assert.match(panel, /Localização diária da diferença mensal/);
   assert.match(panel, /Dias que explicam a diferença/);
   assert.match(panel, /Diferenças diárias que se compensam dentro da competência/);

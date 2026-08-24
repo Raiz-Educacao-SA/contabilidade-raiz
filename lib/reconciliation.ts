@@ -2,7 +2,10 @@ import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { isAccountingAccountEligibleForBankReconciliation } from "@/lib/reconciliation-account-eligibility";
 import { reconcileMovements } from "@/lib/reconciliation-matcher";
-export { validateMonthly } from "@/lib/reconciliation-monthly";
+export {
+  selectMonthlyDifferenceDays,
+  validateMonthly,
+} from "@/lib/reconciliation-monthly";
 
 export type BankRow = { id: string; date: Date; description: string; value: number };
 export type BankMetadata = { agency: string; account: string; period: string; name: string; openingBalance: number | null; closingBalance: number | null };
