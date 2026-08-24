@@ -1240,7 +1240,46 @@ export function mergeApplicationPositionStatements(
   const displayPeriod = `${period.fromDate.slice(5, 7)}/${period.fromDate.slice(0, 4)}`;
 
   for (const position of positions) {
-    const sourceAccountId = applicationPositionIdentity(position);
+    const positionSourceAccountId = applicationPositionIdentity(position);
+    const existingSource = recognized.find(
+      (statement) => statement.sourceAccountId === positionSourceAccountId,
+    );
+    const hasTransactionalDate = Boolean(
+      governedCalendarDate(position, [
+        "data_movimento",
+        "data_do_movimento",
+        "movement_date",
+        "data_lancamento",
+        "transaction_date",
+        "posting_date",
+      ]),
+    );
+    const hasApplicationPositionEvidence =
+      "posicao_aplicacao_id" in position ||
+      "application_position_id" in position ||
+      Boolean(
+        governedText(position, [
+          "product_name",
+          "nome_produto",
+          "application_name",
+          "nome_aplicacao",
+          "fund_name",
+          "nome_fundo",
+          "tipo_aplicacao",
+        ]),
+      ) ||
+      APPLICATION_ACCOUNT_PATTERN.test(positionSourceAccountId);
+    // A posição pode reutilizar a referência técnica do PDF da conta corrente.
+    // Sem uma data transacional, ela apenas prova que existe uma aplicação e
+    // precisa ganhar uma identidade própria; não pode renomear nem consumir os
+    // movimentos reais da conta corrente.
+    const sourceAccountId =
+      existingSource &&
+      !isApplicationStatement(existingSource) &&
+      !hasTransactionalDate &&
+      hasApplicationPositionEvidence
+        ? `aplicacao:posicao:${positionSourceAccountId}`
+        : positionSourceAccountId;
     if (
       !sourceAccountId ||
       sourceAccountId.length > MAX_SOURCE_ACCOUNT_ID_LENGTH ||

@@ -962,13 +962,23 @@ test("preserva os lançamentos do extrato quando o contrato de posições traz a
   });
 
   assert.equal(result.diagnostics.applicationMovementsUsed, 0);
-  assert.equal(result.statements.length, 1);
-  assert.equal(
-    result.statements[0].sourceAccountId,
-    "pdf-santander-misturado",
+  assert.equal(result.statements.length, 2);
+  const currentStatement = result.statements.find(
+    (statement: { sourceAccountId: string }) =>
+      statement.sourceAccountId === "pdf-santander-misturado",
   );
+  const applicationStatement = result.statements.find(
+    (statement: { sourceAccountId: string }) =>
+      statement.sourceAccountId ===
+      "aplicacao:posicao:pdf-santander-misturado",
+  );
+  assert.equal(
+    applicationStatement?.rows.length,
+    0,
+  );
+  assert.equal(applicationStatement?.metadata.account, "Aplicação");
   assert.deepEqual(
-    result.statements[0].rows.map((row: { date: string; value: number }) => ({
+    currentStatement?.rows.map((row: { date: string; value: number }) => ({
       date: row.date,
       value: row.value,
     })),
