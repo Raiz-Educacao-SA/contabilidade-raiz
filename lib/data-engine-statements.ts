@@ -427,6 +427,105 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         return best ? best.indexes.map((index) => candidates[index]) : [];
       };
 
+      const selectMonthlyComplement = (
+        rows: DataEngineBankRow[],
+        target: number,
+      ) => {
+        const quickSelection = selectNearTarget(rows, target);
+        if (quickSelection.length) return quickSelection;
+
+        const absoluteTarget = Math.abs(target);
+        const tolerance = 100;
+        const maximumTarget = 25_000_000;
+        const candidates = rows.filter((row) => {
+          const amount = Math.abs(cents(row.value));
+          return (
+            cents(row.value) * target > 0 &&
+            amount > 0 &&
+            amount <= absoluteTarget + tolerance
+          );
+        });
+        if (
+          !absoluteTarget ||
+          absoluteTarget > maximumTarget ||
+          candidates.length < 3 ||
+          candidates.length > 600
+        ) {
+          return [] as DataEngineBankRow[];
+        }
+
+        const maximumSum = absoluteTarget + tolerance;
+        const mask = (1n << BigInt(maximumSum + 1)) - 1n;
+        const blockSize = 12;
+        const blocks: DataEngineBankRow[][] = [];
+        const snapshots: bigint[] = [1n];
+        let reachable = 1n;
+        for (let start = 0; start < candidates.length; start += blockSize) {
+          const block = candidates.slice(start, start + blockSize);
+          blocks.push(block);
+          for (const row of block) {
+            reachable =
+              (reachable |
+                (reachable << BigInt(Math.abs(cents(row.value))))) &
+              mask;
+          }
+          snapshots.push(reachable);
+        }
+
+        const isReachable = (bits: bigint, sum: number) =>
+          sum >= 0 && ((bits >> BigInt(sum)) & 1n) === 1n;
+        let selectedSum = -1;
+        for (let difference = 0; difference <= tolerance; difference += 1) {
+          for (const candidateSum of [
+            absoluteTarget - difference,
+            absoluteTarget + difference,
+          ]) {
+            if (
+              candidateSum >= 0 &&
+              candidateSum <= maximumSum &&
+              isReachable(reachable, candidateSum)
+            ) {
+              selectedSum = candidateSum;
+              break;
+            }
+          }
+          if (selectedSum >= 0) break;
+        }
+        if (selectedSum < 0) return [] as DataEngineBankRow[];
+
+        const selectedRows: DataEngineBankRow[] = [];
+        let remaining = selectedSum;
+        for (let blockIndex = blocks.length - 1; blockIndex >= 0; blockIndex -= 1) {
+          const block = blocks[blockIndex];
+          const previousReachable = snapshots[blockIndex];
+          const subsetCount = 1 << block.length;
+          const subsetSums = new Int32Array(subsetCount);
+          let selectedMask = -1;
+          for (let subset = 0; subset < subsetCount; subset += 1) {
+            if (subset > 0) {
+              const leastBit = subset & -subset;
+              const itemIndex = Math.log2(leastBit);
+              subsetSums[subset] =
+                subsetSums[subset ^ leastBit] +
+                Math.abs(cents(block[itemIndex].value));
+            }
+            const previousSum = remaining - subsetSums[subset];
+            if (isReachable(previousReachable, previousSum)) {
+              selectedMask = subset;
+              remaining = previousSum;
+              break;
+            }
+          }
+          if (selectedMask < 0) return [] as DataEngineBankRow[];
+          for (let itemIndex = 0; itemIndex < block.length; itemIndex += 1) {
+            if (selectedMask & (1 << itemIndex)) {
+              selectedRows.push(block[itemIndex]);
+            }
+          }
+        }
+        return remaining === 0 ? selectedRows : [];
+      };
+
       const selectedIds = new Set<string>();
       const exactCandidates: DataEngineBankRow[] = [];
       const accountingRows = [...(applicationAccount.rows ?? [])].sort(
@@ -572,49 +671,16 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             (!currentCreditTarget || creditExcess / currentCreditTarget <= 0.1)
           ) {
             const excludedIds = new Set<string>();
-            const currentDates = Array.from(
-              new Set([
-                ...currentRows.map((row) => row.date),
-                ...currentAccountingRows.map((row) => day(row.date)),
-              ].filter(Boolean)),
-            ).sort();
-            for (const date of currentDates) {
-              for (const direction of [1, -1]) {
-                const candidates = currentRows.filter(
-                  (row) =>
-                    row.date === date &&
-                    !excludedIds.has(row.id) &&
-                    Math.sign(cents(row.value)) === direction,
-                );
-                const rawDailyTotal = totalInDirection(candidates, direction);
-                const accountingDailyTarget = totalInDirection(
-                  currentAccountingRows.filter((row) => day(row.date) === date),
-                  direction,
-                );
-                const dailyExcess = rawDailyTotal - accountingDailyTarget;
-                if (dailyExcess <= 100) continue;
-                const auxiliaryRows = selectNearTarget(
-                  candidates,
-                  direction * dailyExcess,
-                );
-                auxiliaryRows.forEach((row) => excludedIds.add(row.id));
-              }
-            }
-
-            for (const direction of [1, -1]) {
-              const remainingRows = currentRows.filter(
-                (row) =>
-                  !excludedIds.has(row.id) &&
-                  Math.sign(cents(row.value)) === direction,
-              );
-              const target =
-                direction === 1 ? currentDebitTarget : currentCreditTarget;
-              const remainingExcess =
-                totalInDirection(remainingRows, direction) - target;
-              if (remainingExcess <= 100) continue;
-              const auxiliaryRows = selectNearTarget(
-                remainingRows,
-                direction * remainingExcess,
+            for (const [direction, excess] of [
+              [1, debitExcess],
+              [-1, creditExcess],
+            ] as const) {
+              if (excess <= 100) continue;
+              const auxiliaryRows = selectMonthlyComplement(
+                currentRows.filter(
+                  (row) => Math.sign(cents(row.value)) === direction,
+                ),
+                direction * excess,
               );
               auxiliaryRows.forEach((row) => excludedIds.add(row.id));
             }

@@ -1940,7 +1940,11 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
       { id: "corrente-credito-b", date: "2026-06-10", description: "CRÉDITO B", value: -250 },
       { id: "corrente-credito-c", date: "2026-06-10", description: "CRÉDITO C", value: -200 },
       { id: "corrente-credito-d", date: "2026-06-10", description: "CRÉDITO D", value: -150 },
-      { id: "coluna-auxiliar", date: "2026-06-10", description: "RENDIMENTO AUXILIAR", value: 13.45 },
+      { id: "coluna-auxiliar-a", date: "2026-06-10", description: "RENDIMENTO AUXILIAR A", value: 1 },
+      { id: "coluna-auxiliar-b", date: "2026-06-11", description: "RENDIMENTO AUXILIAR B", value: 2 },
+      { id: "coluna-auxiliar-c", date: "2026-06-12", description: "RENDIMENTO AUXILIAR C", value: 3 },
+      { id: "coluna-auxiliar-d", date: "2026-06-13", description: "RENDIMENTO AUXILIAR D", value: 4 },
+      { id: "coluna-auxiliar-e", date: "2026-06-14", description: "RENDIMENTO AUXILIAR E", value: 3.45 },
     ],
     metadata: {
       account: "referencia-compartilhada",
@@ -2007,6 +2011,10 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
       "corrente-credito-c",
       "corrente-credito-d",
     ],
+  );
+  assert.equal(
+    (result.diagnostics.currentComplement as { complete?: boolean })?.complete,
+    true,
   );
 });
 
