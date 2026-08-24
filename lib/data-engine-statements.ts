@@ -312,29 +312,66 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         if (!absoluteTarget) return [] as DataEngineBankRow[];
         const tolerance = Math.max(100, Math.round(absoluteTarget * 0.001));
         const candidates = rows.filter((row) => cents(row.value) * target > 0);
-        if (!candidates.length || candidates.length > 24) {
+        if (!candidates.length || candidates.length > 32) {
           return [] as DataEngineBankRow[];
         }
-        const reachable = new Map<number, number[]>([[0, []]]);
         const ceiling = absoluteTarget + tolerance;
-        for (const [index, row] of candidates.entries()) {
-          const amount = Math.abs(cents(row.value));
-          const current = Array.from(reachable.entries());
-          for (const [sum, indexes] of current) {
-            const next = sum + amount;
-            if (next > ceiling || reachable.has(next)) continue;
-            reachable.set(next, [...indexes, index]);
+        const split = Math.ceil(candidates.length / 2);
+        const subsetSums = (start: number, end: number) => {
+          const subsets: Array<{ indexes: number[]; sum: number }> = [
+            { indexes: [], sum: 0 },
+          ];
+          for (let index = start; index < end; index += 1) {
+            const amount = Math.abs(cents(candidates[index].value));
+            const currentLength = subsets.length;
+            for (let current = 0; current < currentLength; current += 1) {
+              const next = subsets[current].sum + amount;
+              if (next > ceiling) continue;
+              subsets.push({
+                indexes: [...subsets[current].indexes, index],
+                sum: next,
+              });
+            }
+          }
+          return subsets;
+        };
+        const left = subsetSums(0, split);
+        const right = subsetSums(split, candidates.length).sort(
+          (a, b) => a.sum - b.sum || a.indexes.length - b.indexes.length,
+        );
+        let best: { difference: number; indexes: number[] } | null = null;
+        for (const leftSubset of left) {
+          const wanted = absoluteTarget - leftSubset.sum;
+          let low = 0;
+          let high = right.length;
+          while (low < high) {
+            const middle = Math.floor((low + high) / 2);
+            if (right[middle].sum < wanted) low = middle + 1;
+            else high = middle;
+          }
+          for (const rightIndex of [low - 1, low]) {
+            const rightSubset = right[rightIndex];
+            if (!rightSubset) continue;
+            const sum = leftSubset.sum + rightSubset.sum;
+            const difference = Math.abs(sum - absoluteTarget);
+            const indexes = [
+              ...leftSubset.indexes,
+              ...rightSubset.indexes,
+            ];
+            if (
+              !sum ||
+              difference > tolerance ||
+              (best &&
+                (difference > best.difference ||
+                  (difference === best.difference &&
+                    indexes.length >= best.indexes.length)))
+            ) {
+              continue;
+            }
+            best = { difference, indexes };
           }
         }
-        const best = Array.from(reachable.entries())
-          .filter(([sum]) => sum > 0 && Math.abs(sum - absoluteTarget) <= tolerance)
-          .sort(
-            ([leftSum, leftRows], [rightSum, rightRows]) =>
-              Math.abs(leftSum - absoluteTarget) -
-                Math.abs(rightSum - absoluteTarget) ||
-              leftRows.length - rightRows.length,
-          )[0];
-        return best ? best[1].map((index) => candidates[index]) : [];
+        return best ? best.indexes.map((index) => candidates[index]) : [];
       };
 
       const selectedIds = new Set<string>();
