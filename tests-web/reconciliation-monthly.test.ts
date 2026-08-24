@@ -115,6 +115,28 @@ test("separa corretamente as diferenças de entradas e saídas do Santander", as
   assert.equal(validation.reconciled, false);
 });
 
+test("aplica a tolerância mensal de até R$ 1,00", async () => {
+  const { validateMonthly } = await import(moduleUrl.href);
+  const date = new Date("2026-06-30T00:00:00Z");
+  const reconciled = validateMonthly(
+    [{ date, value: 100 }],
+    [{ date, value: 99 }],
+    { openingBalance: null, closingBalance: null },
+  );
+  const divergent = validateMonthly(
+    [{ date, value: 100.01 }],
+    [{ date, value: 99 }],
+    { openingBalance: null, closingBalance: null },
+  );
+
+  assert.equal(reconciled.movementDifference, 1);
+  assert.equal(reconciled.reconciled, true);
+  assert.deepEqual(reconciled.dailyDifferences, []);
+  assert.equal(divergent.movementDifference, 1.01);
+  assert.equal(divergent.reconciled, false);
+  assert.equal(divergent.dailyDifferences.length, 1);
+});
+
 test("desconsidera os dias que se compensam e mantém somente os que explicam a diferença mensal", async () => {
   const { selectMonthlyDifferenceDays } = await import(moduleUrl.href);
   const row = (date: string, netDifference: number) => ({

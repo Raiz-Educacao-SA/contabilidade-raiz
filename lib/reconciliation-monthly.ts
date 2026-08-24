@@ -35,7 +35,7 @@ const dayKey = (date: Date) => date.toISOString().slice(0, 10);
 export function selectMonthlyDifferenceDays(
   rows: MonthlyDailyDifference[],
   monthlyDifference: number,
-  tolerance = 0.01,
+  tolerance = 1,
 ) {
   if (rows.length <= 1 || rows.length > 31) return rows;
   const values = rows.map((row) => Math.round(row.netDifference * 100));
@@ -99,7 +99,7 @@ export function validateMonthly(
   bank: MonthlyBankRow[],
   accounting: MonthlyAccountingRow[],
   metadata: MonthlyMetadata,
-  tolerance = 0.01,
+  tolerance = 1,
 ): MonthlyValidation {
   const round = (value: number) => Math.round(value * 100) / 100;
   const bankCredits = round(bank.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));

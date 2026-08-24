@@ -56,7 +56,7 @@ test("resume em uma única diferença líquida o total diário que não fecha", 
   assert.equal(rows.find((row: { difference?: number }) => row.difference === 1000)?.difference, 1000);
 });
 
-test("exibe somente R$ 0,29 quando os totais líquidos do dia diferem por centavos", async () => {
+test("considera conciliada a diferença líquida diária de R$ 0,29", async () => {
   const { reconcileMovements: reconcile } = await import(moduleUrl.href);
   const date = new Date("2026-06-30T00:00:00Z");
   const rows = reconcile(
@@ -69,10 +69,36 @@ test("exibe somente R$ 0,29 quando os totais líquidos do dia diferem por centav
 
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 0);
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente na contabilidade").length, 0);
-  const difference = rows.find((row: { status: string }) => row.status === "Possível conciliação");
+  const difference = rows.find((row: { status: string }) => row.status === "Conciliado");
   assert.equal(difference?.bankValue, 4000);
   assert.equal(difference?.accountingValue, 4000.29);
   assert.equal(difference?.difference, -0.29);
+});
+
+test("considera conciliada a diferença de exatamente R$ 1,00", async () => {
+  const { reconcileMovements: reconcile } = await import(moduleUrl.href);
+  const date = new Date("2026-06-30T00:00:00Z");
+  const rows = reconcile(
+    [{ id: "b1", date, description: "Movimento", value: 100 }],
+    [{ id: "c1", date, value: 99, nature: "Débito" }],
+  );
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "Conciliado");
+  assert.equal(rows[0].difference, 1);
+});
+
+test("mantém como diferença o valor de R$ 1,01", async () => {
+  const { reconcileMovements: reconcile } = await import(moduleUrl.href);
+  const date = new Date("2026-06-30T00:00:00Z");
+  const rows = reconcile(
+    [{ id: "b1", date, description: "Movimento", value: 100.01 }],
+    [{ id: "c1", date, value: 99, nature: "Débito" }],
+  );
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "Possível conciliação");
+  assert.equal(rows[0].difference, 1.01);
 });
 
 test("desconsidera diferenças de data quando entradas e saídas fecham no mês", async () => {
@@ -102,7 +128,7 @@ test("mantém a diferença real quando o total mensal não fecha", async () => {
       { id: "b1", date: new Date("2026-05-04T00:00:00Z"), description: "Entrada 1", value: 69000 },
       { id: "b2", date: new Date("2026-05-07T00:00:00Z"), description: "Entrada 2", value: 67000 },
     ],
-    [{ id: "c1", date: new Date("2026-05-30T00:00:00Z"), value: 135999, nature: "Débito", account: "1", accountName: "Santander" }],
+    [{ id: "c1", date: new Date("2026-05-30T00:00:00Z"), value: 135998.99, nature: "Débito", account: "1", accountName: "Santander" }],
   );
 
   assert.equal(rows.filter((row: { status: string }) => row.status === "Somente no banco").length, 2);

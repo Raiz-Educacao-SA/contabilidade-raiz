@@ -234,7 +234,7 @@ export function accountingBankAccounts(accounting: AccountingRow[]) {
   return (bankGroups.length ? bankGroups : eligibleGroups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
 }
 
-export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceValue = 0.01) {
+export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceValue = 1) {
   return reconcileMovements(bank, accounting, toleranceValue) as MatchRow[];
 }
 
