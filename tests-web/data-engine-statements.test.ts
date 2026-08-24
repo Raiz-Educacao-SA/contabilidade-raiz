@@ -777,7 +777,7 @@ test("reconhece extrato de aplicação pelas posições mesmo sem movimentos", a
   assert.equal(result.operations.movimentos, 0);
 });
 
-test("usa os movimentos do extrato de aplicação e prioriza o principal resgatado", async () => {
+test("usa os movimentos do extrato de aplicação e prioriza o valor líquido creditado", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
 
   const result = await loadDataEngineStatementSnapshot({
@@ -800,6 +800,7 @@ test("usa os movimentos do extrato de aplicação e prioriza o principal resgata
                   numero_aplicacao: "00333003",
                   valor_principal_resgatado: "520,02",
                   resgates_brutos: "520,04",
+                  valor_liquido_creditado: "520,03",
                   nome_produto: "ContaMax",
                   numero_conta: "13081471-7",
                 },
@@ -843,7 +844,7 @@ test("usa os movimentos do extrato de aplicação e prioriza o principal resgata
       value: row.value,
     })),
     [
-      { date: "2026-06-01", value: 520.02 },
+      { date: "2026-06-01", value: 520.03 },
       { date: "2026-06-08", value: -4378 },
       { date: "2026-06-10", value: 788.05 },
     ],
@@ -851,6 +852,56 @@ test("usa os movimentos do extrato de aplicação e prioriza o principal resgata
   assert.equal(result.diagnostics.recognizedWithoutMovements, 0);
   assert.equal(result.diagnostics.applicationMovementsUsed, 3);
   assert.ok(result.diagnostics.positionFieldsObserved.includes("data_movimento"));
+});
+
+test("soma no dia 01/06 os valores líquidos do extrato de movimento Santander", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const values = [
+    ["movimento-1", "1.494,51", "1.494,52"],
+    ["movimento-2", "1.890,97", "1.890,98"],
+    ["movimento-3", "38.316,60", "38.316,63"],
+  ];
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 9,
+    codColigadaCode: "09",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/posicoes"
+            ? values.map(([id, principal, liquid]) => ({
+                posicao_aplicacao_id: id,
+                cod_coligada: 9,
+                bank_id: "033",
+                source_account_id: "aplicacao-santander-global-tree",
+                data_movimento: "01/06/2026",
+                numero_aplicacao: "00333003",
+                valor_principal_resgatado: principal,
+                valor_liquido_creditado: liquid,
+                nome_produto: "ContaMax",
+                numero_conta: "13082100-5",
+              }))
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(
+    Math.round(
+      result.statements[0].rows.reduce(
+        (total: number, row: { value: number }) => total + row.value,
+        0,
+      ) * 100,
+    ) / 100,
+    41702.13,
+  );
 });
 
 test("reconhece a aplicação quando a posição não traz source_account_id", async () => {

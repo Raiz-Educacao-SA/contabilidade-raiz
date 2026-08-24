@@ -894,6 +894,25 @@ function applicationPositionMovements(
         "principal_redeemed",
       ],
     );
+    const netCreditedInCents = governedNamedMoneyInCents(
+      position,
+      [
+        "valor_liquido_creditado_centavos",
+        "liquido_creditado_centavos",
+        "valor_creditado_liquido_centavos",
+        "net_credited_amount_cents",
+        "net_amount_credited_cents",
+        "net_redemption_cents",
+      ],
+      [
+        "valor_liquido_creditado",
+        "liquido_creditado",
+        "valor_creditado_liquido",
+        "net_credited_amount",
+        "net_amount_credited",
+        "net_redemption",
+      ],
+    );
     const grossRedeemedInCents = governedNamedMoneyInCents(
       position,
       [
@@ -912,7 +931,8 @@ function applicationPositionMovements(
         "redemption_amount",
       ],
     );
-    const redeemedInCents = principalRedeemedInCents ?? grossRedeemedInCents;
+    const redeemedInCents =
+      netCreditedInCents ?? principalRedeemedInCents ?? grossRedeemedInCents;
     const suffix = applicationNumber ? ` · aplicação ${applicationNumber}` : "";
 
     const appendMovement = (
@@ -937,11 +957,12 @@ function applicationPositionMovements(
       });
     };
 
-    // Na conta de aplicação, aplicar aumenta o ativo (débito) e resgatar o
-    // principal reduz o ativo (crédito). Rendimentos e tributos pertencem a
-    // outras contas contábeis e não devem distorcer esta conciliação.
+    // Na conta de aplicação, aplicar aumenta o ativo (débito) e resgatar reduz
+    // o ativo (crédito). O TOTVS contabiliza o valor líquido creditado do
+    // extrato de movimento; principal e bruto são apenas alternativas quando
+    // o Data Engine não disponibiliza o líquido.
     appendMovement("D", appliedInCents, "Aplicação financeira");
-    appendMovement("C", redeemedInCents, "Resgate do principal");
+    appendMovement("C", redeemedInCents, "Resgate líquido da aplicação");
   }
 
   return movements;
