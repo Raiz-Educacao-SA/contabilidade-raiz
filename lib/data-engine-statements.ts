@@ -507,11 +507,107 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           selectedApplicationRows.map((row) => row.id),
         );
         const applicationSource = emptyApplicationSources[0];
+        let currentRows = transactionSource.rows.filter(
+          (row) => !applicationRowIds.has(row.id),
+        );
+        const currentAccounts = accounts.filter(
+          (account) =>
+            account.code !== applicationAccount.code &&
+            !APPLICATION_ACCOUNT_PATTERN.test(account.name ?? "") &&
+            bankNames[applicationBank]?.test(account.name ?? ""),
+        );
+
+        if (currentAccounts.length === 1) {
+          const currentAccountingRows = [...(currentAccounts[0].rows ?? [])].sort(
+            (left, right) => day(left.date).localeCompare(day(right.date)),
+          );
+          const currentDailyTargets = new Map<string, number>();
+          for (const row of currentAccountingRows) {
+            const rowDay = day(row.date);
+            if (!rowDay) continue;
+            currentDailyTargets.set(
+              rowDay,
+              (currentDailyTargets.get(rowDay) ?? 0) + cents(row.value),
+            );
+          }
+          const selectedCurrentRows: DataEngineBankRow[] = [];
+          const selectedCurrentIds = new Set<string>();
+          for (const accountingRow of currentAccountingRows) {
+            const accountingValue = cents(accountingRow.value);
+            const accountingDay = day(accountingRow.date);
+            const candidate = currentRows
+              .filter(
+                (row) =>
+                  !selectedCurrentIds.has(row.id) &&
+                  cents(row.value) === accountingValue,
+              )
+              .sort(
+                (left, right) =>
+                  Number(right.date === accountingDay) -
+                    Number(left.date === accountingDay) ||
+                  left.date.localeCompare(right.date),
+              )[0];
+            if (!candidate) continue;
+            selectedCurrentRows.push(candidate);
+            selectedCurrentIds.add(candidate.id);
+          }
+          for (const [date, dailyTarget] of Array.from(currentDailyTargets).sort(
+            ([left], [right]) => left.localeCompare(right),
+          )) {
+            const alreadySelectedForDay = selectedCurrentRows
+              .filter((row) => row.date === date)
+              .reduce((total, row) => total + cents(row.value), 0);
+            const dailyResidualTarget = dailyTarget - alreadySelectedForDay;
+            if (!dailyResidualTarget) continue;
+            const residualRows = selectNearTarget(
+              currentRows.filter(
+                (row) =>
+                  row.date === date && !selectedCurrentIds.has(row.id),
+              ),
+              dailyResidualTarget,
+            );
+            selectedCurrentRows.push(...residualRows);
+            residualRows.forEach((row) => selectedCurrentIds.add(row.id));
+          }
+          const currentMonthlyTarget = currentAccountingRows.reduce(
+            (total, row) => total + cents(row.value),
+            0,
+          );
+          const currentSelectedTotal = selectedCurrentRows.reduce(
+            (total, row) => total + cents(row.value),
+            0,
+          );
+          const currentAbsoluteTarget = currentAccountingRows.reduce(
+            (total, row) => total + Math.abs(cents(row.value)),
+            0,
+          );
+          const currentAbsoluteSelected = selectedCurrentRows.reduce(
+            (total, row) => total + Math.abs(cents(row.value)),
+            0,
+          );
+          const currentCoverage = currentAbsoluteTarget
+            ? currentAbsoluteSelected / currentAbsoluteTarget
+            : 0;
+
+          // Alguns PDFs de aplicação expõem principal, bruto, rendimento e
+          // líquido como se fossem movimentos distintos. Só removemos essas
+          // colunas auxiliares quando os movimentos selecionados cobrem pelo
+          // menos 90% do volume contábil e fecham o líquido mensal.
+          if (
+            selectedCurrentRows.length > 0 &&
+            currentCoverage >= 0.9 &&
+            Math.abs(currentSelectedTotal - currentMonthlyTarget) <= 100
+          ) {
+            currentRows = selectedCurrentRows.sort((left, right) =>
+              left.date.localeCompare(right.date),
+            );
+          }
+        }
         normalizedSources = normalizedSources.map((source) => {
           if (source.sourceAccountId === transactionSource.sourceAccountId) {
             return {
               ...source,
-              rows: source.rows.filter((row) => !applicationRowIds.has(row.id)),
+              rows: currentRows,
             };
           }
           if (source.sourceAccountId === applicationSource.sourceAccountId) {

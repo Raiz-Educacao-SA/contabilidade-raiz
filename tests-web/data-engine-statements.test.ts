@@ -1925,6 +1925,76 @@ test("separa vários agrupamentos líquidos diários da aplicação no mesmo mê
   );
 });
 
+test("descarta colunas auxiliares do PDF somente quando a conta corrente fica coberta", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "033",
+    sourceAccountId: "santander-pdf-multicolunas",
+    rows: [
+      { id: "app", date: "2026-06-10", description: "LÍQUIDO APLICAÇÃO", value: -100 },
+      { id: "corrente-debito", date: "2026-06-10", description: "DÉBITO", value: 1000 },
+      { id: "corrente-credito", date: "2026-06-10", description: "CRÉDITO", value: -1000 },
+      { id: "coluna-auxiliar", date: "2026-06-10", description: "RENDIMENTO AUXILIAR", value: 13.45 },
+    ],
+    metadata: {
+      account: "referencia-compartilhada",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const applicationSource = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-posicao",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const result = resolveStatementBindings(
+    [source, applicationSource],
+    [
+      {
+        code: "1.1.1.03.03.20",
+        name: "Banco Santander - conta Aplic. 13082100-5",
+        rows: [{ date: "2026-06-10", value: -100 }],
+      },
+      {
+        code: "1.1.1.02.03.11",
+        name: "Banco Santander - conta 13082100-5",
+        rows: [
+          { date: "2026-06-10", value: 1000 },
+          { date: "2026-06-10", value: -1000 },
+        ],
+      },
+    ],
+  );
+  const application = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.03.03.20",
+  );
+  const current = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.11",
+  );
+
+  assert.deepEqual(
+    application?.source.rows.map((row: { id: string }) => row.id),
+    ["app"],
+  );
+  assert.deepEqual(
+    current?.source.rows.map((row: { id: string }) => row.id),
+    ["corrente-debito", "corrente-credito"],
+  );
+});
+
 test("vincula contas Daycoval pelo total diário quando o banco agrupa lançamentos", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const statement = (id: string, values: number[]) => ({
