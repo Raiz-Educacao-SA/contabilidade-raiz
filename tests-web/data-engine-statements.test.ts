@@ -904,7 +904,7 @@ test("soma no dia 01/06 os valores líquidos do extrato de movimento Santander",
   );
 });
 
-test("usa o contrato real de posições e descarta os movimentos misturados do mesmo PDF", async () => {
+test("preserva os lançamentos do extrato quando o contrato de posições traz apenas saldos", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
   const processingIdentity = "processamento-aplicacao-global-tree";
   const positionRows: Array<[string, string, number]> = [
@@ -946,7 +946,7 @@ test("usa o contrato real de posições e descarta os movimentos misturados do m
             ? positionRows.map(([id, positionAt, netAmount]) => ({
                 posicao_aplicacao_id: id,
                 cod_coligada: 9,
-                source_account_id: `arquivo-${id}`,
+                source_account_id: "pdf-santander-misturado",
                 processing_identity_id: processingIdentity,
                 product_ref_hash: "contamax-00333003",
                 position_at: positionAt,
@@ -961,11 +961,11 @@ test("usa o contrato real de posições e descarta os movimentos misturados do m
     toDate: "2026-06-30",
   });
 
-  assert.equal(result.diagnostics.applicationMovementsUsed, 4);
+  assert.equal(result.diagnostics.applicationMovementsUsed, 0);
   assert.equal(result.statements.length, 1);
   assert.equal(
     result.statements[0].sourceAccountId,
-    "aplicacao:produto:contamax-00333003",
+    "pdf-santander-misturado",
   );
   assert.deepEqual(
     result.statements[0].rows.map((row: { date: string; value: number }) => ({
@@ -973,10 +973,7 @@ test("usa o contrato real de posições e descarta os movimentos misturados do m
       value: row.value,
     })),
     [
-      { date: "2026-06-01", value: -1494.52 },
-      { date: "2026-06-01", value: -1890.98 },
-      { date: "2026-06-01", value: -38316.63 },
-      { date: "2026-06-08", value: 100000 },
+      { date: "2026-06-01", value: -41491.33 },
     ],
   );
 });
