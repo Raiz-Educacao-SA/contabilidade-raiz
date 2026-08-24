@@ -819,6 +819,7 @@ function applicationPositionMovements(
       "data_lancamento",
       "transaction_date",
       "posting_date",
+      "position_at",
     ]);
     const sourceAccountId = applicationPositionIdentity(position);
     if (
@@ -876,6 +877,16 @@ function applicationPositionMovements(
         "investimento",
         "investment_amount",
       ],
+    );
+    const governedNetAmountInCents = governedNamedMoneyInCents(
+      position,
+      ["net_amount_centavos", "net_value_centavos"],
+      ["net_amount", "net_value"],
+    );
+    const governedGrossAmountInCents = governedNamedMoneyInCents(
+      position,
+      ["gross_amount_centavos", "gross_value_centavos"],
+      ["gross_amount", "gross_value"],
     );
     const principalRedeemedInCents = governedNamedMoneyInCents(
       position,
@@ -957,12 +968,27 @@ function applicationPositionMovements(
       });
     };
 
-    // Posições só podem virar movimentos quando o contrato traz uma data
-    // transacional e campos explicitamente identificados como aplicação ou
-    // resgate. position_at e os valores bruto/líquido descrevem a posição do
-    // investimento; tratá-los como lançamentos elimina ou duplica o extrato.
-    appendMovement("C", appliedInCents, "Aplicação financeira");
-    appendMovement("D", redeemedInCents, "Resgate líquido da aplicação");
+    // O contrato atual do Data Engine entrega os movimentos do extrato de
+    // aplicação em posições, separados dos movimentos da conta corrente.
+    // Valor positivo representa resgate e valor negativo representa aplicação.
+    // Os campos antigos permanecem compatíveis com documentos já processados.
+    const governedMovementInCents =
+      governedNetAmountInCents !== null &&
+      Math.abs(governedNetAmountInCents) >= 1
+        ? governedNetAmountInCents
+        : governedGrossAmountInCents;
+    if (governedMovementInCents !== null) {
+      appendMovement(
+        governedMovementInCents < 0 ? "C" : "D",
+        governedMovementInCents,
+        governedMovementInCents < 0
+          ? "Aplicação financeira"
+          : "Resgate líquido da aplicação",
+      );
+    } else {
+      appendMovement("C", appliedInCents, "Aplicação financeira");
+      appendMovement("D", redeemedInCents, "Resgate líquido da aplicação");
+    }
   }
 
   return movements;
@@ -1236,6 +1262,14 @@ function pendingRecordMovements(
 }
 
 function applicationPositionIdentity(position: Record<string, unknown>) {
+  const productReference = governedText(position, [
+    "product_ref_hash",
+    "product_reference_hash",
+    "application_ref_hash",
+    "application_reference_hash",
+  ]);
+  if (productReference) return `aplicacao:produto:${productReference}`;
+
   const explicitSource = governedSourceIdentity(position);
   if (explicitSource) return explicitSource;
 

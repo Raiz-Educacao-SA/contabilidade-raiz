@@ -904,7 +904,7 @@ test("soma no dia 01/06 os valores líquidos do extrato de movimento Santander",
   );
 });
 
-test("preserva os lançamentos do extrato quando o contrato de posições traz apenas saldos", async () => {
+test("mantém a conta corrente e cria separadamente os movimentos da aplicação", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
   const processingIdentity = "processamento-aplicacao-global-tree";
   const positionRows: Array<[string, string, number]> = [
@@ -961,19 +961,37 @@ test("preserva os lançamentos do extrato quando o contrato de posições traz a
     toDate: "2026-06-30",
   });
 
-  assert.equal(result.diagnostics.applicationMovementsUsed, 0);
-  assert.equal(result.statements.length, 1);
-  assert.equal(
-    result.statements[0].sourceAccountId,
-    "pdf-santander-misturado",
+  assert.equal(result.diagnostics.applicationMovementsUsed, 4);
+  assert.equal(result.statements.length, 2);
+  const currentStatement = result.statements.find(
+    (statement: { sourceAccountId: string }) =>
+      statement.sourceAccountId === "pdf-santander-misturado",
+  );
+  const applicationStatement = result.statements.find(
+    (statement: { sourceAccountId: string }) =>
+      statement.sourceAccountId === "aplicacao:produto:contamax-00333003",
   );
   assert.deepEqual(
-    result.statements[0].rows.map((row: { date: string; value: number }) => ({
+    currentStatement?.rows.map((row: { date: string; value: number }) => ({
       date: row.date,
       value: row.value,
     })),
     [
       { date: "2026-06-01", value: -41491.33 },
+    ],
+  );
+  assert.deepEqual(
+    applicationStatement?.rows.map(
+      (row: { date: string; value: number }) => ({
+        date: row.date,
+        value: row.value,
+      }),
+    ),
+    [
+      { date: "2026-06-01", value: -1494.52 },
+      { date: "2026-06-01", value: -1890.98 },
+      { date: "2026-06-01", value: -38316.63 },
+      { date: "2026-06-08", value: 100000 },
     ],
   );
 });
