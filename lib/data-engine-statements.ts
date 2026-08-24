@@ -312,9 +312,42 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         if (!absoluteTarget) return [] as DataEngineBankRow[];
         const tolerance = Math.max(100, Math.round(absoluteTarget * 0.001));
         const candidates = rows.filter((row) => cents(row.value) * target > 0);
-        if (!candidates.length || candidates.length > 32) {
+        if (!candidates.length) {
           return [] as DataEngineBankRow[];
         }
+        const single = candidates
+          .map((row) => ({
+            difference: Math.abs(Math.abs(cents(row.value)) - absoluteTarget),
+            row,
+          }))
+          .filter(({ difference }) => difference <= tolerance)
+          .sort((left, right) => left.difference - right.difference)[0];
+        if (single) return [single.row];
+
+        let bestPair: {
+          difference: number;
+          rows: [DataEngineBankRow, DataEngineBankRow];
+        } | null = null;
+        for (let left = 0; left < candidates.length; left += 1) {
+          for (let right = left + 1; right < candidates.length; right += 1) {
+            const total =
+              Math.abs(cents(candidates[left].value)) +
+              Math.abs(cents(candidates[right].value));
+            const difference = Math.abs(total - absoluteTarget);
+            if (
+              difference <= tolerance &&
+              (!bestPair || difference < bestPair.difference)
+            ) {
+              bestPair = {
+                difference,
+                rows: [candidates[left], candidates[right]],
+              };
+            }
+          }
+        }
+        if (bestPair) return bestPair.rows;
+        if (candidates.length > 32) return [] as DataEngineBankRow[];
+
         const ceiling = absoluteTarget + tolerance;
         const split = Math.ceil(candidates.length / 2);
         const subsetSums = (start: number, end: number) => {
