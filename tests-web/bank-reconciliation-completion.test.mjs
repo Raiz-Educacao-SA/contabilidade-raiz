@@ -55,6 +55,15 @@ test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.doesNotMatch(panel, /Total das pendências detalhadas/);
 });
 
+test("pagina as exceções para não sobrecarregar o navegador", () => {
+  assert.match(panel, /const EXCEPTION_PAGE_SIZE = 25/);
+  assert.match(panel, /section\.rows\.slice\(start, start \+ EXCEPTION_PAGE_SIZE\)/);
+  assert.match(panel, /O relatório consolidado mantém todos os itens/);
+  assert.match(panel, /<ReconciliationExceptionTable key=\{section\.key\}/);
+  assert.doesNotMatch(panel, /section\.rows\.map\(\(row, index\)/);
+  assert.match(monthlyCss, /\.exception-pagination \{[\s\S]*?justify-content: space-between/);
+});
+
 test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {
   assert.match(matcher, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
   assert.match(matcher, /monthKey\(a\.date\) === monthKey\(b\.date\)/);

@@ -48,6 +48,11 @@ type AccountResult = Statement & {
   competence: string;
   diagnostics?: TotvsAccountingDiagnostic[];
 };
+type ReconciliationExceptionSection = {
+  key: string;
+  title: string;
+  rows: MatchRow[];
+};
 type WorkflowState = {
   accounting: AccountingRow[];
   accountingDiagnostics: TotvsAccountingDiagnostic[];
@@ -68,6 +73,7 @@ type WorkflowState = {
 };
 
 const workflowCache = new Map<string, WorkflowState>();
+const EXCEPTION_PAGE_SIZE = 25;
 
 function loadStoredResults(historyKey: string): AccountResult[] {
   if (typeof window === "undefined") return [];
@@ -999,7 +1005,7 @@ function ReconciliationFormView({
   const accountingOnly = result.rows.filter(
     (row) => row.status === "Somente na contabilidade",
   );
-  const sections = [
+  const sections: ReconciliationExceptionSection[] = [
     {
       key: "A",
       title: "Entradas no extrato sem lançamento correspondente na contabilidade",
@@ -1028,11 +1034,6 @@ function ReconciliationFormView({
     ? []
     : (result.validation.dailyDifferences ?? []);
   const diagnostics = result.diagnostics ?? [];
-  const total = (rows: MatchRow[]) =>
-    rows.reduce(
-      (sum, row) => sum + Math.abs(row.bankValue ?? row.accountingValue ?? 0),
-      0,
-    );
   const statementBalance = result.metadata.closingBalance;
   return (
     <section className="reconciliation-form">
@@ -1175,70 +1176,114 @@ function ReconciliationFormView({
               </article>
             )}
             {visibleSections.map((section) => (
-              <article key={section.key}>
-                <div className="form-section-title">
-                  <b>
-                    {section.key}) {section.title}
-                  </b>
-                  <strong>
-                    {section.rows.length} item(ns) · volume bruto {brl(total(section.rows))}
-                  </strong>
-                </div>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Data</th>
-                        <th>Data na outra base</th>
-                        <th>Documento/Histórico</th>
-                        <th>Valor</th>
-                        <th>Referência</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {section.rows.map((row, index) => (
-                        <tr key={index}>
-                          <td>
-                            {(
-                              row.bankDate ?? row.accountingDate
-                            )?.toLocaleDateString("pt-BR", { timeZone: "UTC" })}
-                          </td>
-                          <td>
-                            {row.bankDate && row.accountingDate
-                              ? row.accountingDate.toLocaleDateString("pt-BR", {
-                                  timeZone: "UTC",
-                                })
-                              : "—"}
-                          </td>
-                          <td>
-                            {row.description ||
-                              row.nature ||
-                              "Lançamento contábil"}
-                          </td>
-                          <td>
-                            {brl(
-                              Math.abs(
-                                row.bankValue ?? row.accountingValue ?? 0,
-                              ),
-                            )}
-                          </td>
-                          <td>
-                            {row.status === "Somente no banco"
-                              ? "Sem lançamento na contabilidade"
-                              : row.status === "Somente na contabilidade"
-                                ? "Sem movimento no extrato"
-                                : row.status}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
+              <ReconciliationExceptionTable key={section.key} section={section} />
             ))}
           </div>
         </>
       )}
     </section>
+  );
+}
+
+function ReconciliationExceptionTable({
+  section,
+}: {
+  section: ReconciliationExceptionSection;
+}) {
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(
+    1,
+    Math.ceil(section.rows.length / EXCEPTION_PAGE_SIZE),
+  );
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * EXCEPTION_PAGE_SIZE;
+  const visibleRows = section.rows.slice(start, start + EXCEPTION_PAGE_SIZE);
+  const volume = section.rows.reduce(
+    (sum, row) => sum + Math.abs(row.bankValue ?? row.accountingValue ?? 0),
+    0,
+  );
+
+  return (
+    <article>
+      <div className="form-section-title">
+        <b>
+          {section.key}) {section.title}
+        </b>
+        <strong>
+          {section.rows.length} item(ns) · volume bruto {brl(volume)}
+        </strong>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Data na outra base</th>
+              <th>Documento/Histórico</th>
+              <th>Valor</th>
+              <th>Referência</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((row, index) => (
+              <tr key={`${row.bankId ?? row.accountingId ?? "linha"}-${start + index}`}>
+                <td>
+                  {(row.bankDate ?? row.accountingDate)?.toLocaleDateString(
+                    "pt-BR",
+                    { timeZone: "UTC" },
+                  )}
+                </td>
+                <td>
+                  {row.bankDate && row.accountingDate
+                    ? row.accountingDate.toLocaleDateString("pt-BR", {
+                        timeZone: "UTC",
+                      })
+                    : "—"}
+                </td>
+                <td>{row.description || row.nature || "Lançamento contábil"}</td>
+                <td>
+                  {brl(Math.abs(row.bankValue ?? row.accountingValue ?? 0))}
+                </td>
+                <td>
+                  {row.status === "Somente no banco"
+                    ? "Sem lançamento na contabilidade"
+                    : row.status === "Somente na contabilidade"
+                      ? "Sem movimento no extrato"
+                      : row.status}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pageCount > 1 && (
+        <div className="exception-pagination">
+          <span>
+            Exibindo {start + 1}–{Math.min(start + EXCEPTION_PAGE_SIZE, section.rows.length)} de {section.rows.length}. O relatório consolidado mantém todos os itens.
+          </span>
+          <div>
+            <button
+              type="button"
+              disabled={safePage === 0}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              Anterior
+            </button>
+            <b>
+              {safePage + 1}/{pageCount}
+            </b>
+            <button
+              type="button"
+              disabled={safePage >= pageCount - 1}
+              onClick={() =>
+                setPage((current) => Math.min(pageCount - 1, current + 1))
+              }
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }

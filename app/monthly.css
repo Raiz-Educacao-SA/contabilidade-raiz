@@ -461,6 +461,37 @@
   font-size: 8px;
   line-height: 1.25;
 }
+.exception-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  border-top: 1px solid #dfe3e8;
+  background: #f8fafc;
+  font-size: 8px;
+}
+.exception-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.exception-pagination button {
+  min-height: 24px;
+  padding: 4px 8px;
+  border: 1px solid #cfd6e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  font-size: 8px;
+  font-weight: 800;
+}
+.exception-pagination button:disabled {
+  color: #9aa4b3;
+  background: #eef1f5;
+  cursor: not-allowed;
+}
 .no-exceptions {
   margin-top: 20px;
   padding: 24px;
