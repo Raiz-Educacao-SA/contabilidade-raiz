@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
       company,
       competence,
       diagnostics: snapshot.diagnostics,
+      pendingSummary: JSON.stringify(snapshot.diagnostics.pendingSummary),
       movementsByBank,
       operations: snapshot.operations,
       records: movementRecords,
