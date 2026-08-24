@@ -96,7 +96,7 @@ type ScheduleCompany = {
 type ScheduleModuleKey = (typeof CLOSING_SCHEDULE_MODULES)[number];
 
 const companyDisplayNames: Record<string, string> = {
-  "09": "GLOBAL TREE",
+  "09": "Global Tree",
 };
 
 function applyCompanyDisplayName(company: Company): Company {
