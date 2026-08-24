@@ -534,6 +534,68 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           }
           return source;
         });
+      } else {
+        // Há extratos em que o Data Engine entrega toda a movimentação da
+        // aplicação dentro da única referência Santander disponível. Quando a
+        // conta corrente fecha o mês com líquido zero e a direção dos valores
+        // diários acompanha claramente a aplicação, o confronto correto é
+        // feito com o conjunto mensal completo. Assim não apresentamos duas
+        // divergências artificiais para a mesma movimentação bancária.
+        const transactionAccounts = accounts.filter(
+          (account) =>
+            account.code !== applicationAccount.code &&
+            !APPLICATION_ACCOUNT_PATTERN.test(account.name ?? "") &&
+            bankNames[applicationBank]?.test(account.name ?? ""),
+        );
+        const transactionMonthly =
+          transactionAccounts.length === 1
+            ? (transactionAccounts[0].rows ?? []).reduce(
+                (total, row) => total + cents(row.value),
+                0,
+              )
+            : Number.NaN;
+        const sourceDaily = new Map<string, number>();
+        for (const row of transactionSource.rows) {
+          sourceDaily.set(
+            row.date,
+            (sourceDaily.get(row.date) ?? 0) + cents(row.value),
+          );
+        }
+        const applicationDays = Array.from(dailyTargets).filter(
+          ([, total]) => total !== 0,
+        );
+        const alignedDays = applicationDays.filter(([date, total]) => {
+          const sourceTotal = sourceDaily.get(date) ?? 0;
+          return sourceTotal !== 0 && Math.sign(sourceTotal) === Math.sign(total);
+        }).length;
+        const minimumAlignedDays = Math.max(
+          5,
+          Math.ceil(applicationDays.length * 0.7),
+        );
+        const useCompleteMovementStatement =
+          transactionAccounts.length === 1 &&
+          Math.abs(transactionMonthly) <= 100 &&
+          applicationDays.length >= 5 &&
+          alignedDays >= minimumAlignedDays;
+
+        if (useCompleteMovementStatement) {
+          const applicationSource = emptyApplicationSources[0];
+          normalizedSources = normalizedSources.map((source) => {
+            if (source.sourceAccountId === transactionSource.sourceAccountId) {
+              return { ...source, rows: [] };
+            }
+            if (source.sourceAccountId === applicationSource.sourceAccountId) {
+              return {
+                ...source,
+                bankId: applicationBank,
+                rows: [...transactionSource.rows].sort((left, right) =>
+                  left.date.localeCompare(right.date),
+                ),
+              };
+            }
+            return source;
+          });
+        }
       }
     }
   }

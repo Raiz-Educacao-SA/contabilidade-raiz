@@ -1629,6 +1629,79 @@ test("não aceita separação parcial entre aplicação e conta corrente", async
   assert.equal(currentPair?.source.rows.length, 2);
 });
 
+test("usa o extrato de movimento completo quando ele representa a aplicação e a conta corrente fecha zerada", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const dates = ["01", "02", "03", "04", "05"];
+  const statementValues = [99, -81, 88, -69, 45];
+  const applicationValues = [100, -80, 90, -70, 50];
+  const currentSource = {
+    bankId: "033",
+    sourceAccountId: "santander-compartilhado",
+    rows: dates.map((date, index) => ({
+      id: `movimento-${date}`,
+      date: `2026-06-${date}`,
+      description: "MOVIMENTO DA APLICAÇÃO",
+      value: statementValues[index],
+    })),
+    metadata: {
+      account: "12345-6",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const applicationSource = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-posicao",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const result = resolveStatementBindings(
+    [currentSource, applicationSource],
+    [
+      {
+        code: "1.1.1.03.03.20",
+        name: "Banco Santander - conta Aplic. 12345-6",
+        rows: dates.map((date, index) => ({
+          date: `2026-06-${date}`,
+          value: applicationValues[index],
+        })),
+      },
+      {
+        code: "1.1.1.02.03.20",
+        name: "Banco Santander - conta 12345-6",
+        rows: [
+          { date: "2026-06-01", value: 50 },
+          { date: "2026-06-02", value: -50 },
+        ],
+      },
+    ],
+  );
+
+  const applicationPair = result.pairs.find(
+    (pair: { account: { code: string } }) => pair.account.code === "1.1.1.03.03.20",
+  );
+  const currentPair = result.pairs.find(
+    (pair: { account: { code: string } }) => pair.account.code === "1.1.1.02.03.20",
+  );
+  assert.deepEqual(
+    applicationPair?.source.rows.map((row: { id: string }) => row.id),
+    dates.map((date) => `movimento-${date}`),
+  );
+  assert.equal(currentPair?.source.rows.length, 0);
+  assert.deepEqual(result.unmatchedAccounts, []);
+  assert.deepEqual(result.unmatchedSources, []);
+});
+
 test("vincula contas Daycoval pelo total diário quando o banco agrupa lançamentos", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const statement = (id: string, values: number[]) => ({
