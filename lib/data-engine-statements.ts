@@ -819,6 +819,7 @@ function applicationPositionMovements(
       "data_lancamento",
       "transaction_date",
       "posting_date",
+      "position_at",
     ]);
     const sourceAccountId = applicationPositionIdentity(position);
     if (
@@ -876,6 +877,16 @@ function applicationPositionMovements(
         "investimento",
         "investment_amount",
       ],
+    );
+    const governedNetAmountInCents = governedNamedMoneyInCents(
+      position,
+      ["net_amount_centavos", "net_value_centavos"],
+      ["net_amount", "net_value"],
+    );
+    const governedGrossAmountInCents = governedNamedMoneyInCents(
+      position,
+      ["gross_amount_centavos", "gross_value_centavos"],
+      ["gross_amount", "gross_value"],
     );
     const principalRedeemedInCents = governedNamedMoneyInCents(
       position,
@@ -957,12 +968,27 @@ function applicationPositionMovements(
       });
     };
 
-    // Na conta de aplicação, aplicar aumenta o ativo (débito) e resgatar reduz
-    // o ativo (crédito). O TOTVS contabiliza o valor líquido creditado do
-    // extrato de movimento; principal e bruto são apenas alternativas quando
-    // o Data Engine não disponibiliza o líquido.
-    appendMovement("D", appliedInCents, "Aplicação financeira");
-    appendMovement("C", redeemedInCents, "Resgate líquido da aplicação");
+    // No extrato da aplicação, aplicar é entrada e resgatar é saída. O contrato
+    // governado de produção usa valor líquido assinado: positivo representa
+    // resgate e negativo representa aplicação. Os nomes antigos permanecem
+    // como alternativa para arquivos processados pelo contrato anterior.
+    const governedMovementInCents =
+      governedNetAmountInCents !== null &&
+      Math.abs(governedNetAmountInCents) >= 1
+        ? governedNetAmountInCents
+        : governedGrossAmountInCents;
+    if (governedMovementInCents !== null) {
+      appendMovement(
+        governedMovementInCents < 0 ? "C" : "D",
+        governedMovementInCents,
+        governedMovementInCents < 0
+          ? "Aplicação financeira"
+          : "Resgate líquido da aplicação",
+      );
+    } else {
+      appendMovement("C", appliedInCents, "Aplicação financeira");
+      appendMovement("D", redeemedInCents, "Resgate líquido da aplicação");
+    }
   }
 
   return movements;
@@ -1236,6 +1262,14 @@ function pendingRecordMovements(
 }
 
 function applicationPositionIdentity(position: Record<string, unknown>) {
+  const productReference = governedText(position, [
+    "product_ref_hash",
+    "product_reference_hash",
+    "application_ref_hash",
+    "application_reference_hash",
+  ]);
+  if (productReference) return `aplicacao:produto:${productReference}`;
+
   const explicitSource = governedSourceIdentity(position);
   if (explicitSource) return explicitSource;
 
@@ -1290,6 +1324,7 @@ function positionBelongsToPeriod(
     "data_lancamento",
     "transaction_date",
     "posting_date",
+    "position_at",
   ]);
   if (movementDate) return movementDate >= fromDate && movementDate <= toDate;
   const reference = governedText(position, [
@@ -1298,6 +1333,7 @@ function positionBelongsToPeriod(
     "data_base",
     "data",
     "position_date",
+    "position_at",
     "data_referencia",
     "reference_date",
     "competencia",
@@ -1938,12 +1974,33 @@ function statementsFromMovements(
       : "unknown";
   };
 
+  const applicationPositionLinks = new Set(
+    (options.sourceEvidence ?? [])
+      .filter(
+        (record) =>
+          ("product_ref_hash" in record ||
+            "product_reference_hash" in record ||
+            "application_ref_hash" in record) &&
+          ("position_at" in record ||
+            "net_amount_centavos" in record ||
+            "gross_amount_centavos" in record),
+      )
+      .flatMap(sourceLinkValues),
+  );
+  const positionBackedMovements = movements.filter((movement) => {
+    if (sourceFormat(movement) === "excel") return true;
+    const movementRecord = movement as unknown as Record<string, unknown>;
+    return !sourceLinkValues(movementRecord).some((link) =>
+      applicationPositionLinks.has(link),
+    );
+  });
+
   const accountsWithExcel = new Set(
-    movements
+    positionBackedMovements
       .filter((movement) => sourceFormat(movement) === "excel")
       .map(sourceKey),
   );
-  const preferredMovements = movements.filter(
+  const preferredMovements = positionBackedMovements.filter(
     (movement) =>
       !accountsWithExcel.has(sourceKey(movement)) ||
       sourceFormat(movement) !== "pdf",

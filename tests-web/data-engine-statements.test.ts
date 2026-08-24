@@ -844,9 +844,9 @@ test("usa os movimentos do extrato de aplicação e prioriza o valor líquido cr
       value: row.value,
     })),
     [
-      { date: "2026-06-01", value: 520.03 },
-      { date: "2026-06-08", value: -4378 },
-      { date: "2026-06-10", value: 788.05 },
+      { date: "2026-06-01", value: -520.03 },
+      { date: "2026-06-08", value: 4378 },
+      { date: "2026-06-10", value: -788.05 },
     ],
   );
   assert.equal(result.diagnostics.recognizedWithoutMovements, 0);
@@ -900,7 +900,84 @@ test("soma no dia 01/06 os valores líquidos do extrato de movimento Santander",
         0,
       ) * 100,
     ) / 100,
-    41702.13,
+    -41702.13,
+  );
+});
+
+test("usa o contrato real de posições e descarta os movimentos misturados do mesmo PDF", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const processingIdentity = "processamento-aplicacao-global-tree";
+  const positionRows: Array<[string, string, number]> = [
+    ["pos-1", "2026-06-01T00:00:00Z", 149452],
+    ["pos-2", "2026-06-01T00:00:00Z", 189098],
+    ["pos-3", "2026-06-01T00:00:00Z", 3831663],
+    ["pos-4", "2026-06-08T00:00:00Z", -10000000],
+  ];
+
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 9,
+    codColigadaCode: "09",
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/tesouraria/extratos/movimentos") {
+        return Response.json({
+          items: [
+            {
+              movimento_id: "pdf-incompleto-1",
+              cod_coligada: 9,
+              bank_id: "033",
+              source_account_id: "pdf-santander-misturado",
+              processing_identity_id: processingIdentity,
+              data_lancamento: "2026-06-01",
+              valor_centavos: 4149133,
+              natureza: "D",
+              descricao_sanitizada: "MOVIMENTO-PDF-INCOMPLETO",
+              source_format: "pdf",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      return Response.json({
+        items:
+          url.pathname === "/v1/tesouraria/extratos/posicoes"
+            ? positionRows.map(([id, positionAt, netAmount]) => ({
+                posicao_aplicacao_id: id,
+                cod_coligada: 9,
+                source_account_id: `arquivo-${id}`,
+                processing_identity_id: processingIdentity,
+                product_ref_hash: "contamax-00333003",
+                position_at: positionAt,
+                gross_amount_centavos: netAmount,
+                net_amount_centavos: netAmount,
+              }))
+            : [],
+        next_cursor: null,
+      });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.diagnostics.applicationMovementsUsed, 4);
+  assert.equal(result.statements.length, 1);
+  assert.equal(
+    result.statements[0].sourceAccountId,
+    "aplicacao:produto:contamax-00333003",
+  );
+  assert.deepEqual(
+    result.statements[0].rows.map((row: { date: string; value: number }) => ({
+      date: row.date,
+      value: row.value,
+    })),
+    [
+      { date: "2026-06-01", value: -1494.52 },
+      { date: "2026-06-01", value: -1890.98 },
+      { date: "2026-06-01", value: -38316.63 },
+      { date: "2026-06-08", value: 100000 },
+    ],
   );
 });
 
