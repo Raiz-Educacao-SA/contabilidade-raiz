@@ -53,6 +53,10 @@ type ReconciliationExceptionSection = {
   title: string;
   rows: MatchRow[];
 };
+type StoredAccountResult = Pick<
+  AccountResult,
+  "fileName" | "account" | "bank" | "metadata" | "competence" | "diagnostics"
+>;
 type WorkflowState = {
   accounting: AccountingRow[];
   accountingDiagnostics: TotvsAccountingDiagnostic[];
@@ -74,11 +78,100 @@ type WorkflowState = {
 
 const workflowCache = new Map<string, WorkflowState>();
 const EXCEPTION_PAGE_SIZE = 25;
+const reconciliationCacheDbName = "contabilidade-raiz-reconciliation-cache";
+const reconciliationCacheStoreName = "monthly-results";
 
-function loadStoredResults(historyKey: string): AccountResult[] {
-  if (typeof window === "undefined") return [];
-  const stored = window.localStorage.getItem(historyKey);
-  if (!stored) return [];
+function openReconciliationCache() {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB indisponível."));
+      return;
+    }
+    const request = window.indexedDB.open(reconciliationCacheDbName, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(reconciliationCacheStoreName)) {
+        request.result.createObjectStore(reconciliationCacheStoreName);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readReconciliationCache(
+  historyKey: string,
+): Promise<StoredAccountResult[] | null> {
+  try {
+    const db = await openReconciliationCache();
+    return await new Promise<StoredAccountResult[] | null>((resolve, reject) => {
+      const transaction = db.transaction(reconciliationCacheStoreName, "readonly");
+      const request = transaction
+        .objectStore(reconciliationCacheStoreName)
+        .get(historyKey);
+      request.onsuccess = () =>
+        resolve((request.result as StoredAccountResult[] | undefined) ?? null);
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => db.close();
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function writeReconciliationCache(
+  historyKey: string,
+  results: AccountResult[],
+) {
+  try {
+    const stored: StoredAccountResult[] = results.map((result) => ({
+      fileName: result.fileName,
+      account: result.account,
+      bank: result.bank,
+      metadata: result.metadata,
+      competence: result.competence,
+      diagnostics: result.diagnostics,
+    }));
+    const db = await openReconciliationCache();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(reconciliationCacheStoreName, "readwrite");
+      transaction.objectStore(reconciliationCacheStoreName).put(stored, historyKey);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function deleteReconciliationCache(historyKey: string) {
+  try {
+    const db = await openReconciliationCache();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(reconciliationCacheStoreName, "readwrite");
+      transaction.objectStore(reconciliationCacheStoreName).delete(historyKey);
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        db.close();
+        reject(transaction.error);
+      };
+    });
+  } catch {
+    // A limpeza visual não deve depender do cache local.
+  }
+}
+
+function hydrateStoredResults(parsed: StoredAccountResult[]): AccountResult[] {
   const reviveRow = <
     T extends { date?: Date; bankDate?: Date; accountingDate?: Date },
   >(
@@ -91,9 +184,7 @@ function loadStoredResults(historyKey: string): AccountResult[] {
       ? { accountingDate: new Date(row.accountingDate) }
       : {}),
   });
-  try {
-    const parsed = JSON.parse(stored) as AccountResult[];
-    return parsed.map((result) => {
+  return parsed.map((result) => {
       const bank = result.bank.map(reviveRow);
       const account = {
         ...result.account,
@@ -111,8 +202,19 @@ function loadStoredResults(historyKey: string): AccountResult[] {
         validation: validateMonthly(bank, account.rows, result.metadata),
       };
     });
+}
+
+async function loadStoredResults(historyKey: string): Promise<AccountResult[]> {
+  if (typeof window === "undefined") return [];
+  const cached = await readReconciliationCache(historyKey);
+  if (cached) return hydrateStoredResults(cached);
+  const legacyStored = window.localStorage.getItem(historyKey);
+  if (!legacyStored) return [];
+  try {
+    return hydrateStoredResults(
+      JSON.parse(legacyStored) as StoredAccountResult[],
+    );
   } catch {
-    window.localStorage.removeItem(historyKey);
     return [];
   }
 }
@@ -184,6 +286,9 @@ export default function MonthlyReconciliationPanel({
   );
   const [accountingMessage, setAccountingMessage] = useState(
     () => initialWorkflow?.accountingMessage ?? "Aguardando atualização no TOTVS",
+  );
+  const [expandedResultCode, setExpandedResultCode] = useState<string | null>(
+    null,
   );
   const accountingRequestRef = useRef(0);
   const dataEngineRequestRef = useRef(0);
@@ -279,13 +384,16 @@ export default function MonthlyReconciliationPanel({
   useEffect(() => {
     if (initialWorkflow) return;
     let active = true;
-    void Promise.resolve().then(() => {
-      if (active) setResults(loadStoredResults(historyKey));
+    void loadStoredResults(historyKey).then((storedResults) => {
+      if (active) setResults(storedResults);
     });
     return () => { active = false; };
   }, [historyKey, initialWorkflow]);
 
   useEffect(() => {
+    for (const cachedKey of workflowCache.keys()) {
+      if (cachedKey !== historyKey) workflowCache.delete(cachedKey);
+    }
     workflowCache.set(historyKey, {
       accounting,
       accountingDiagnostics,
@@ -325,14 +433,18 @@ export default function MonthlyReconciliationPanel({
   ]);
 
   function keepResults(completed: AccountResult[]) {
-    setResults((current) => {
-      const keys = new Set(completed.map((item) => item.account.code));
-      const updated = [
-        ...current.filter((item) => !keys.has(item.account.code)),
-        ...completed,
-      ];
-      localStorage.setItem(historyKey, JSON.stringify(updated));
-      return updated;
+    const keys = new Set(completed.map((item) => item.account.code));
+    const updated = [
+      ...results.filter((item) => !keys.has(item.account.code)),
+      ...completed,
+    ];
+    setResults(updated);
+    void writeReconciliationCache(historyKey, updated).then((saved) => {
+      if (!saved) {
+        setNotice(
+          "A conciliação foi concluída, mas o navegador não conseguiu manter o histórico local.",
+        );
+      }
     });
   }
 
@@ -344,7 +456,9 @@ export default function MonthlyReconciliationPanel({
     )
       return;
     localStorage.removeItem(historyKey);
+    void deleteReconciliationCache(historyKey);
     setResults([]);
+    setExpandedResultCode(null);
     setNotice("Histórico da última conciliação removido.");
   }
 
@@ -906,6 +1020,12 @@ export default function MonthlyReconciliationPanel({
                 result={result}
                 companyName={companyName}
                 reconciledBy={reconciledBy}
+                expanded={expandedResultCode === result.account.code}
+                onToggle={() =>
+                  setExpandedResultCode((current) =>
+                    current === result.account.code ? null : result.account.code,
+                  )
+                }
               />
             ))}
           </div>
@@ -919,10 +1039,14 @@ function MonthlyAccountResult({
   result,
   companyName,
   reconciledBy,
+  expanded,
+  onToggle,
 }: {
   result: AccountResult;
   companyName: string;
   reconciledBy: string;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const value = result.validation;
   return (
@@ -983,11 +1107,21 @@ function MonthlyAccountResult({
           </div>
         )}
       </div>
-      <ReconciliationFormView
-        result={result}
-        companyName={companyName}
-        reconciledBy={reconciledBy}
-      />
+      <button
+        type="button"
+        className="reconciliation-detail-toggle"
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        {expanded ? "Ocultar ficha detalhada" : "Ver ficha detalhada"}
+      </button>
+      {expanded && (
+        <ReconciliationFormView
+          result={result}
+          companyName={companyName}
+          reconciledBy={reconciledBy}
+        />
+      )}
     </article>
   );
 }

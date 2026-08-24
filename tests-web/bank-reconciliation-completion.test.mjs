@@ -64,6 +64,26 @@ test("pagina as exceções para não sobrecarregar o navegador", () => {
   assert.match(monthlyCss, /\.exception-pagination \{[\s\S]*?justify-content: space-between/);
 });
 
+test("mantém uma ficha detalhada por vez e usa cache para grandes históricos", () => {
+  assert.match(panel, /contabilidade-raiz-reconciliation-cache/);
+  assert.match(panel, /writeReconciliationCache\(historyKey, updated\)/);
+  assert.doesNotMatch(
+    panel,
+    /localStorage\.setItem\(historyKey, JSON\.stringify\(updated\)\)/,
+  );
+  assert.match(
+    panel,
+    /if \(cachedKey !== historyKey\) workflowCache\.delete\(cachedKey\)/,
+  );
+  assert.match(
+    panel,
+    /expanded=\{expandedResultCode === result\.account\.code\}/,
+  );
+  assert.match(panel, /expanded && \([\s\S]*?<ReconciliationFormView/);
+  assert.match(panel, /Ver ficha detalhada/);
+  assert.match(monthlyCss, /\.reconciliation-detail-toggle \{/);
+});
+
 test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {
   assert.match(matcher, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
   assert.match(matcher, /monthKey\(a\.date\) === monthKey\(b\.date\)/);

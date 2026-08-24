@@ -492,6 +492,25 @@
   background: #eef1f5;
   cursor: not-allowed;
 }
+.reconciliation-detail-toggle {
+  align-items: center;
+  align-self: flex-end;
+  background: #eef8f7;
+  border: 1px solid #a9ddd8;
+  border-radius: 9px;
+  color: #087b72;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  justify-content: center;
+  margin-top: 8px;
+  min-height: 32px;
+  padding: 6px 12px;
+}
+.reconciliation-detail-toggle:hover {
+  background: #dff3f1;
+}
 .no-exceptions {
   margin-top: 20px;
   padding: 24px;
