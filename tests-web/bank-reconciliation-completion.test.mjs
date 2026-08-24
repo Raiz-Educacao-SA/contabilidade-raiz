@@ -168,6 +168,14 @@ test("preserva a conciliação ao mudar de tela e só substitui dados após atua
   assert.match(panel, /!accountingBusy &&\s*!dataEngineBusy/);
 });
 
+test("não desmonta a conciliação quando a sessão renova o token", () => {
+  assert.match(page, /const sessionUserId = session\?\.user\.id \?\? ""/);
+  assert.match(
+    page,
+    /setCompaniesLoading\(true\)[\s\S]*?\.eq\("usuario_id", sessionUserId\)[\s\S]*?\}, \[sessionUserId\]\);/,
+  );
+});
+
 test("libera a conciliação somente após as duas bases atualizarem com sucesso", () => {
   assert.match(panel, /const accountingFresh = sourceReadyForReconciliation/);
   assert.match(panel, /const statementsFresh = sourceReadyForReconciliation/);

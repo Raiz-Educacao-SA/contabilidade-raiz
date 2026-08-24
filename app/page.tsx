@@ -256,6 +256,7 @@ function buildLeaseAppUrl(currentSession: Session | null) {
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
+  const sessionUserId = session?.user.id ?? "";
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -422,16 +423,16 @@ export default function Home() {
       setCompanies([]);
       setModuleGrants([]);
       setCompanyId("");
-      if (!session) return;
+      if (!sessionUserId) return;
       const [companiesResult, grantsResult] = await Promise.all([
         supabase
           .from("usuarios_empresas")
           .select("empresa_id, perfil, empresas(id, codcoligada, razao_social, cnpj)")
-          .eq("usuario_id", session.user.id),
+          .eq("usuario_id", sessionUserId),
         supabase
           .from("usuarios_modulos")
           .select("modulo")
-          .eq("usuario_id", session.user.id),
+          .eq("usuario_id", sessionUserId),
       ]);
       if (!active) return;
       if (companiesResult.error) {
@@ -458,7 +459,7 @@ export default function Home() {
       setCompaniesLoading(false);
     });
     return () => { active = false; };
-  }, [session]);
+  }, [sessionUserId]);
   useEffect(() => {
     if (!companyId) return;
     window.localStorage.setItem("contabilidade-raiz:company-id", companyId);
