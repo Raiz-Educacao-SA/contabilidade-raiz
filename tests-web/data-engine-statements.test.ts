@@ -905,7 +905,8 @@ test("soma no dia 01/06 os valores líquidos do extrato de movimento Santander",
 });
 
 test("mantém a conta corrente e cria separadamente os movimentos da aplicação", async () => {
-  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const { loadDataEngineStatementSnapshot, resolveStatementBindings } =
+    await import(moduleUrl.href);
   const processingIdentity = "processamento-aplicacao-global-tree";
   const positionRows: Array<[string, string, number]> = [
     ["pos-1", "2026-06-01T00:00:00Z", 149452],
@@ -948,7 +949,8 @@ test("mantém a conta corrente e cria separadamente os movimentos da aplicação
                 cod_coligada: 9,
                 source_account_id: "pdf-santander-misturado",
                 processing_identity_id: processingIdentity,
-                product_ref_hash: "contamax-00333003",
+                product_ref_hash:
+                  id === "pos-1" ? "contamax-renda-fixa" : "contamax-00333003",
                 position_at: positionAt,
                 gross_amount_centavos: netAmount,
                 net_amount_centavos: netAmount,
@@ -962,14 +964,14 @@ test("mantém a conta corrente e cria separadamente os movimentos da aplicação
   });
 
   assert.equal(result.diagnostics.applicationMovementsUsed, 4);
-  assert.equal(result.statements.length, 2);
+  assert.equal(result.statements.length, 3);
   const currentStatement = result.statements.find(
     (statement: { sourceAccountId: string }) =>
       statement.sourceAccountId === "pdf-santander-misturado",
   );
-  const applicationStatement = result.statements.find(
+  const applicationStatements = result.statements.filter(
     (statement: { sourceAccountId: string }) =>
-      statement.sourceAccountId === "aplicacao:produto:contamax-00333003",
+      statement.sourceAccountId.startsWith("aplicacao:produto:"),
   );
   assert.deepEqual(
     currentStatement?.rows.map((row: { date: string; value: number }) => ({
@@ -981,19 +983,54 @@ test("mantém a conta corrente e cria separadamente os movimentos da aplicação
     ],
   );
   assert.deepEqual(
-    applicationStatement?.rows.map(
-      (row: { date: string; value: number }) => ({
-        date: row.date,
-        value: row.value,
-      }),
-    ),
+    applicationStatements
+      .flatMap((statement: { rows: Array<{ date: string; value: number }> }) =>
+        statement.rows.map((row: { date: string; value: number }) => ({
+          date: row.date,
+          value: row.value,
+        })),
+      )
+      .sort((
+        left: { date: string; value: number },
+        right: { date: string; value: number },
+      ) =>
+        left.date.localeCompare(right.date) || left.value - right.value,
+      ),
     [
-      { date: "2026-06-01", value: -1494.52 },
-      { date: "2026-06-01", value: -1890.98 },
       { date: "2026-06-01", value: -38316.63 },
+      { date: "2026-06-01", value: -1890.98 },
+      { date: "2026-06-01", value: -1494.52 },
       { date: "2026-06-08", value: 100000 },
     ],
   );
+
+  const bindings = resolveStatementBindings(result.statements, [
+    {
+      code: "1.1.1.03.03.20",
+      name: "Banco Santander - conta Aplic. 13082100-5",
+      rows: applicationStatements.flatMap(
+        (statement: { rows: Array<{ date: string; value: number }> }) =>
+          statement.rows,
+      ),
+    },
+    {
+      code: "1.1.1.02.03.11",
+      name: "Banco Santander - conta 13082100-5",
+      rows: [{ date: "2026-06-01", value: -41491.33 }],
+    },
+  ]);
+  const boundApplication = bindings.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.03.03.20",
+  );
+  const boundCurrent = bindings.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.11",
+  );
+  assert.equal(boundApplication?.source.rows.length, 4);
+  assert.equal(boundCurrent?.source.rows.length, 1);
+  assert.deepEqual(bindings.unmatchedAccounts, []);
+  assert.deepEqual(bindings.unmatchedSources, []);
 });
 
 test("reconhece a aplicação quando a posição não traz source_account_id", async () => {

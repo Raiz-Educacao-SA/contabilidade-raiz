@@ -276,6 +276,50 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   const applicationAccounts = accounts.filter((account) =>
     APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
   );
+  // O Data Engine pode particionar um único extrato de aplicação em mais
+  // de uma referência de produto. Quando a empresa possui uma única conta
+  // contábil de aplicação, todas essas partes pertencem à mesma conciliação.
+  // Consolidamos antes do vínculo para evitar que a primeira referência consuma
+  // a conta e as demais apareçam incorretamente como extratos sem conta.
+  const applicationSources = normalizedSources.filter(isApplicationStatement);
+  if (applicationAccounts.length === 1 && applicationSources.length > 1) {
+    const applicationSourceIds = new Set(
+      applicationSources.map((source) => source.sourceAccountId),
+    );
+    const consolidatedRows = Array.from(
+      new Map(
+        applicationSources
+          .flatMap((source) => source.rows)
+          .map((row) => [
+            [row.id, row.date, cents(row.value)].join("|"),
+            row,
+          ]),
+      ).values(),
+    ).sort((left, right) =>
+      left.date.localeCompare(right.date) || left.id.localeCompare(right.id),
+    );
+    const identifiedBank = applicationSources.find(
+      (source) => source.bankId.padStart(3, "0") !== "000",
+    )?.bankId;
+    normalizedSources = [
+      ...normalizedSources.filter(
+        (source) => !applicationSourceIds.has(source.sourceAccountId),
+      ),
+      {
+        ...applicationSources[0],
+        bankId: identifiedBank ?? applicationSources[0].bankId,
+        sourceAccountId: `aplicacao:consolidada:${applicationAccounts[0].code}`,
+        rows: consolidatedRows,
+        metadata: {
+          ...applicationSources[0].metadata,
+          account: "Aplicação",
+          name: "Aplicação financeira",
+        },
+      },
+    ].sort((left, right) =>
+      left.sourceAccountId.localeCompare(right.sourceAccountId),
+    );
+  }
   const emptyApplicationSources = normalizedSources.filter(
     (source) => isApplicationStatement(source) && source.rows.length === 0,
   );
