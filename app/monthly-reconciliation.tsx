@@ -557,11 +557,19 @@ export default function MonthlyReconciliationPanel({
       const sources = data.statements ?? [];
       setDataEngineSources(sources);
       setDataEngineOperations(data.operations ?? null);
-      if (applySourceBindings(sources, bankAccounts)) {
+      const resolved = applySourceBindings(sources, bankAccounts);
+      if (resolved) {
         setStatementsUpdated(true);
         setStatementsRevision(nextSourceRevision());
+        const diagnosticEnabled =
+          typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).has(
+            "diagnostico-conciliacao",
+          );
         setNotice(
-          `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) reconhecida(s).`,
+          diagnosticEnabled
+            ? `Diagnóstico técnico: ${JSON.stringify(resolved.diagnostics)}`
+            : `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) reconhecida(s).`,
         );
       }
     } catch (error) {
@@ -580,12 +588,6 @@ export default function MonthlyReconciliationPanel({
     discoveredAccounts: AccountingAccount[],
   ) {
     const resolved = resolveStatementBindings(sources, discoveredAccounts);
-    if (
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).has("diagnostico-conciliacao")
-    ) {
-      setNotice(`Diagnóstico técnico: ${JSON.stringify(resolved.diagnostics)}`);
-    }
     setUnmatchedSources(resolved.unmatchedSources);
     setUnmatchedAccounts(resolved.unmatchedAccounts);
     const identified = resolved.pairs.map(({ account, source }) => {
@@ -602,7 +604,7 @@ export default function MonthlyReconciliationPanel({
       };
     });
     setStatements(identified);
-    return true;
+    return resolved;
   }
 
   function reconcileStatements(selected: Statement[]) {
