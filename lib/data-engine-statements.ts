@@ -251,6 +251,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     "001": /BANCO DO BRASIL|\bBB\b/i,
     "033": /SANTANDER/i,
     "104": /CAIXA/i,
+    "707": /DAYCOVAL/i,
     "237": /BRADESCO/i,
     "341": /ITA[UÚ]/i,
     "422": /SAFRA/i,
@@ -336,24 +337,111 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         return best ? best[1].map((index) => candidates[index]) : [];
       };
 
+      const selectedIds = new Set<string>();
+      const exactCandidates: DataEngineBankRow[] = [];
+      const accountingRows = [...(applicationAccount.rows ?? [])].sort(
+        (left, right) => day(left.date).localeCompare(day(right.date)),
+      );
+
+      // A conta corrente e a aplicação podem chegar misturadas na mesma
+      // referência técnica. Primeiro localizamos os valores da aplicação no
+      // mês inteiro (a data bancária pode diferir da contabilização). Depois,
+      // só aceitamos os grupos que possuem a contrapartida oposta no próprio
+      // extrato. Isso evita que uma separação parcial transforme transferências
+      // internas em diferenças artificiais de centenas de milhares de reais.
+      for (const accountingRow of accountingRows) {
+        const accountingValue = cents(accountingRow.value);
+        const accountingDay = day(accountingRow.date);
+        const candidates = transactionSource.rows
+          .filter(
+            (row) =>
+              !selectedIds.has(row.id) && cents(row.value) === accountingValue,
+          )
+          .sort(
+            (left, right) =>
+              Number(right.date === accountingDay) -
+                Number(left.date === accountingDay) ||
+              left.date.localeCompare(right.date),
+          );
+        const candidate = candidates[0];
+        if (!candidate) continue;
+        selectedIds.add(candidate.id);
+        exactCandidates.push(candidate);
+      }
+
       const selectedApplicationRows: DataEngineBankRow[] = [];
-      for (const [date, target] of dailyTargets) {
-        if (!target) continue;
-        const rowsForDay = transactionSource.rows.filter(
-          (row) => row.date === date,
-        );
-        const applicationRows = selectNearTarget(rowsForDay, target);
-        if (!applicationRows.length) continue;
-        const selectedTotal = applicationRows.reduce(
+      const exactByDate = new Map<string, DataEngineBankRow[]>();
+      for (const row of exactCandidates) {
+        exactByDate.set(row.date, [...(exactByDate.get(row.date) ?? []), row]);
+      }
+      for (const [date, selectedForDay] of exactByDate) {
+        const selectedTotal = selectedForDay.reduce(
           (total, row) => total + cents(row.value),
           0,
         );
-        const counterpartRows = selectNearTarget(rowsForDay, -selectedTotal);
-        if (!counterpartRows.length) continue;
-        selectedApplicationRows.push(...applicationRows);
+        if (!selectedTotal) {
+          selectedApplicationRows.push(...selectedForDay);
+          continue;
+        }
+        const selectedForDayIds = new Set(selectedForDay.map((row) => row.id));
+        const counterpartRows = selectNearTarget(
+          transactionSource.rows.filter(
+            (row) => row.date === date && !selectedForDayIds.has(row.id),
+          ),
+          -selectedTotal,
+        );
+        if (counterpartRows.length) {
+          selectedApplicationRows.push(...selectedForDay);
+        }
       }
 
-      if (selectedApplicationRows.length) {
+      const monthlyTarget = accountingRows.reduce(
+        (total, row) => total + cents(row.value),
+        0,
+      );
+      let selectedTotal = selectedApplicationRows.reduce(
+        (total, row) => total + cents(row.value),
+        0,
+      );
+      const selectedApplicationIds = new Set(
+        selectedApplicationRows.map((row) => row.id),
+      );
+      const residualTarget = monthlyTarget - selectedTotal;
+
+      if (residualTarget) {
+        for (const date of Array.from(dailyTargets.keys()).sort()) {
+          const rowsForDay = transactionSource.rows.filter(
+            (row) =>
+              row.date === date && !selectedApplicationIds.has(row.id),
+          );
+          const residualRows = selectNearTarget(rowsForDay, residualTarget);
+          if (!residualRows.length) continue;
+          const residualIds = new Set(residualRows.map((row) => row.id));
+          const residualTotal = residualRows.reduce(
+            (total, row) => total + cents(row.value),
+            0,
+          );
+          const counterpartRows = selectNearTarget(
+            rowsForDay.filter((row) => !residualIds.has(row.id)),
+            -residualTotal,
+          );
+          if (!counterpartRows.length) continue;
+          selectedApplicationRows.push(...residualRows);
+          residualRows.forEach((row) => selectedApplicationIds.add(row.id));
+          selectedTotal += residualTotal;
+          break;
+        }
+      }
+
+      const monthlyTolerance = Math.max(
+        100,
+        Math.round(Math.abs(monthlyTarget) * 0.001),
+      );
+      const completeMonthlySplit =
+        selectedApplicationRows.length > 0 &&
+        Math.abs(selectedTotal - monthlyTarget) <= monthlyTolerance;
+
+      if (completeMonthlySplit) {
         const applicationRowIds = new Set(
           selectedApplicationRows.map((row) => row.id),
         );
@@ -421,7 +509,44 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         sameMonth += 1;
       }
     }
-    return sameDay * 1000 + sameMonth;
+
+    const netByDay = (
+      rows: Array<{ date?: Date | string; value: number }>,
+    ) => {
+      const totals = new Map<string, number>();
+      for (const row of rows) {
+        const rowDay = day(row.date);
+        if (!rowDay) continue;
+        totals.set(rowDay, (totals.get(rowDay) ?? 0) + cents(row.value));
+      }
+      return totals;
+    };
+    const sourceDaily = netByDay(source.rows);
+    const accountDaily = netByDay(accountRows);
+    const sameDailyNet = Array.from(sourceDaily).filter(
+      ([date, total]) =>
+        accountDaily.has(date) &&
+        Math.abs(total - (accountDaily.get(date) ?? 0)) <= 1,
+    ).length;
+    const sourceMonthly = Array.from(sourceDaily.values()).reduce(
+      (total, value) => total + value,
+      0,
+    );
+    const accountMonthly = Array.from(accountDaily.values()).reduce(
+      (total, value) => total + value,
+      0,
+    );
+    const sameMonthlyNet = Math.abs(sourceMonthly - accountMonthly) <= 1 ? 1 : 0;
+
+    // Evidência individual no mesmo dia continua sendo a mais forte. As
+    // somas diária e mensal permitem reconhecer contas cujos lançamentos
+    // foram agrupados pelo banco ou pela contabilidade.
+    return (
+      sameDay * 1_000_000 +
+      sameDailyNet * 1_000 +
+      sameMonth * 10 +
+      sameMonthlyNet
+    );
   };
   const bindByMovementEvidence = (
     source: DataEngineStatement,
@@ -804,6 +929,7 @@ function pendingContext(
   const bankByName: Array<[RegExp, string]> = [
     [/SICOOB/, "756"],
     [/SICREDI/, "748"],
+    [/DAYCOVAL/, "707"],
     [/SANTANDER/, "033"],
     [/ITAU/, "341"],
     [/CAIXA/, "104"],
@@ -1090,6 +1216,11 @@ export function mergeApplicationPositionStatements(
       "nome_fundo",
       "tipo_aplicacao",
     ]);
+    const applicationEvidence =
+      Boolean(product) ||
+      "posicao_aplicacao_id" in position ||
+      "application_position_id" in position ||
+      APPLICATION_ACCOUNT_PATTERN.test(sourceAccountId);
     const bankName = governedText(position, ["bank_name", "nome_banco"]);
     const name = product
       ? `Aplicação · ${product}`
@@ -1100,6 +1231,7 @@ export function mergeApplicationPositionStatements(
           : "Aplicação financeira";
 
     if (knownSources.has(sourceAccountId)) {
+      if (!applicationEvidence) continue;
       const current = recognized.find(
         (statement) => statement.sourceAccountId === sourceAccountId,
       );
@@ -1128,6 +1260,14 @@ export function mergeApplicationPositionStatements(
         closingBalance: null,
       },
     };
+    // Saldos e cobertura também descrevem contas correntes já tratadas em
+    // movimentos. Se uma dessas referências foi descartada por existir um
+    // Excel preferencial para a mesma conta, ela não pode reaparecer como um
+    // extrato vazio. Somente posições efetivamente identificadas como
+    // aplicação podem criar uma nova fonte sem movimentos.
+    if (!applicationEvidence || !isApplicationStatement(statement)) {
+      continue;
+    }
     if (
       isAnonymousApplicationStatement(statement) &&
       anonymousApplicationSeen
@@ -1527,7 +1667,15 @@ function statementsFromMovements(
 
   const evidenceFormatsByLink = new Map<string, Set<SourceFormat>>();
   const evidenceFormatsByAccount = new Map<string, Set<SourceFormat>>();
+  const evidenceBySource = new Map<string, Array<Record<string, unknown>>>();
   for (const evidence of options.sourceEvidence ?? []) {
+    const sourceAccountId = governedSourceIdentity(evidence);
+    if (sourceAccountId) {
+      evidenceBySource.set(sourceAccountId, [
+        ...(evidenceBySource.get(sourceAccountId) ?? []),
+        evidence,
+      ]);
+    }
     const format = sourceFormatFromRecord(evidence);
     if (format === "unknown") continue;
     for (const link of sourceLinkValues(evidence)) {
@@ -1535,7 +1683,6 @@ function statementsFromMovements(
       formats.add(format);
       evidenceFormatsByLink.set(link, formats);
     }
-    const sourceAccountId = governedSourceIdentity(evidence);
     if (sourceAccountId) {
       const formats =
         evidenceFormatsByAccount.get(sourceAccountId) ?? new Set<SourceFormat>();
@@ -1543,6 +1690,81 @@ function statementsFromMovements(
       evidenceFormatsByAccount.set(sourceAccountId, formats);
     }
   }
+
+  const sourceDetails = (sourceAccountId: string, fallbackBankId: string) => {
+    const records = evidenceBySource.get(sourceAccountId) ?? [];
+    const first = (fields: string[]) =>
+      records.map((record) => governedText(record, fields)).find(Boolean) ?? "";
+    const rawBankId = first([
+      "bank_id",
+      "codigo_banco",
+      "bank_code",
+      "cod_banco",
+      "codigo_compensacao",
+    ]);
+    const bankId = /^0*\d{1,3}$/.test(rawBankId)
+      ? rawBankId.replace(/^0+/, "").padStart(3, "0")
+      : fallbackBankId.padStart(3, "0");
+    const account = first([
+      "account_number",
+      "numero_conta",
+      "conta_bancaria",
+      "conta",
+      "nr_conta",
+    ]);
+    const agency = first([
+      "agency",
+      "agencia",
+      "branch_number",
+      "numero_agencia",
+      "nr_agencia",
+    ]);
+    const bankName = first([
+      "bank_name",
+      "nome_banco",
+      "instituicao",
+      "instituicao_financeira",
+    ]);
+    const product = first([
+      "product_name",
+      "nome_produto",
+      "application_name",
+      "nome_aplicacao",
+      "fund_name",
+      "nome_fundo",
+      "tipo_aplicacao",
+    ]);
+    const application = APPLICATION_ACCOUNT_PATTERN.test(
+      `${sourceAccountId} ${product}`,
+    );
+    return {
+      account,
+      agency,
+      application,
+      bankId,
+      name: product
+        ? `Aplicação · ${product}`
+        : bankName || `Banco ${bankId}`,
+    };
+  };
+
+  const sourceKey = (movement: Movement) => {
+    const details = sourceDetails(
+      movement.source_account_id,
+      movement.bank_id,
+    );
+    const account = details.account.replace(/\D/g, "").replace(/^0+/, "");
+    const agency = details.agency.replace(/\D/g, "").replace(/^0+/, "");
+    return account.length >= 4
+      ? [
+          "account",
+          details.bankId,
+          agency,
+          account,
+          details.application ? "application" : "transaction",
+        ].join("|")
+      : `source|${movement.source_account_id}`;
+  };
 
   const sourceFormat = (movement: Movement): SourceFormat => {
     const movementRecord = movement as unknown as Record<string, unknown>;
@@ -1566,11 +1788,11 @@ function statementsFromMovements(
   const accountsWithExcel = new Set(
     movements
       .filter((movement) => sourceFormat(movement) === "excel")
-      .map((movement) => movement.source_account_id),
+      .map(sourceKey),
   );
   const preferredMovements = movements.filter(
     (movement) =>
-      !accountsWithExcel.has(movement.source_account_id) ||
+      !accountsWithExcel.has(sourceKey(movement)) ||
       sourceFormat(movement) !== "pdf",
   );
 
@@ -1583,14 +1805,15 @@ function statementsFromMovements(
   const isGeneratedDescription = (description: string) =>
     /^MOVIMENTO-[A-Z0-9_-]{12,}$/i.test(description.trim());
   for (const movement of preferredMovements) {
+    const canonicalSource = sourceKey(movement);
     const canonicalId = movement.canonical_movement_id?.trim();
     const documentHash = movement.documento_hash?.trim();
     const canonicalKey = canonicalId
-      ? `${movement.source_account_id}|${canonicalId}`
+      ? `${canonicalSource}|${canonicalId}`
       : "";
     const documentKey = documentHash
       ? [
-          movement.source_account_id,
+          canonicalSource,
           movement.data_lancamento,
           movement.natureza,
           Math.abs(movement.valor_centavos),
@@ -1598,7 +1821,7 @@ function statementsFromMovements(
         ].join("|")
       : "";
     const businessKey = [
-      movement.source_account_id,
+      canonicalSource,
       movement.data_lancamento,
       movement.natureza,
       Math.abs(movement.valor_centavos),
@@ -1610,7 +1833,7 @@ function statementsFromMovements(
         .toUpperCase(),
     ].join("|");
     const contentKey = [
-      movement.source_account_id,
+      canonicalSource,
       movement.data_lancamento,
       movement.natureza,
       Math.abs(movement.valor_centavos),
@@ -1646,8 +1869,7 @@ function statementsFromMovements(
     const existing = selectedMovements[existingIndex];
     if (
       existing.cod_coligada !== movement.cod_coligada ||
-      existing.bank_id !== movement.bank_id ||
-      existing.source_account_id !== movement.source_account_id ||
+      sourceKey(existing) !== canonicalSource ||
       existing.data_lancamento !== movement.data_lancamento ||
       existing.valor_centavos !== movement.valor_centavos ||
       existing.natureza !== movement.natureza
@@ -1674,23 +1896,28 @@ function statementsFromMovements(
   }
 
   for (const movement of selectedMovements) {
-    let statement = groups.get(movement.source_account_id);
+    const canonicalSource = sourceKey(movement);
+    const details = sourceDetails(
+      movement.source_account_id,
+      movement.bank_id,
+    );
+    let statement = groups.get(canonicalSource);
     if (!statement) {
       statement = {
-        bankId: movement.bank_id,
+        bankId: details.bankId,
         sourceAccountId: movement.source_account_id,
         rows: [],
         metadata: {
-          agency: "",
-          account: movement.source_account_id.slice(0, 12),
+          agency: details.agency,
+          account: details.account || movement.source_account_id.slice(0, 12),
           period,
-          name: `Banco ${movement.bank_id}`,
+          name: details.name,
           openingBalance: null,
           closingBalance: null,
         },
       };
-      groups.set(movement.source_account_id, statement);
-    } else if (statement.bankId !== movement.bank_id) {
+      groups.set(canonicalSource, statement);
+    } else if (statement.bankId !== details.bankId) {
       throw new Error("Resposta inválida do Data Engine.");
     }
     statement.rows.push({

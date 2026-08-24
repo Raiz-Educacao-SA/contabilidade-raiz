@@ -1568,3 +1568,185 @@ test("mantém Santander sem vínculo quando os movimentos continuam ambíguos", 
   assert.equal(identified.unmatchedSources.length, 1);
   assert.equal(identified.unmatchedAccounts.length, 2);
 });
+
+test("não aceita separação parcial entre aplicação e conta corrente", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "033",
+    sourceAccountId: "santander-compartilhado",
+    rows: [
+      { id: "aplicacao-1", date: "2026-06-01", description: "APLICAÇÃO", value: 100 },
+      { id: "corrente-1", date: "2026-06-01", description: "CONTRAPARTIDA", value: -100 },
+    ],
+    metadata: {
+      account: "referencia-tecnica",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const application = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-posicao",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const result = resolveStatementBindings(
+    [source, application],
+    [
+      {
+        code: "1.1.1.03.03.20",
+        name: "Banco Santander - conta Aplic. 12345-6",
+        rows: [
+          { date: "2026-06-01", value: 100 },
+          { date: "2026-06-02", value: -90 },
+        ],
+      },
+      {
+        code: "1.1.1.02.03.20",
+        name: "Banco Santander - conta 12345-6",
+        rows: [],
+      },
+    ],
+  );
+
+  const applicationPair = result.pairs.find(
+    (pair: { account: { code: string } }) => pair.account.code === "1.1.1.03.03.20",
+  );
+  const currentPair = result.pairs.find(
+    (pair: { account: { code: string } }) => pair.account.code === "1.1.1.02.03.20",
+  );
+  assert.equal(applicationPair?.source.rows.length, 0);
+  assert.equal(currentPair?.source.rows.length, 2);
+});
+
+test("vincula contas Daycoval pelo total diário quando o banco agrupa lançamentos", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const statement = (id: string, values: number[]) => ({
+    bankId: "707",
+    sourceAccountId: id,
+    rows: values.map((value, index) => ({
+      id: `${id}-${index}`,
+      date: "2026-06-10",
+      description: "MOVIMENTO AGRUPADO",
+      value,
+    })),
+    metadata: {
+      account: id,
+      agency: "",
+      closingBalance: null,
+      name: "Banco 707",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  });
+  const result = resolveStatementBindings(
+    [statement("daycoval-a", [60, 40]), statement("daycoval-b", [30, 20])],
+    [
+      {
+        code: "1.1.1.02.05.07",
+        name: "Banco Daycoval - Conta 745596-0",
+        rows: [{ date: "2026-06-10", value: 100 }],
+      },
+      {
+        code: "1.1.1.02.05.09",
+        name: "Banco Daycoval - Conta CASH 610638-4",
+        rows: [{ date: "2026-06-10", value: 50 }],
+      },
+    ],
+  );
+
+  assert.deepEqual(
+    Object.fromEntries(
+      result.pairs.map((pair: { account: { code: string }; source: { sourceAccountId: string } }) => [
+        pair.source.sourceAccountId,
+        pair.account.code,
+      ]),
+    ),
+    {
+      "daycoval-a": "1.1.1.02.05.07",
+      "daycoval-b": "1.1.1.02.05.09",
+    },
+  );
+});
+
+test("prioriza Excel entre referências técnicas da mesma conta bancária", async () => {
+  const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
+  const result = await loadDataEngineStatementSnapshot({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 9,
+    fetcher: async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/tesouraria/extratos/movimentos") {
+        return Response.json({
+          items: [
+            {
+              movimento_id: "movimento-pdf",
+              cod_coligada: 9,
+              bank_id: "707",
+              source_account_id: "referencia-pdf",
+              processing_identity_id: "processamento-pdf",
+              data_lancamento: "2026-06-10",
+              valor_centavos: 35100,
+              natureza: "D",
+              descricao_sanitizada: "MOVIMENTO-PDF-GENERICO",
+            },
+            {
+              movimento_id: "movimento-excel",
+              cod_coligada: 9,
+              bank_id: "707",
+              source_account_id: "referencia-excel",
+              processing_identity_id: "processamento-excel",
+              data_lancamento: "2026-06-10",
+              valor_centavos: 35100,
+              natureza: "D",
+              descricao_sanitizada: "TARIFA BANCÁRIA",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      if (url.pathname === "/v1/tesouraria/extratos/cobertura") {
+        return Response.json({
+          items: [
+            {
+              cod_coligada: 9,
+              source_account_id: "referencia-pdf",
+              processing_identity_id: "processamento-pdf",
+              numero_conta: "745596-0",
+              evidence_ref: "extrato-daycoval.pdf",
+            },
+            {
+              cod_coligada: 9,
+              source_account_id: "referencia-excel",
+              processing_identity_id: "processamento-excel",
+              numero_conta: "745596-0",
+              evidence_ref: "extrato-daycoval.xlsx",
+            },
+          ],
+          next_cursor: null,
+        });
+      }
+      return Response.json({ items: [], next_cursor: null });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.statements.length, 1);
+  assert.equal(result.statements[0].metadata.account, "745596-0");
+  assert.deepEqual(
+    result.statements[0].rows.map((row: { id: string }) => row.id),
+    ["movimento-excel"],
+  );
+});
