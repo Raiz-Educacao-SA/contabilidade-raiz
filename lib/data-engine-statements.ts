@@ -546,6 +546,105 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           const currentAccountingRows = [...(currentAccounts[0].rows ?? [])].sort(
             (left, right) => day(left.date).localeCompare(day(right.date)),
           );
+          const totalInDirection = (
+            rows: Array<{ value: number }>,
+            direction: number,
+          ) =>
+            rows
+              .filter((row) => Math.sign(cents(row.value)) === direction)
+              .reduce((total, row) => total + Math.abs(cents(row.value)), 0);
+          const currentDebitTarget = totalInDirection(currentAccountingRows, 1);
+          const currentCreditTarget = totalInDirection(currentAccountingRows, -1);
+          const rawDebitTotal = totalInDirection(currentRows, 1);
+          const rawCreditTotal = totalInDirection(currentRows, -1);
+          const debitExcess = rawDebitTotal - currentDebitTarget;
+          const creditExcess = rawCreditTotal - currentCreditTarget;
+          let complementComplete = false;
+
+          // Quando o PDF de aplicação compartilha a referência da conta
+          // corrente, a maior parte dos movimentos já é legítima. Nesse caso,
+          // é mais seguro localizar e retirar somente o excedente diário das
+          // colunas auxiliares do que tentar reconstruir todo o extrato.
+          if (
+            debitExcess >= 0 &&
+            creditExcess >= 0 &&
+            (!currentDebitTarget || debitExcess / currentDebitTarget <= 0.1) &&
+            (!currentCreditTarget || creditExcess / currentCreditTarget <= 0.1)
+          ) {
+            const excludedIds = new Set<string>();
+            const currentDates = Array.from(
+              new Set([
+                ...currentRows.map((row) => row.date),
+                ...currentAccountingRows.map((row) => day(row.date)),
+              ].filter(Boolean)),
+            ).sort();
+            for (const date of currentDates) {
+              for (const direction of [1, -1]) {
+                const candidates = currentRows.filter(
+                  (row) =>
+                    row.date === date &&
+                    !excludedIds.has(row.id) &&
+                    Math.sign(cents(row.value)) === direction,
+                );
+                const rawDailyTotal = totalInDirection(candidates, direction);
+                const accountingDailyTarget = totalInDirection(
+                  currentAccountingRows.filter((row) => day(row.date) === date),
+                  direction,
+                );
+                const dailyExcess = rawDailyTotal - accountingDailyTarget;
+                if (dailyExcess <= 100) continue;
+                const auxiliaryRows = selectNearTarget(
+                  candidates,
+                  direction * dailyExcess,
+                );
+                auxiliaryRows.forEach((row) => excludedIds.add(row.id));
+              }
+            }
+
+            for (const direction of [1, -1]) {
+              const remainingRows = currentRows.filter(
+                (row) =>
+                  !excludedIds.has(row.id) &&
+                  Math.sign(cents(row.value)) === direction,
+              );
+              const target =
+                direction === 1 ? currentDebitTarget : currentCreditTarget;
+              const remainingExcess =
+                totalInDirection(remainingRows, direction) - target;
+              if (remainingExcess <= 100) continue;
+              const auxiliaryRows = selectNearTarget(
+                remainingRows,
+                direction * remainingExcess,
+              );
+              auxiliaryRows.forEach((row) => excludedIds.add(row.id));
+            }
+
+            const complementRows = currentRows.filter(
+              (row) => !excludedIds.has(row.id),
+            );
+            const selectedDebitTotal = totalInDirection(complementRows, 1);
+            const selectedCreditTotal = totalInDirection(complementRows, -1);
+            complementComplete =
+              excludedIds.size > 0 &&
+              Math.abs(selectedDebitTotal - currentDebitTarget) <= 100 &&
+              Math.abs(selectedCreditTotal - currentCreditTarget) <= 100;
+            diagnostics.currentComplement = {
+              complete: complementComplete,
+              creditDifferenceInCents:
+                selectedCreditTotal - currentCreditTarget,
+              debitDifferenceInCents: selectedDebitTotal - currentDebitTarget,
+              excludedRows: excludedIds.size,
+              rawRows: currentRows.length,
+              selectedRows: complementRows.length,
+            };
+            if (complementComplete) {
+              currentRows = complementRows.sort((left, right) =>
+                left.date.localeCompare(right.date),
+              );
+            }
+          }
+
+          if (!complementComplete) {
           const selectedCurrentRows: DataEngineBankRow[] = [];
           const selectedCurrentIds = new Set<string>();
           for (const accountingRow of currentAccountingRows) {
@@ -661,6 +760,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             currentRows = selectedCurrentRows.sort((left, right) =>
               left.date.localeCompare(right.date),
             );
+          }
           }
         }
         normalizedSources = normalizedSources.map((source) => {
