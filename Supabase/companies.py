@@ -8,7 +8,7 @@ COMPANIES = [
     {"codigo": "05", "razao_social": "AO CUBO", "cnpj": "23.075.186/0001-43"},
     {"codigo": "06", "razao_social": "METROPOLITANO", "cnpj": "33.590.308/0001-93"},
     {"codigo": "08", "razao_social": "MATRIZ EDUCAÇÃO", "cnpj": "28.336.302/0001-54"},
-    {"codigo": "09", "razao_social": "CRECHE IPÊ", "cnpj": "28.734.505/0001-07"},
+    {"codigo": "09", "razao_social": "GLOBAL TREE", "cnpj": "28.734.505/0001-07"},
     {"codigo": "10", "razao_social": "ESCOLAS INTEGRADAS", "cnpj": "07.499.961/0001-31"},
     {"codigo": "11", "razao_social": "GEU", "cnpj": "89.409.825/0001-78"},
     {"codigo": "12", "razao_social": "CLV", "cnpj": "09.262.835/0001-94"},

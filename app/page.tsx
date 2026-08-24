@@ -95,6 +95,21 @@ type ScheduleCompany = {
 
 type ScheduleModuleKey = (typeof CLOSING_SCHEDULE_MODULES)[number];
 
+const companyDisplayNames: Record<string, string> = {
+  "09": "GLOBAL TREE",
+};
+
+function applyCompanyDisplayName(company: Company): Company {
+  if (!company.empresas) return company;
+  const displayName = companyDisplayNames[company.empresas.codcoligada];
+  return displayName
+    ? {
+        ...company,
+        empresas: { ...company.empresas, razao_social: displayName },
+      }
+    : company;
+}
+
 const scheduleSidebarModules = [
   { id: "financeiro", label: "Módulo Financeiro", icon: WalletCards },
   { id: "folha", label: "Módulo Folha de Pagamento", icon: UsersRound },
@@ -424,7 +439,9 @@ export default function Home() {
         setCompaniesLoading(false);
         return;
       }
-      const rows = (companiesResult.data ?? []) as unknown as Company[];
+      const rows = ((companiesResult.data ?? []) as unknown as Company[]).map(
+        applyCompanyDisplayName,
+      );
       setCompanies(rows);
       if (!grantsResult.error) {
         setModuleGrants((grantsResult.data ?? []).flatMap((row) => {
