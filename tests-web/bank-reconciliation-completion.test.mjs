@@ -109,6 +109,13 @@ test("mantém fichas recolhidas também para as contas conciliadas", () => {
   );
 });
 
+test("não libera a conciliação quando o Data Engine só devolve pendências", () => {
+  assert.match(panel, /if \(sources\.length > 0\)/);
+  assert.match(panel, /setStatementsUpdated\(false\)/);
+  assert.match(panel, /LEGACY_DOCUMENT_INVALID/);
+  assert.match(panel, /aguardando reprocessamento na origem/);
+});
+
 test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {
   assert.match(matcher, /exactDate \? dayKey\(a\.date\) === dayKey\(b\.date\)/);
   assert.match(matcher, /monthKey\(a\.date\) === monthKey\(b\.date\)/);

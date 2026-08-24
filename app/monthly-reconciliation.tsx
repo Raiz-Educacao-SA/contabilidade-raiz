@@ -552,6 +552,12 @@ export default function MonthlyReconciliationPanel({
         error?: string;
         records?: number;
         operations?: DataEngineStatementOperations;
+        diagnostics?: {
+          pendingSummary?: {
+            reasons?: Record<string, number>;
+            statuses?: Record<string, number>;
+          };
+        };
       };
       if (!requestIsCurrent()) return;
       if (!response.ok || data.error)
@@ -561,11 +567,25 @@ export default function MonthlyReconciliationPanel({
       const sources = data.statements ?? [];
       setDataEngineSources(sources);
       setDataEngineOperations(data.operations ?? null);
-      if (applySourceBindings(sources, bankAccounts)) {
+      applySourceBindings(sources, bankAccounts);
+      if (sources.length > 0) {
         setStatementsUpdated(true);
         setStatementsRevision(nextSourceRevision());
         setNotice(
           `${data.records ?? 0} movimento(s) carregado(s) do Data Engine em ${sources.length} conta(s) reconhecida(s).`,
+        );
+      } else {
+        setStatementsUpdated(false);
+        const pendingCount = data.operations?.pendencias ?? 0;
+        const invalidLegacyCount =
+          data.diagnostics?.pendingSummary?.reasons?.LEGACY_DOCUMENT_INVALID ??
+          0;
+        setNotice(
+          invalidLegacyCount > 0
+            ? `O Data Engine não publicou movimentos para esta coligada. Há ${invalidLegacyCount} documento(s) histórico(s) inválido(s) aguardando reprocessamento na origem.`
+            : pendingCount > 0
+              ? `O Data Engine não publicou movimentos para esta coligada. Há ${pendingCount} pendência(s) aberta(s) na origem.`
+              : "O Data Engine não publicou movimentos para a competência selecionada.",
         );
       }
     } catch (error) {
