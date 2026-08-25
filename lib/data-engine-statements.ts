@@ -2342,6 +2342,32 @@ function statementsFromMovements(
       sourceFormat(movement) !== "pdf",
   );
 
+  const documentGroups = new Map<string, Movement[]>();
+  for (const movement of movements) {
+    const key = [movement.bank_id, sourceDocumentIdentity(movement)].join("|");
+    documentGroups.set(key, [...(documentGroups.get(key) ?? []), movement]);
+  }
+  console.info("[data-engine/statements] fontes recebidas", {
+    company: options.codColigada,
+    period,
+    documents: Array.from(documentGroups.values()).map((items) => {
+      const entries = items
+        .filter((item) => item.natureza !== "D")
+        .reduce((total, item) => total + Math.abs(item.valor_centavos), 0);
+      const exits = items
+        .filter((item) => item.natureza === "D")
+        .reduce((total, item) => total + Math.abs(item.valor_centavos), 0);
+      return {
+        bankId: items[0].bank_id.padStart(3, "0"),
+        entries: entries / 100,
+        exits: exits / 100,
+        format: sourceFormat(items[0]),
+        movements: items.length,
+        net: (entries - exits) / 100,
+      };
+    }),
+  });
+
   const sourcePriority = BANK_STATEMENT_SOURCE_PRIORITY;
   const canonicalIndexes = new Map<string, number>();
   const documentIndexes = new Map<string, number>();
