@@ -1907,6 +1907,91 @@ test("separa somente os movimentos reais da aplicação e mantém o restante na 
   assert.deepEqual(result.unmatchedSources, []);
 });
 
+test("não usa pagamentos da conta corrente para completar saldo residual da aplicação", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "033",
+    sourceAccountId: "santander-misto-qi",
+    rows: [
+      { id: "app-principal", date: "2026-06-01", description: "RESGATE PRINCIPAL", value: -3375.77 },
+      { id: "corrente-entrada", date: "2026-06-01", description: "PIX RECEBIDO", value: 1000 },
+      { id: "corrente-262-a", date: "2026-06-01", description: "PAGAMENTO A", value: -262.83 },
+      { id: "corrente-262-b", date: "2026-06-01", description: "PAGAMENTO B", value: -262.83 },
+      { id: "corrente-restante", date: "2026-06-01", description: "PAGAMENTO C", value: -474.34 },
+    ],
+    metadata: {
+      account: "13081272-2",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const applicationSource = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-qi",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const result = resolveStatementBindings(
+    [source, applicationSource],
+    [
+      {
+        code: "1.1.1.03.03.19",
+        name: "Banco Santander - conta Aplic. 13081272-2 (Qi)",
+        rows: [{ date: "2026-06-01", value: -3901.43 }],
+      },
+      {
+        code: "1.1.1.02.03.01",
+        name: "Banco Santander - conta 13081272-2 (Qi)",
+        rows: [
+          { date: "2026-06-01", value: 1000 },
+          { date: "2026-06-01", value: -1000 },
+        ],
+      },
+    ],
+  );
+  const application = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.03.03.19",
+  );
+  const current = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.01",
+  );
+
+  assert.deepEqual(
+    application?.source.rows.map((row: { id: string }) => row.id),
+    ["app-principal"],
+  );
+  assert.deepEqual(
+    current?.source.rows.map((row: { id: string }) => row.id),
+    [
+      "corrente-entrada",
+      "corrente-262-a",
+      "corrente-262-b",
+      "corrente-restante",
+    ],
+  );
+  assert.equal(
+    Math.round(
+      (current?.source.rows.reduce(
+        (total: number, row: { value: number }) => total + row.value,
+        0,
+      ) ?? 0) * 100,
+    ),
+    0,
+  );
+});
+
 test("separa vários agrupamentos líquidos diários da aplicação no mesmo mês", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const source = {
