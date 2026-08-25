@@ -92,6 +92,35 @@ test("pagina movimentos do Data Engine e agrupa contas sem expor o token", async
   assert.equal(JSON.stringify(result).includes("short-lived-token"), false);
 });
 
+test("distingue competência vazia de empresa sem qualquer movimento publicado", async () => {
+  const { probeDataEngineMovementAvailability } = await import(moduleUrl.href);
+  const requests: URL[] = [];
+  const result = await probeDataEngineMovementAvailability({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 13,
+    codColigadaCode: "13",
+    fetcher: async (input: RequestInfo | URL) => {
+      requests.push(new URL(String(input)));
+      return Response.json({ items: [], next_cursor: null });
+    },
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.deepEqual(result, {
+    firstMovementDate: null,
+    hasMore: false,
+    recordsSampled: 0,
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].pathname, "/v1/tesouraria/extratos/movimentos");
+  assert.equal(requests[0].searchParams.get("cod_coligada"), "13");
+  assert.equal(requests[0].searchParams.get("limit"), "1");
+  assert.equal(requests[0].searchParams.has("from_date"), false);
+  assert.equal(requests[0].searchParams.has("to_date"), false);
+});
+
 test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-03";

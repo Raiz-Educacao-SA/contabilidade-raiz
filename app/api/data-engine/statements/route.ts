@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   DataEngineHttpError,
   loadDataEngineStatementSnapshot,
+  probeDataEngineMovementAvailability,
   statementPeriod,
 } from "@/lib/data-engine-statements";
 import { isAuthorizedCompany } from "@/lib/server/authorized-company";
@@ -58,15 +59,16 @@ export async function GET(request: NextRequest) {
       tokenUrl: process.env.DATA_ENGINE_TOKEN_URL,
     });
     const { fromDate, toDate } = statementPeriod(competence);
+    const loadOptions = (accessToken: string) => ({
+      accessToken,
+      baseUrl,
+      codColigada: Number(company),
+      codColigadaCode: company.padStart(2, "0"),
+      fromDate,
+      toDate,
+    });
     const loadSnapshot = (accessToken: string) =>
-      loadDataEngineStatementSnapshot({
-        accessToken,
-        baseUrl,
-        codColigada: Number(company),
-        codColigadaCode: company.padStart(2, "0"),
-        fromDate,
-        toDate,
-      });
+      loadDataEngineStatementSnapshot(loadOptions(accessToken));
     let accessToken = await oauthClient.getAccessToken();
     let snapshot;
     try {
@@ -79,6 +81,10 @@ export async function GET(request: NextRequest) {
       accessToken = await oauthClient.getAccessToken();
       snapshot = await loadSnapshot(accessToken);
     }
+    const movementAvailability =
+      snapshot.operations.movimentos === 0
+        ? await probeDataEngineMovementAvailability(loadOptions(accessToken))
+        : null;
     const movementsByBank = snapshot.statements.reduce<Record<string, number>>(
       (summary, statement) => {
         const bankId = statement.bankId.padStart(3, "0");
@@ -115,6 +121,7 @@ export async function GET(request: NextRequest) {
       diagnostics: snapshot.diagnostics,
       pendingSummary: JSON.stringify(snapshot.diagnostics.pendingSummary),
       movementsByBank,
+      movementAvailability,
       operations: snapshot.operations,
       records: movementRecords,
       statementSummary,
@@ -128,7 +135,10 @@ export async function GET(request: NextRequest) {
         source: "Raiz Data Engine",
         statements: snapshot.statements,
         operations: snapshot.operations,
-        diagnostics: snapshot.diagnostics,
+        diagnostics: {
+          ...snapshot.diagnostics,
+          movementAvailability,
+        },
       },
       { headers: { "cache-control": "private, no-store" } },
     );

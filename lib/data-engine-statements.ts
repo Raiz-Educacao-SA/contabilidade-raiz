@@ -34,6 +34,12 @@ export type DataEngineStatementOperations = {
   pendenciasUtilizadas: number;
 };
 
+export type DataEngineMovementAvailability = {
+  firstMovementDate: string | null;
+  hasMore: boolean;
+  recordsSampled: number;
+};
+
 export type DataEngineStatementSnapshot = {
   statements: DataEngineStatement[];
   operations: DataEngineStatementOperations;
@@ -2378,6 +2384,35 @@ export async function loadDataEngineStatements(
   }
 
   return statementsFromMovements(movements, options);
+}
+
+export async function probeDataEngineMovementAvailability(
+  options: LoadOptions,
+): Promise<DataEngineMovementAvailability> {
+  validateOptions(options);
+  const fetcher = options.fetcher ?? fetch;
+  const url = new URL("/v1/tesouraria/extratos/movimentos", options.baseUrl);
+  url.searchParams.set(
+    "cod_coligada",
+    options.codColigadaCode ?? String(options.codColigada).padStart(2, "0"),
+  );
+  url.searchParams.set("limit", "1");
+
+  const response = await fetcher(url, {
+    cache: "no-store",
+    headers: {
+      accept: "application/json",
+      authorization: `Bearer ${options.accessToken}`,
+    },
+  });
+  if (!response.ok) throw new DataEngineHttpError(response.status);
+
+  const page = parsePage(await response.json());
+  return {
+    firstMovementDate: page.items[0]?.data_lancamento ?? null,
+    hasMore: Boolean(page.next_cursor),
+    recordsSampled: page.items.length,
+  };
 }
 
 function statementsFromMovements(
