@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeftRight,
   CheckCircle2,
   Database,
   Download,
   Landmark,
+  ListChecks,
   RefreshCw,
   Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 import {
@@ -29,6 +32,7 @@ import {
   type DataEngineStatement,
   type DataEngineStatementOperations,
 } from "@/lib/data-engine-statements";
+import { BANK_RECONCILIATION_POLICY_STEPS } from "@/lib/bank-reconciliation-policy";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import { financialCompletionIdentity } from "@/lib/schedule-completion";
 import type { TotvsAccountingDiagnostic } from "@/lib/totvs-accounting";
@@ -291,6 +295,8 @@ export default function MonthlyReconciliationPanel({
   const [expandedResultCode, setExpandedResultCode] = useState<string | null>(
     null,
   );
+  const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const accountingRequestRef = useRef(0);
   const dataEngineRequestRef = useRef(0);
   const accountingAbortRef = useRef<AbortController | null>(null);
@@ -377,6 +383,29 @@ export default function MonthlyReconciliationPanel({
           ? "Atualize agora os extratos bancários"
           : "Bases prontas; clique para executar a conciliação";
   const completionIdentity = financialCompletionIdentity("bancaria", companyCode, companyName);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) {
+        setActionsTarget(
+          document.getElementById("bank-reconciliation-filter-actions"),
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!rulesOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRulesOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [rulesOpen]);
 
   useEffect(
     () => () => {
@@ -701,6 +730,44 @@ export default function MonthlyReconciliationPanel({
 
   return (
     <section className="panel monthly-flow">
+      {actionsTarget &&
+        createPortal(
+          <div className="history-actions bank-history-actions">
+            <ModuleCompletionControl
+              competence={competence}
+              modulo={completionIdentity.modulo}
+              setor={completionIdentity.setor}
+              userId={userId}
+              userEmail={reconciledBy}
+              disabled={!results.length}
+              disabledReason="Execute a conciliação antes de finalizar a tarefa."
+            />
+            <button
+              className="secondary"
+              disabled={!results.length}
+              onClick={downloadConsolidatedReport}
+            >
+              <Download />
+              Relatório consolidado
+            </button>
+            <button
+              className="rules-button"
+              onClick={() => setRulesOpen(true)}
+            >
+              <ListChecks />
+              Regra aplicada
+            </button>
+            <button
+              className="clear-history"
+              disabled={!results.length}
+              onClick={clearHistory}
+            >
+              <Trash2 />
+              Limpar histórico
+            </button>
+          </div>,
+          actionsTarget,
+        )}
       <div className="panel-title">
         <div className="source-control-title">
           <span>ATUALIZAÇÃO DAS FONTES</span>
@@ -710,34 +777,53 @@ export default function MonthlyReconciliationPanel({
             conferência do mês.
           </p>
         </div>
-        <div className="history-actions">
-          <ModuleCompletionControl
-            competence={competence}
-            modulo={completionIdentity.modulo}
-            setor={completionIdentity.setor}
-            userId={userId}
-            userEmail={reconciledBy}
-            disabled={!results.length}
-            disabledReason="Execute a conciliação antes de finalizar a tarefa."
-          />
-          <button
-            className="secondary"
-            disabled={!results.length}
-            onClick={downloadConsolidatedReport}
-          >
-            <Download />
-            Relatório consolidado
-          </button>
-          <button
-            className="clear-history"
-            disabled={!results.length}
-            onClick={clearHistory}
-          >
-            <Trash2 />
-            Limpar histórico
-          </button>
-        </div>
       </div>
+      {rulesOpen && (
+        <div
+          className="reconciliation-rules-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setRulesOpen(false);
+          }}
+        >
+          <section
+            className="reconciliation-rules-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reconciliation-rules-title"
+          >
+            <header>
+              <div>
+                <span>CONCILIAÇÃO BANCÁRIA</span>
+                <h2 id="reconciliation-rules-title">Regras aplicadas</h2>
+                <p>Passo a passo usado pelo sistema para conferir cada competência.</p>
+              </div>
+              <button
+                type="button"
+                className="rules-close"
+                aria-label="Fechar regras aplicadas"
+                onClick={() => setRulesOpen(false)}
+              >
+                <X />
+              </button>
+            </header>
+
+            <ol className="reconciliation-rules-steps">
+              {BANK_RECONCILIATION_POLICY_STEPS.map((step) => (
+                <li key={step.title}>
+                  <b>{step.title}</b>
+                  <p>{step.detail}</p>
+                </li>
+              ))}
+            </ol>
+
+            <footer>
+              <span>A conciliação automática só é liberada depois que as duas bases estiverem atualizadas.</span>
+              <button type="button" onClick={() => setRulesOpen(false)}>Entendi</button>
+            </footer>
+          </section>
+        </div>
+      )}
       {notice && (
         <div
           className={`notice ${notice.startsWith("Erro:") ? "error" : ""}`}

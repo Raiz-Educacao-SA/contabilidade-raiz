@@ -954,6 +954,12 @@ export default function Home() {
               className="filter-actions-slot payroll-filter-actions"
             />
           )}
+          {selectedModule === "bancaria" && tab === "conciliacao" && (
+            <div
+              id="bank-reconciliation-filter-actions"
+              className="filter-actions-slot bank-filter-actions"
+            />
+          )}
           {moduleCompletionIdentity && (
             <ModuleCompletionControl
               competence={competence}

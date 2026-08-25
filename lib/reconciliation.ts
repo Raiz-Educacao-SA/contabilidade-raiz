@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { isAccountingAccountEligibleForBankReconciliation } from "@/lib/reconciliation-account-eligibility";
+import { BANK_RECONCILIATION_TOLERANCE } from "@/lib/bank-reconciliation-policy";
 import { reconcileMovements } from "@/lib/reconciliation-matcher";
 export {
   selectMonthlyDifferenceDays,
@@ -234,7 +235,11 @@ export function accountingBankAccounts(accounting: AccountingRow[]) {
   return (bankGroups.length ? bankGroups : eligibleGroups).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
 }
 
-export function reconcile(bank: BankRow[], accounting: AccountingRow[], toleranceValue = 1) {
+export function reconcile(
+  bank: BankRow[],
+  accounting: AccountingRow[],
+  toleranceValue = BANK_RECONCILIATION_TOLERANCE,
+) {
   return reconcileMovements(bank, accounting, toleranceValue) as MatchRow[];
 }
 

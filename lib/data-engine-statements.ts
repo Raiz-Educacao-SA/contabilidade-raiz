@@ -1,3 +1,9 @@
+import {
+  BANK_RECONCILIATION_TOLERANCE,
+  BANK_RECONCILIATION_TOLERANCE_CENTS,
+  BANK_STATEMENT_SOURCE_PRIORITY,
+} from "./bank-reconciliation-policy.ts";
+
 export type DataEngineBankRow = {
   id: string;
   date: string;
@@ -319,7 +325,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         if (!absoluteTarget) return [] as DataEngineBankRow[];
         // Um desvio de até R$ 1,00 permite identificar lançamentos líquidos
         // sujeitos a centavos de IOF/IR sem esconder diferenças relevantes.
-        const tolerance = 100;
+        const tolerance = BANK_RECONCILIATION_TOLERANCE_CENTS;
         const candidates = rows.filter((row) => cents(row.value) * target > 0);
         if (!candidates.length) {
           return [] as DataEngineBankRow[];
@@ -431,7 +437,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         if (quickSelection.length) return quickSelection;
 
         const absoluteTarget = Math.abs(target);
-        const tolerance = 100;
+        const tolerance = BANK_RECONCILIATION_TOLERANCE_CENTS;
         const maximumTarget = 25_000_000;
         const candidates = rows.filter((row) => {
           const amount = Math.abs(cents(row.value));
@@ -611,7 +617,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         }
       }
 
-      const monthlyTolerance = 100;
+      const monthlyTolerance = BANK_RECONCILIATION_TOLERANCE_CENTS;
       const completeMonthlySplit =
         selectedApplicationRows.length > 0 &&
         Math.abs(selectedTotal - monthlyTarget) <= monthlyTolerance;
@@ -683,8 +689,10 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             const selectedCreditTotal = totalInDirection(complementRows, -1);
             complementComplete =
               excludedIds.size > 0 &&
-              Math.abs(selectedDebitTotal - currentDebitTarget) <= 100 &&
-              Math.abs(selectedCreditTotal - currentCreditTarget) <= 100;
+              Math.abs(selectedDebitTotal - currentDebitTarget) <=
+                BANK_RECONCILIATION_TOLERANCE_CENTS &&
+              Math.abs(selectedCreditTotal - currentCreditTarget) <=
+                BANK_RECONCILIATION_TOLERANCE_CENTS;
             if (complementComplete) {
               currentRows = complementRows.sort((left, right) =>
                 left.date.localeCompare(right.date),
@@ -773,7 +781,8 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           if (
             selectedCurrentRows.length > 0 &&
             currentCoverage >= 0.9 &&
-            Math.abs(currentSelectedTotal - currentMonthlyTarget) <= 100
+            Math.abs(currentSelectedTotal - currentMonthlyTarget) <=
+              BANK_RECONCILIATION_TOLERANCE_CENTS
           ) {
             currentRows = selectedCurrentRows.sort((left, right) =>
               left.date.localeCompare(right.date),
@@ -861,7 +870,8 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     const sameDailyNet = Array.from(sourceDaily).filter(
       ([date, total]) =>
         accountDaily.has(date) &&
-        Math.abs(total - (accountDaily.get(date) ?? 0)) <= 1,
+        Math.abs(total - (accountDaily.get(date) ?? 0)) <=
+          BANK_RECONCILIATION_TOLERANCE,
     ).length;
     const sourceMonthly = Array.from(sourceDaily.values()).reduce(
       (total, value) => total + value,
@@ -871,7 +881,11 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       (total, value) => total + value,
       0,
     );
-    const sameMonthlyNet = Math.abs(sourceMonthly - accountMonthly) <= 1 ? 1 : 0;
+    const sameMonthlyNet =
+      Math.abs(sourceMonthly - accountMonthly) <=
+      BANK_RECONCILIATION_TOLERANCE
+        ? 1
+        : 0;
 
     // Evidência individual no mesmo dia continua sendo a mais forte. As
     // somas diária e mensal permitem reconhecer contas cujos lançamentos
@@ -2269,6 +2283,51 @@ function statementsFromMovements(
       : "unknown";
   };
 
+  const sourceDocumentIdentity = (movement: Movement) => {
+    const record = movement as unknown as Record<string, unknown>;
+    const firstValue = (fields: string[]) =>
+      fields
+        .map((field) => record[field])
+        .find(
+          (value): value is string | number =>
+            typeof value === "string" || typeof value === "number",
+        );
+    const technicalIdentity = firstValue([
+      "processing_identity_id",
+      "processingIdentityId",
+      "source_file_id",
+      "source_document_id",
+      "file_id",
+      "arquivo_id",
+      "document_id",
+      "documento_id",
+      "object_id",
+      "object_key",
+      "ingestion_id",
+      "import_id",
+      "upload_id",
+    ]);
+    if (technicalIdentity !== undefined) {
+      return `technical|${String(technicalIdentity).trim()}`;
+    }
+    const fileIdentity = firstValue([
+      "file_name",
+      "filename",
+      "nome_arquivo",
+      "arquivo_nome",
+      "evidence_ref",
+      "source_path",
+      "file_path",
+      "object_name",
+    ]);
+    if (fileIdentity !== undefined) {
+      return `file|${String(fileIdentity).trim().toLowerCase()}`;
+    }
+    const documentHash = movement.documento_hash?.trim();
+    if (documentHash) return `hash|${documentHash}`;
+    return `movement|${movement.movimento_id}`;
+  };
+
   const accountsWithExcel = new Set(
     movements
       .filter((movement) => sourceFormat(movement) === "excel")
@@ -2280,7 +2339,7 @@ function statementsFromMovements(
       sourceFormat(movement) !== "pdf",
   );
 
-  const sourcePriority = { unknown: 0, pdf: 1, excel: 2 } as const;
+  const sourcePriority = BANK_STATEMENT_SOURCE_PRIORITY;
   const canonicalIndexes = new Map<string, number>();
   const documentIndexes = new Map<string, number>();
   const businessIndexes = new Map<string, number>();
@@ -2331,20 +2390,30 @@ function statementsFromMovements(
         isGeneratedDescription(movement.descricao_sanitizada)
         ? contentIndex
         : undefined;
-    const fromAnotherSource = (index: number | undefined) =>
-      index !== undefined &&
-      selectedMovements[index]?.source_account_id !== movement.source_account_id
+    const fromAnotherDocument = (index: number | undefined) => {
+      if (index === undefined) return undefined;
+      const existing = selectedMovements[index];
+      return existing &&
+        sourceDocumentIdentity(existing) !== sourceDocumentIdentity(movement)
         ? index
         : undefined;
+    };
+    const generatedCrossDocumentIndex =
+      contentMovement &&
+      isGeneratedDescription(contentMovement.descricao_sanitizada) &&
+      isGeneratedDescription(movement.descricao_sanitizada)
+        ? fromAnotherDocument(contentIndex)
+        : undefined;
     const existingIndex =
-      fromAnotherSource(
+      fromAnotherDocument(
         canonicalKey ? canonicalIndexes.get(canonicalKey) : undefined,
       ) ??
-      fromAnotherSource(
+      fromAnotherDocument(
         documentKey ? documentIndexes.get(documentKey) : undefined,
       ) ??
-      fromAnotherSource(businessIndexes.get(businessKey)) ??
-      generatedFallbackIndex;
+      fromAnotherDocument(businessIndexes.get(businessKey)) ??
+      generatedFallbackIndex ??
+      generatedCrossDocumentIndex;
     if (existingIndex === undefined) {
       if (canonicalKey && !canonicalIndexes.has(canonicalKey)) {
         canonicalIndexes.set(canonicalKey, selectedMovements.length);

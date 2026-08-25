@@ -360,6 +360,53 @@ test("mantém lançamentos idênticos que existem mais de uma vez no mesmo Excel
   );
 });
 
+test("não soma novamente o movimento do PDF quando a mesma conta já veio do Excel", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "itau-coligada-01";
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 1,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            movimento_id: "tarifa-excel-351",
+            canonical_movement_id: "tarifa-itau-351",
+            cod_coligada: 1,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
+            documento_hash: "extrato-itau-excel",
+          },
+          {
+            movimento_id: "tarifa-pdf-351",
+            canonical_movement_id: "tarifa-itau-351",
+            cod_coligada: 1,
+            bank_id: "341",
+            source_account_id: sourceAccountId,
+            data_lancamento: "2026-06-02",
+            valor_centavos: 35100,
+            natureza: "D",
+            descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
+            documento_hash: "extrato-itau-pdf",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].rows.length, 1);
+  assert.equal(result[0].rows[0].value, -351);
+});
+
 test("descarta movimentos do PDF quando a cobertura identifica Excel para a mesma conta", async () => {
   const { loadDataEngineStatementSnapshot } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-03";

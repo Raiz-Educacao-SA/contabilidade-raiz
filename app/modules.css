@@ -2009,6 +2009,54 @@
   line-height: 1;
   text-overflow: ellipsis;
 }
+.bank-content .filter-fields {
+  flex: 0 1 650px;
+  grid-template-columns: minmax(240px, 380px) auto;
+}
+.bank-content .competence-control {
+  grid-template-columns: 105px 145px;
+}
+.bank-content .bank-filter-actions {
+  min-width: 390px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.bank-filter-actions .bank-history-actions {
+  width: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+.bank-filter-actions .module-completion-control {
+  margin-left: 0;
+  flex-wrap: nowrap;
+}
+.bank-filter-actions .module-completion-control > small {
+  display: none;
+}
+.bank-filter-actions .module-completion-control button,
+.bank-filter-actions .bank-history-actions > button {
+  min-height: 30px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+.bank-filter-actions .bank-history-actions svg {
+  width: 13px;
+  height: 13px;
+}
+@media (max-width: 1500px) {
+  .bank-content .top-context {
+    flex-wrap: wrap;
+  }
+  .bank-content .filter-fields {
+    flex: 1 1 650px;
+  }
+  .bank-content .bank-filter-actions {
+    flex-basis: 100%;
+  }
+}
 .tax-top-branches .tax-all-branches {
   color: #0f6d4a;
   background: #eaf8f1;

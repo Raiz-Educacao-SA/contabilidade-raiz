@@ -230,7 +230,8 @@
   justify-content: flex-end;
 }
 .clear-history,
-.reconcile-one {
+.reconcile-one,
+.rules-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -244,12 +245,17 @@
   background: #fff0f0;
   color: var(--danger);
 }
+.rules-button {
+  background: #eef4ff;
+  color: #244f8f;
+}
 .clear-history:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 .clear-history svg,
-.reconcile-one svg {
+.reconcile-one svg,
+.rules-button svg {
   width: 16px;
   height: 16px;
 }
@@ -742,9 +748,144 @@
 .bank-content .source-steps article > svg { width: 22px; height: 22px; }
 .bank-content .source-steps article b { font-size: 10px; }
 .bank-content .source-steps article span { font-size: 7px; }
-.bank-content .source-steps article button { margin-top: 5px; font-size: 9px; padding: 6px 8px; }
+.bank-content .source-steps article button { min-height: 26px; margin-top: 3px; font-size: 8px; padding: 4px 7px; }
 .bank-content .source-steps article button svg { width: 14px; }
 .bank-content .source-step-number { right: 8px; top: 7px; width: 18px; height: 18px; font-size: 7px; }
+.reconciliation-rules-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 24, 43, 0.52);
+}
+.reconciliation-rules-dialog {
+  width: min(860px, 100%);
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid #dfe5ee;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 26px 80px rgba(17, 24, 43, 0.28);
+}
+.reconciliation-rules-dialog > header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #e3e8ef;
+  background: linear-gradient(135deg, #f2f7ff, #fff9ef);
+}
+.reconciliation-rules-dialog > header span {
+  color: #ef7d00;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+.reconciliation-rules-dialog > header h2 {
+  margin: 4px 0;
+  font-size: 20px;
+}
+.reconciliation-rules-dialog > header p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.rules-close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d9e0e9;
+  border-radius: 9px;
+  background: #fff;
+  color: #4c586b;
+}
+.rules-close svg {
+  width: 17px;
+  height: 17px;
+}
+.reconciliation-rules-steps {
+  margin: 0;
+  padding: 18px 22px 18px 62px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 28px;
+  counter-reset: reconciliation-rule;
+  list-style: none;
+}
+.reconciliation-rules-steps li {
+  position: relative;
+  min-height: 74px;
+  padding: 12px 14px;
+  border: 1px solid #e2e7ee;
+  border-radius: 11px;
+  background: #fbfcfe;
+  counter-increment: reconciliation-rule;
+}
+.reconciliation-rules-steps li::before {
+  content: counter(reconciliation-rule);
+  position: absolute;
+  left: -39px;
+  top: 11px;
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #173d68;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+.reconciliation-rules-steps b {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: #15233a;
+}
+.reconciliation-rules-steps p {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: #647084;
+}
+.reconciliation-rules-dialog > footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 22px;
+  border-top: 1px solid #e3e8ef;
+  background: #fff;
+}
+.reconciliation-rules-dialog > footer span {
+  font-size: 10px;
+  font-weight: 800;
+  color: #526174;
+}
+.reconciliation-rules-dialog > footer button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 9px;
+  background: #173d68;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+@media (max-width: 760px) {
+  .reconciliation-rules-backdrop { padding: 10px; }
+  .reconciliation-rules-steps { grid-template-columns: 1fr; padding-right: 14px; }
+  .reconciliation-rules-dialog > footer { align-items: stretch; flex-direction: column; }
+}
 .bank-content .monthly-results,
 .bank-content .monthly-account,
 .bank-content .monthly-metrics,

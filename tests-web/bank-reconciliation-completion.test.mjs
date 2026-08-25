@@ -6,6 +6,9 @@ const panel = await readFile(new URL("../app/monthly-reconciliation.tsx", import
 const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 const reconciliation = await readFile(new URL("../lib/reconciliation.ts", import.meta.url), "utf8");
 const matcher = await readFile(new URL("../lib/reconciliation-matcher.ts", import.meta.url), "utf8");
+const monthly = await readFile(new URL("../lib/reconciliation-monthly.ts", import.meta.url), "utf8");
+const dataEngine = await readFile(new URL("../lib/data-engine-statements.ts", import.meta.url), "utf8");
+const policy = await readFile(new URL("../lib/bank-reconciliation-policy.ts", import.meta.url), "utf8");
 const cycle = await readFile(new URL("../lib/reconciliation-cycle.ts", import.meta.url), "utf8");
 const monthlyCss = await readFile(new URL("../app/monthly.css", import.meta.url), "utf8");
 const modulesCss = await readFile(new URL("../app/modules.css", import.meta.url), "utf8");
@@ -25,13 +28,36 @@ test("usa o cabeçalho de preparação no topo sem repetir o título mensal", ()
   assert.doesNotMatch(panel, /Conciliação mensal por movimento/);
   assert.match(
     panel,
-    /<div className="panel-title">[\s\S]*?<div className="source-control-title">[\s\S]*?<h2>Preparar conciliação por movimento<\/h2>[\s\S]*?<div className="history-actions">/,
+    /<div className="panel-title">[\s\S]*?<div className="source-control-title">[\s\S]*?<h2>Preparar conciliação por movimento<\/h2>/,
   );
   assert.doesNotMatch(
     panel,
     /<div className="source-control">\s*<div className="source-control-title">/,
   );
   assert.match(monthlyCss, /\.source-steps \{[\s\S]*?margin-top: 0;/);
+});
+
+test("leva as ações para depois dos filtros e explica todas as regras aplicadas", () => {
+  assert.match(page, /id="bank-reconciliation-filter-actions"/);
+  assert.match(panel, /createPortal\([\s\S]*bank-history-actions[\s\S]*actionsTarget/);
+  assert.match(panel, /Relatório consolidado[\s\S]*Regra aplicada[\s\S]*Limpar histórico/);
+  assert.match(panel, /BANK_RECONCILIATION_POLICY_STEPS\.map/);
+  assert.match(policy, /Excel tem prioridade/);
+  assert.match(policy, /PDF só é usado quando não existe Excel/);
+  assert.match(policy, /Lançamentos repetidos que pertencem ao mesmo Excel são mantidos/i);
+  assert.match(policy, /Diferenças de datas que se compensam dentro da competência são desconsideradas/);
+  assert.match(policy, /Diferenças líquidas mensais de até R\$ 1,00/);
+  assert.match(modulesCss, /\.bank-content \.filter-fields \{[\s\S]*?flex: 0 1 650px;[\s\S]*?grid-template-columns: minmax\(240px, 380px\) auto;/);
+  assert.match(monthlyCss, /\.bank-content \.source-steps article button \{ min-height: 26px;/);
+});
+
+test("aplica uma política única de conciliação a todas as coligadas", () => {
+  assert.match(policy, /tratamento técnico é único e não cria exceções para empresas específicas/);
+  assert.match(dataEngine, /BANK_RECONCILIATION_TOLERANCE_CENTS/);
+  assert.match(dataEngine, /BANK_STATEMENT_SOURCE_PRIORITY/);
+  assert.match(matcher, /toleranceValue = BANK_RECONCILIATION_TOLERANCE/);
+  assert.match(monthly, /tolerance = BANK_RECONCILIATION_TOLERANCE/);
+  assert.doesNotMatch(dataEngine, /options\.codColigada\s*===\s*(?:1|2|3)\b/);
 });
 
 test("detalha o que não confere entre o extrato e a contabilidade", () => {

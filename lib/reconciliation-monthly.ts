@@ -1,3 +1,5 @@
+import { BANK_RECONCILIATION_TOLERANCE } from "./bank-reconciliation-policy.ts";
+
 type MonthlyBankRow = { date: Date; value: number };
 type MonthlyAccountingRow = { date: Date; value: number };
 type MonthlyMetadata = { openingBalance: number | null; closingBalance: number | null };
@@ -35,7 +37,7 @@ const dayKey = (date: Date) => date.toISOString().slice(0, 10);
 export function selectMonthlyDifferenceDays(
   rows: MonthlyDailyDifference[],
   monthlyDifference: number,
-  tolerance = 1,
+  tolerance = BANK_RECONCILIATION_TOLERANCE,
 ) {
   if (rows.length <= 1 || rows.length > 31) return rows;
   const values = rows.map((row) => Math.round(row.netDifference * 100));
@@ -99,7 +101,7 @@ export function validateMonthly(
   bank: MonthlyBankRow[],
   accounting: MonthlyAccountingRow[],
   metadata: MonthlyMetadata,
-  tolerance = 1,
+  tolerance = BANK_RECONCILIATION_TOLERANCE,
 ): MonthlyValidation {
   const round = (value: number) => Math.round(value * 100) / 100;
   const bankCredits = round(bank.filter((row) => row.value > 0).reduce((sum, row) => sum + row.value, 0));

@@ -1,3 +1,5 @@
+import { BANK_RECONCILIATION_TOLERANCE } from "./bank-reconciliation-policy.ts";
+
 export type MatcherBankRow = {
   id: string;
   date: Date;
@@ -33,7 +35,7 @@ const daysBetween = (a: Date, b: Date) => Math.round(Math.abs(a.getTime() - b.ge
 export function reconcileMovements(
   bank: MatcherBankRow[],
   accounting: MatcherAccountingRow[],
-  toleranceValue = 1,
+  toleranceValue = BANK_RECONCILIATION_TOLERANCE,
 ) {
   const usedBank = new Set<number>(), usedAccounting = new Set<number>();
   const matches: MatcherRow[] = [];
