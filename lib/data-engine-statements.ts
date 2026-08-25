@@ -740,6 +740,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             (!currentCreditTarget || creditExcess / currentCreditTarget <= 0.1)
           ) {
             const excludedIds = new Set<string>();
+            const complementDiagnostics: Array<Record<string, number>> = [];
             for (const [direction, excess] of [
               [1, debitExcess],
               [-1, creditExcess],
@@ -805,6 +806,14 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                   direction * excess,
                 );
               }
+              complementDiagnostics.push({
+                applicationRows: applicationRows.length,
+                applicationTotal,
+                auxiliaryRows: auxiliaryRows.length,
+                auxiliaryTotal: totalInDirection(auxiliaryRows, direction),
+                direction,
+                excess,
+              });
               auxiliaryRows.forEach((row) => excludedIds.add(row.id));
             }
 
@@ -824,6 +833,14 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                 left.date.localeCompare(right.date),
               );
             }
+            console.info("[reconciliation/source-split]", {
+              complementComplete,
+              currentCreditTarget,
+              currentDebitTarget,
+              diagnostics: complementDiagnostics,
+              rawCreditTotal,
+              rawDebitTotal,
+            });
           }
 
           if (!complementComplete) {
