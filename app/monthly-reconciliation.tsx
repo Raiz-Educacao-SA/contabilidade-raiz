@@ -1201,14 +1201,14 @@ function MonthlyAccountResult({
         {value.reconciled ? (
           <>
             <div>
-              <span>Movimento líquido no extrato</span>
-              <b>{brl(value.bankNet)}</b>
-              <small>Valor movimentado no extrato bancário</small>
+              <span>Entradas no extrato</span>
+              <b>{brl(value.bankCredits)}</b>
+              <small>Débitos contábeis: {brl(value.accountingDebits)}</small>
             </div>
             <div>
-              <span>Movimento líquido contábil</span>
-              <b>{brl(value.accountingNet)}</b>
-              <small>Valor movimentado na contabilidade</small>
+              <span>Saídas no extrato</span>
+              <b>{brl(value.bankDebits)}</b>
+              <small>Créditos contábeis: {brl(value.accountingCredits)}</small>
             </div>
           </>
         ) : (
@@ -1346,12 +1346,20 @@ function ReconciliationFormView({
       {result.validation.reconciled ? (
         <div className="form-summary reconciled-form-summary">
           <article>
-            <span>Movimento líquido no extrato</span>
-            <b>{brl(result.validation.bankNet)}</b>
+            <span>Entradas no extrato</span>
+            <b>{brl(result.validation.bankCredits)}</b>
           </article>
           <article>
-            <span>Movimento líquido contábil</span>
-            <b>{brl(result.validation.accountingNet)}</b>
+            <span>Débitos contábeis</span>
+            <b>{brl(result.validation.accountingDebits)}</b>
+          </article>
+          <article>
+            <span>Saídas no extrato</span>
+            <b>{brl(result.validation.bankDebits)}</b>
+          </article>
+          <article>
+            <span>Créditos contábeis</span>
+            <b>{brl(result.validation.accountingCredits)}</b>
           </article>
         </div>
       ) : (
@@ -1362,12 +1370,20 @@ function ReconciliationFormView({
               <b>{dailyDifferences.length}</b>
             </article>
             <article>
-              <span>Movimento líquido no extrato</span>
-              <b>{brl(result.validation.bankNet)}</b>
+              <span>Entradas no extrato</span>
+              <b>{brl(result.validation.bankCredits)}</b>
             </article>
             <article>
-              <span>Movimento líquido contábil</span>
-              <b>{brl(result.validation.accountingNet)}</b>
+              <span>Débitos contábeis</span>
+              <b>{brl(result.validation.accountingDebits)}</b>
+            </article>
+            <article>
+              <span>Saídas no extrato</span>
+              <b>{brl(result.validation.bankDebits)}</b>
+            </article>
+            <article>
+              <span>Créditos contábeis</span>
+              <b>{brl(result.validation.accountingCredits)}</b>
             </article>
             <article>
               <span>Diferença líquida</span>
@@ -1398,8 +1414,10 @@ function ReconciliationFormView({
                     <thead>
                       <tr>
                         <th>Data</th>
-                        <th>Movimento líquido no extrato</th>
-                        <th>Movimento líquido contábil</th>
+                        <th>Entradas no extrato</th>
+                        <th>Débitos contábeis</th>
+                        <th>Saídas no extrato</th>
+                        <th>Créditos contábeis</th>
                         <th>Diferença líquida</th>
                       </tr>
                     </thead>
@@ -1407,8 +1425,10 @@ function ReconciliationFormView({
                       {dailyDifferences.map((row) => (
                         <tr key={row.date}>
                           <td>{new Date(`${row.date}T00:00:00.000Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
-                          <td>{brl(row.bankCredits - row.bankDebits)}</td>
-                          <td>{brl(row.accountingDebits - row.accountingCredits)}</td>
+                          <td>{brl(row.bankCredits)}</td>
+                          <td>{brl(row.accountingDebits)}</td>
+                          <td>{brl(row.bankDebits)}</td>
+                          <td>{brl(row.accountingCredits)}</td>
                           <td><b>{brl(row.netDifference)}</b></td>
                         </tr>
                       ))}

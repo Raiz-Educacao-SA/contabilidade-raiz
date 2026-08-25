@@ -119,11 +119,11 @@ test("mantém fichas recolhidas também para as contas conciliadas", () => {
   assert.match(panel, /As fichas permanecem recolhidas/);
   assert.match(
     panel,
-    /value\.reconciled \? \([\s\S]*Movimento líquido no extrato[\s\S]*Movimento líquido contábil/,
+    /value\.reconciled \? \([\s\S]*Entradas no extrato[\s\S]*Débitos contábeis[\s\S]*Saídas no extrato[\s\S]*Créditos contábeis/,
   );
   assert.match(
     panel,
-    /result\.validation\.reconciled \? \([\s\S]*reconciled-form-summary[\s\S]*result\.validation\.bankNet[\s\S]*result\.validation\.accountingNet/,
+    /result\.validation\.reconciled \? \([\s\S]*reconciled-form-summary[\s\S]*result\.validation\.bankCredits[\s\S]*result\.validation\.accountingDebits[\s\S]*result\.validation\.bankDebits[\s\S]*result\.validation\.accountingCredits/,
   );
   assert.match(
     monthlyCss,
@@ -131,7 +131,7 @@ test("mantém fichas recolhidas também para as contas conciliadas", () => {
   );
   assert.match(
     monthlyCss,
-    /\.form-summary\.reconciled-form-summary \{[\s\S]*grid-template-columns: repeat\(2/,
+    /\.form-summary\.reconciled-form-summary \{[\s\S]*grid-template-columns: repeat\(4/,
   );
 });
 

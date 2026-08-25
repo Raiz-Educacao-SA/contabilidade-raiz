@@ -650,25 +650,90 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             (total, row) => total + cents(row.value),
             0,
           );
-          const rawMonthlyTotal = currentRows.reduce(
-            (total, row) => total + cents(row.value),
-            0,
-          );
-          const rawMonthlyMatches =
-            Math.abs(rawMonthlyTotal - currentMonthlyTarget) <=
-            BANK_RECONCILIATION_TOLERANCE_CENTS;
           const rawDebitTotal = totalInDirection(currentRows, 1);
           const rawCreditTotal = totalInDirection(currentRows, -1);
           const debitExcess = rawDebitTotal - currentDebitTarget;
           const creditExcess = rawCreditTotal - currentCreditTarget;
           let complementComplete = false;
+          const sourceSelectionToleranceCents = 1;
+
+          const currentDates = Array.from(
+            new Set([
+              ...currentRows.map((row) => row.date),
+              ...currentAccountingRows.map((row) => day(row.date)),
+            ].filter(Boolean)),
+          ).sort();
+          const dailyExcludedIds = new Set<string>();
+          let dailyComplementPossible = true;
+          for (const date of currentDates) {
+            for (const direction of [1, -1] as const) {
+              const rowsForDay = currentRows.filter(
+                (row) =>
+                  row.date === date &&
+                  Math.sign(cents(row.value)) === direction &&
+                  !dailyExcludedIds.has(row.id),
+              );
+              const rawDailyTotal = totalInDirection(rowsForDay, direction);
+              const targetDailyTotal = totalInDirection(
+                currentAccountingRows.filter((row) => day(row.date) === date),
+                direction,
+              );
+              const dailyExcess = rawDailyTotal - targetDailyTotal;
+              if (dailyExcess < -sourceSelectionToleranceCents) {
+                dailyComplementPossible = false;
+                break;
+              }
+              if (dailyExcess <= sourceSelectionToleranceCents) continue;
+              const auxiliaryRows = selectNearTarget(
+                rowsForDay,
+                direction * dailyExcess,
+              );
+              const auxiliaryTotal = totalInDirection(auxiliaryRows, direction);
+              if (
+                !auxiliaryRows.length ||
+                Math.abs(auxiliaryTotal - dailyExcess) >
+                  sourceSelectionToleranceCents
+              ) {
+                dailyComplementPossible = false;
+                break;
+              }
+              auxiliaryRows.forEach((row) => dailyExcludedIds.add(row.id));
+            }
+            if (!dailyComplementPossible) break;
+          }
+          if (dailyComplementPossible && dailyExcludedIds.size > 0) {
+            const complementRows = currentRows.filter(
+              (row) => !dailyExcludedIds.has(row.id),
+            );
+            complementComplete = currentDates.every((date) =>
+              ([1, -1] as const).every((direction) => {
+                const selected = totalInDirection(
+                  complementRows.filter((row) => row.date === date),
+                  direction,
+                );
+                const target = totalInDirection(
+                  currentAccountingRows.filter((row) => day(row.date) === date),
+                  direction,
+                );
+                return (
+                  Math.abs(selected - target) <=
+                  sourceSelectionToleranceCents
+                );
+              }),
+            );
+            if (complementComplete) {
+              currentRows = complementRows.sort((left, right) =>
+                left.date.localeCompare(right.date),
+              );
+            }
+          }
 
           // Quando o PDF de aplicação compartilha a referência da conta
           // corrente, a maior parte dos movimentos já é legítima. Nesse caso,
           // é mais seguro localizar e retirar somente o excedente mensal das
           // colunas auxiliares do que tentar reconstruir todo o extrato.
           if (
-            !rawMonthlyMatches &&
+            !complementComplete &&
             debitExcess >= 0 &&
             creditExcess >= 0 &&
             (!currentDebitTarget || debitExcess / currentDebitTarget <= 0.1) &&
@@ -707,7 +772,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             }
           }
 
-          if (!rawMonthlyMatches && !complementComplete) {
+          if (!complementComplete) {
           const selectedCurrentRows: DataEngineBankRow[] = [];
           const selectedCurrentIds = new Set<string>();
           for (const accountingRow of currentAccountingRows) {
@@ -730,10 +795,10 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             selectedCurrentRows.push(candidate);
             selectedCurrentIds.add(candidate.id);
           }
-          const currentDates = Array.from(
+          const accountingDates = Array.from(
             new Set(currentAccountingRows.map((row) => day(row.date)).filter(Boolean)),
           ).sort();
-          for (const date of currentDates) {
+          for (const date of accountingDates) {
             for (const direction of [1, -1]) {
               const accountingTarget = currentAccountingRows
                 .filter(
@@ -2341,32 +2406,6 @@ function statementsFromMovements(
       !accountsWithExcel.has(sourceKey(movement)) ||
       sourceFormat(movement) !== "pdf",
   );
-
-  const documentGroups = new Map<string, Movement[]>();
-  for (const movement of movements) {
-    const key = [movement.bank_id, sourceDocumentIdentity(movement)].join("|");
-    documentGroups.set(key, [...(documentGroups.get(key) ?? []), movement]);
-  }
-  console.info("[data-engine/statements] fontes recebidas", {
-    company: options.codColigada,
-    period,
-    documents: Array.from(documentGroups.values()).map((items) => {
-      const entries = items
-        .filter((item) => item.natureza !== "D")
-        .reduce((total, item) => total + Math.abs(item.valor_centavos), 0);
-      const exits = items
-        .filter((item) => item.natureza === "D")
-        .reduce((total, item) => total + Math.abs(item.valor_centavos), 0);
-      return {
-        bankId: items[0].bank_id.padStart(3, "0"),
-        entries: entries / 100,
-        exits: exits / 100,
-        format: sourceFormat(items[0]),
-        movements: items.length,
-        net: (entries - exits) / 100,
-      };
-    }),
-  });
 
   const sourcePriority = BANK_STATEMENT_SOURCE_PRIORITY;
   const canonicalIndexes = new Map<string, number>();
