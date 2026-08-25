@@ -328,7 +328,7 @@ test("mantém lançamentos idênticos que existem mais de uma vez no mesmo Excel
       Response.json({
         items: [1, 2, 3].map((sequence) => ({
           movimento_id: `pagamento-262-${sequence}`,
-          canonical_movement_id: `canonical-262-${sequence}`,
+          canonical_movement_id: "canonical-262-repetido",
           cod_coligada: 2,
           bank_id: "033",
           source_account_id: sourceAccountId,

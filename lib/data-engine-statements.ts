@@ -2337,14 +2337,16 @@ function statementsFromMovements(
         ? index
         : undefined;
     const existingIndex =
-      (canonicalKey ? canonicalIndexes.get(canonicalKey) : undefined) ??
+      fromAnotherSource(
+        canonicalKey ? canonicalIndexes.get(canonicalKey) : undefined,
+      ) ??
       fromAnotherSource(
         documentKey ? documentIndexes.get(documentKey) : undefined,
       ) ??
       fromAnotherSource(businessIndexes.get(businessKey)) ??
       generatedFallbackIndex;
     if (existingIndex === undefined) {
-      if (canonicalKey) {
+      if (canonicalKey && !canonicalIndexes.has(canonicalKey)) {
         canonicalIndexes.set(canonicalKey, selectedMovements.length);
       }
       if (documentKey && !documentIndexes.has(documentKey)) {
