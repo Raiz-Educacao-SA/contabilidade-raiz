@@ -147,15 +147,15 @@ test("mantém fichas recolhidas também para as contas conciliadas", () => {
   );
 });
 
-test("não associa pendências históricas sem evidência à competência", () => {
+test("explica a ausência de publicação sem associar pendências históricas à competência", () => {
   assert.match(panel, /if \(sources\.length > 0\)/);
   assert.match(panel, /setStatementsUpdated\(false\)/);
+  assert.match(panel, /movementAvailability/);
   assert.match(panel, /pendingEvidenceForPeriod/);
   assert.match(panel, /LEGACY_DOCUMENT_INVALID/);
-  assert.match(
-    panel,
-    /pendências históricas retornadas não possuem evidência vinculada a esta competência/,
-  );
+  assert.match(panel, /não possui nenhum extrato publicado/);
+  assert.match(panel, /possui extratos publicados/);
+  assert.doesNotMatch(panel, /As \$\{pendingCount\} pendências históricas/);
   assert.match(panel, /Nenhum movimento publicado para a competência/);
   assert.doesNotMatch(panel, /aguardando reprocessamento na origem/);
 });

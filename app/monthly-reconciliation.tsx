@@ -589,6 +589,11 @@ export default function MonthlyReconciliationPanel({
         records?: number;
         operations?: DataEngineStatementOperations;
         diagnostics?: {
+          movementAvailability?: {
+            firstMovementDate?: string | null;
+            hasMore?: boolean;
+            recordsSampled?: number;
+          } | null;
           pendingSummary?: {
             evidenceForPeriod?: number;
             reasons?: Record<string, number>;
@@ -613,7 +618,8 @@ export default function MonthlyReconciliationPanel({
         );
       } else {
         setStatementsUpdated(false);
-        const pendingCount = data.operations?.pendencias ?? 0;
+        const historicalMovementSample =
+          data.diagnostics?.movementAvailability?.recordsSampled;
         const pendingEvidenceForPeriod =
           data.diagnostics?.pendingSummary?.evidenceForPeriod ?? 0;
         const invalidLegacyCount =
@@ -621,13 +627,16 @@ export default function MonthlyReconciliationPanel({
           0;
         const competenceLabel = competence.split("-").reverse().join("/");
         setNotice(
-          pendingEvidenceForPeriod > 0 && invalidLegacyCount > 0
+          historicalMovementSample === 0
+            ? `O Data Engine não possui nenhum extrato publicado para ${companyName}. A integração está operacional, mas é necessário publicar os extratos de ${competenceLabel} no Data Engine para liberar a conciliação.`
+            : typeof historicalMovementSample === "number" &&
+                historicalMovementSample > 0
+              ? `O Data Engine possui extratos publicados para ${companyName}, mas não há movimentos em ${competenceLabel}. Publique os extratos desta competência no Data Engine para liberar a conciliação.`
+              : pendingEvidenceForPeriod > 0 && invalidLegacyCount > 0
             ? `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}. Há ${Math.min(invalidLegacyCount, pendingEvidenceForPeriod)} documento(s) inválido(s) com evidência vinculada a esta competência.`
             : pendingEvidenceForPeriod > 0
               ? `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}. Há ${pendingEvidenceForPeriod} pendência(s) com evidência vinculada a esta competência.`
-              : pendingCount > 0
-                ? `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}. As ${pendingCount} pendências históricas retornadas não possuem evidência vinculada a esta competência e não são usadas pela conciliação.`
-                : `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}.`,
+              : `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}.`,
         );
       }
     } catch (error) {
