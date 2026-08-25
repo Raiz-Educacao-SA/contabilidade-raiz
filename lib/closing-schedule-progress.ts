@@ -20,7 +20,6 @@ export const ACCOUNTING_SCHEDULE_TASK_IDS = [
   "intercompany",
   "provisoes",
   "despesas",
-  "imobilizado",
   "arrendamentos",
   "analise-balancete",
 ] as const;

@@ -23,7 +23,6 @@ export function accountingCompletionIdentity(taskId: string, companyCode: string
     intercompany: "Intercompany",
     provisoes: "Provisões",
     despesas: "Despesas",
-    imobilizado: "Imobilizado",
     arrendamentos: "Arrendamentos",
     "analise-balancete": "Análise Balancete",
   };

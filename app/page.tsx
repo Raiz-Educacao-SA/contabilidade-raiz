@@ -72,7 +72,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "imobilizado" | "arrendamentos";
+type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = AccessModule;
@@ -124,7 +124,6 @@ const accountingScheduleTasks: { id: AccountingTab; label: string; description: 
   { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
   { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
   { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
-  { id: "imobilizado", label: "Imobilizado", description: "Controle patrimonial" },
   { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
   { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
 ];
@@ -764,7 +763,6 @@ export default function Home() {
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "provisoes", label: "Provisões", icon: Save },
                 { id: "despesas", label: "Despesas", icon: ReceiptText },
-                { id: "imobilizado", label: "Imobilizado", icon: Building2 },
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
@@ -859,8 +857,6 @@ export default function Home() {
                           ? "Provisões"
                         : accountingTab === "despesas"
                           ? "Despesas"
-                        : accountingTab === "imobilizado"
-                          ? "Imobilizado"
                         : accountingTab === "arrendamentos"
                           ? "Arrendamentos"
                         : "Intercompany"
@@ -1142,8 +1138,6 @@ export default function Home() {
               <Save />
             ) : accountingTab === "despesas" ? (
               <ReceiptText />
-            ) : accountingTab === "imobilizado" ? (
-              <Building2 />
             ) : accountingTab === "rateio-csc" ? (
               <ArrowLeftRight />
             ) : (
@@ -1157,8 +1151,6 @@ export default function Home() {
                   ? "Provisões"
                 : accountingTab === "despesas"
                   ? "Despesas"
-                : accountingTab === "imobilizado"
-                  ? "Imobilizado"
                 : accountingTab === "arrendamentos"
                   ? "Arrendamentos"
                 : accountingTab === "rateio-csc"

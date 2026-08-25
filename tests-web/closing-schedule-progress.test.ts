@@ -30,8 +30,13 @@ test("conta somente os quatro módulos que alimentam o cronograma", () => {
   assert.equal(progress.completedModulesCount, 1);
   assert.deepEqual(progress.completedModules, ["fiscal"]);
   assert.equal(progress.modulePercent.financeiro, 25);
-  assert.equal(progress.modulePercent.contabil, 11);
-  assert.equal(progress.overallPercent, 38);
+  assert.equal(progress.modulePercent.contabil, 13);
+  assert.equal(progress.overallPercent, 39);
+});
+
+test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
+  assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.length, 8);
+  assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.includes("imobilizado" as never), false);
 });
 
 test("conclui Financeiro, Folha e Contábil apenas quando todas as tarefas e empresas terminarem", () => {
