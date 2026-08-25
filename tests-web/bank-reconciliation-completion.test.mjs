@@ -92,6 +92,9 @@ test("pagina as exceções para não sobrecarregar o navegador", () => {
 
 test("mantém uma ficha detalhada por vez e usa cache para grandes históricos", () => {
   assert.match(panel, /contabilidade-raiz-reconciliation-cache/);
+  assert.match(panel, /RECONCILIATION_HISTORY_VERSION = "rules-2026-08-25-v2"/);
+  assert.match(panel, /const historyKey = `\$\{legacyHistoryKey\}:\$\{RECONCILIATION_HISTORY_VERSION\}`/);
+  assert.match(panel, /deleteReconciliationCache\(legacyHistoryKey\)/);
   assert.match(panel, /writeReconciliationCache\(historyKey, updated\)/);
   assert.doesNotMatch(
     panel,
@@ -278,3 +281,4 @@ test("mantém coloridas as três etapas depois da conciliação automática", ()
   assert.match(panel, /statementsStepComplete \? "ready" : "waiting"/);
   assert.match(panel, /resultsCurrent[\s\S]*?"completed reconcile-step"/);
 });
+
