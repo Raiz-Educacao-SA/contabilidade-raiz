@@ -149,11 +149,11 @@ test("prioriza Excel e não duplica o mesmo movimento presente também no PDF", 
 
 test("não duplica o mesmo movimento quando os identificadores técnicos são diferentes", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
-  const sourceAccountId = "itau-coligada-03";
+  const firstSourceAccountId = "itau-coligada-03-origem-1";
+  const secondSourceAccountId = "itau-coligada-03-origem-2";
   const movement = {
     cod_coligada: 3,
     bank_id: "341",
-    source_account_id: sourceAccountId,
     data_lancamento: "2026-06-02",
     valor_centavos: 35100,
     natureza: "D",
@@ -170,12 +170,14 @@ test("não duplica o mesmo movimento quando os identificadores técnicos são di
           {
             ...movement,
             movimento_id: "mov-origem-1",
+            source_account_id: firstSourceAccountId,
             canonical_movement_id: "canonical-origem-1",
             documento_hash: "documento-origem-1",
           },
           {
             ...movement,
             movimento_id: "mov-origem-2",
+            source_account_id: secondSourceAccountId,
             canonical_movement_id: "canonical-origem-2",
             documento_hash: "documento-origem-2",
           },
@@ -183,6 +185,18 @@ test("não duplica o mesmo movimento quando os identificadores técnicos são di
         next_cursor: null,
       }),
     fromDate: "2026-06-01",
+    sourceEvidence: [
+      {
+        source_account_id: firstSourceAccountId,
+        bank_id: "341",
+        account_number: "14600-1",
+      },
+      {
+        source_account_id: secondSourceAccountId,
+        bank_id: "341",
+        account_number: "14600-1",
+      },
+    ],
     toDate: "2026-06-30",
   });
 
@@ -199,11 +213,11 @@ test("não duplica o mesmo movimento quando os identificadores técnicos são di
 
 test("não duplica Excel e PDF quando ambos chegam com históricos técnicos distintos", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
-  const sourceAccountId = "itau-coligada-03";
+  const pdfSourceAccountId = "itau-coligada-03-pdf";
+  const excelSourceAccountId = "itau-coligada-03-excel";
   const movement = {
     cod_coligada: 3,
     bank_id: "341",
-    source_account_id: sourceAccountId,
     data_lancamento: "2026-06-02",
     valor_centavos: 35100,
     natureza: "D",
@@ -219,17 +233,33 @@ test("não duplica Excel e PDF quando ambos chegam com históricos técnicos dis
           {
             ...movement,
             movimento_id: "mov-pdf-351",
+            source_account_id: pdfSourceAccountId,
             descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
+            file_name: "extrato-itau-junho.pdf",
           },
           {
             ...movement,
             movimento_id: "mov-excel-351",
+            source_account_id: excelSourceAccountId,
             descricao_sanitizada: "MOVIMENTO-5D36A68F91C0B5421E7A390F",
+            file_name: "extrato-itau-junho.xlsx",
           },
         ],
         next_cursor: null,
       }),
     fromDate: "2026-06-01",
+    sourceEvidence: [
+      {
+        source_account_id: pdfSourceAccountId,
+        bank_id: "341",
+        account_number: "14600-1",
+      },
+      {
+        source_account_id: excelSourceAccountId,
+        bank_id: "341",
+        account_number: "14600-1",
+      },
+    ],
     toDate: "2026-06-30",
   });
 
@@ -237,8 +267,8 @@ test("não duplica Excel e PDF quando ambos chegam com históricos técnicos dis
   assert.deepEqual(result[0].rows, [
     {
       date: "2026-06-02",
-      description: "MOVIMENTO-34283A563A842164ACFF67BE",
-      id: "mov-pdf-351",
+      description: "MOVIMENTO-5D36A68F91C0B5421E7A390F",
+      id: "mov-excel-351",
       value: -351,
     },
   ]);
@@ -284,6 +314,51 @@ test("mantém dois lançamentos reais de mesmo valor e data quando os histórico
 
   assert.equal(result.length, 1);
   assert.equal(result[0].rows.length, 2);
+});
+
+test("mantém lançamentos idênticos que existem mais de uma vez no mesmo Excel", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "santander-coligada-02";
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 2,
+    fetcher: async () =>
+      Response.json({
+        items: [1, 2, 3].map((sequence) => ({
+          movimento_id: `pagamento-262-${sequence}`,
+          canonical_movement_id: `canonical-262-${sequence}`,
+          cod_coligada: 2,
+          bank_id: "033",
+          source_account_id: sourceAccountId,
+          data_lancamento: "2026-06-01",
+          valor_centavos: 26283,
+          natureza: "D",
+          descricao_sanitizada:
+            "PAGFOR PIX OUTRA INST- DIFEREN TIT 3003.4901971551",
+          documento_hash: "extrato-santander-junho",
+          file_name: "06_2026_SANTANDER_130812722.xlsx",
+        })),
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].rows.length, 3);
+  assert.deepEqual(
+    result[0].rows.map((row: { id: string }) => row.id),
+    ["pagamento-262-1", "pagamento-262-2", "pagamento-262-3"],
+  );
+  assert.equal(
+    result[0].rows.reduce(
+      (total: number, row: { value: number }) => total + row.value,
+      0,
+    ),
+    -788.49,
+  );
 });
 
 test("descarta movimentos do PDF quando a cobertura identifica Excel para a mesma conta", async () => {
@@ -1905,91 +1980,6 @@ test("separa somente os movimentos reais da aplicação e mantém o restante na 
   );
   assert.deepEqual(result.unmatchedAccounts, []);
   assert.deepEqual(result.unmatchedSources, []);
-});
-
-test("não usa pagamentos da conta corrente para completar saldo residual da aplicação", async () => {
-  const { resolveStatementBindings } = await import(moduleUrl.href);
-  const source = {
-    bankId: "033",
-    sourceAccountId: "santander-misto-qi",
-    rows: [
-      { id: "app-principal", date: "2026-06-01", description: "RESGATE PRINCIPAL", value: -3375.77 },
-      { id: "corrente-entrada", date: "2026-06-01", description: "PIX RECEBIDO", value: 1000 },
-      { id: "corrente-262-a", date: "2026-06-01", description: "PAGAMENTO A", value: -262.83 },
-      { id: "corrente-262-b", date: "2026-06-01", description: "PAGAMENTO B", value: -262.83 },
-      { id: "corrente-restante", date: "2026-06-01", description: "PAGAMENTO C", value: -474.34 },
-    ],
-    metadata: {
-      account: "13081272-2",
-      agency: "",
-      closingBalance: null,
-      name: "Banco 033",
-      openingBalance: null,
-      period: "06/2026",
-    },
-  };
-  const applicationSource = {
-    bankId: "000",
-    sourceAccountId: "aplicacao-qi",
-    rows: [],
-    metadata: {
-      account: "Aplicação",
-      agency: "",
-      closingBalance: null,
-      name: "Aplicação financeira",
-      openingBalance: null,
-      period: "06/2026",
-    },
-  };
-  const result = resolveStatementBindings(
-    [source, applicationSource],
-    [
-      {
-        code: "1.1.1.03.03.19",
-        name: "Banco Santander - conta Aplic. 13081272-2 (Qi)",
-        rows: [{ date: "2026-06-01", value: -3901.43 }],
-      },
-      {
-        code: "1.1.1.02.03.01",
-        name: "Banco Santander - conta 13081272-2 (Qi)",
-        rows: [
-          { date: "2026-06-01", value: 1000 },
-          { date: "2026-06-01", value: -1000 },
-        ],
-      },
-    ],
-  );
-  const application = result.pairs.find(
-    (pair: { account: { code: string } }) =>
-      pair.account.code === "1.1.1.03.03.19",
-  );
-  const current = result.pairs.find(
-    (pair: { account: { code: string } }) =>
-      pair.account.code === "1.1.1.02.03.01",
-  );
-
-  assert.deepEqual(
-    application?.source.rows.map((row: { id: string }) => row.id),
-    ["app-principal"],
-  );
-  assert.deepEqual(
-    current?.source.rows.map((row: { id: string }) => row.id),
-    [
-      "corrente-entrada",
-      "corrente-262-a",
-      "corrente-262-b",
-      "corrente-restante",
-    ],
-  );
-  assert.equal(
-    Math.round(
-      (current?.source.rows.reduce(
-        (total: number, row: { value: number }) => total + row.value,
-        0,
-      ) ?? 0) * 100,
-    ),
-    0,
-  );
 });
 
 test("separa vários agrupamentos líquidos diários da aplicação no mesmo mês", async () => {

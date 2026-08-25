@@ -552,7 +552,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         exactCandidates.push(candidate);
       }
 
-      let selectedApplicationRows: DataEngineBankRow[] = [...exactCandidates];
+      const selectedApplicationRows: DataEngineBankRow[] = [...exactCandidates];
 
       const monthlyTarget = accountingRows.reduce(
         (total, row) => total + cents(row.value),
@@ -634,63 +634,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         if (currentAccounts.length === 1) {
           const currentAccountingRows = [...(currentAccounts[0].rows ?? [])].sort(
             (left, right) => day(left.date).localeCompare(day(right.date)),
-          );
-
-          // A aplicação nunca pode fechar às custas de movimentos que fazem a
-          // conta corrente fechar no dia. Quando a separação inicial desloca
-          // esses movimentos, devolvemos à conta corrente somente a combinação
-          // necessária para recompor seu líquido diário. A eventual diferença
-          // verdadeira permanece na aplicação, sem criar uma falsa divergência
-          // na conta corrente.
-          const currentDates = Array.from(
-            new Set(
-              currentAccountingRows
-                .map((row) => day(row.date))
-                .filter(Boolean),
-            ),
-          ).sort();
-          for (const date of currentDates) {
-            const accountingDailyTarget = currentAccountingRows
-              .filter((row) => day(row.date) === date)
-              .reduce((total, row) => total + cents(row.value), 0);
-            const currentDailyTotal = currentRows
-              .filter((row) => day(row.date) === date)
-              .reduce((total, row) => total + cents(row.value), 0);
-            const dailyResidualTarget =
-              accountingDailyTarget - currentDailyTotal;
-            if (Math.abs(dailyResidualTarget) <= 100) continue;
-
-            const returnedRows = selectNearTarget(
-              selectedApplicationRows.filter(
-                (row) => day(row.date) === date,
-              ),
-              dailyResidualTarget,
-            );
-            const returnedTotal = returnedRows.reduce(
-              (total, row) => total + cents(row.value),
-              0,
-            );
-            if (
-              !returnedRows.length ||
-              Math.abs(returnedTotal - dailyResidualTarget) > 100
-            ) {
-              continue;
-            }
-
-            const returnedIds = new Set(returnedRows.map((row) => row.id));
-            returnedRows.forEach((row) => applicationRowIds.delete(row.id));
-            selectedApplicationRows = selectedApplicationRows.filter(
-              (row) => !returnedIds.has(row.id),
-            );
-            currentRows.push(...returnedRows);
-          }
-          const sourceOrder = new Map(
-            transactionSource.rows.map((row, index) => [row.id, index]),
-          );
-          currentRows.sort(
-            (left, right) =>
-              (sourceOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
-              (sourceOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER),
           );
 
           const totalInDirection = (
@@ -2388,19 +2331,28 @@ function statementsFromMovements(
         isGeneratedDescription(movement.descricao_sanitizada))
         ? contentIndex
         : undefined;
+    const fromAnotherSource = (index: number | undefined) =>
+      index !== undefined &&
+      selectedMovements[index]?.source_account_id !== movement.source_account_id
+        ? index
+        : undefined;
     const existingIndex =
       (canonicalKey ? canonicalIndexes.get(canonicalKey) : undefined) ??
-      (documentKey ? documentIndexes.get(documentKey) : undefined) ??
-      businessIndexes.get(businessKey) ??
+      fromAnotherSource(
+        documentKey ? documentIndexes.get(documentKey) : undefined,
+      ) ??
+      fromAnotherSource(businessIndexes.get(businessKey)) ??
       generatedFallbackIndex;
     if (existingIndex === undefined) {
       if (canonicalKey) {
         canonicalIndexes.set(canonicalKey, selectedMovements.length);
       }
-      if (documentKey) {
+      if (documentKey && !documentIndexes.has(documentKey)) {
         documentIndexes.set(documentKey, selectedMovements.length);
       }
-      businessIndexes.set(businessKey, selectedMovements.length);
+      if (!businessIndexes.has(businessKey)) {
+        businessIndexes.set(businessKey, selectedMovements.length);
+      }
       if (!contentIndexes.has(contentKey)) {
         contentIndexes.set(contentKey, selectedMovements.length);
       }
