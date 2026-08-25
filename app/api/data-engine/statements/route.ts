@@ -91,6 +91,24 @@ export async function GET(request: NextRequest) {
       (total, statement) => total + statement.rows.length,
       0,
     );
+    const statementSummary = snapshot.statements.map((statement) => {
+      const entries = statement.rows
+        .filter((row) => row.value > 0)
+        .reduce((total, row) => total + row.value, 0);
+      const exits = statement.rows
+        .filter((row) => row.value < 0)
+        .reduce((total, row) => total + Math.abs(row.value), 0);
+      return {
+        bankId: statement.bankId.padStart(3, "0"),
+        movements: statement.rows.length,
+        entries: Math.round(entries * 100) / 100,
+        exits: Math.round(exits * 100) / 100,
+        net: Math.round((entries - exits) * 100) / 100,
+        account: statement.metadata.account || "",
+        openingBalance: statement.metadata.openingBalance,
+        closingBalance: statement.metadata.closingBalance,
+      };
+    });
     console.info("[data-engine/statements] consulta concluída", {
       company,
       competence,
@@ -99,6 +117,7 @@ export async function GET(request: NextRequest) {
       movementsByBank,
       operations: snapshot.operations,
       records: movementRecords,
+      statementSummary,
       statementCount: snapshot.statements.length,
     });
     return NextResponse.json(
