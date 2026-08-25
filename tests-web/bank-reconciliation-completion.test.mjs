@@ -244,6 +244,12 @@ test("preserva a conciliação ao mudar de tela e só substitui dados após atua
   assert.match(panel, /!accountingBusy &&\s*!dataEngineBusy/);
 });
 
+test("remove resultados obsoletos quando a cobertura das fontes muda", () => {
+  assert.match(panel, /function keepResults\(completed: AccountResult\[\], replaceExisting = false\)/);
+  assert.match(panel, /const updated = replaceExisting[\s\S]*\? completed/);
+  assert.match(panel, /reconcileStatements\(statements, true\)/);
+});
+
 test("não desmonta a conciliação quando a sessão renova o token", () => {
   assert.match(page, /const sessionUserId = session\?\.user\.id \?\? ""/);
   assert.match(

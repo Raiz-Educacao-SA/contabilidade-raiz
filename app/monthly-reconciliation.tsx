@@ -473,12 +473,14 @@ export default function MonthlyReconciliationPanel({
     unmatchedSources,
   ]);
 
-  function keepResults(completed: AccountResult[]) {
+  function keepResults(completed: AccountResult[], replaceExisting = false) {
     const keys = new Set(completed.map((item) => item.account.code));
-    const updated = [
-      ...results.filter((item) => !keys.has(item.account.code)),
-      ...completed,
-    ];
+    const updated = replaceExisting
+      ? completed
+      : [
+          ...results.filter((item) => !keys.has(item.account.code)),
+          ...completed,
+        ];
     setResults(updated);
     void writeReconciliationCache(historyKey, updated).then((saved) => {
       if (!saved) {
@@ -674,7 +676,7 @@ export default function MonthlyReconciliationPanel({
     return true;
   }
 
-  function reconcileStatements(selected: Statement[]) {
+  function reconcileStatements(selected: Statement[], replaceExisting = false) {
     const completed = selected.map((statement) => {
       const rows = reconcile(statement.bank, statement.account.rows).map(
         (row) => ({
@@ -697,7 +699,7 @@ export default function MonthlyReconciliationPanel({
         ),
       };
     });
-    keepResults(completed);
+    keepResults(completed, replaceExisting);
     return completed;
   }
 
@@ -717,7 +719,7 @@ export default function MonthlyReconciliationPanel({
       return setNotice(
         "Erro: nenhum extrato foi reconhecido. Revise os dados de agência e conta e confirme se o formato dos arquivos é compatível.",
       );
-    const completed = reconcileStatements(statements);
+    const completed = reconcileStatements(statements, true);
     setReconciliationRevision(
       completedReconciliationRevision(accountingRevision, statementsRevision),
     );
