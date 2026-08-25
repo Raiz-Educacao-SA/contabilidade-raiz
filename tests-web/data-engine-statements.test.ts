@@ -360,6 +360,59 @@ test("mantém lançamentos idênticos que existem mais de uma vez no mesmo Excel
   );
 });
 
+test("mantém movimentos legítimos de mesmo valor em documentos distintos", async () => {
+  const { loadDataEngineStatements } = await import(moduleUrl.href);
+  const sourceAccountId = "santander-raiz-educacao";
+
+  const result = await loadDataEngineStatements({
+    accessToken: "short-lived-token",
+    baseUrl: "https://data-engine.example",
+    codColigada: 1,
+    fetcher: async () =>
+      Response.json({
+        items: [
+          {
+            movimento_id: "santander-documento-a",
+            canonical_movement_id: "canonical-documento-a",
+            cod_coligada: 1,
+            bank_id: "033",
+            source_account_id: sourceAccountId,
+            processing_identity_id: "processamento-a",
+            data_lancamento: "2026-06-01",
+            valor_centavos: 30000000,
+            natureza: "D",
+            descricao_sanitizada: "MOVIMENTO-AAA111BBB222",
+          },
+          {
+            movimento_id: "santander-documento-b",
+            canonical_movement_id: "canonical-documento-b",
+            cod_coligada: 1,
+            bank_id: "033",
+            source_account_id: sourceAccountId,
+            processing_identity_id: "processamento-b",
+            data_lancamento: "2026-06-01",
+            valor_centavos: 30000000,
+            natureza: "D",
+            descricao_sanitizada: "MOVIMENTO-CCC333DDD444",
+          },
+        ],
+        next_cursor: null,
+      }),
+    fromDate: "2026-06-01",
+    toDate: "2026-06-30",
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].rows.length, 2);
+  assert.equal(
+    result[0].rows.reduce(
+      (total: number, row: { value: number }) => total + row.value,
+      0,
+    ),
+    -600000,
+  );
+});
+
 test("não soma novamente o movimento do PDF quando a mesma conta já veio do Excel", async () => {
   const { loadDataEngineStatements } = await import(moduleUrl.href);
   const sourceAccountId = "itau-coligada-01";
@@ -1479,6 +1532,85 @@ test("separa o extrato de movimento da aplicação misturado à conta corrente S
   );
   assert.deepEqual(result.unmatchedAccounts, []);
   assert.deepEqual(result.unmatchedSources, []);
+});
+
+test("preserva o extrato corrente completo quando o líquido mensal já confere", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const currentSource = {
+    bankId: "033",
+    sourceAccountId: "santander-compartilhado",
+    rows: [
+      {
+        id: "movimento-aplicacao",
+        date: "2026-06-10",
+        description: "APLICAÇÃO AUTOMÁTICA",
+        value: -100,
+      },
+      {
+        id: "contrapartida-corrente",
+        date: "2026-06-10",
+        description: "RESGATE AUTOMÁTICO",
+        value: 100,
+      },
+    ],
+    metadata: {
+      account: "13081360-6",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 033",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const applicationSource = {
+    bankId: "000",
+    sourceAccountId: "aplicacao-posicao",
+    rows: [],
+    metadata: {
+      account: "Aplicação",
+      agency: "",
+      closingBalance: null,
+      name: "Aplicação financeira",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+
+  const result = resolveStatementBindings(
+    [currentSource, applicationSource],
+    [
+      {
+        code: "1.1.1.03.03.09",
+        name: "Banco Santander - conta Aplic. 13081360-6",
+        rows: [{ date: "2026-06-10", value: -100 }],
+      },
+      {
+        code: "1.1.1.02.03.02",
+        name: "Banco Santander - conta 13081360-6",
+        rows: [
+          { date: "2026-06-10", value: 50 },
+          { date: "2026-06-10", value: -50 },
+        ],
+      },
+    ],
+  );
+  const application = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.03.03.09",
+  );
+  const current = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.02",
+  );
+
+  assert.deepEqual(
+    application?.source.rows.map((row: { id: string }) => row.id),
+    ["movimento-aplicacao"],
+  );
+  assert.deepEqual(
+    current?.source.rows.map((row: { id: string }) => row.id),
+    ["movimento-aplicacao", "contrapartida-corrente"],
+  );
 });
 
 test("reconhece aplicação presente em saldos mesmo sem posição ou movimento", async () => {

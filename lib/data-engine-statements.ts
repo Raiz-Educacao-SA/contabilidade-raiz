@@ -623,13 +623,8 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         Math.abs(selectedTotal - monthlyTarget) <= monthlyTolerance;
 
       if (completeMonthlySplit) {
-        const applicationRowIds = new Set(
-          selectedApplicationRows.map((row) => row.id),
-        );
         const applicationSource = emptyApplicationSources[0];
-        let currentRows = transactionSource.rows.filter(
-          (row) => !applicationRowIds.has(row.id),
-        );
+        let currentRows = [...transactionSource.rows];
         const currentAccounts = accounts.filter(
           (account) =>
             account.code !== applicationAccount.code &&
@@ -651,6 +646,17 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
               .reduce((total, row) => total + Math.abs(cents(row.value)), 0);
           const currentDebitTarget = totalInDirection(currentAccountingRows, 1);
           const currentCreditTarget = totalInDirection(currentAccountingRows, -1);
+          const currentMonthlyTarget = currentAccountingRows.reduce(
+            (total, row) => total + cents(row.value),
+            0,
+          );
+          const rawMonthlyTotal = currentRows.reduce(
+            (total, row) => total + cents(row.value),
+            0,
+          );
+          const rawMonthlyMatches =
+            Math.abs(rawMonthlyTotal - currentMonthlyTarget) <=
+            BANK_RECONCILIATION_TOLERANCE_CENTS;
           const rawDebitTotal = totalInDirection(currentRows, 1);
           const rawCreditTotal = totalInDirection(currentRows, -1);
           const debitExcess = rawDebitTotal - currentDebitTarget;
@@ -662,6 +668,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           // é mais seguro localizar e retirar somente o excedente mensal das
           // colunas auxiliares do que tentar reconstruir todo o extrato.
           if (
+            !rawMonthlyMatches &&
             debitExcess >= 0 &&
             creditExcess >= 0 &&
             (!currentDebitTarget || debitExcess / currentDebitTarget <= 0.1) &&
@@ -700,7 +707,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             }
           }
 
-          if (!complementComplete) {
+          if (!rawMonthlyMatches && !complementComplete) {
           const selectedCurrentRows: DataEngineBankRow[] = [];
           const selectedCurrentIds = new Set<string>();
           for (const accountingRow of currentAccountingRows) {
@@ -755,10 +762,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
               residualRows.forEach((row) => selectedCurrentIds.add(row.id));
             }
           }
-          const currentMonthlyTarget = currentAccountingRows.reduce(
-            (total, row) => total + cents(row.value),
-            0,
-          );
           const currentSelectedTotal = selectedCurrentRows.reduce(
             (total, row) => total + cents(row.value),
             0,
@@ -2398,11 +2401,10 @@ function statementsFromMovements(
         ? index
         : undefined;
     };
-    const generatedCrossDocumentIndex =
-      contentMovement &&
-      isGeneratedDescription(contentMovement.descricao_sanitizada) &&
-      isGeneratedDescription(movement.descricao_sanitizada)
-        ? fromAnotherDocument(contentIndex)
+    const fromAnotherSource = (index: number | undefined) =>
+      index !== undefined &&
+      selectedMovements[index]?.source_account_id !== movement.source_account_id
+        ? index
         : undefined;
     const existingIndex =
       fromAnotherDocument(
@@ -2411,9 +2413,8 @@ function statementsFromMovements(
       fromAnotherDocument(
         documentKey ? documentIndexes.get(documentKey) : undefined,
       ) ??
-      fromAnotherDocument(businessIndexes.get(businessKey)) ??
-      generatedFallbackIndex ??
-      generatedCrossDocumentIndex;
+      fromAnotherSource(businessIndexes.get(businessKey)) ??
+      generatedFallbackIndex;
     if (existingIndex === undefined) {
       if (canonicalKey && !canonicalIndexes.has(canonicalKey)) {
         canonicalIndexes.set(canonicalKey, selectedMovements.length);
