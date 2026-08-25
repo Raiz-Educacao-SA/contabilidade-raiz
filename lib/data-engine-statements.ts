@@ -747,6 +747,32 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
           let complementComplete = false;
           const sourceSelectionToleranceCents = 1;
 
+          // A mesma referência bancária pode trazer movimentos da conta
+          // corrente e da aplicação. Depois que a parcela da aplicação fecha
+          // o contábil, retiramos exatamente esses movimentos da conta
+          // corrente quando o líquido residual também fecha. Essa validação
+          // pelo movimento líquido mensal é independente da coligada e evita
+          // duplicar a aplicação mesmo quando as datas ou os totais brutos das
+          // duas fontes são diferentes.
+          const currentRowsWithoutApplication = currentRows.filter(
+            (row) => !selectedApplicationIds.has(row.id),
+          );
+          const currentNetWithoutApplication =
+            currentRowsWithoutApplication.reduce(
+              (total, row) => total + cents(row.value),
+              0,
+            );
+          if (
+            selectedApplicationIds.size > 0 &&
+            Math.abs(currentNetWithoutApplication - currentMonthlyTarget) <=
+              BANK_RECONCILIATION_TOLERANCE_CENTS
+          ) {
+            currentRows = currentRowsWithoutApplication.sort((left, right) =>
+              left.date.localeCompare(right.date),
+            );
+            complementComplete = true;
+          }
+
           const currentDates = Array.from(
             new Set([
               ...currentRows.map((row) => row.date),
@@ -754,8 +780,8 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             ].filter(Boolean)),
           ).sort();
           const dailyExcludedIds = new Set<string>();
-          let dailyComplementPossible = true;
-          for (const date of currentDates) {
+          let dailyComplementPossible = !complementComplete;
+          for (const date of complementComplete ? [] : currentDates) {
             for (const direction of [1, -1] as const) {
               const rowsForDay = currentRows.filter(
                 (row) =>
