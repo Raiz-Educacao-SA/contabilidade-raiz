@@ -833,14 +833,17 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                 left.date.localeCompare(right.date),
               );
             }
-            console.info("[reconciliation/source-split]", {
-              complementComplete,
-              currentCreditTarget,
-              currentDebitTarget,
-              diagnostics: complementDiagnostics,
-              rawCreditTotal,
-              rawDebitTotal,
-            });
+            console.info(
+              "[reconciliation/source-split]",
+              JSON.stringify({
+                complementComplete,
+                currentCreditTarget,
+                currentDebitTarget,
+                diagnostics: complementDiagnostics,
+                rawCreditTotal,
+                rawDebitTotal,
+              }),
+            );
           }
 
           if (!complementComplete) {
