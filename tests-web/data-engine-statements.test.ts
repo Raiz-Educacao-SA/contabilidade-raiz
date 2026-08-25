@@ -2087,7 +2087,7 @@ test("mantém Santander sem vínculo quando os movimentos continuam ambíguos", 
   assert.equal(identified.unmatchedAccounts.length, 2);
 });
 
-test("não aceita separação parcial entre aplicação e conta corrente", async () => {
+test("não aceita separação parcial nem trata aplicação vazia como extrato válido", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const source = {
     bankId: "033",
@@ -2143,8 +2143,71 @@ test("não aceita separação parcial entre aplicação e conta corrente", async
   const currentPair = result.pairs.find(
     (pair: { account: { code: string } }) => pair.account.code === "1.1.1.02.03.20",
   );
-  assert.equal(applicationPair?.source.rows.length, 0);
+  assert.equal(applicationPair, undefined);
   assert.equal(currentPair?.source.rows.length, 2);
+  assert.deepEqual(
+    result.unmatchedAccounts.map((account: { code: string }) => account.code),
+    ["1.1.1.03.03.20"],
+  );
+  assert.deepEqual(
+    result.unmatchedSources.map((item: { sourceAccountId: string }) => item.sourceAccountId),
+    ["aplicacao-posicao"],
+  );
+});
+
+test("vincula banco com código inconsistente somente por evidência diária e mensal inequívoca", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "310",
+    sourceAccountId: "referencia-inconsistente",
+    rows: [
+      {
+        id: "movimento-310-a",
+        date: "2026-06-08",
+        description: "TRANSFERÊNCIA RECEBIDA",
+        value: 1200,
+      },
+      {
+        id: "movimento-310-b",
+        date: "2026-06-08",
+        description: "PAGAMENTO",
+        value: -200,
+      },
+    ],
+    metadata: {
+      account: "referencia-tecnica",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 310",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const accounts = [
+    {
+      code: "1.1.1.02.13.22",
+      name: "Banco Sicoob - conta vinculada 45004-9",
+      rows: [
+        { date: "2026-06-08", value: 700 },
+        { date: "2026-06-08", value: 300 },
+      ],
+    },
+    {
+      code: "1.1.1.02.01.31",
+      name: "Banco Itaú - conta 01105-1",
+      rows: [{ date: "2026-06-09", value: 1000 }],
+    },
+  ];
+
+  const result = resolveStatementBindings([source], accounts);
+
+  assert.equal(result.pairs.length, 1);
+  assert.equal(result.pairs[0].account.code, "1.1.1.02.13.22");
+  assert.deepEqual(result.unmatchedSources, []);
+  assert.deepEqual(
+    result.unmatchedAccounts.map((account: { code: string }) => account.code),
+    ["1.1.1.02.01.31"],
+  );
 });
 
 test("separa somente os movimentos reais da aplicação e mantém o restante na conta corrente", async () => {

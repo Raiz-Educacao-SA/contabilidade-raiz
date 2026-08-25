@@ -1,5 +1,4 @@
 import {
-  BANK_RECONCILIATION_TOLERANCE,
   BANK_RECONCILIATION_TOLERANCE_CENTS,
   BANK_STATEMENT_SOURCE_PRIORITY,
 } from "./bank-reconciliation-policy.ts";
@@ -1149,6 +1148,14 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   const bindUnique = (source: DataEngineStatement, candidates: TAccount[]) => {
     if (candidates.length !== 1) return false;
     const account = candidates[0];
+    const accountHasMovements = (account.rows ?? []).some(
+      (row) => Math.abs(cents(row.value)) > 0,
+    );
+    // Saldos, posições e cobertura podem identificar a existência de uma
+    // conta sem publicar os movimentos da competência. Nessa situação a
+    // fonte vazia não é um extrato válido e não pode gerar uma divergência
+    // artificial contra os lançamentos contábeis.
+    if (source.rows.length === 0 && accountHasMovements) return false;
     pairs.push({
       account,
       source: alignTechnicalDuplicatesWithAccounting(source, account),
@@ -1202,7 +1209,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
       ([date, total]) =>
         accountDaily.has(date) &&
         Math.abs(total - (accountDaily.get(date) ?? 0)) <=
-          BANK_RECONCILIATION_TOLERANCE,
+          BANK_RECONCILIATION_TOLERANCE_CENTS,
     ).length;
     const sourceMonthly = Array.from(sourceDaily.values()).reduce(
       (total, value) => total + value,
@@ -1214,7 +1221,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     );
     const sameMonthlyNet =
       Math.abs(sourceMonthly - accountMonthly) <=
-      BANK_RECONCILIATION_TOLERANCE
+      BANK_RECONCILIATION_TOLERANCE_CENTS
         ? 1
         : 0;
 
@@ -1231,11 +1238,16 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
   const bindByMovementEvidence = (
     source: DataEngineStatement,
     candidates: TAccount[],
+    minimumScore = 1,
   ) => {
     const ranked = candidates
       .map((account) => ({ account, score: movementEvidence(source, account) }))
       .sort((left, right) => right.score - left.score);
-    if (!ranked[0]?.score || ranked[0].score === ranked[1]?.score) return false;
+    if (
+      !ranked[0]?.score ||
+      ranked[0].score < minimumScore ||
+      ranked[0].score === ranked[1]?.score
+    ) return false;
     return bindUnique(source, [ranked[0].account]);
   };
 
@@ -1274,6 +1286,19 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     }
     if (bindByMovementEvidence(source, candidates)) continue;
     bindUnique(source, candidates);
+  }
+  // Prioridade 4: quando o identificador do banco veio inconsistente, os
+  // próprios movimentos ainda podem comprovar uma conta de forma inequívoca.
+  // Exigimos o mesmo líquido mensal e ao menos um dia compatível; coincidência
+  // apenas mensal não é suficiente para vincular fontes de bancos diferentes.
+  for (const source of Array.from(remainingSources.values())) {
+    if (!source.rows.length) continue;
+    const candidates = Array.from(remainingAccounts.values()).filter((account) =>
+      isApplicationStatement(source)
+        ? APPLICATION_ACCOUNT_PATTERN.test(account.name ?? "")
+        : !APPLICATION_ACCOUNT_PATTERN.test(account.name ?? ""),
+    );
+    bindByMovementEvidence(source, candidates, 1_001);
   }
   // Último caso seguro: resta exatamente um extrato e uma conta.
   if (remainingSources.size === 1 && remainingAccounts.size === 1) {
