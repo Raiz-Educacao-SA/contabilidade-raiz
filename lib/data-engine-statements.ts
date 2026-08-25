@@ -745,12 +745,66 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
               [-1, creditExcess],
             ] as const) {
               if (excess <= 100) continue;
-              const auxiliaryRows = selectMonthlyComplement(
-                currentRows.filter(
-                  (row) => Math.sign(cents(row.value)) === direction,
-                ),
-                direction * excess,
+              const directionalRows = currentRows.filter(
+                (row) => Math.sign(cents(row.value)) === direction,
               );
+              const applicationRows = directionalRows.filter((row) =>
+                selectedApplicationIds.has(row.id),
+              );
+              const applicationTotal = totalInDirection(
+                applicationRows,
+                direction,
+              );
+              let auxiliaryRows: DataEngineBankRow[] = [];
+
+              if (
+                applicationRows.length > 0 &&
+                Math.abs(applicationTotal - excess) <=
+                  BANK_RECONCILIATION_TOLERANCE_CENTS
+              ) {
+                auxiliaryRows = applicationRows;
+              } else if (applicationRows.length > 0 && applicationTotal < excess) {
+                const additionalRows = selectMonthlyComplement(
+                  directionalRows.filter(
+                    (row) => !selectedApplicationIds.has(row.id),
+                  ),
+                  direction * (excess - applicationTotal),
+                );
+                const additionalTotal = totalInDirection(
+                  additionalRows,
+                  direction,
+                );
+                if (
+                  additionalRows.length > 0 &&
+                  Math.abs(applicationTotal + additionalTotal - excess) <=
+                    BANK_RECONCILIATION_TOLERANCE_CENTS
+                ) {
+                  auxiliaryRows = [...applicationRows, ...additionalRows];
+                }
+              } else if (applicationRows.length > 0) {
+                const applicationSubset = selectNearTarget(
+                  applicationRows,
+                  direction * excess,
+                );
+                const applicationSubsetTotal = totalInDirection(
+                  applicationSubset,
+                  direction,
+                );
+                if (
+                  applicationSubset.length > 0 &&
+                  Math.abs(applicationSubsetTotal - excess) <=
+                    BANK_RECONCILIATION_TOLERANCE_CENTS
+                ) {
+                  auxiliaryRows = applicationSubset;
+                }
+              }
+
+              if (!auxiliaryRows.length) {
+                auxiliaryRows = selectMonthlyComplement(
+                  directionalRows,
+                  direction * excess,
+                );
+              }
               auxiliaryRows.forEach((row) => excludedIds.add(row.id));
             }
 
