@@ -2327,8 +2327,8 @@ function statementsFromMovements(
       contentIndex === undefined ? undefined : selectedMovements[contentIndex];
     const generatedFallbackIndex =
       contentMovement &&
-      (isGeneratedDescription(contentMovement.descricao_sanitizada) ||
-        isGeneratedDescription(movement.descricao_sanitizada))
+      isGeneratedDescription(contentMovement.descricao_sanitizada) !==
+        isGeneratedDescription(movement.descricao_sanitizada)
         ? contentIndex
         : undefined;
     const fromAnotherSource = (index: number | undefined) =>

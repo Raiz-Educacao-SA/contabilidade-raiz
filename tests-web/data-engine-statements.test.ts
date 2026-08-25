@@ -335,8 +335,7 @@ test("mantém lançamentos idênticos que existem mais de uma vez no mesmo Excel
           data_lancamento: "2026-06-01",
           valor_centavos: 26283,
           natureza: "D",
-          descricao_sanitizada:
-            "PAGFOR PIX OUTRA INST- DIFEREN TIT 3003.4901971551",
+          descricao_sanitizada: "MOVIMENTO-34283A563A842164ACFF67BE",
           documento_hash: "extrato-santander-junho",
           file_name: "06_2026_SANTANDER_130812722.xlsx",
         })),
