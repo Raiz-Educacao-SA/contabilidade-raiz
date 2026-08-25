@@ -83,6 +83,7 @@ type WorkflowState = {
 
 const workflowCache = new Map<string, WorkflowState>();
 const EXCEPTION_PAGE_SIZE = 25;
+const RECONCILIATION_HISTORY_VERSION = "rules-2026-08-25-v2";
 const reconciliationCacheDbName = "contabilidade-raiz-reconciliation-cache";
 const reconciliationCacheStoreName = "monthly-results";
 
@@ -241,7 +242,8 @@ export default function MonthlyReconciliationPanel({
   accessToken: string;
   userId: string;
 }) {
-  const historyKey = `conciliacao-financeira:${companyId}:${competence}`;
+  const legacyHistoryKey = `conciliacao-financeira:${companyId}:${competence}`;
+  const historyKey = `${legacyHistoryKey}:${RECONCILIATION_HISTORY_VERSION}`;
   const [initialWorkflow] = useState(() => workflowCache.get(historyKey));
   const [accounting, setAccounting] = useState<AccountingRow[]>(
     () => initialWorkflow?.accounting ?? [],
@@ -423,6 +425,11 @@ export default function MonthlyReconciliationPanel({
     });
     return () => { active = false; };
   }, [historyKey, initialWorkflow]);
+
+  useEffect(() => {
+    localStorage.removeItem(legacyHistoryKey);
+    void deleteReconciliationCache(legacyHistoryKey);
+  }, [legacyHistoryKey]);
 
   useEffect(() => {
     for (const cachedKey of workflowCache.keys()) {
@@ -1588,3 +1595,4 @@ function ReconciliationExceptionTable({
     </article>
   );
 }
+
