@@ -2325,6 +2325,72 @@ test("descarta colunas auxiliares do PDF somente quando a conta corrente fica co
   );
 });
 
+test("mantém na conta corrente o complemento que fecha o crédito contábil", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const result = resolveStatementBindings(
+    [
+      {
+        bankId: "033",
+        sourceAccountId: "santander-movimentos-mistos",
+        rows: [
+          { id: "corrente-debito", date: "2026-06-10", description: "DÉBITO CORRENTE", value: 200 },
+          { id: "corrente-credito", date: "2026-06-10", description: "CRÉDITO CORRENTE", value: -150 },
+          { id: "aplicacao-a", date: "2026-06-10", description: "RESGATE A", value: -80 },
+          { id: "aplicacao-b", date: "2026-06-10", description: "RESGATE B", value: -50 },
+        ],
+        metadata: {
+          account: "referencia-compartilhada",
+          agency: "",
+          closingBalance: null,
+          name: "Banco 033",
+          openingBalance: null,
+          period: "06/2026",
+        },
+      },
+      {
+        bankId: "000",
+        sourceAccountId: "aplicacao-posicao",
+        rows: [],
+        metadata: {
+          account: "Aplicação",
+          agency: "",
+          closingBalance: null,
+          name: "Aplicação financeira",
+          openingBalance: null,
+          period: "06/2026",
+        },
+      },
+    ],
+    [
+      {
+        code: "1.1.1.03.03.20",
+        name: "Banco Santander - conta Aplic. 13082100-5",
+        rows: [
+          { date: "2026-06-10", value: -80 },
+          { date: "2026-06-10", value: -50 },
+        ],
+      },
+      {
+        code: "1.1.1.02.03.11",
+        name: "Banco Santander - conta 13082100-5",
+        rows: [
+          { date: "2026-06-10", value: 200 },
+          { date: "2026-06-10", value: -200 },
+        ],
+      },
+    ],
+  );
+  const current = result.pairs.find(
+    (pair: { account: { code: string } }) =>
+      pair.account.code === "1.1.1.02.03.11",
+  );
+
+  assert.deepEqual(
+    current?.source.rows.map((row: { id: string }) => row.id),
+    ["corrente-debito", "corrente-credito", "aplicacao-b"],
+  );
+});
+
 test("vincula contas Daycoval pelo total diário quando o banco agrupa lançamentos", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const statement = (id: string, values: number[]) => ({

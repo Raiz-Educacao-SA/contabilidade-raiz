@@ -783,9 +783,15 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                   auxiliaryRows = [...applicationRows, ...additionalRows];
                 }
               } else if (applicationRows.length > 0) {
-                const applicationSubset = selectNearTarget(
+                const removableApplicationRows = selectNearTarget(
                   applicationRows,
-                  direction * excess,
+                  direction * (applicationTotal - excess),
+                );
+                const removableIds = new Set(
+                  removableApplicationRows.map((row) => row.id),
+                );
+                const applicationSubset = applicationRows.filter(
+                  (row) => !removableIds.has(row.id),
                 );
                 const applicationSubsetTotal = totalInDirection(
                   applicationSubset,
