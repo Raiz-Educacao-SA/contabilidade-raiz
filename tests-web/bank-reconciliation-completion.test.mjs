@@ -138,11 +138,17 @@ test("mantém fichas recolhidas também para as contas conciliadas", () => {
   );
 });
 
-test("não libera a conciliação quando o Data Engine só devolve pendências", () => {
+test("não associa pendências históricas sem evidência à competência", () => {
   assert.match(panel, /if \(sources\.length > 0\)/);
   assert.match(panel, /setStatementsUpdated\(false\)/);
+  assert.match(panel, /pendingEvidenceForPeriod/);
   assert.match(panel, /LEGACY_DOCUMENT_INVALID/);
-  assert.match(panel, /aguardando reprocessamento na origem/);
+  assert.match(
+    panel,
+    /pendências históricas retornadas não possuem evidência vinculada a esta competência/,
+  );
+  assert.match(panel, /Nenhum movimento publicado para a competência/);
+  assert.doesNotMatch(panel, /aguardando reprocessamento na origem/);
 });
 
 test("prioriza a soma líquida diária e depois a soma líquida mensal", () => {

@@ -590,6 +590,7 @@ export default function MonthlyReconciliationPanel({
         operations?: DataEngineStatementOperations;
         diagnostics?: {
           pendingSummary?: {
+            evidenceForPeriod?: number;
             reasons?: Record<string, number>;
             statuses?: Record<string, number>;
           };
@@ -613,15 +614,20 @@ export default function MonthlyReconciliationPanel({
       } else {
         setStatementsUpdated(false);
         const pendingCount = data.operations?.pendencias ?? 0;
+        const pendingEvidenceForPeriod =
+          data.diagnostics?.pendingSummary?.evidenceForPeriod ?? 0;
         const invalidLegacyCount =
           data.diagnostics?.pendingSummary?.reasons?.LEGACY_DOCUMENT_INVALID ??
           0;
+        const competenceLabel = competence.split("-").reverse().join("/");
         setNotice(
-          invalidLegacyCount > 0
-            ? `O Data Engine não publicou movimentos para esta coligada. Há ${invalidLegacyCount} documento(s) histórico(s) inválido(s) aguardando reprocessamento na origem.`
-            : pendingCount > 0
-              ? `O Data Engine não publicou movimentos para esta coligada. Há ${pendingCount} pendência(s) aberta(s) na origem.`
-              : "O Data Engine não publicou movimentos para a competência selecionada.",
+          pendingEvidenceForPeriod > 0 && invalidLegacyCount > 0
+            ? `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}. Há ${Math.min(invalidLegacyCount, pendingEvidenceForPeriod)} documento(s) inválido(s) com evidência vinculada a esta competência.`
+            : pendingEvidenceForPeriod > 0
+              ? `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}. Há ${pendingEvidenceForPeriod} pendência(s) com evidência vinculada a esta competência.`
+              : pendingCount > 0
+                ? `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}. As ${pendingCount} pendências históricas retornadas não possuem evidência vinculada a esta competência e não são usadas pela conciliação.`
+                : `Nenhum movimento foi publicado pelo Data Engine para ${competenceLabel}.`,
         );
       }
     } catch (error) {
@@ -877,7 +883,9 @@ export default function MonthlyReconciliationPanel({
                     ? `${dataEngineSources.length} conta(s) encontrada(s) no Data Engine`
                     : statementsUpdated
                       ? `${dataEngineSources.length} conta(s) carregada(s) · atualize para uma nova conciliação`
-                    : "Aguardando atualização do Data Engine"}
+                    : dataEngineOperations
+                      ? "Nenhum movimento publicado para a competência"
+                      : "Aguardando atualização do Data Engine"}
               </span>
             </div>
             <button
