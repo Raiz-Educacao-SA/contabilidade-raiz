@@ -824,7 +824,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
             (!currentCreditTarget || creditExcess / currentCreditTarget <= 0.1)
           ) {
             const excludedIds = new Set<string>();
-            const complementDiagnostics: Array<Record<string, number>> = [];
             for (const [direction, excess] of [
               [1, debitExcess],
               [-1, creditExcess],
@@ -910,14 +909,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                   direction * excess,
                 );
               }
-              complementDiagnostics.push({
-                applicationRows: applicationRows.length,
-                applicationTotal,
-                auxiliaryRows: auxiliaryRows.length,
-                auxiliaryTotal: totalInDirection(auxiliaryRows, direction),
-                direction,
-                excess,
-              });
               auxiliaryRows.forEach((row) => excludedIds.add(row.id));
             }
 
@@ -937,17 +928,6 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                 left.date.localeCompare(right.date),
               );
             }
-            console.info(
-              "[reconciliation/source-split]",
-              JSON.stringify({
-                complementComplete,
-                currentCreditTarget,
-                currentDebitTarget,
-                diagnostics: complementDiagnostics,
-                rawCreditTotal,
-                rawDebitTotal,
-              }),
-            );
           }
 
           if (!complementComplete) {
@@ -1064,10 +1044,83 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
     normalizedSources.map((source) => [source.sourceAccountId, source]),
   );
   const pairs: Array<{ account: TAccount; source: DataEngineStatement }> = [];
+  const generatedDescription = (value: string) =>
+    /^MOVIMENTO-[A-Z0-9_-]{12,}$/i.test(value.trim());
+  const alignTechnicalDuplicatesWithAccounting = (
+    source: DataEngineStatement,
+    account: TAccount,
+  ) => {
+    const accountingRows = account.rows ?? [];
+    if (!source.rows.length || !accountingRows.length) return source;
+
+    const keyFor = (row: { date?: Date | string; value: number }) =>
+      `${day(row.date)}|${cents(row.value)}`;
+    const accountingCounts = new Map<string, number>();
+    for (const row of accountingRows) {
+      const key = keyFor(row);
+      accountingCounts.set(key, (accountingCounts.get(key) ?? 0) + 1);
+    }
+    const sourceGroups = new Map<string, DataEngineBankRow[]>();
+    for (const row of source.rows) {
+      const key = keyFor(row);
+      sourceGroups.set(key, [...(sourceGroups.get(key) ?? []), row]);
+    }
+
+    const removableIds = new Set<string>();
+    for (const [key, rows] of sourceGroups) {
+      const accountingCount = accountingCounts.get(key) ?? 0;
+      const distinctDescriptions = new Set(
+        rows.map((row) => row.description.trim().toUpperCase()),
+      );
+      if (
+        accountingCount <= 0 ||
+        rows.length <= accountingCount ||
+        distinctDescriptions.size <= 1 ||
+        !rows.every((row) => generatedDescription(row.description))
+      ) {
+        continue;
+      }
+      rows.slice(accountingCount).forEach((row) => removableIds.add(row.id));
+    }
+    if (!removableIds.size) return source;
+
+    const candidateRows = source.rows.filter((row) => !removableIds.has(row.id));
+    const gross = (rows: Array<{ value: number }>) =>
+      rows.reduce(
+        (totals, row) => {
+          const value = cents(row.value);
+          if (value >= 0) totals.debit += value;
+          else totals.credit += Math.abs(value);
+          return totals;
+        },
+        { credit: 0, debit: 0 },
+      );
+    const original = gross(source.rows);
+    const candidate = gross(candidateRows);
+    const accounting = gross(accountingRows);
+    const originalError =
+      Math.abs(original.debit - accounting.debit) +
+      Math.abs(original.credit - accounting.credit);
+    const candidateError =
+      Math.abs(candidate.debit - accounting.debit) +
+      Math.abs(candidate.credit - accounting.credit);
+    const candidateClosesAccounting =
+      Math.abs(candidate.debit - accounting.debit) <=
+        BANK_RECONCILIATION_TOLERANCE_CENTS &&
+      Math.abs(candidate.credit - accounting.credit) <=
+        BANK_RECONCILIATION_TOLERANCE_CENTS;
+
+    return candidateClosesAccounting && candidateError < originalError
+      ? { ...source, rows: candidateRows }
+      : source;
+  };
   const bindUnique = (source: DataEngineStatement, candidates: TAccount[]) => {
     if (candidates.length !== 1) return false;
     const account = candidates[0];
-    pairs.push({ account, source });
+    pairs.push({
+      account,
+      source: alignTechnicalDuplicatesWithAccounting(source, account),
+    });
     remainingAccounts.delete(account.code);
     remainingSources.delete(source.sourceAccountId);
     return true;

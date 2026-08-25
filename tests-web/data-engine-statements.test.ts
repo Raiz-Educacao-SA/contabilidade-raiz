@@ -1917,6 +1917,49 @@ test("identifica automaticamente uma correspondência única e aponta coberturas
   assert.deepEqual(uncovered.unmatchedAccounts, []);
 });
 
+test("remove a cópia técnica do PDF ao vincular o extrato ao movimento contábil", async () => {
+  const { resolveStatementBindings } = await import(moduleUrl.href);
+  const source = {
+    bankId: "341",
+    sourceAccountId: "itau-raiz-educacao",
+    rows: [
+      {
+        date: "2026-06-02",
+        description: "MOVIMENTO-34283A563A842164ACFF67BE",
+        id: "movimento-pdf-351",
+        value: -351,
+      },
+      {
+        date: "2026-06-02",
+        description: "MOVIMENTO-5D36A68F91C0B5421E7A390F",
+        id: "movimento-excel-351",
+        value: -351,
+      },
+    ],
+    metadata: {
+      account: "14489-9",
+      agency: "",
+      closingBalance: null,
+      name: "Banco 341",
+      openingBalance: null,
+      period: "06/2026",
+    },
+  };
+  const accounts = [
+    {
+      code: "1.1.1.02.01.19",
+      name: "Banco Itaú S/A - conta 14489-9 (Raiz Educação)",
+      rows: [{ date: new Date("2026-06-02T00:00:00.000Z"), value: -351 }],
+    },
+  ];
+
+  const resolved = resolveStatementBindings([source], accounts);
+
+  assert.equal(resolved.pairs.length, 1);
+  assert.equal(resolved.pairs[0].source.rows.length, 1);
+  assert.equal(resolved.pairs[0].source.rows[0].value, -351);
+});
+
 test("distingue contas Santander pelo conjunto de datas e valores dos movimentos", async () => {
   const { resolveStatementBindings } = await import(moduleUrl.href);
   const source = (reference: string, value: number) => ({
