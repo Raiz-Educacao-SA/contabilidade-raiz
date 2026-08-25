@@ -528,6 +528,90 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
         return remaining === 0 ? selectedRows : [];
       };
 
+      const selectSeededComplement = (
+        rows: DataEngineBankRow[],
+        seedRows: DataEngineBankRow[],
+        target: number,
+      ) => {
+        const absoluteTarget = Math.abs(target);
+        const tolerance = BANK_RECONCILIATION_TOLERANCE_CENTS;
+        if (!absoluteTarget || !seedRows.length || seedRows.length > 20) {
+          return [] as DataEngineBankRow[];
+        }
+        const seedIds = new Set(seedRows.map((row) => row.id));
+        const supplements = rows.filter(
+          (row) => !seedIds.has(row.id) && cents(row.value) * target > 0,
+        );
+        const supplementByTotal = new Map<number, DataEngineBankRow[]>();
+        supplementByTotal.set(0, []);
+        for (let left = 0; left < supplements.length; left += 1) {
+          const leftAmount = Math.abs(cents(supplements[left].value));
+          if (leftAmount <= absoluteTarget + tolerance) {
+            supplementByTotal.set(leftAmount, [supplements[left]]);
+          }
+          for (let right = left + 1; right < supplements.length; right += 1) {
+            const total =
+              leftAmount + Math.abs(cents(supplements[right].value));
+            if (total > absoluteTarget + tolerance) continue;
+            if (!supplementByTotal.has(total)) {
+              supplementByTotal.set(total, [supplements[left], supplements[right]]);
+            }
+          }
+        }
+
+        const subsetCount = 1 << seedRows.length;
+        const subsetSums = new Float64Array(subsetCount);
+        let best:
+          | {
+              difference: number;
+              rows: DataEngineBankRow[];
+              seedCount: number;
+              supplementCount: number;
+            }
+          | undefined;
+        for (let mask = 0; mask < subsetCount; mask += 1) {
+          if (mask > 0) {
+            const leastBit = mask & -mask;
+            const seedIndex = Math.log2(leastBit);
+            subsetSums[mask] =
+              subsetSums[mask ^ leastBit] +
+              Math.abs(cents(seedRows[seedIndex].value));
+          }
+          const seedTotal = subsetSums[mask];
+          if (seedTotal > absoluteTarget + tolerance) continue;
+          const selectedSeeds = seedRows.filter((_, index) => mask & (1 << index));
+          for (let difference = 0; difference <= tolerance; difference += 1) {
+            for (const expectedTotal of [
+              absoluteTarget - difference,
+              absoluteTarget + difference,
+            ]) {
+              const supplement = supplementByTotal.get(expectedTotal - seedTotal);
+              if (!supplement) continue;
+              const candidate = {
+                difference,
+                rows: [...selectedSeeds, ...supplement],
+                seedCount: selectedSeeds.length,
+                supplementCount: supplement.length,
+              };
+              if (
+                !best ||
+                candidate.difference < best.difference ||
+                (candidate.difference === best.difference &&
+                  candidate.supplementCount < best.supplementCount) ||
+                (candidate.difference === best.difference &&
+                  candidate.supplementCount === best.supplementCount &&
+                  candidate.seedCount > best.seedCount)
+              ) {
+                best = candidate;
+              }
+              break;
+            }
+            if (best?.difference === 0 && best.supplementCount === 0) break;
+          }
+        }
+        return best?.rows ?? [];
+      };
+
       const selectedIds = new Set<string>();
       const exactCandidates: DataEngineBankRow[] = [];
       const accountingRows = [...(applicationAccount.rows ?? [])].sort(
@@ -758,13 +842,27 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
               );
               let auxiliaryRows: DataEngineBankRow[] = [];
 
+              const seededRows = selectSeededComplement(
+                directionalRows,
+                applicationRows,
+                direction * excess,
+              );
+              const seededTotal = totalInDirection(seededRows, direction);
               if (
+                seededRows.length > 0 &&
+                Math.abs(seededTotal - excess) <=
+                  BANK_RECONCILIATION_TOLERANCE_CENTS
+              ) {
+                auxiliaryRows = seededRows;
+              }
+
+              if (!auxiliaryRows.length &&
                 applicationRows.length > 0 &&
                 Math.abs(applicationTotal - excess) <=
                   BANK_RECONCILIATION_TOLERANCE_CENTS
               ) {
                 auxiliaryRows = applicationRows;
-              } else if (applicationRows.length > 0 && applicationTotal < excess) {
+              } else if (!auxiliaryRows.length && applicationRows.length > 0 && applicationTotal < excess) {
                 const additionalRows = selectMonthlyComplement(
                   directionalRows.filter(
                     (row) => !selectedApplicationIds.has(row.id),
@@ -782,7 +880,7 @@ export function resolveStatementBindings<TAccount extends BindableAccount>(
                 ) {
                   auxiliaryRows = [...applicationRows, ...additionalRows];
                 }
-              } else if (applicationRows.length > 0) {
+              } else if (!auxiliaryRows.length && applicationRows.length > 0) {
                 const removableApplicationRows = selectNearTarget(
                   applicationRows,
                   direction * (applicationTotal - excess),
