@@ -60,6 +60,15 @@ test("aplica uma política única de conciliação a todas as coligadas", () => 
   assert.doesNotMatch(dataEngine, /options\.codColigada\s*===\s*(?:1|2|3)\b/);
 });
 
+test("mantém o Data Engine como única fonte automatizada dos extratos bancários", async () => {
+  assert.match(panel, /\/api\/data-engine\/statements/);
+  assert.doesNotMatch(panel, /\/api\/drive\/statements/);
+  await assert.rejects(
+    readFile(new URL("../app/api/drive/statements/route.ts", import.meta.url), "utf8"),
+    { code: "ENOENT" },
+  );
+});
+
 test("detalha o que não confere entre o extrato e a contabilidade", () => {
   assert.match(panel, /row\.status === "Somente no banco"/);
   assert.match(panel, /row\.status === "Somente na contabilidade"/);
