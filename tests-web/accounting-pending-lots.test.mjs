@@ -15,6 +15,9 @@ test("módulo contábil oferece a rotina Lotes a integrar", () => {
   assert.match(panel, /Atualizar/);
   assert.doesNotMatch(panel, /<h2>Lotes a integrar<\/h2>/);
   assert.match(panel, /Empresa<\/th><th>Lote/);
+  const accountingMenuStart = page.indexOf('<nav className="accounting-nav">');
+  const accountingMenu = page.slice(accountingMenuStart, page.indexOf('{selectedModule === "book"', accountingMenuStart));
+  assert.ok(accountingMenu.indexOf('label: "Lotes a integrar"') < accountingMenu.indexOf('label: "Análise Balancete"'));
 });
 
 test("consulta usa a Planilha NET 5 e restringe a empresa autorizada", () => {

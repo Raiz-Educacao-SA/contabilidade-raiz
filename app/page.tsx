@@ -769,8 +769,8 @@ export default function Home() {
                 { id: "provisoes", label: "Provisões", icon: Save },
                 { id: "despesas", label: "Despesas", icon: ReceiptText },
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
-                { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
                 { id: "lotes-integrar", label: "Lotes a integrar", icon: ListChecks },
+                { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
             ).map(({ id, label, icon: Icon }) =>
               id === "arrendamentos" ? (
