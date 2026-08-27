@@ -1,7 +1,13 @@
+import { company18LoanControls } from "./loan-controls-company-18.ts";
+
 export type LoanScheduleEntry = {
   competence: string;
   interest: number;
   totalInstallment: number;
+  installment?: number;
+  amortization?: number;
+  outstandingBalance?: number;
+  status?: string;
 };
 
 export type LoanPostingControl = {
@@ -22,12 +28,14 @@ export type LoanPostingControl = {
   financedTotal: number;
   openingBalance: number;
   graceInterest: number;
+  interestSummaryLabel?: string;
   monthlyRate: number;
   monthlyAmortization: number;
   installments: number;
   releaseDate: string;
   firstCompetence: string;
   finalCompetence: string;
+  postingsEnabled?: boolean;
   schedule: LoanScheduleEntry[];
 };
 
@@ -35,7 +43,7 @@ export type LoanControlScheduleRow = LoanScheduleEntry & {
   installment: number;
   amortization: number;
   outstandingBalance: number;
-  status: "Ativa";
+  status: string;
 };
 
 export type LoanPosting = {
@@ -139,6 +147,7 @@ const controlsByCompany: Record<string, LoanPostingControl[]> = {
     finalCompetence: "2031-01",
     schedule: aoCuboSicoobSchedule,
   }],
+  "18": company18LoanControls,
 };
 
 const normalizeCompanyCode = (value: string) => String(Number(value || "0")).padStart(2, "0");
@@ -158,18 +167,18 @@ export function getLoanPostingControls(companyCode: string) {
 export function getLoanControlSchedule(control: LoanPostingControl): LoanControlScheduleRow[] {
   return control.schedule.map((entry, index) => ({
     ...entry,
-    installment: index + 1,
-    amortization: control.monthlyAmortization,
-    outstandingBalance: index === control.installments - 1
+    installment: entry.installment ?? index + 1,
+    amortization: entry.amortization ?? control.monthlyAmortization,
+    outstandingBalance: entry.outstandingBalance ?? (index === control.installments - 1
       ? 0
-      : roundCurrency(Math.max(0, control.openingBalance - control.monthlyAmortization * (index + 1))),
-    status: "Ativa",
+      : roundCurrency(Math.max(0, control.openingBalance - control.monthlyAmortization * (index + 1)))),
+    status: entry.status || "Ativa",
   }));
 }
 
 export function generateLoanPostings(companyCode: string, competence: string): LoanPosting[] {
   const futureCompetence = addMonths(competence, 12);
-  return getLoanPostingControls(companyCode).flatMap((control) => {
+  return getLoanPostingControls(companyCode).filter((control) => control.postingsEnabled !== false).flatMap((control) => {
     const current = control.schedule.find((entry) => entry.competence === competence);
     if (!current) return [];
     const future = control.schedule.find((entry) => entry.competence === futureCompetence);

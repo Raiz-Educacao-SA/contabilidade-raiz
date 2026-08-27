@@ -52,11 +52,30 @@ test("módulo de empréstimos substitui a análise pelo gerador de lançamentos"
   assert.doesNotMatch(panel, />Analisar balancete</);
   assert.match(panel, /Exportar análise/);
   assert.match(panel, /Gerar lançamentos/);
-  assert.match(panel, /Controle fixo:/);
+  assert.match(panel, /controle\(s\) fixo\(s\) cadastrado\(s\)/);
   assert.match(panel, /Controle de Empréstimos/);
-  assert.match(panel, /CONTROLE FIXO · COLIGADA 05/);
+  assert.match(panel, /CONTROLE FIXO · COLIGADA \{fixedControl\.companyCode\}/);
+  assert.match(panel, /loan-contract-tabs/);
   assert.match(panel, /<th>Saldo final<\/th><th>Grupo<\/th>/);
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
+});
+
+test("mantém somente o controle Itaú 2849757626 na coligada 18", () => {
+  const controls = getLoanPostingControls("18");
+  assert.equal(controls.length, 1);
+  assert.equal(controls[0].contract, "2849757626");
+  assert.equal(controls[0].sourceSheet, "Espaço Magico Itau - 2849757626");
+  assert.equal(getLoanControlSchedule(controls[0]).length, 42);
+  assert.deepEqual(getLoanControlSchedule(controls[0]).find((row) => row.competence === "2026-04"), {
+    competence: "2026-04",
+    installment: 22,
+    amortization: 25169.88,
+    interest: 10132.41,
+    totalInstallment: 35302.29,
+    outstandingBalance: 706045.8,
+    status: "Ativa",
+  });
+  assert.equal(generateLoanPostings("18", "2026-06").length, 0);
 });
 
 test("mantém o controle fixo completo do contrato Sicoob da coligada 05", () => {

@@ -528,6 +528,12 @@
 .loan-term.interest { background: #fff4df; color: #9a5a00; }
 .loan-analysis .trial-summary { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .loan-control { padding: 12px 14px 18px; }
+.loan-contract-tabs { display: flex; align-items: stretch; gap: 6px; margin-bottom: 9px; overflow-x: auto; padding-bottom: 2px; }
+.loan-contract-tabs button { flex: 0 0 auto; min-width: 105px; padding: 7px 10px; border: 1px solid #dce4ed; border-radius: 9px; background: #fff; color: #526174; text-align: left; }
+.loan-contract-tabs button span,.loan-contract-tabs button b { display: block; }
+.loan-contract-tabs button span { font-size: 8px; }
+.loan-contract-tabs button b { margin-top: 2px; font-size: 9px; }
+.loan-contract-tabs button.active { border-color: #6b5be7; background: #efecff; color: #4938c8; box-shadow: inset 0 -2px #6b5be7; }
 .loan-control-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #dce4ed; border-radius: 11px; background: linear-gradient(120deg,#f4fbf8,#fffaf0); }
 .loan-control-heading small { color: var(--purple); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
 .loan-control-heading h3 { margin: 3px 0; font-size: 13px; }
