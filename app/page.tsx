@@ -275,6 +275,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("conciliacao");
   const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
   const [pendingLotsAllCompanies, setPendingLotsAllCompanies] = useState(false);
+  const [pendingLotsUpdating, setPendingLotsUpdating] = useState(false);
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
   const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
   const [selectedScheduleModule, setSelectedScheduleModule] = useState<ScheduleModuleKey>("contabil");
@@ -974,8 +975,8 @@ export default function Home() {
                 <input type="checkbox" checked={pendingLotsAllCompanies} onChange={(event) => setPendingLotsAllCompanies(event.target.checked)} />
                 <span>Todas</span>
               </label>
-              <button className="primary" onClick={() => window.dispatchEvent(new Event("pending-lots:update"))}>
-                <RefreshCw /> Atualizar
+              <button className="primary" disabled={pendingLotsUpdating} onClick={() => window.dispatchEvent(new Event("pending-lots:update"))}>
+                <RefreshCw className={pendingLotsUpdating ? "spin" : ""} /> {pendingLotsUpdating ? "Atualizando..." : "Atualizar"}
               </button>
             </div>
           )}
@@ -1136,6 +1137,7 @@ export default function Home() {
             allCompanies={pendingLotsAllCompanies}
             competence={competence}
             accessToken={session.access_token}
+            onLoadingChange={setPendingLotsUpdating}
           />
         )}
         {selectedModule === "contabil" && accountingTab === "intercompany" && (

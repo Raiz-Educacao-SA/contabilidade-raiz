@@ -6,7 +6,7 @@ import { CheckCircle2, TriangleAlert } from "lucide-react";
 type Lot = { companyCode: string; companyName: string; lotCode: string; application: string; applicationName: string; date: string; records: number; debit: number; credit: number; difference: number };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function PendingAccountingLots({ companyCode, allCompanies, competence, accessToken }: { companyCode: string; allCompanies: boolean; competence: string; accessToken: string }) {
+export default function PendingAccountingLots({ companyCode, allCompanies, competence, accessToken, onLoadingChange }: { companyCode: string; allCompanies: boolean; competence: string; accessToken: string; onLoadingChange: (loading: boolean) => void }) {
   const [lots, setLots] = useState<Lot[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Selecione a empresa e clique em Atualizar.");
@@ -14,7 +14,7 @@ export default function PendingAccountingLots({ companyCode, allCompanies, compe
 
   const update = useCallback(async () => {
     if (!companyCode || !competence || !accessToken) return;
-    setLoading(true); setMessage("");
+    setLoading(true); onLoadingChange(true); setMessage("");
     try {
       const target = allCompanies ? "all" : companyCode;
       const response = await fetch(`/api/totvs/accounting/pending-lots?company=${encodeURIComponent(target)}&competence=${encodeURIComponent(competence)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
@@ -24,8 +24,8 @@ export default function PendingAccountingLots({ companyCode, allCompanies, compe
       setLots(collected); setUpdatedAt(payload.updatedAt || new Date().toISOString());
       setMessage(collected.length ? `${collected.length} lote(s) pendente(s) encontrado(s).` : `Nenhum lote pendente de integração para ${allCompanies ? "as empresas liberadas" : "esta empresa"} e competência.`);
     } catch (error) { setLots([]); setMessage((error as Error).message); }
-    finally { setLoading(false); }
-  }, [accessToken, allCompanies, companyCode, competence]);
+    finally { setLoading(false); onLoadingChange(false); }
+  }, [accessToken, allCompanies, companyCode, competence, onLoadingChange]);
 
   useEffect(() => {
     const listener = () => { void update(); };
