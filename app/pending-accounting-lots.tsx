@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 
-type CompanyOption = { code: string; name: string };
 type Lot = { companyCode: string; companyName: string; lotCode: string; application: string; applicationName: string; date: string; records: number; debit: number; credit: number; difference: number };
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function PendingAccountingLots({ companyCode, companyName, companies, allCompanies, competence, accessToken }: { companyCode: string; companyName: string; companies: CompanyOption[]; allCompanies: boolean; competence: string; accessToken: string }) {
+export default function PendingAccountingLots({ companyCode, allCompanies, competence, accessToken }: { companyCode: string; allCompanies: boolean; competence: string; accessToken: string }) {
   const [lots, setLots] = useState<Lot[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("Selecione a empresa e clique em Atualizar.");
@@ -17,23 +16,16 @@ export default function PendingAccountingLots({ companyCode, companyName, compan
     if (!companyCode || !competence || !accessToken) return;
     setLoading(true); setMessage("");
     try {
-      const targets = allCompanies ? companies : [{ code: companyCode, name: companyName }];
-      const collected: Lot[] = [];
-      for (let index = 0; index < targets.length; index += 4) {
-        const batch = targets.slice(index, index + 4);
-        const results = await Promise.all(batch.map(async (company) => {
-          const response = await fetch(`/api/totvs/accounting/pending-lots?company=${encodeURIComponent(company.code)}&competence=${encodeURIComponent(competence)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
-          const payload = await response.json();
-          if (!response.ok) throw new Error(`${company.code} — ${company.name}: ${payload.error || "não foi possível consultar os lotes."}`);
-          return (payload.lots || []).map((lot: Omit<Lot, "companyCode" | "companyName">) => ({ ...lot, companyCode: company.code, companyName: company.name }));
-        }));
-        collected.push(...results.flat());
-      }
-      setLots(collected); setUpdatedAt(new Date().toISOString());
+      const target = allCompanies ? "all" : companyCode;
+      const response = await fetch(`/api/totvs/accounting/pending-lots?company=${encodeURIComponent(target)}&competence=${encodeURIComponent(competence)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Não foi possível consultar os lotes pendentes.");
+      const collected = (payload.lots || []) as Lot[];
+      setLots(collected); setUpdatedAt(payload.updatedAt || new Date().toISOString());
       setMessage(collected.length ? `${collected.length} lote(s) pendente(s) encontrado(s).` : `Nenhum lote pendente de integração para ${allCompanies ? "as empresas liberadas" : "esta empresa"} e competência.`);
     } catch (error) { setLots([]); setMessage((error as Error).message); }
     finally { setLoading(false); }
-  }, [accessToken, allCompanies, companies, companyCode, companyName, competence]);
+  }, [accessToken, allCompanies, companyCode, competence]);
 
   useEffect(() => {
     const listener = () => { void update(); };

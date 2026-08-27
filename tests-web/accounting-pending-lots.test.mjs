@@ -20,9 +20,19 @@ test("módulo contábil oferece a rotina Lotes a integrar", () => {
   assert.ok(accountingMenu.indexOf('label: "Lotes a integrar"') < accountingMenu.indexOf('label: "Análise Balancete"'));
 });
 
-test("consulta usa a Planilha NET 5 e restringe a empresa autorizada", () => {
+test("consulta usa a Planilha NET 5 e restringe as empresas autorizadas", () => {
   assert.match(route, /RAZAOSEMLOTE0/);
-  assert.match(route, /isAuthorizedCompany/);
+  assert.match(route, /authorizedCompanies/);
+  assert.match(route, /company === "all"/);
+  assert.match(route, /Promise\.allSettled/);
+  assert.match(route, /PLN_B3_I=\$\{firstCompany\}/);
+  assert.match(route, /PLN_B4_I=\$\{lastCompany\}/);
   assert.match(route, /CODCOLIGADA/);
   assert.match(route, /Pendente para integrar|lots/);
+});
+
+test("opção Todas realiza apenas uma requisição consolidada no navegador", () => {
+  assert.match(panel, /allCompanies \? "all" : companyCode/);
+  assert.doesNotMatch(panel, /for \(let index = 0; index < targets\.length/);
+  assert.doesNotMatch(panel, /companies\.map/);
 });
