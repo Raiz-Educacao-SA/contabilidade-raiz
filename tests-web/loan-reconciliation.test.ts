@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { classifyLoanTerm, isLoanAccount } from "../lib/loan-accounts.ts";
 import { requiredModulesForApiPath } from "../lib/access-control.ts";
+import { buildLoanPostingsCsv, generateLoanPostings, getLoanPostingControls } from "../lib/loan-postings.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/loan-reconciliation.tsx", import.meta.url), "utf8");
@@ -45,15 +46,65 @@ test("inclui juros a apropriar dos empréstimos no respectivo curto ou longo pra
   assert.equal(isLoanAccount({ account: "2.1.1.02", description: "(-) Juros e Custos a Apropriar" }), false);
 });
 
-test("módulo de empréstimos expõe o fluxo preparado sem gerar lançamentos ainda", () => {
+test("módulo de empréstimos substitui a análise pelo gerador de lançamentos", () => {
   assert.match(page, /<LoanReconciliation/);
   assert.match(panel, /Gerar balancete/);
-  assert.match(panel, /Analisar balancete/);
+  assert.doesNotMatch(panel, />Analisar balancete</);
   assert.match(panel, /Exportar análise/);
   assert.match(panel, /Gerar lançamentos/);
-  assert.match(panel, /Aguardando os lançamentos-padrão e a lógica contábil/);
+  assert.match(panel, /Controle fixo:/);
   assert.match(panel, /<th>Saldo final<\/th><th>Grupo<\/th>/);
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
+});
+
+test("gera os três lançamentos do controle fixo da coligada 05 em junho de 2026", () => {
+  const controls = getLoanPostingControls("5");
+  assert.equal(controls.length, 1);
+  assert.equal(controls[0].contract, "872959");
+  assert.equal(controls[0].document, "EMPRES_CUBO");
+
+  assert.deepEqual(generateLoanPostings("05", "2026-06"), [
+    {
+      controlId: "05-sicoob-872959",
+      contract: "872959",
+      branchCode: "1",
+      document: "EMPRES_CUBO",
+      debitAccount: "2.3.1.01.11.11",
+      creditAccount: "2.1.1.01.15.11",
+      amount: 157433.4,
+      history: "TRANSF CURTO X LONGO PRAZO - N/ MÊS",
+    },
+    {
+      controlId: "05-sicoob-872959",
+      contract: "872959",
+      branchCode: "1",
+      document: "EMPRES_CUBO",
+      debitAccount: "2.1.1.01.15.11",
+      creditAccount: "2.1.1.02.11.12",
+      amount: 88877.43,
+      history: "APROPRIAÇÃO DE JUROS N/ MÊS",
+    },
+    {
+      controlId: "05-sicoob-872959",
+      contract: "872959",
+      branchCode: "1",
+      document: "EMPRES_CUBO",
+      debitAccount: "2.1.1.02.11.12",
+      creditAccount: "2.3.1.02.14.11",
+      amount: 68125.13,
+      history: "TRANSF JUROS CURTO X LONGO PRAZO - N/ MÊS",
+    },
+  ]);
+});
+
+test("exporta os lançamentos da coligada 05 no padrão CSV do TOTVS", () => {
+  const { postings, csv } = buildLoanPostingsCsv("05", "2026-06");
+  assert.equal(postings.length, 3);
+  assert.match(csv, /^M;99;IMPORTAÇÃO DE LANÇAMENTOS;30\/06\/2026;;;;;\r\n/);
+  assert.match(csv, /\*P;EMPRÉSTIMOS;2\.3\.1\.01\.11\.11;2\.1\.1\.01\.15\.11;EMPRES_CUBO;157\.433,40;71;TRANSF CURTO X LONGO PRAZO - N\/ MÊS;1/);
+  assert.match(csv, /\*P;EMPRÉSTIMOS;2\.1\.1\.01\.15\.11;2\.1\.1\.02\.11\.12;EMPRES_CUBO;88\.877,43;71;APROPRIAÇÃO DE JUROS N\/ MÊS;1/);
+  assert.match(csv, /\*P;EMPRÉSTIMOS;2\.1\.1\.02\.11\.12;2\.3\.1\.02\.14\.11;EMPRES_CUBO;68\.125,13;71;TRANSF JUROS CURTO X LONGO PRAZO - N\/ MÊS;1/);
+  assert.equal(buildLoanPostingsCsv("02", "2026-06").postings.length, 0);
 });
 
 test("API específica de empréstimos pertence ao módulo financeiro", () => {

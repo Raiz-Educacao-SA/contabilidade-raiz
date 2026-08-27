@@ -5,6 +5,7 @@ import { BarChart3, Download, FilePlus2, FileSpreadsheet, RefreshCw, Search, Tab
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { classifyLoanTerm, type LoanTerm } from "@/lib/loan-accounts";
+import { buildLoanPostingsCsv, encodeWindows1252, getLoanPostingControls } from "@/lib/loan-postings";
 
 type BalanceRow = {
   id: string;
@@ -167,6 +168,8 @@ export default function LoanReconciliation({
     const term = normalize(search);
     return term ? issues.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description} ${row.term}`).includes(term)) : issues;
   }, [issues, search]);
+  const postingControls = useMemo(() => getLoanPostingControls(companyCode), [companyCode]);
+  const postingPreview = useMemo(() => buildLoanPostingsCsv(companyCode, competence), [companyCode, competence]);
 
   function exportAnalysis() {
     if (!base.length) return;
@@ -196,14 +199,44 @@ export default function LoanReconciliation({
     XLSX.writeFile(workbook, `${String(companyCode).padStart(2, "0")}_Emprestimos_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
 
+  function generateEntriesCsv() {
+    if (!postingPreview.postings.length) {
+      setHasError(true);
+      setMessage(postingControls.length
+        ? "Não há lançamentos previstos no controle fixo para esta competência."
+        : "O controle fixo de empréstimos ainda não foi cadastrado para esta empresa.");
+      return;
+    }
+
+    const url = URL.createObjectURL(new Blob(
+      [encodeWindows1252(postingPreview.csv)],
+      { type: "text/csv;charset=windows-1252" },
+    ));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `coligada${String(companyCode).padStart(2, "0")}-emprestimos.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setHasError(false);
+    setMessage(`${postingPreview.postings.length} lançamento(s) do contrato ${postingControls[0].contract} gerado(s) para importação no TOTVS.`);
+  }
+
   return <section className="panel trial-analysis loan-analysis">
     <div className="trial-analysis-actions">
       <div><small>MÓDULO FINANCEIRO</small><h2>Conciliação de Empréstimos</h2><p>Balancete específico das contas de empréstimos, financiamentos e respectivos juros.</p></div>
       <div className="trial-action-buttons">
         <button className={`secondary ${base.length ? "source-loaded" : ""}`} onClick={() => void generate()} disabled={generating}><RefreshCw className={generating ? "spin" : ""} />{generating ? "Gerando..." : "Gerar balancete"}</button>
-        <button className={`secondary ${analysis.length ? "source-loaded" : ""}`} onClick={analyze} disabled={!base.length || analyzing}><BarChart3 />{analyzing ? "Analisando..." : "Analisar balancete"}</button>
+        <button
+          className={`secondary ${postingPreview.postings.length ? "source-loaded" : ""}`}
+          onClick={generateEntriesCsv}
+          disabled={!postingPreview.postings.length}
+          title={postingControls.length
+            ? "Gerar o arquivo CSV dos lançamentos definidos no controle fixo da empresa."
+            : "Controle de empréstimos ainda não cadastrado para esta empresa."}
+        ><FilePlus2 />Gerar lançamentos</button>
         <button className="secondary" onClick={exportAnalysis} disabled={!base.length}><Download />Exportar análise</button>
-        <button className="secondary" disabled title="Aguardando os lançamentos-padrão e a lógica contábil"><FilePlus2 />Gerar lançamentos</button>
       </div>
     </div>
     {message && <div className={`notice ${hasError ? "error" : ""}`}>{message}</div>}
@@ -224,7 +257,9 @@ export default function LoanReconciliation({
       <div className="trial-view-content">
         <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conta, descrição ou prazo" /></label><span>{activeView === "balancete" ? visibleBase.length : visibleAnalysis.length} conta(s)</span></div>
         {activeView === "balancete" ? <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th></tr></thead><tbody>{visibleBase.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td></tr>)}</tbody></table></div> : <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Saldo final</th><th>Grupo</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{visibleAnalysis.length ? visibleAnalysis.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.newBalance && <span>Saldo novo</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma variação de empréstimos foi criticada pelas regras atuais.</td></tr>}</tbody></table></div>}
-        <p className="trial-footnote"><FileSpreadsheet /> Período histórico: {competences.map((item) => `${item.slice(5)}/${item.slice(0, 4)}`).join(" · ")} · A geração de lançamentos será configurada quando as regras forem recebidas.</p>
+        <p className="trial-footnote"><FileSpreadsheet /> Período histórico: {competences.map((item) => `${item.slice(5)}/${item.slice(0, 4)}`).join(" · ")} · {postingControls.length
+          ? `Controle fixo: contrato ${postingControls[0].contract} · aba ${postingControls[0].sourceSheet} · documento ${postingControls[0].document}.`
+          : "Aguardando o controle fixo de empréstimos desta empresa."}</p>
       </div>
     </>}
   </section>;
