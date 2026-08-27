@@ -187,13 +187,6 @@
   min-height: 280px;
 }
 .pending-lots { padding: 0; overflow: hidden; }
-.pending-lots-header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); background: linear-gradient(120deg,#f5fbff,#fffaf2); }
-.pending-lots-header > div { display: flex; align-items: center; gap: 13px; }
-.pending-lots-header > div > span { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #fff; background: #173d68; }
-.pending-lots-header svg { width: 18px; }
-.pending-lots-header small { font-size: 9px; font-weight: 900; letter-spacing: .09em; color: #748095; }
-.pending-lots-header h2 { margin: 3px 0; font-size: 18px; }
-.pending-lots-header p { margin: 0!important; font-size: 10px; }
 .pending-lots-summary { padding: 14px 24px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; background: #f8fafc; }
 .pending-lots-summary article { padding: 11px 12px; border: 1px solid #e3e8ef; border-radius: 10px; background: #fff; }
 .pending-lots-summary span { display: block; font-size: 9px; color: var(--muted); }
@@ -207,7 +200,7 @@
 .pending-lots-table th,.pending-lots-table td { padding: 8px 9px; }
 .pending-lots-table th:nth-child(n+4):not(:last-child),.pending-lots-table td:nth-child(n+4):not(:last-child) { text-align: right; }
 .pending-lot-status { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: #fff1d6; color: #8a5700; font-size: 8px; font-weight: 850; white-space: nowrap; }
-@media(max-width:800px){.pending-lots-summary{grid-template-columns:repeat(2,1fr)}.pending-lots-header{align-items:flex-start;flex-direction:column}}
+@media(max-width:800px){.pending-lots-summary{grid-template-columns:repeat(2,1fr)}}
 .book-base-nav {
   margin: 2px 10px 0;
 }
@@ -2259,6 +2252,21 @@
   font-size: 12px;
   line-height: 1.3;
 }
+.pending-lots-content > header h1 { margin: 2px 0; font-size: 13px; }
+.pending-lots-content > header p { font-size: 9px; }
+.pending-lots-content > header .eyebrow { font-size: 8px; }
+.pending-lots-content .top-context { grid-template-columns: 140px minmax(0,1fr) auto; }
+.pending-lots-content .filter-heading { min-width: 0; }
+.pending-lots-content .filter-heading b { font-size: 9px; white-space: nowrap; }
+.pending-lots-content .filter-heading small { font-size: 7px; white-space: nowrap; }
+.pending-lots-content .filter-fields { width: auto; grid-template-columns: minmax(220px,300px) auto; }
+.pending-lots-content .company-control { min-width: 0; }
+.pending-lots-content .company-select-stack select { font-size: 9px; }
+.pending-lots-filter-actions { gap: 7px; }
+.pending-lots-filter-actions .primary { min-height: 34px; padding: 7px 11px; border-radius: 8px; font-size: 9px; }
+.pending-lots-filter-actions .primary svg { width: 13px; height: 13px; }
+.pending-lots-all { height: 34px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: #455168; font-size: 9px; font-weight: 800; }
+.pending-lots-all input { width: 14px; height: 14px; margin: 0; padding: 0; }
 .tax-finalized-notice {
   display: flex;
   align-items: center;
