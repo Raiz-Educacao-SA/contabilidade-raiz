@@ -14,6 +14,7 @@ import {
   FileSpreadsheet,
   HandCoins,
   Landmark,
+  ListChecks,
   ListTree,
   LogOut,
   Plus,
@@ -39,6 +40,7 @@ import LoanReconciliation from "@/app/loan-reconciliation";
 import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
+import PendingAccountingLots from "@/app/pending-accounting-lots";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import AccessManagement from "@/app/access-management";
@@ -73,7 +75,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos";
+type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = AccessModule;
@@ -302,7 +304,7 @@ export default function Home() {
   const moduleCompletionIdentity = (() => {
     if (!selectedModule || selectedModule === "cronograma") return null;
     if (selectedModule === "contabil") {
-      if (accountingTab === "pis-cofins") return null;
+      if (accountingTab === "pis-cofins" || accountingTab === "lotes-integrar") return null;
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
     if (selectedModule === "bancaria") return null;
@@ -766,6 +768,7 @@ export default function Home() {
                 { id: "despesas", label: "Despesas", icon: ReceiptText },
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
+                { id: "lotes-integrar", label: "Lotes a integrar", icon: ListChecks },
               ] as const
             ).map(({ id, label, icon: Icon }) =>
               id === "arrendamentos" ? (
@@ -860,6 +863,8 @@ export default function Home() {
                           ? "Despesas"
                         : accountingTab === "arrendamentos"
                           ? "Arrendamentos"
+                        : accountingTab === "lotes-integrar"
+                          ? "Lotes a integrar"
                         : "Intercompany"
                 : activeModule.title}
             </h1>
@@ -1111,6 +1116,15 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
+        {selectedModule === "contabil" && accountingTab === "lotes-integrar" && (
+          <PendingAccountingLots
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={company?.empresas?.razao_social ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "intercompany" && (
           <IntercompanyAnalysis
             key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
@@ -1143,7 +1157,7 @@ export default function Home() {
             </a>
           </section>
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && (
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "irpj-csll" ? (
               <ReceiptText />
