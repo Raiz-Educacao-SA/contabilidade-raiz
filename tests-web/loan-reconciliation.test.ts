@@ -60,19 +60,52 @@ test("módulo de empréstimos substitui a análise pelo gerador de lançamentos"
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
 });
 
-test("mantém somente o controle Itaú 2849757626 na coligada 18", () => {
+test("mantém os controles Itaú 2849757626 e Sicoob 2691427 na coligada 18", () => {
   const controls = getLoanPostingControls("18");
-  assert.equal(controls.length, 1);
-  assert.equal(controls[0].contract, "2849757626");
-  assert.equal(controls[0].sourceSheet, "Espaço Magico Itau - 2849757626");
-  assert.equal(getLoanControlSchedule(controls[0]).length, 42);
-  assert.deepEqual(getLoanControlSchedule(controls[0]).find((row) => row.competence === "2026-04"), {
+  assert.deepEqual(controls.map((control) => control.contract), ["2849757626", "2691427"]);
+
+  const itauControl = controls[0];
+  assert.equal(itauControl.sourceSheet, "Espaço Magico Itau - 2849757626");
+  assert.equal(getLoanControlSchedule(itauControl).length, 42);
+  assert.deepEqual(getLoanControlSchedule(itauControl).find((row) => row.competence === "2026-04"), {
     competence: "2026-04",
     installment: 22,
     amortization: 25169.88,
     interest: 10132.41,
     totalInstallment: 35302.29,
     outstandingBalance: 706045.8,
+    status: "Ativa",
+  });
+
+  const sicoobControl = controls[1];
+  const sicoobSchedule = getLoanControlSchedule(sicoobControl);
+  assert.equal(sicoobControl.sourceSheet, "Espaço Magico Sicoob - 2691427");
+  assert.equal(sicoobSchedule.length, 60);
+  assert.deepEqual(sicoobSchedule[0], {
+    competence: "2025-11",
+    installment: 0,
+    amortization: 0,
+    interest: 112878,
+    totalInstallment: 112878,
+    outstandingBalance: 9642629.01,
+    status: "Ativa",
+  });
+  assert.deepEqual(sicoobSchedule.find((row) => row.competence === "2026-06"), {
+    competence: "2026-06",
+    installment: 2,
+    amortization: 114759,
+    interest: 108554,
+    totalInstallment: 223313,
+    outstandingBalance: 8628426.01,
+    status: "Ativa",
+  });
+  assert.deepEqual(sicoobSchedule.at(-1), {
+    competence: "2030-10",
+    installment: 54,
+    amortization: 114759,
+    interest: 1683,
+    totalInstallment: 116442,
+    outstandingBalance: 23.01,
     status: "Ativa",
   });
   assert.equal(generateLoanPostings("18", "2026-06").length, 0);
