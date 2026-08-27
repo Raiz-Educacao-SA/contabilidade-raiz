@@ -494,6 +494,10 @@
 .loan-content .top-context label > span { font-size: 8px; }
 .loan-content .top-context input,
 .loan-content .top-context select { height: 28px; font-size: 10px; }
+.loan-content .top-context .company-control { height: 44px; }
+.loan-content .company-select-stack { grid-template-rows: 24px auto; gap: 1px; }
+.loan-content .company-select-stack select { height: 24px; }
+.loan-content .company-select-stack small { padding-left: 2px; font-size: 7px; line-height: 1; }
 .loan-content .module-completion-control { flex: 0 1 280px; margin-left: auto; display: grid; justify-items: end; gap: 3px; }
 .loan-content .module-completion-control small { max-width: 280px; overflow: hidden; font-size: 8px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 .loan-content .module-completion-control button { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: 9px; }
@@ -506,13 +510,15 @@
 .loan-term { display: inline-flex; align-items: center; justify-content: center; min-width: 76px; border-radius: 999px; padding: 3px 7px; font-size: 8px; font-weight: 900; white-space: nowrap; }
 .loan-term.short { background: #e9f7f1; color: #087a52; }
 .loan-term.long { background: #eef2ff; color: #3949a3; }
-@media (max-width: 1150px) { .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
+.loan-term.interest { background: #fff4df; color: #9a5a00; }
+.loan-analysis .trial-summary { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1150px) { .trial-summary, .loan-analysis .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 1380px) {
   .loan-content .top-context { flex-wrap: wrap; }
   .loan-content .filter-fields { flex: 1 1 600px; }
   .loan-content .module-completion-control { width: 100%; flex: 1 1 100%; grid-auto-flow: column; align-items: center; justify-content: end; }
 }
-@media (max-width: 760px) { .trial-analysis-actions { align-items: stretch; flex-direction: column; } .trial-action-buttons { flex-direction: column; } .trial-summary, .trial-category-summary { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 760px) { .trial-analysis-actions { align-items: stretch; flex-direction: column; } .trial-action-buttons { flex-direction: column; } .trial-summary, .loan-analysis .trial-summary, .trial-category-summary { grid-template-columns: repeat(2, 1fr); } }
 .intercompany-panel { position: relative; overflow: hidden; padding: 0; }
 .intercompany-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(120deg, #f4fbf8, #fffaf0); }
 .intercompany-heading h2 { margin: 0 0 2px; font-size: 11px; }

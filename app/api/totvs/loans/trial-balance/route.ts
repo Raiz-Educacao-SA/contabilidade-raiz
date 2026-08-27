@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   const rows = ((payload.rows || []) as TrialBalanceRow[])
     .filter(isLoanAccount)
-    .map((row) => ({ ...row, term: classifyLoanTerm(row.account) }));
+    .map((row) => ({ ...row, term: classifyLoanTerm(row.account, row.description) }));
 
   return NextResponse.json(
     {

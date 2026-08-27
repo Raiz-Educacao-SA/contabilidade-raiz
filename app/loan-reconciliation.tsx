@@ -84,7 +84,7 @@ export default function LoanReconciliation({
 
       const accounts = new Map<string, HistoricalLoanRow>();
       monthly.forEach((rows, periodIndex) => rows.forEach((row) => {
-        const term = row.term || classifyLoanTerm(row.account);
+        const term = row.term || classifyLoanTerm(row.account, row.description);
         if (!term) return;
         const current = accounts.get(row.account) || { ...row, term, balances: Array(periods.length).fill(0) };
         current.balances[periodIndex] = row.closingBalance;
@@ -93,7 +93,8 @@ export default function LoanReconciliation({
       }));
 
       const generated = Array.from(accounts.values()).sort((a, b) => {
-        if (a.term !== b.term) return a.term === "Curto prazo" ? -1 : 1;
+        const order: Record<LoanTerm, number> = { "Curto prazo": 0, "Longo prazo": 1, Juros: 2 };
+        if (a.term !== b.term) return order[a.term] - order[b.term];
         return a.account.localeCompare(b.account, "pt-BR", { numeric: true });
       });
 
@@ -101,8 +102,8 @@ export default function LoanReconciliation({
       setBase(generated);
       setActiveView("balancete");
       setMessage(generated.length
-        ? `${generated.length} conta(s) de empréstimos gerada(s) para ${competence.slice(5)}/${competence.slice(0, 4)}.`
-        : `Nenhuma conta de empréstimo de curto ou longo prazo foi localizada em ${competence.slice(5)}/${competence.slice(0, 4)}.`);
+        ? `${generated.length} conta(s) de empréstimos e juros gerada(s) para ${competence.slice(5)}/${competence.slice(0, 4)}.`
+        : `Nenhuma conta de empréstimo, financiamento ou juros foi localizada em ${competence.slice(5)}/${competence.slice(0, 4)}.`);
     } catch (error) {
       setBase([]);
       setHasError(true);
@@ -144,13 +145,16 @@ export default function LoanReconciliation({
   const summary = useMemo(() => {
     const short = base.filter((row) => row.term === "Curto prazo");
     const long = base.filter((row) => row.term === "Longo prazo");
+    const interest = base.filter((row) => row.term === "Juros");
     return {
       shortBalance: short.reduce((sum, row) => sum + row.closingBalance, 0),
       longBalance: long.reduce((sum, row) => sum + row.closingBalance, 0),
+      interestBalance: interest.reduce((sum, row) => sum + row.closingBalance, 0),
       movement: base.reduce((sum, row) => sum + row.movement, 0),
-      total: base.reduce((sum, row) => sum + row.closingBalance, 0),
+      total: [...short, ...long].reduce((sum, row) => sum + row.closingBalance, 0),
       shortCount: short.length,
       longCount: long.length,
+      interestCount: interest.length,
     };
   }, [base]);
 
@@ -182,7 +186,8 @@ export default function LoanReconciliation({
     const summaryRows = [
       { Indicador: "Empréstimos de curto prazo", Valor: summary.shortBalance },
       { Indicador: "Empréstimos de longo prazo", Valor: summary.longBalance },
-      { Indicador: "Saldo total", Valor: summary.total },
+      { Indicador: "Juros de empréstimos", Valor: summary.interestBalance },
+      { Indicador: "Saldo total do passivo de empréstimos", Valor: summary.total },
       { Indicador: "Movimento da competência", Valor: summary.movement },
     ];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Resumo");
@@ -193,7 +198,7 @@ export default function LoanReconciliation({
 
   return <section className="panel trial-analysis loan-analysis">
     <div className="trial-analysis-actions">
-      <div><small>MÓDULO FINANCEIRO</small><h2>Conciliação de Empréstimos</h2><p>Balancete específico das contas de empréstimos de curto e longo prazo.</p></div>
+      <div><small>MÓDULO FINANCEIRO</small><h2>Conciliação de Empréstimos</h2><p>Balancete específico das contas de empréstimos, financiamentos e respectivos juros.</p></div>
       <div className="trial-action-buttons">
         <button className={`secondary ${base.length ? "source-loaded" : ""}`} onClick={() => void generate()} disabled={generating}><RefreshCw className={generating ? "spin" : ""} />{generating ? "Gerando..." : "Gerar balancete"}</button>
         <button className={`secondary ${analysis.length ? "source-loaded" : ""}`} onClick={analyze} disabled={!base.length || analyzing}><BarChart3 />{analyzing ? "Analisando..." : "Analisar balancete"}</button>
@@ -202,13 +207,14 @@ export default function LoanReconciliation({
       </div>
     </div>
     {message && <div className={`notice ${hasError ? "error" : ""}`}>{message}</div>}
-    {!base.length && !generating && !message && <div className="loan-empty"><FileSpreadsheet /><b>Gere o balancete de empréstimos para iniciar</b><span>Serão consideradas apenas contas de passivo de curto e longo prazo identificadas como empréstimos ou financiamentos.</span></div>}
+    {!base.length && !generating && !message && <div className="loan-empty"><FileSpreadsheet /><b>Gere o balancete de empréstimos para iniciar</b><span>Serão consideradas as contas de passivo de curto e longo prazo e as contas de juros identificadas com empréstimos ou financiamentos.</span></div>}
     {base.length > 0 && <>
       <div className="trial-summary">
         <article><span>Contas de curto prazo</span><b>{summary.shortCount} · {money.format(summary.shortBalance)}</b></article>
         <article><span>Contas de longo prazo</span><b>{summary.longCount} · {money.format(summary.longBalance)}</b></article>
+        <article><span>Contas de juros</span><b>{summary.interestCount} · {money.format(summary.interestBalance)}</b></article>
         <article><span>Movimento da competência</span><b>{money.format(summary.movement)}</b></article>
-        <article><span>Saldo total</span><b>{money.format(summary.total)}</b></article>
+        <article><span>Saldo total do passivo</span><b>{money.format(summary.total)}</b></article>
         <article><span>Variações para análise</span><b>{issues.length}</b></article>
       </div>
       <nav className="trial-view-tabs">
@@ -217,7 +223,7 @@ export default function LoanReconciliation({
       </nav>
       <div className="trial-view-content">
         <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conta, descrição ou prazo" /></label><span>{activeView === "balancete" ? visibleBase.length : visibleAnalysis.length} conta(s)</span></div>
-        {activeView === "balancete" ? <div className="table-wrap trial-table"><table><thead><tr><th>Prazo</th><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th></tr></thead><tbody>{visibleBase.map((row) => <tr key={row.account}><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : "long"}`}>{row.term}</span></td><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td></tr>)}</tbody></table></div> : <div className="table-wrap trial-table"><table><thead><tr><th>Prazo</th><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Saldo final</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{visibleAnalysis.length ? visibleAnalysis.map((row) => <tr key={row.account}><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : "long"}`}>{row.term}</span></td><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.newBalance && <span>Saldo novo</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma variação de empréstimos foi criticada pelas regras atuais.</td></tr>}</tbody></table></div>}
+        {activeView === "balancete" ? <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th></tr></thead><tbody>{visibleBase.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td></tr>)}</tbody></table></div> : <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Saldo final</th><th>Grupo</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{visibleAnalysis.length ? visibleAnalysis.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.newBalance && <span>Saldo novo</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma variação de empréstimos foi criticada pelas regras atuais.</td></tr>}</tbody></table></div>}
         <p className="trial-footnote"><FileSpreadsheet /> Período histórico: {competences.map((item) => `${item.slice(5)}/${item.slice(0, 4)}`).join(" · ")} · A geração de lançamentos será configurada quando as regras forem recebidas.</p>
       </div>
     </>}
