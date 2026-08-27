@@ -12,7 +12,12 @@ test("módulo contábil oferece a rotina Lotes a integrar", () => {
   assert.match(page, /pending-lots-content/);
   assert.match(page, /pendingLotsAllCompanies/);
   assert.match(page, /pending-lots:update/);
+  assert.match(page, /pendingLotsUpdating \? "Atualizando\.\.\." : "Atualizar"/);
+  assert.match(page, /disabled=\{pendingLotsUpdating\}/);
+  assert.match(page, /onLoadingChange=\{setPendingLotsUpdating\}/);
   assert.match(panel, /Atualizar/);
+  assert.match(panel, /onLoadingChange\(true\)/);
+  assert.match(panel, /onLoadingChange\(false\)/);
   assert.doesNotMatch(panel, /<h2>Lotes a integrar<\/h2>/);
   assert.match(panel, /Empresa<\/th><th>Lote/);
   const accountingMenuStart = page.indexOf('<nav className="accounting-nav">');
