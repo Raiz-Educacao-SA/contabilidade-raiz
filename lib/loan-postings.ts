@@ -57,6 +57,24 @@ export type LoanPosting = {
   history: string;
 };
 
+export type LoanControlAccountType = "shortPrincipal" | "longPrincipal" | "shortInterest" | "longInterest";
+
+export type LoanAccountControlContribution = {
+  controlId: string;
+  contract: string;
+  bank: string;
+  accountType: LoanControlAccountType;
+  label: string;
+  expectedBalance: number;
+};
+
+export type LoanAccountControlReconciliation = {
+  account: string;
+  label: string;
+  expectedBalance: number;
+  contributions: LoanAccountControlContribution[];
+};
+
 const aoCuboSicoobSchedule: LoanScheduleEntry[] = [
   { competence: "2026-02", interest: 164350.87, totalInstallment: 253659.14 },
   { competence: "2026-03", interest: 82081.41, totalInstallment: 171389.68 },
@@ -159,6 +177,47 @@ const addMonths = (competence: string, months: number) => {
 };
 
 const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const controlAccountFields: Array<{ field: keyof Pick<LoanPostingControl, "shortPrincipalAccount" | "longPrincipalAccount" | "shortInterestAccount" | "longInterestAccount">; type: LoanControlAccountType; label: string }> = [
+  { field: "shortPrincipalAccount", type: "shortPrincipal", label: "Empréstimo — curto prazo" },
+  { field: "longPrincipalAccount", type: "longPrincipal", label: "Empréstimo — longo prazo" },
+  { field: "shortInterestAccount", type: "shortInterest", label: "Juros a apropriar — curto prazo" },
+  { field: "longInterestAccount", type: "longInterest", label: "Juros a apropriar — longo prazo" },
+];
+
+function expectedControlBalance(control: LoanPostingControl, competence: string, accountType: LoanControlAccountType) {
+  const shortTermLimit = addMonths(competence, 12);
+  const remaining = control.schedule.filter((entry) => entry.competence > competence);
+  const selected = accountType.startsWith("short")
+    ? remaining.filter((entry) => entry.competence <= shortTermLimit)
+    : remaining.filter((entry) => entry.competence > shortTermLimit);
+  const isInterest = accountType.endsWith("Interest");
+  const amount = selected.reduce((sum, entry) => sum + (isInterest ? entry.interest : entry.totalInstallment), 0);
+  return roundCurrency(isInterest ? amount : -amount);
+}
+
+export function getLoanAccountControlReconciliation(companyCode: string, competence: string, account: string): LoanAccountControlReconciliation | null {
+  const normalizedAccount = account.trim();
+  const contributions = getLoanPostingControls(companyCode).flatMap<LoanAccountControlContribution>((control) => {
+    const mapping = controlAccountFields.find(({ field }) => control[field] === normalizedAccount);
+    if (!mapping) return [];
+    return [{
+      controlId: control.id,
+      contract: control.contract,
+      bank: control.bank,
+      accountType: mapping.type,
+      label: mapping.label,
+      expectedBalance: expectedControlBalance(control, competence, mapping.type),
+    }];
+  });
+  if (!contributions.length) return null;
+  return {
+    account: normalizedAccount,
+    label: contributions[0].label,
+    expectedBalance: roundCurrency(contributions.reduce((sum, contribution) => sum + contribution.expectedBalance, 0)),
+    contributions,
+  };
+}
 
 export function getLoanPostingControls(companyCode: string) {
   return controlsByCompany[normalizeCompanyCode(companyCode)] || [];

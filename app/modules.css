@@ -471,6 +471,38 @@
 .trial-table table { font-size: 9px; }
 .trial-table th { position: sticky; top: 0; z-index: 3; background: #173d68; color: #fff; font-size: 8px; box-shadow: 0 1px 0 #d7dfeb; }
 .trial-table th, .trial-table td { padding: 7px 9px; }
+.trial-summary article.has-warning { border-color: #efb3aa; background: #fff8f6; }
+.trial-summary article.has-warning b { color: #bb392c; }
+.loan-reconciliation-table table { min-width: 1540px; }
+.loan-reconciliation-table th:nth-child(n+4):nth-child(-n+7),
+.loan-reconciliation-table td:nth-child(n+4):nth-child(-n+7),
+.loan-reconciliation-table th:nth-child(9),
+.loan-reconciliation-table td:nth-child(9),
+.loan-reconciliation-table th:nth-child(10),
+.loan-reconciliation-table td:nth-child(10) { text-align: right; }
+.loan-reconciliation-table tr.loan-row-reconciled td { background: #f7fcf9; }
+.loan-reconciliation-table tr.loan-row-divergent td { background: #fffaf8; }
+.loan-reconciliation-status { display: inline-flex; min-width: 66px; justify-content: center; padding: 3px 6px; border-radius: 999px; font-size: 7px; font-weight: 900; white-space: nowrap; }
+.loan-reconciliation-status.ok { background: #dcf4e8; color: #087443; }
+.loan-reconciliation-status.divergent { background: #ffe7e2; color: #b43629; }
+.loan-reconciliation-status.missing { background: #edf1f6; color: #637083; }
+.loan-reconcile-button { display: inline-flex; min-height: 25px; align-items: center; gap: 4px; padding: 4px 7px; border-radius: 7px; background: #6554e8; color: #fff; font-size: 7px; font-weight: 850; white-space: nowrap; }
+.loan-reconcile-button svg { width: 11px; height: 11px; }
+.loan-reconcile-button:disabled { cursor: not-allowed; background: #e8ecf2; color: #9aa4b3; }
+.loan-reconciliation-detail td { padding: 0 8px 8px !important; background: #f5f7fb; }
+.loan-reconciliation-detail td > div { padding: 9px 11px; border: 1px solid #d9e1ec; border-radius: 9px; background: #fff; box-shadow: 0 4px 14px rgba(28,52,84,.06); }
+.loan-reconciliation-detail header { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #173d68; font-size: 8px; }
+.loan-reconciliation-detail header em { color: var(--muted); font-size: 7px; font-style: normal; }
+.loan-reconciliation-detail section { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; margin-top: 7px; }
+.loan-reconciliation-detail article { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: #f9fbfd; }
+.loan-reconciliation-detail article span { display: block; color: var(--muted); font-size: 7px; }
+.loan-reconciliation-detail article b { display: block; margin-top: 2px; color: #173d68; font-size: 9px; }
+.loan-reconciliation-detail article.ok { border-color: #b7dfca; background: #f1fbf6; }
+.loan-reconciliation-detail article.ok b { color: #087443; }
+.loan-reconciliation-detail article.divergent { border-color: #efb3aa; background: #fff8f6; }
+.loan-reconciliation-detail article.divergent b { color: #b43629; }
+.loan-reconciliation-detail footer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; color: #56647a; font-size: 7px; }
+.loan-reconciliation-detail footer span { padding: 4px 7px; border-radius: 6px; background: #eef2f8; }
 .trial-flags { display: flex; flex-wrap: wrap; gap: 4px; }
 .trial-flags span { border-radius: 999px; background: #fff1e7; color: #a64b00; padding: 3px 7px; font-size: .65rem; font-weight: 800; white-space: nowrap; }
 .trial-flags em { color: #748096; font-size: .68rem; font-style: normal; }
