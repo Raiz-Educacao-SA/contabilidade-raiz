@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BarChart3, ClipboardList, Download, FilePlus2, FileSpreadsheet, RefreshCw, Search, Table2 } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { BarChart3, ClipboardList, Download, FilePlus2, FileSpreadsheet, RefreshCw, Scale, Search, Table2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { classifyLoanTerm, type LoanTerm } from "@/lib/loan-accounts";
-import { buildLoanPostingsCsv, encodeWindows1252, getLoanControlSchedule, getLoanPostingControls } from "@/lib/loan-postings";
+import { buildLoanPostingsCsv, encodeWindows1252, getLoanAccountControlReconciliation, getLoanControlSchedule, getLoanPostingControls } from "@/lib/loan-postings";
 
 type BalanceRow = {
   id: string;
@@ -35,6 +35,7 @@ type AnalyzedLoanRow = HistoricalLoanRow & {
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const roundAmount = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
 
 function previousCompetences(competence: string) {
@@ -64,6 +65,7 @@ export default function LoanReconciliation({
   const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<"balancete" | "controle" | "analise">("balancete");
   const [selectedControlId, setSelectedControlId] = useState("");
+  const [reconciledAccount, setReconciledAccount] = useState("");
 
   async function generate() {
     if (!companyCode || !accessToken) return;
@@ -71,6 +73,7 @@ export default function LoanReconciliation({
     setMessage("");
     setHasError(false);
     setAnalysis([]);
+    setReconciledAccount("");
 
     try {
       const periods = previousCompetences(competence);
@@ -170,32 +173,66 @@ export default function LoanReconciliation({
     return term ? issues.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description} ${row.term}`).includes(term)) : issues;
   }, [issues, search]);
   const postingControls = useMemo(() => getLoanPostingControls(companyCode), [companyCode]);
+  const controlReconciliations = useMemo(() => new Map(base.map((row) => [
+    row.account,
+    getLoanAccountControlReconciliation(companyCode, competence, row.account),
+  ])), [base, companyCode, competence]);
+  const reconciliationStats = useMemo(() => {
+    const matched = base.flatMap((row) => {
+      const reconciliation = controlReconciliations.get(row.account);
+      return reconciliation ? [roundAmount(row.closingBalance - reconciliation.expectedBalance)] : [];
+    });
+    return {
+      matched: matched.length,
+      reconciled: matched.filter((difference) => Math.abs(difference) < 0.005).length,
+      divergent: matched.filter((difference) => Math.abs(difference) >= 0.005).length,
+    };
+  }, [base, controlReconciliations]);
   const fixedControl = postingControls.find((control) => control.id === selectedControlId) || postingControls[0];
   const fixedSchedule = useMemo(() => fixedControl ? getLoanControlSchedule(fixedControl) : [], [fixedControl]);
   const variableAmortization = new Set(fixedSchedule.filter((row) => row.amortization > 0).map((row) => row.amortization.toFixed(2))).size > 1;
   const postingPreview = useMemo(() => buildLoanPostingsCsv(companyCode, competence), [companyCode, competence]);
 
+  function reconcileAccount(account: string) {
+    const reconciliation = controlReconciliations.get(account);
+    if (!reconciliation) return;
+    setSelectedControlId(reconciliation.contributions[0].controlId);
+    setReconciledAccount((current) => current === account ? "" : account);
+  }
+
   function exportAnalysis() {
     if (!base.length) return;
     const workbook = XLSX.utils.book_new();
-    const rows = (analysis.length ? analysis : base).map((row) => ({
-      Prazo: row.term,
-      Conta: row.account,
-      "Cód. reduzido": row.reduced,
-      Descrição: row.description,
-      "Saldo anterior": row.balances.at(-2) || 0,
-      "Saldo final": row.balances.at(-1) || 0,
-      "Variação absoluta": "absoluteVariation" in row ? row.absoluteVariation : (row.balances.at(-1) || 0) - (row.balances.at(-2) || 0),
-      "Variação percentual": "percentageVariation" in row ? row.percentageVariation : null,
-      "Variação relevante": "relevantVariation" in row && row.relevantVariation ? "Sim" : "Não",
-      "Saldo novo": "newBalance" in row && row.newBalance ? "Sim" : "Não",
-    }));
+    const rows = (analysis.length ? analysis : base).map((row) => {
+      const reconciliation = getLoanAccountControlReconciliation(companyCode, competence, row.account);
+      const closingBalance = row.balances.at(-1) || 0;
+      const difference = reconciliation ? roundAmount(closingBalance - reconciliation.expectedBalance) : null;
+      return {
+        Prazo: row.term,
+        Conta: row.account,
+        "Cód. reduzido": row.reduced,
+        Descrição: row.description,
+        "Saldo anterior": row.balances.at(-2) || 0,
+        "Saldo final": closingBalance,
+        "Saldo do controle": reconciliation?.expectedBalance ?? null,
+        "Diferença da conciliação": difference,
+        "Situação da conciliação": difference === null ? "Sem controle" : Math.abs(difference) < 0.005 ? "Conciliado" : "Divergente",
+        Contratos: reconciliation?.contributions.map((item) => `${item.bank} ${item.contract}`).join(" · ") || "",
+        "Variação absoluta": "absoluteVariation" in row ? row.absoluteVariation : closingBalance - (row.balances.at(-2) || 0),
+        "Variação percentual": "percentageVariation" in row ? row.percentageVariation : null,
+        "Variação relevante": "relevantVariation" in row && row.relevantVariation ? "Sim" : "Não",
+        "Saldo novo": "newBalance" in row && row.newBalance ? "Sim" : "Não",
+      };
+    });
     const summaryRows = [
       { Indicador: "Empréstimos de curto prazo", Valor: summary.shortBalance },
       { Indicador: "Empréstimos de longo prazo", Valor: summary.longBalance },
       { Indicador: "Juros de empréstimos", Valor: summary.interestBalance },
       { Indicador: "Saldo total do passivo de empréstimos", Valor: summary.total },
       { Indicador: "Movimento da competência", Valor: summary.movement },
+      { Indicador: "Contas vinculadas aos controles", Valor: reconciliationStats.matched },
+      { Indicador: "Contas conciliadas", Valor: reconciliationStats.reconciled },
+      { Indicador: "Divergências entre balancete e controle", Valor: reconciliationStats.divergent },
     ];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Resumo");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "Emprestimos");
@@ -252,7 +289,7 @@ export default function LoanReconciliation({
         <article><span>Contas de juros</span><b>{summary.interestCount} · {money.format(summary.interestBalance)}</b></article>
         <article><span>Movimento da competência</span><b>{money.format(summary.movement)}</b></article>
         <article><span>Saldo total do passivo</span><b>{money.format(summary.total)}</b></article>
-        <article><span>Variações para análise</span><b>{issues.length}</b></article>
+        <article className={reconciliationStats.divergent ? "has-warning" : ""}><span>Divergências no controle</span><b>{reconciliationStats.divergent} de {reconciliationStats.matched}</b></article>
       </div>}
       <nav className="trial-view-tabs">
         <button className={activeView === "balancete" ? "active" : ""} onClick={() => setActiveView("balancete")}><Table2 />Balancete de Empréstimos <span>{base.length}</span></button>
@@ -267,7 +304,23 @@ export default function LoanReconciliation({
           <div className="loan-control-summary"><article><span>Valor principal</span><b>{money.format(fixedControl.principal)}</b></article><article><span>Total financiado</span><b>{money.format(fixedControl.financedTotal)}</b></article><article><span>Parcelas</span><b>{fixedControl.installments}</b></article><article><span>Taxa mensal</span><b>{percent.format(fixedControl.monthlyRate * 100)}%</b></article><article><span>Amortização mensal</span><b>{variableAmortization ? "Variável" : money.format(fixedControl.monthlyAmortization)}</b></article><article><span>{fixedControl.interestSummaryLabel || "Juros da carência"}</span><b>{money.format(fixedControl.graceInterest)}</b></article></div>
           <div className="table-wrap loan-control-table"><table><thead><tr><th>Parcela</th><th>Competência</th><th>Amortização</th><th>Juros</th><th>Parcela total</th><th>Saldo devedor</th><th>Status</th></tr></thead><tbody>{fixedSchedule.map((row) => <tr key={row.competence} className={row.competence === competence ? "current-installment" : ""}><td>{row.installment}</td><td><b>{row.competence.slice(5)}/{row.competence.slice(0, 4)}</b></td><td>{money.format(row.amortization)}</td><td>{money.format(row.interest)}</td><td><b>{money.format(row.totalInstallment)}</b></td><td>{money.format(row.outstandingBalance)}</td><td><span className="loan-control-status">{row.competence === competence ? "Competência atual" : row.status}</span></td></tr>)}</tbody></table></div>
         </div> : <div className="loan-empty"><ClipboardList /><b>Controle fixo ainda não cadastrado</b><span>O modelo de empréstimos desta empresa será incluído quando estiver disponível.</span></div>
-        : activeView === "balancete" ? base.length ? <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th></tr></thead><tbody>{visibleBase.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td></tr>)}</tbody></table></div> : <div className="loan-empty"><FileSpreadsheet /><b>Gere o balancete de empréstimos</b><span>O controle fixo pode ser consultado sem gerar o balancete.</span></div>
+        : activeView === "balancete" ? base.length ? <div className="table-wrap trial-table loan-reconciliation-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th><th>Saldo controle</th><th>Diferença</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{visibleBase.map((row) => {
+          const reconciliation = controlReconciliations.get(row.account);
+          const difference = reconciliation ? roundAmount(row.closingBalance - reconciliation.expectedBalance) : null;
+          const reconciled = difference !== null && Math.abs(difference) < 0.005;
+          return <Fragment key={row.account}>
+            <tr className={reconciliation ? reconciled ? "loan-row-reconciled" : "loan-row-divergent" : ""}>
+              <td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td>
+              <td>{reconciliation ? <b>{money.format(reconciliation.expectedBalance)}</b> : "—"}</td>
+              <td>{difference === null ? "—" : <b>{money.format(difference)}</b>}</td>
+              <td><span className={`loan-reconciliation-status ${!reconciliation ? "missing" : reconciled ? "ok" : "divergent"}`}>{!reconciliation ? "Sem controle" : reconciled ? "Conciliado" : "Divergente"}</span></td>
+              <td><button className="loan-reconcile-button" onClick={() => reconcileAccount(row.account)} disabled={!reconciliation} title={reconciliation ? `Comparar com ${reconciliation.contributions.map((item) => `${item.bank} ${item.contract}`).join(" e ")}` : "Nenhum controle cadastrado para esta conta"}><Scale />Conciliar</button></td>
+            </tr>
+            {reconciledAccount === row.account && reconciliation && <tr className="loan-reconciliation-detail"><td colSpan={12}>
+              <div><header><span>Conciliação da conta <b>{row.account}</b></span><em>{reconciliation.label}</em></header><section><article><span>Saldo no balancete</span><b>{money.format(row.closingBalance)}</b></article><article><span>Saldo no controle</span><b>{money.format(reconciliation.expectedBalance)}</b></article><article className={reconciled ? "ok" : "divergent"}><span>Diferença</span><b>{money.format(difference || 0)}</b></article><article><span>Competência</span><b>{competence.slice(5)}/{competence.slice(0, 4)}</b></article></section><footer>{reconciliation.contributions.map((item) => <span key={item.controlId}>{item.bank} · Contrato {item.contract}: <b>{money.format(item.expectedBalance)}</b></span>)}</footer></div>
+            </td></tr>}
+          </Fragment>;
+        })}</tbody></table></div> : <div className="loan-empty"><FileSpreadsheet /><b>Gere o balancete de empréstimos</b><span>O controle fixo pode ser consultado sem gerar o balancete.</span></div>
         : <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Saldo final</th><th>Grupo</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{visibleAnalysis.length ? visibleAnalysis.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.newBalance && <span>Saldo novo</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma variação de empréstimos foi criticada pelas regras atuais.</td></tr>}</tbody></table></div>}
         <p className="trial-footnote"><FileSpreadsheet /> Período histórico: {competences.map((item) => `${item.slice(5)}/${item.slice(0, 4)}`).join(" · ")} · {postingControls.length
           ? `${postingControls.length} controle(s) fixo(s) cadastrado(s) · contrato atual ${fixedControl?.contract} · aba ${fixedControl?.sourceSheet}.`
