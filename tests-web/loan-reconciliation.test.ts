@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { classifyLoanTerm, isLoanAccount } from "../lib/loan-accounts.ts";
 import { requiredModulesForApiPath } from "../lib/access-control.ts";
-import { buildLoanPostingsCsv, generateLoanPostings, getLoanPostingControls } from "../lib/loan-postings.ts";
+import { buildLoanPostingsCsv, generateLoanPostings, getLoanControlSchedule, getLoanPostingControls } from "../lib/loan-postings.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/loan-reconciliation.tsx", import.meta.url), "utf8");
@@ -53,8 +53,23 @@ test("módulo de empréstimos substitui a análise pelo gerador de lançamentos"
   assert.match(panel, /Exportar análise/);
   assert.match(panel, /Gerar lançamentos/);
   assert.match(panel, /Controle fixo:/);
+  assert.match(panel, /Controle de Empréstimos/);
+  assert.match(panel, /CONTROLE FIXO · COLIGADA 05/);
   assert.match(panel, /<th>Saldo final<\/th><th>Grupo<\/th>/);
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
+});
+
+test("mantém o controle fixo completo do contrato Sicoob da coligada 05", () => {
+  const control = getLoanPostingControls("05")[0];
+  const schedule = getLoanControlSchedule(control);
+  assert.equal(control.principal, 5000000);
+  assert.equal(control.financedTotal, 5176295.05);
+  assert.equal(control.monthlyRate, 0.0174);
+  assert.equal(control.monthlyAmortization, 89308.27);
+  assert.equal(schedule.length, 60);
+  assert.deepEqual(schedule[4], { competence: "2026-06", installment: 5, amortization: 89308.27, interest: 88877.43, totalInstallment: 178185.7, outstandingBalance: 4911955.4, status: "Ativa" });
+  assert.equal(schedule.at(-1)?.competence, "2031-01");
+  assert.equal(schedule.at(-1)?.outstandingBalance, 0);
 });
 
 test("gera os três lançamentos do controle fixo da coligada 05 em junho de 2026", () => {
