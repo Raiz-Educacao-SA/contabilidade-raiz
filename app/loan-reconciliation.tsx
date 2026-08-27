@@ -5,7 +5,7 @@ import { BarChart3, ClipboardList, Download, FilePlus2, FileSpreadsheet, Refresh
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { classifyLoanTerm, type LoanTerm } from "@/lib/loan-accounts";
-import { buildLoanPostingsCsv, encodeWindows1252, getLoanAccountControlReconciliation, getLoanControlSchedule, getLoanPostingControls } from "@/lib/loan-postings";
+import { buildLoanPostingsCsv, encodeWindows1252, getLoanAccountControlReconciliation, getLoanControlSchedule, getLoanPostingControls, isLoanBalanceReconciled } from "@/lib/loan-postings";
 
 type BalanceRow = {
   id: string;
@@ -184,8 +184,8 @@ export default function LoanReconciliation({
     });
     return {
       matched: matched.length,
-      reconciled: matched.filter((difference) => Math.abs(difference) < 0.005).length,
-      divergent: matched.filter((difference) => Math.abs(difference) >= 0.005).length,
+      reconciled: matched.filter(isLoanBalanceReconciled).length,
+      divergent: matched.filter((difference) => !isLoanBalanceReconciled(difference)).length,
     };
   }, [base, controlReconciliations]);
   const fixedControl = postingControls.find((control) => control.id === selectedControlId) || postingControls[0];
@@ -216,7 +216,7 @@ export default function LoanReconciliation({
         "Saldo final": closingBalance,
         "Saldo do controle": reconciliation?.expectedBalance ?? null,
         "Diferença da conciliação": difference,
-        "Situação da conciliação": difference === null ? "Sem controle" : Math.abs(difference) < 0.005 ? "Conciliado" : "Divergente",
+        "Situação da conciliação": difference === null ? "Sem controle" : isLoanBalanceReconciled(difference) ? "Conciliado" : "Divergente",
         Contratos: reconciliation?.contributions.map((item) => `${item.bank} ${item.contract}`).join(" · ") || "",
         "Variação absoluta": "absoluteVariation" in row ? row.absoluteVariation : closingBalance - (row.balances.at(-2) || 0),
         "Variação percentual": "percentageVariation" in row ? row.percentageVariation : null,
@@ -307,7 +307,7 @@ export default function LoanReconciliation({
         : activeView === "balancete" ? base.length ? <div className="table-wrap trial-table loan-reconciliation-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th><th>Saldo controle</th><th>Diferença</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{visibleBase.map((row) => {
           const reconciliation = controlReconciliations.get(row.account);
           const difference = reconciliation ? roundAmount(row.closingBalance - reconciliation.expectedBalance) : null;
-          const reconciled = difference !== null && Math.abs(difference) < 0.005;
+          const reconciled = difference !== null && isLoanBalanceReconciled(difference);
           return <Fragment key={row.account}>
             <tr className={reconciliation ? reconciled ? "loan-row-reconciled" : "loan-row-divergent" : ""}>
               <td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.openingBalance)}</td><td>{money.format(row.debit)}</td><td>{money.format(Math.abs(row.credit))}</td><td><b>{money.format(row.closingBalance)}</b></td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td>
@@ -317,7 +317,7 @@ export default function LoanReconciliation({
               <td><button className="loan-reconcile-button" onClick={() => reconcileAccount(row.account)} disabled={!reconciliation} title={reconciliation ? `Comparar com ${reconciliation.contributions.map((item) => `${item.bank} ${item.contract}`).join(" e ")}` : "Nenhum controle cadastrado para esta conta"}><Scale />Conciliar</button></td>
             </tr>
             {reconciledAccount === row.account && reconciliation && <tr className="loan-reconciliation-detail"><td colSpan={12}>
-              <div><header><span>Conciliação da conta <b>{row.account}</b></span><em>{reconciliation.label}</em></header><section><article><span>Saldo no balancete</span><b>{money.format(row.closingBalance)}</b></article><article><span>Saldo no controle</span><b>{money.format(reconciliation.expectedBalance)}</b></article><article className={reconciled ? "ok" : "divergent"}><span>Diferença</span><b>{money.format(difference || 0)}</b></article><article><span>Competência</span><b>{competence.slice(5)}/{competence.slice(0, 4)}</b></article></section><footer>{reconciliation.contributions.map((item) => <span key={item.controlId}>{item.bank} · Contrato {item.contract}: <b>{money.format(item.expectedBalance)}</b></span>)}</footer></div>
+              <div><header><span>Conciliação da conta <b>{row.account}</b></span><em>{reconciliation.label} · tolerância de até R$ 1,00</em></header><section><article><span>Saldo no balancete</span><b>{money.format(row.closingBalance)}</b></article><article><span>Saldo no controle</span><b>{money.format(reconciliation.expectedBalance)}</b></article><article className={reconciled ? "ok" : "divergent"}><span>Diferença</span><b>{money.format(difference || 0)}</b></article><article><span>Competência</span><b>{competence.slice(5)}/{competence.slice(0, 4)}</b></article></section><footer>{reconciliation.contributions.map((item) => <span key={item.controlId}>{item.bank} · Contrato {item.contract}: <b>{money.format(item.expectedBalance)}</b></span>)}</footer></div>
             </td></tr>}
           </Fragment>;
         })}</tbody></table></div> : <div className="loan-empty"><FileSpreadsheet /><b>Gere o balancete de empréstimos</b><span>O controle fixo pode ser consultado sem gerar o balancete.</span></div>

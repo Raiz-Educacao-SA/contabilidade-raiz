@@ -178,6 +178,12 @@ const addMonths = (competence: string, months: number) => {
 
 const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
+export const LOAN_RECONCILIATION_TOLERANCE = 1;
+
+export function isLoanBalanceReconciled(difference: number) {
+  return Math.abs(roundCurrency(difference)) <= LOAN_RECONCILIATION_TOLERANCE;
+}
+
 const controlAccountFields: Array<{ field: keyof Pick<LoanPostingControl, "shortPrincipalAccount" | "longPrincipalAccount" | "shortInterestAccount" | "longInterestAccount">; type: LoanControlAccountType; label: string }> = [
   { field: "shortPrincipalAccount", type: "shortPrincipal", label: "Empréstimo — curto prazo" },
   { field: "longPrincipalAccount", type: "longPrincipal", label: "Empréstimo — longo prazo" },

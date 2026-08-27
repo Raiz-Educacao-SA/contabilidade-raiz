@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { classifyLoanTerm, isLoanAccount } from "../lib/loan-accounts.ts";
 import { requiredModulesForApiPath } from "../lib/access-control.ts";
-import { buildLoanPostingsCsv, generateLoanPostings, getLoanAccountControlReconciliation, getLoanControlSchedule, getLoanPostingControls } from "../lib/loan-postings.ts";
+import { buildLoanPostingsCsv, generateLoanPostings, getLoanAccountControlReconciliation, getLoanControlSchedule, getLoanPostingControls, isLoanBalanceReconciled, LOAN_RECONCILIATION_TOLERANCE } from "../lib/loan-postings.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/loan-reconciliation.tsx", import.meta.url), "utf8");
@@ -60,6 +60,7 @@ test("módulo de empréstimos substitui a análise pelo gerador de lançamentos"
   assert.match(panel, /<th>Saldo controle<\/th><th>Diferença<\/th><th>Situação<\/th><th>Ação<\/th>/);
   assert.match(panel, /<Scale \/>Conciliar/);
   assert.match(panel, /Conciliação da conta/);
+  assert.match(panel, /tolerância de até R\$ 1,00/);
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
 });
 
@@ -134,6 +135,15 @@ test("concilia as quatro contas de cada contrato da coligada 18 com o controle",
   });
 
   assert.equal(getLoanAccountControlReconciliation("18", "2026-06", "4.2.1.10.01"), null);
+});
+
+test("aceita diferença de até um real na conciliação de empréstimos", () => {
+  assert.equal(LOAN_RECONCILIATION_TOLERANCE, 1);
+  assert.equal(isLoanBalanceReconciled(0), true);
+  assert.equal(isLoanBalanceReconciled(1), true);
+  assert.equal(isLoanBalanceReconciled(-1), true);
+  assert.equal(isLoanBalanceReconciled(1.01), false);
+  assert.equal(isLoanBalanceReconciled(-1.01), false);
 });
 
 test("mantém o controle fixo completo do contrato Sicoob da coligada 05", () => {
