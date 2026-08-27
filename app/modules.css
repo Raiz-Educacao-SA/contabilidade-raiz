@@ -502,7 +502,7 @@
 .trial-footnote svg { width: 15px; }
 .loan-current-module { font-size: 10px; line-height: 1.2; }
 .loan-current-module svg { width: 16px; height: 16px; flex: 0 0 auto; }
-.loan-content > header h1 { margin: 3px 0; font-size: 24px; line-height: 1.08; }
+.loan-content > header h1 { margin: 2px 0; font-size: 18px; line-height: 1.08; }
 .loan-content > header p { font-size: 12px; line-height: 1.25; }
 .loan-content > header .eyebrow { font-size: 9px; }
 .loan-content .top-context { margin-top: 12px; padding: 6px; gap: 7px; }
@@ -534,6 +534,25 @@
 .loan-term.long { background: #eef2ff; color: #3949a3; }
 .loan-term.interest { background: #fff4df; color: #9a5a00; }
 .loan-analysis .trial-summary { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.loan-control { padding: 12px 14px 18px; }
+.loan-control-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #dce4ed; border-radius: 11px; background: linear-gradient(120deg,#f4fbf8,#fffaf0); }
+.loan-control-heading small { color: var(--purple); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
+.loan-control-heading h3 { margin: 3px 0; font-size: 13px; }
+.loan-control-heading p,.loan-control-heading>span { margin: 0; color: var(--muted); font-size: 9px; }
+.loan-control-heading>span { padding: 7px 9px; border-radius: 8px; background: #fff; }
+.loan-control-summary { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 7px; margin-top: 9px; }
+.loan-control-summary article { padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+.loan-control-summary span { display: block; color: var(--muted); font-size: 8px; }
+.loan-control-summary b { display: block; margin-top: 3px; font-size: 10px; white-space: nowrap; }
+.loan-control-table { margin-top: 10px; max-height: calc(100vh - 445px); min-height: 300px; }
+.loan-control-table table { font-size: 9px; }
+.loan-control-table th { position: sticky; top: 0; z-index: 2; background: #173d68; color: #fff; font-size: 8px; }
+.loan-control-table th,.loan-control-table td { padding: 7px 9px; }
+.loan-control-table th:nth-child(n+3):not(:last-child),.loan-control-table td:nth-child(n+3):not(:last-child) { text-align: right; }
+.loan-control-table tr.current-installment { background: #eaf7dd; box-shadow: inset 3px 0 #74a936; }
+.loan-control-status { display: inline-flex; padding: 3px 7px; border-radius: 999px; background: #edf2f8; color: #526174; font-size: 8px; font-weight: 850; }
+.current-installment .loan-control-status { background: #d8efbd; color: #3e6d13; }
+@media(max-width:1150px){.loan-control-summary{grid-template-columns:repeat(3,1fr)}}
 @media (max-width: 1150px) { .trial-summary, .loan-analysis .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 1380px) {
   .loan-content .top-context { flex-wrap: wrap; }
