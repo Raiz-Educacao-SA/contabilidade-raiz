@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { BarChart3, Download, FileSpreadsheet, RefreshCw, Search, Table2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import { trialBalanceAttentionFlags } from "@/lib/trial-balance-attention";
 
 type BalanceRow = {
   id: string;
@@ -113,17 +114,28 @@ export default function TrialBalanceAnalysis({ companyCode, competence, accessTo
       if (negativeExceptions.has(description)) nature = "negativo";
       const currentSign = final > 0 ? "positivo" : final < 0 ? "negativo" : "zero";
       const reducer = /\(\s?-\s?\)/.test(row.description) || row.description.trim().startsWith("(-");
+      const rowCategory = category(row.account);
+      const relevantVariation = percentageVariation !== null && Math.abs(percentageVariation) >= 20 && Math.abs(absoluteVariation) > 2000 && Math.abs(absoluteVariation) > 1.5 * Math.abs(historicalAverage);
+      const attention = trialBalanceAttentionFlags({
+        category: rowCategory,
+        previousBalance: previous,
+        currentBalance: final,
+        relevantVariation,
+        expectedNature: nature,
+        currentSign,
+        reducerAccount: reducer,
+      });
       return {
         ...row,
-        category: category(row.account),
+        category: rowCategory,
         absoluteVariation,
         percentageVariation,
         historicalAverage,
-        relevantVariation: percentageVariation !== null && Math.abs(percentageVariation) >= 20 && Math.abs(absoluteVariation) > 2000 && Math.abs(absoluteVariation) > 1.5 * Math.abs(historicalAverage),
-        possibleError: previous === 0 && final !== 0,
+        relevantVariation: attention.relevantVariation,
+        possibleError: attention.possibleError,
         expectedNature: nature,
         currentSign,
-        reversedAccount: nature !== "indefinido" && currentSign !== "zero" && nature !== currentSign && !reducer,
+        reversedAccount: attention.reversedAccount,
       };
     });
     setAnalysis(output); setActiveView("analise"); setAnalyzing(false);

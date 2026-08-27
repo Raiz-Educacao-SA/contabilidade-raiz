@@ -724,7 +724,7 @@ export default function Home() {
             : "Voltar aos módulos"}
         </button>
         {selectedModule !== "contabil" && (
-          <div className="current-module">
+          <div className={`current-module ${selectedModule === "emprestimos" ? "loan-current-module" : ""}`}>
             <ActiveModuleIcon />
             <span>{activeModule.title}</span>
           </div>
@@ -911,6 +911,8 @@ export default function Home() {
                 <span>Mês</span>
                 <select
                   value={month}
+                  aria-label="Mês selecionado"
+                  title={`Mês selecionado: ${months[month - 1]}`}
                   onChange={(e) => setMonth(Number(e.target.value))}
                 >
                   {months.map((name, index) => (
@@ -925,6 +927,8 @@ export default function Home() {
                 <input
                   type="number"
                   value={year}
+                  aria-label="Ano selecionado"
+                  title={`Ano selecionado: ${year}`}
                   onChange={(e) => setYear(Number(e.target.value))}
                 />
               </label>

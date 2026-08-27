@@ -478,7 +478,26 @@
 .trial-analysis .trial-footnote { font-size: 8px; }
 .trial-footnote { display: flex; align-items: center; gap: 7px; margin: 0; padding: 0 26px 18px; color: var(--muted); font-size: .72rem; }
 .trial-footnote svg { width: 15px; }
-.loan-content .filter-fields { width: max-content; max-width: 100%; grid-template-columns: 360px auto; }
+.loan-current-module { font-size: 10px; line-height: 1.2; }
+.loan-current-module svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.loan-content > header h1 { margin: 3px 0; font-size: 24px; line-height: 1.08; }
+.loan-content > header p { font-size: 12px; line-height: 1.25; }
+.loan-content > header .eyebrow { font-size: 9px; }
+.loan-content .top-context { margin-top: 12px; padding: 6px; gap: 7px; }
+.loan-content .filter-heading { padding-right: 8px; gap: 6px; }
+.loan-content .filter-heading b { font-size: 10px; }
+.loan-content .filter-heading small { font-size: 8px; }
+.loan-content .filter-icon { width: 30px; height: 30px; }
+.loan-content .filter-fields { width: auto; max-width: 100%; flex: 0 1 548px; grid-template-columns: minmax(250px, 300px) auto; gap: 6px; }
+.loan-content .competence-control { grid-template-columns: 112px 118px; gap: 6px; }
+.loan-content .top-context label { height: 40px; padding: 3px 7px; }
+.loan-content .top-context label > span { font-size: 8px; }
+.loan-content .top-context input,
+.loan-content .top-context select { height: 28px; font-size: 10px; }
+.loan-content .module-completion-control { flex: 0 1 280px; margin-left: auto; display: grid; justify-items: end; gap: 3px; }
+.loan-content .module-completion-control small { max-width: 280px; overflow: hidden; font-size: 8px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.loan-content .module-completion-control button { min-height: 32px; padding: 6px 10px; border-radius: 8px; font-size: 9px; }
+.loan-content .module-completion-control button svg { width: 13px; height: 13px; }
 .loan-analysis .trial-view-content { min-height: calc(100vh - 405px); }
 .loan-empty { min-height: 310px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 30px; color: var(--muted); text-align: center; }
 .loan-empty svg { width: 28px; height: 28px; color: #173d68; }
@@ -488,6 +507,11 @@
 .loan-term.short { background: #e9f7f1; color: #087a52; }
 .loan-term.long { background: #eef2ff; color: #3949a3; }
 @media (max-width: 1150px) { .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 1380px) {
+  .loan-content .top-context { flex-wrap: wrap; }
+  .loan-content .filter-fields { flex: 1 1 600px; }
+  .loan-content .module-completion-control { width: 100%; flex: 1 1 100%; grid-auto-flow: column; align-items: center; justify-content: end; }
+}
 @media (max-width: 760px) { .trial-analysis-actions { align-items: stretch; flex-direction: column; } .trial-action-buttons { flex-direction: column; } .trial-summary, .trial-category-summary { grid-template-columns: repeat(2, 1fr); } }
 .intercompany-panel { position: relative; overflow: hidden; padding: 0; }
 .intercompany-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(120deg, #f4fbf8, #fffaf0); }
@@ -945,6 +969,24 @@
   display: grid;
   grid-template-columns: 120px 180px;
   gap: 8px;
+}
+.competence-control > label:first-child {
+  min-width: 112px;
+}
+.competence-control > label:last-child {
+  min-width: 118px;
+}
+.competence-control select,
+.competence-control input {
+  color: var(--text);
+  font-weight: 750;
+}
+.competence-control select {
+  min-width: 62px;
+  padding-right: 20px;
+}
+.competence-control input {
+  min-width: 68px;
 }
 .top-context input,
 .top-context select {
@@ -2023,7 +2065,7 @@
   grid-template-columns: minmax(240px, 380px) auto;
 }
 .bank-content .competence-control {
-  grid-template-columns: 105px 145px;
+  grid-template-columns: 112px 145px;
 }
 .bank-content .bank-filter-actions {
   min-width: 390px;
@@ -2239,7 +2281,7 @@
 }
 .schedule-filters .competence-control {
   flex: 0 0 auto;
-  grid-template-columns: 105px 150px;
+  grid-template-columns: 112px 150px;
   gap: 6px;
 }
 .schedule-filters label {
@@ -3152,7 +3194,7 @@
   gap: 6px;
 }
 .tax-content .competence-control {
-  grid-template-columns: 82px 116px;
+  grid-template-columns: 112px 118px;
   gap: 6px;
 }
 .tax-content .top-context label {
