@@ -15,7 +15,27 @@ export type LoanPostingControl = {
   longPrincipalAccount: string;
   shortInterestAccount: string;
   longInterestAccount: string;
+  companyName: string;
+  companyCnpj: string;
+  bank: string;
+  principal: number;
+  financedTotal: number;
+  openingBalance: number;
+  graceInterest: number;
+  monthlyRate: number;
+  monthlyAmortization: number;
+  installments: number;
+  releaseDate: string;
+  firstCompetence: string;
+  finalCompetence: string;
   schedule: LoanScheduleEntry[];
+};
+
+export type LoanControlScheduleRow = LoanScheduleEntry & {
+  installment: number;
+  amortization: number;
+  outstandingBalance: number;
+  status: "Ativa";
 };
 
 export type LoanPosting = {
@@ -104,6 +124,19 @@ const controlsByCompany: Record<string, LoanPostingControl[]> = {
     longPrincipalAccount: "2.3.1.01.11.11",
     shortInterestAccount: "2.1.1.02.11.12",
     longInterestAccount: "2.3.1.02.14.11",
+    companyName: "COLÉGIO E CURSO AO CUBO S.A.",
+    companyCnpj: "23.075.186/0001-43",
+    bank: "Sicoob",
+    principal: 5000000,
+    financedTotal: 5176295.05,
+    openingBalance: 5358496.75,
+    graceInterest: 182201.70,
+    monthlyRate: 0.0174,
+    monthlyAmortization: 89308.27,
+    installments: 60,
+    releaseDate: "2025-12-02",
+    firstCompetence: "2026-02",
+    finalCompetence: "2031-01",
     schedule: aoCuboSicoobSchedule,
   }],
 };
@@ -120,6 +153,18 @@ const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 1
 
 export function getLoanPostingControls(companyCode: string) {
   return controlsByCompany[normalizeCompanyCode(companyCode)] || [];
+}
+
+export function getLoanControlSchedule(control: LoanPostingControl): LoanControlScheduleRow[] {
+  return control.schedule.map((entry, index) => ({
+    ...entry,
+    installment: index + 1,
+    amortization: control.monthlyAmortization,
+    outstandingBalance: index === control.installments - 1
+      ? 0
+      : roundCurrency(Math.max(0, control.openingBalance - control.monthlyAmortization * (index + 1))),
+    status: "Ativa",
+  }));
 }
 
 export function generateLoanPostings(companyCode: string, competence: string): LoanPosting[] {
