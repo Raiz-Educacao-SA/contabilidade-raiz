@@ -61,6 +61,8 @@ test("módulo de empréstimos substitui a análise pelo gerador de lançamentos"
   assert.match(panel, /<Scale \/>Conciliar/);
   assert.match(panel, /Conciliação da conta/);
   assert.match(panel, /tolerância de até R\$ 1,00/);
+  assert.doesNotMatch(panel, /Buscar conta, descrição ou prazo/);
+  assert.doesNotMatch(panel, /<Search \/>/);
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
 });
 
