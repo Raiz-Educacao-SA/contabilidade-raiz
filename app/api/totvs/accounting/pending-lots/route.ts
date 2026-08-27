@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthorizedCompany } from "@/lib/server/authorized-company";
 import { decodedTag, queryDataEngine } from "@/lib/totvs-dataengine";
 
 export const runtime = "nodejs";
@@ -31,11 +30,34 @@ function period(competence: string) {
   };
 }
 
-async function query(company: string, firstDay: string, lastDay: string, application: string) {
+type AuthorizedCompany = { code: string; name: string };
+
+async function authorizedCompanies(request: NextRequest): Promise<AuthorizedCompany[] | null> {
+  const authorization = request.headers.get("authorization");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!authorization || !url || !key) return null;
+  const userResponse = await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" });
+  if (!userResponse.ok) return null;
+  const user = await userResponse.json() as { id?: string };
+  if (!user.id) return null;
+  const accessResponse = await fetch(`${url}/rest/v1/usuarios_empresas?select=empresas(codcoligada,razao_social)&usuario_id=eq.${encodeURIComponent(user.id)}`, { headers: { authorization, apikey: key }, cache: "no-store" });
+  if (!accessResponse.ok) throw new Error("Não foi possível validar as empresas liberadas para este usuário.");
+  const links = await accessResponse.json() as Array<{ empresas?: { codcoligada?: string | number; razao_social?: string } | null }>;
+  const unique = new Map<string, AuthorizedCompany>();
+  links.forEach((link) => {
+    if (link.empresas?.codcoligada == null) return;
+    const code = String(link.empresas.codcoligada);
+    unique.set(code, { code, name: link.empresas.razao_social || `Coligada ${code}` });
+  });
+  return [...unique.values()].sort((left, right) => Number(left.code) - Number(right.code));
+}
+
+async function query(firstCompany: string, lastCompany: string, firstDay: string, lastDay: string, application: string) {
   return queryDataEngine({
     code: "RAZAOSEMLOTE0",
     system: "C",
-    parameters: `PLN_B7_S=${application};PLN_B3_I=${company};PLN_B4_I=${company};PLN_B5_D=${firstDay};PLN_B6_D=${lastDay}`,
+    parameters: `PLN_B7_S=${application};PLN_B3_I=${firstCompany};PLN_B4_I=${lastCompany};PLN_B5_D=${firstDay};PLN_B6_D=${lastDay}`,
     errorMessage: "O TOTVS não conseguiu consultar a Planilha NET 5 do módulo Contábil.",
   });
 }
@@ -45,37 +67,41 @@ export async function GET(request: NextRequest) {
     const company = request.nextUrl.searchParams.get("company")?.trim() || "";
     const competence = request.nextUrl.searchParams.get("competence")?.trim() || "";
     const dates = period(competence);
-    if (!/^\d+$/.test(company) || !dates) {
+    if (!(company === "all" || /^\d+$/.test(company)) || !dates) {
       return NextResponse.json({ error: "Empresa e competência válidas são obrigatórias." }, { status: 400 });
     }
-    const allowed = await isAuthorizedCompany({
-      authorization: request.headers.get("authorization"),
-      company,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    });
-    if (!allowed) return NextResponse.json({ error: "Empresa não liberada ou sessão expirada." }, { status: 403 });
+    const authorized = await authorizedCompanies(request);
+    if (!authorized) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
+    const selected = company === "all" ? authorized : authorized.filter((item) => Number(item.code) === Number(company));
+    if (!selected.length) return NextResponse.json({ error: "Empresa não liberada para este usuário." }, { status: 403 });
+    const allowedCodes = new Set(selected.map((item) => String(Number(item.code))));
+    const companyNames = new Map(selected.map((item) => [String(Number(item.code)), item.name]));
+    const sortedCodes = selected.map((item) => Number(item.code)).sort((left, right) => left - right);
+    const firstCompany = String(sortedCodes[0]);
+    const lastCompany = String(sortedCodes.at(-1));
 
-    let records = await query(company, dates.firstDay, dates.lastDay, "%");
-    if (!records.length) {
-      records = (await Promise.all(APPLICATIONS.map((application) => query(company, dates.firstDay, dates.lastDay, application)))).flat();
-    }
+    console.log("[pending-lots] consolidated query started", { competence, companies: selected.length, firstCompany, lastCompany });
+    const attempts = await Promise.allSettled(APPLICATIONS.map((application) => query(firstCompany, lastCompany, dates.firstDay, dates.lastDay, application)));
+    const records = attempts.flatMap((attempt) => attempt.status === "fulfilled" ? attempt.value : []);
+    if (!attempts.some((attempt) => attempt.status === "fulfilled")) throw new Error("O TOTVS não respondeu à consulta consolidada dos lotes pendentes.");
     const unique = new Map<string, string>();
     records.forEach((record) => {
-      if (Number(decodedTag(record, "CODCOLIGADA")) !== Number(company)) return;
+      const recordCompany = String(Number(decodedTag(record, "CODCOLIGADA")));
+      if (!allowedCodes.has(recordCompany)) return;
       const date = decodedTag(record, "DATA");
       if (date && !date.startsWith(competence)) return;
       const key = [decodedTag(record, "CODCOLIGADA"), decodedTag(record, "CODLOTE"), decodedTag(record, "INTEGRAAPLICACAO"), decodedTag(record, "CODCONTA"), date, decodedTag(record, "DEBITO"), decodedTag(record, "CREDITO"), decodedTag(record, "COMPLEMENTO")].join("|");
       unique.set(key, record);
     });
 
-    const grouped = new Map<string, { lotCode: string; application: string; date: string; records: number; debit: number; credit: number }>();
+    const grouped = new Map<string, { companyCode: string; companyName: string; lotCode: string; application: string; date: string; records: number; debit: number; credit: number }>();
     unique.forEach((record) => {
+      const companyCode = String(Number(decodedTag(record, "CODCOLIGADA")));
       const lotCode = decodedTag(record, "CODLOTE") || "Sem código";
       const application = decodedTag(record, "INTEGRAAPLICACAO") || "—";
       const date = decodedTag(record, "DATA");
-      const key = `${application}|${lotCode}`;
-      const current = grouped.get(key) ?? { lotCode, application, date, records: 0, debit: 0, credit: 0 };
+      const key = `${companyCode}|${application}|${lotCode}`;
+      const current = grouped.get(key) ?? { companyCode, companyName: companyNames.get(companyCode) || `Coligada ${companyCode}`, lotCode, application, date, records: 0, debit: 0, credit: 0 };
       current.records += 1;
       current.debit += amount(decodedTag(record, "DEBITO"));
       current.credit += amount(decodedTag(record, "CREDITO"));
@@ -87,11 +113,14 @@ export async function GET(request: NextRequest) {
       ...lot,
       applicationName: APPLICATION_NAMES[lot.application] || `Origem ${lot.application}`,
       difference: Math.round((lot.debit - lot.credit) * 100) / 100,
-    })).sort((left, right) => right.date.localeCompare(left.date) || right.lotCode.localeCompare(left.lotCode));
+    })).sort((left, right) => Number(left.companyCode) - Number(right.companyCode) || right.date.localeCompare(left.date) || right.lotCode.localeCompare(left.lotCode));
+
+    console.log("[pending-lots] consolidated query completed", { competence, companies: selected.length, records: unique.size, lots: lots.length, failedApplications: attempts.filter((attempt) => attempt.status === "rejected").length });
 
     return NextResponse.json({
       source: "TOTVS RM — Planilha NET 5 / RAZAOSEMLOTE0",
-      company,
+      company: company === "all" ? "all" : selected[0].code,
+      companies: selected.length,
       competence,
       updatedAt: new Date().toISOString(),
       lots,
