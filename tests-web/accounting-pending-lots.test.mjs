@@ -9,7 +9,12 @@ const route = readFileSync(new URL("../app/api/totvs/accounting/pending-lots/rou
 test("módulo contábil oferece a rotina Lotes a integrar", () => {
   assert.match(page, /Lotes a integrar/);
   assert.match(page, /<PendingAccountingLots/);
+  assert.match(page, /pending-lots-content/);
+  assert.match(page, /pendingLotsAllCompanies/);
+  assert.match(page, /pending-lots:update/);
   assert.match(panel, /Atualizar/);
+  assert.doesNotMatch(panel, /<h2>Lotes a integrar<\/h2>/);
+  assert.match(panel, /Empresa<\/th><th>Lote/);
 });
 
 test("consulta usa a Planilha NET 5 e restringe a empresa autorizada", () => {

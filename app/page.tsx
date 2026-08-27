@@ -19,6 +19,7 @@ import {
   LogOut,
   Plus,
   ReceiptText,
+  RefreshCw,
   Save,
   ShieldCheck,
   ShoppingCart,
@@ -273,6 +274,7 @@ export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [tab, setTab] = useState<Tab>("conciliacao");
   const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
+  const [pendingLotsAllCompanies, setPendingLotsAllCompanies] = useState(false);
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
   const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
   const [selectedScheduleModule, setSelectedScheduleModule] = useState<ScheduleModuleKey>("contabil");
@@ -842,7 +844,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : accountingTab === "lotes-integrar" ? "pending-lots-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
       >
         <header>
           <div>
@@ -965,6 +967,17 @@ export default function Home() {
               id="bank-reconciliation-filter-actions"
               className="filter-actions-slot bank-filter-actions"
             />
+          )}
+          {selectedModule === "contabil" && accountingTab === "lotes-integrar" && (
+            <div className="filter-actions-slot pending-lots-filter-actions">
+              <label className="pending-lots-all">
+                <input type="checkbox" checked={pendingLotsAllCompanies} onChange={(event) => setPendingLotsAllCompanies(event.target.checked)} />
+                <span>Todas</span>
+              </label>
+              <button className="primary" onClick={() => window.dispatchEvent(new Event("pending-lots:update"))}>
+                <RefreshCw /> Atualizar
+              </button>
+            </div>
           )}
           {moduleCompletionIdentity && (
             <ModuleCompletionControl
@@ -1118,9 +1131,11 @@ export default function Home() {
         )}
         {selectedModule === "contabil" && accountingTab === "lotes-integrar" && (
           <PendingAccountingLots
-            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}-${pendingLotsAllCompanies}`}
             companyCode={company?.empresas?.codcoligada ?? ""}
             companyName={company?.empresas?.razao_social ?? ""}
+            companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])}
+            allCompanies={pendingLotsAllCompanies}
             competence={competence}
             accessToken={session.access_token}
           />
