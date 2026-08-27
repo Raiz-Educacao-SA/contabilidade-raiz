@@ -35,6 +35,7 @@ import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
 import PisCofinsAssessment from "@/app/pis-cofins-assessment";
 import TrialBalanceAnalysis from "@/app/trial-balance-analysis";
+import LoanReconciliation from "@/app/loan-reconciliation";
 import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
@@ -838,7 +839,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
       >
         <header>
           <div>
@@ -1082,6 +1083,14 @@ export default function Home() {
             userName={resolveUserDisplayName(session.user.user_metadata, session.user.email ?? "")}
           />
         )}
+        {selectedModule === "emprestimos" && (
+          <LoanReconciliation
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
         {selectedModule === "folha" && (
           <PayrollBatchReconciliation
             key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
@@ -1184,6 +1193,7 @@ export default function Home() {
         {selectedModule !== "bancaria" &&
           selectedModule !== "book" &&
           selectedModule !== "receita" &&
+          selectedModule !== "emprestimos" &&
           selectedModule !== "folha" &&
           selectedModule !== "contabil" &&
           selectedModule !== "cronograma" && (

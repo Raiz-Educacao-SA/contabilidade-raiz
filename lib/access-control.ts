@@ -51,6 +51,7 @@ export function requiredModulesForApiPath(pathname: string): AccessModule[] {
   if (pathname.startsWith("/api/data-engine") || pathname.startsWith("/api/drive")) return ["financeiro"];
   if (pathname.startsWith("/api/payroll")) return ["folha"];
   if (pathname.startsWith("/api/totvs/revenue-reconciliation")) return ["financeiro"];
+  if (pathname.startsWith("/api/totvs/loans")) return ["financeiro"];
   if (pathname.startsWith("/api/totvs/accounting")) return ["financeiro", "contabil"];
   if (pathname.startsWith("/api/totvs/pis-cofins") || pathname.startsWith("/api/totvs/trial-balance")) return ["contabil"];
   if (pathname.startsWith("/api/zeev")) return ["contabil"];

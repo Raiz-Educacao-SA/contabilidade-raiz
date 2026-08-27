@@ -20,6 +20,7 @@ test("protege as APIs conforme o módulo liberado", () => {
   assert.deepEqual(requiredModulesForApiPath("/api/data-engine/statements"), ["financeiro"]);
   assert.deepEqual(requiredModulesForApiPath("/api/payroll/lot"), ["folha"]);
   assert.deepEqual(requiredModulesForApiPath("/api/totvs/pis-cofins"), ["contabil"]);
+  assert.deepEqual(requiredModulesForApiPath("/api/totvs/loans/trial-balance"), ["financeiro"]);
   assert.deepEqual(requiredModulesForApiPath("/api/totvs/accounting"), ["financeiro", "contabil"]);
   assert.deepEqual(requiredModulesForApiPath("/api/access-requests"), []);
 });

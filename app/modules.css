@@ -454,7 +454,7 @@
 .trial-summary b, .trial-category-summary b { display: block; margin-top: 3px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trial-table { margin: 0 14px 10px; max-height: calc(100vh - 360px); min-height: 360px; }
 .trial-table table { font-size: 9px; }
-.trial-table th { font-size: 8px; }
+.trial-table th { position: sticky; top: 0; z-index: 3; background: #173d68; color: #fff; font-size: 8px; box-shadow: 0 1px 0 #d7dfeb; }
 .trial-table th, .trial-table td { padding: 7px 9px; }
 .trial-flags { display: flex; flex-wrap: wrap; gap: 4px; }
 .trial-flags span { border-radius: 999px; background: #fff1e7; color: #a64b00; padding: 3px 7px; font-size: .65rem; font-weight: 800; white-space: nowrap; }
@@ -478,6 +478,15 @@
 .trial-analysis .trial-footnote { font-size: 8px; }
 .trial-footnote { display: flex; align-items: center; gap: 7px; margin: 0; padding: 0 26px 18px; color: var(--muted); font-size: .72rem; }
 .trial-footnote svg { width: 15px; }
+.loan-content .filter-fields { width: max-content; max-width: 100%; grid-template-columns: 360px auto; }
+.loan-analysis .trial-view-content { min-height: calc(100vh - 405px); }
+.loan-empty { min-height: 310px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 30px; color: var(--muted); text-align: center; }
+.loan-empty svg { width: 28px; height: 28px; color: #173d68; }
+.loan-empty b { color: #173d68; font-size: 12px; }
+.loan-empty span { max-width: 570px; font-size: 9px; line-height: 1.5; }
+.loan-term { display: inline-flex; align-items: center; justify-content: center; min-width: 76px; border-radius: 999px; padding: 3px 7px; font-size: 8px; font-weight: 900; white-space: nowrap; }
+.loan-term.short { background: #e9f7f1; color: #087a52; }
+.loan-term.long { background: #eef2ff; color: #3949a3; }
 @media (max-width: 1150px) { .trial-summary { grid-template-columns: repeat(3, 1fr); } .trial-category-summary { grid-template-columns: repeat(4, 1fr); } }
 @media (max-width: 760px) { .trial-analysis-actions { align-items: stretch; flex-direction: column; } .trial-action-buttons { flex-direction: column; } .trial-summary, .trial-category-summary { grid-template-columns: repeat(2, 1fr); } }
 .intercompany-panel { position: relative; overflow: hidden; padding: 0; }
