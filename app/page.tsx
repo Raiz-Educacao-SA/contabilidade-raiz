@@ -1133,8 +1133,6 @@ export default function Home() {
           <PendingAccountingLots
             key={`${company?.empresas?.codcoligada ?? ""}-${competence}-${pendingLotsAllCompanies}`}
             companyCode={company?.empresas?.codcoligada ?? ""}
-            companyName={company?.empresas?.razao_social ?? ""}
-            companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])}
             allCompanies={pendingLotsAllCompanies}
             competence={competence}
             accessToken={session.access_token}
