@@ -28,6 +28,23 @@ test("mantém somente contas de empréstimos e exclui rotinas próprias", () => 
   assert.equal(isLoanAccount({ account: "3.1.1.01.01", description: "Receita de juros sobre empréstimos" }), false);
 });
 
+test("inclui juros a apropriar dos empréstimos no respectivo curto ou longo prazo", () => {
+  const shortTermInterest = {
+    account: "2.1.1.02.11.12",
+    description: "(-) Juros Emprést. e Financ Banco Sicoob - 872559",
+  };
+  const longTermInterest = {
+    account: "2.3.1.02.11.12",
+    description: "(-) Juros Emprést. e Financ Banco Sicoob - 872559",
+  };
+
+  assert.equal(isLoanAccount(shortTermInterest), true);
+  assert.equal(classifyLoanTerm(shortTermInterest.account, shortTermInterest.description), "Curto prazo");
+  assert.equal(isLoanAccount(longTermInterest), true);
+  assert.equal(classifyLoanTerm(longTermInterest.account, longTermInterest.description), "Longo prazo");
+  assert.equal(isLoanAccount({ account: "2.1.1.02", description: "(-) Juros e Custos a Apropriar" }), false);
+});
+
 test("módulo de empréstimos expõe o fluxo preparado sem gerar lançamentos ainda", () => {
   assert.match(page, /<LoanReconciliation/);
   assert.match(panel, /Gerar balancete/);

@@ -13,8 +13,8 @@ const normalize = (value: string) => value
   .trim();
 
 const loanDescriptionPatterns = [
-  /\bEMPRESTIM/,
-  /\bFINANCIAMENT/,
+  /\bEMPREST/,
+  /\bFINANC/,
   /\bMUTUO/,
   /\bCAPITAL DE GIRO\b/,
   /\bCEDULA DE CREDITO(?: BANCARIO)?\b/,
@@ -31,7 +31,12 @@ const excludedLoanDescriptionPatterns = [
   /\bEMPRESTIMO YURI BARBEITO\b/,
 ];
 
-const loanInterestPattern = /(?:\bJUROS\b|\bENCARGOS FINANCEIROS\b).*\b(?:EMPRESTIM|FINANCIAMENT)|\b(?:EMPRESTIM|FINANCIAMENT).*(?:\bJUROS\b|\bENCARGOS FINANCEIROS\b)/;
+const loanInterestPattern = /(?:\bJUROS\b|\bENCARGOS FINANCEIROS\b).*\b(?:EMPREST|FINANC)|\b(?:EMPREST|FINANC).*(?:\bJUROS\b|\bENCARGOS FINANCEIROS\b)/;
+
+// Contas redutoras analíticas de juros a apropriar permanecem no mesmo prazo
+// do empréstimo (2.1 = curto; 2.2/2.3 = longo). O vínculo explícito com
+// empréstimo/financiamento evita incluir totalizadores genéricos de juros.
+const loanLiabilityInterestPattern = /\bJUROS\b.*\b(?:EMPREST|FINANC)|\b(?:EMPREST|FINANC).*\bJUROS\b/;
 
 export function classifyLoanTerm(account: string, rawDescription = ""): LoanTerm | null {
   const normalizedAccount = account.trim();
@@ -53,6 +58,8 @@ export function isLoanAccount(row: LoanAccountCandidate): boolean {
   const term = classifyLoanTerm(row.account, description);
   if (term === "Juros") return true;
   if (!term) return false;
+
+  if (loanLiabilityInterestPattern.test(description)) return true;
 
   return loanDescriptionPatterns.some((pattern) => pattern.test(description));
 }
