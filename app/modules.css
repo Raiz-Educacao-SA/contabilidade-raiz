@@ -187,10 +187,10 @@
   min-height: 280px;
 }
 .pending-lots { padding: 0; overflow: hidden; }
-.pending-lots-summary { padding: 14px 24px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; background: #f8fafc; }
-.pending-lots-summary article { padding: 11px 12px; border: 1px solid #e3e8ef; border-radius: 10px; background: #fff; }
-.pending-lots-summary span { display: block; font-size: 9px; color: var(--muted); }
-.pending-lots-summary b { display: block; margin-top: 4px; font-size: 13px; }
+.pending-lots-summary { padding: 8px 14px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; background: #f8fafc; }
+.pending-lots-summary article { min-height: 44px; padding: 7px 9px; border: 1px solid #e3e8ef; border-radius: 8px; background: #fff; }
+.pending-lots-summary span { display: block; font-size: 7px; line-height: 1.1; color: var(--muted); }
+.pending-lots-summary b { display: block; margin-top: 3px; font-size: 10px; line-height: 1.1; }
 .pending-lots > .notice { margin: 14px 24px 0; display: flex; align-items: center; gap: 8px; font-size: 10px; }
 .pending-lots > .notice svg { width: 14px; }
 .pending-lots > .notice small { margin-left: auto; font-size: 9px; }
