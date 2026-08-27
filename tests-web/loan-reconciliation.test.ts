@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { classifyLoanTerm, isLoanAccount } from "../lib/loan-accounts.ts";
 import { requiredModulesForApiPath } from "../lib/access-control.ts";
-import { buildLoanPostingsCsv, generateLoanPostings, getLoanControlSchedule, getLoanPostingControls } from "../lib/loan-postings.ts";
+import { buildLoanPostingsCsv, generateLoanPostings, getLoanAccountControlReconciliation, getLoanControlSchedule, getLoanPostingControls } from "../lib/loan-postings.ts";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/loan-reconciliation.tsx", import.meta.url), "utf8");
@@ -57,6 +57,9 @@ test("módulo de empréstimos substitui a análise pelo gerador de lançamentos"
   assert.match(panel, /CONTROLE FIXO · COLIGADA \{fixedControl\.companyCode\}/);
   assert.match(panel, /loan-contract-tabs/);
   assert.match(panel, /<th>Saldo final<\/th><th>Grupo<\/th>/);
+  assert.match(panel, /<th>Saldo controle<\/th><th>Diferença<\/th><th>Situação<\/th><th>Ação<\/th>/);
+  assert.match(panel, /<Scale \/>Conciliar/);
+  assert.match(panel, /Conciliação da conta/);
   assert.doesNotMatch(panel, /<th>Prazo(?:\/Grupo)?<\/th>/);
 });
 
@@ -109,6 +112,28 @@ test("mantém os controles Itaú 2849757626 e Sicoob 2691427 na coligada 18", ()
     status: "Ativa",
   });
   assert.equal(generateLoanPostings("18", "2026-06").length, 0);
+});
+
+test("concilia as quatro contas de cada contrato da coligada 18 com o controle", () => {
+  const expected = new Map([
+    ["2.1.1.01.01.32", -423627.48],
+    ["2.3.1.01.01.14", -211813.74],
+    ["2.1.1.02.01.14", 121588.92],
+    ["2.3.1.02.01.14", 60794.46],
+    ["2.1.1.01.15.10", -2504297],
+    ["2.3.1.01.11.10", -6124106],
+    ["2.1.1.02.11.11", 1127189],
+    ["2.3.1.02.14.10", 1533746],
+  ]);
+
+  expected.forEach((balance, account) => {
+    const reconciliation = getLoanAccountControlReconciliation("18", "2026-06", account);
+    assert.ok(reconciliation);
+    assert.equal(reconciliation.expectedBalance, balance);
+    assert.equal(reconciliation.contributions.length, 1);
+  });
+
+  assert.equal(getLoanAccountControlReconciliation("18", "2026-06", "4.2.1.10.01"), null);
 });
 
 test("mantém o controle fixo completo do contrato Sicoob da coligada 05", () => {
