@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { BarChart3, ClipboardList, Download, FilePlus2, FileSpreadsheet, RefreshCw, Scale, Search, Table2 } from "lucide-react";
+import { BarChart3, ClipboardList, Download, FilePlus2, FileSpreadsheet, RefreshCw, Scale, Table2 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { classifyLoanTerm, type LoanTerm } from "@/lib/loan-accounts";
@@ -36,7 +36,6 @@ type AnalyzedLoanRow = HistoricalLoanRow & {
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const percent = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const roundAmount = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim().replace(/\s+/g, " ");
 
 function previousCompetences(competence: string) {
   const [year, month] = competence.split("-").map(Number);
@@ -62,7 +61,6 @@ export default function LoanReconciliation({
   const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState("");
   const [hasError, setHasError] = useState(false);
-  const [search, setSearch] = useState("");
   const [activeView, setActiveView] = useState<"balancete" | "controle" | "analise">("balancete");
   const [selectedControlId, setSelectedControlId] = useState("");
   const [reconciledAccount, setReconciledAccount] = useState("");
@@ -164,14 +162,6 @@ export default function LoanReconciliation({
   }, [base]);
 
   const issues = useMemo(() => analysis.filter((row) => row.relevantVariation || row.newBalance), [analysis]);
-  const visibleBase = useMemo(() => {
-    const term = normalize(search);
-    return term ? base.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description} ${row.term}`).includes(term)) : base;
-  }, [base, search]);
-  const visibleAnalysis = useMemo(() => {
-    const term = normalize(search);
-    return term ? issues.filter((row) => normalize(`${row.account} ${row.reduced} ${row.description} ${row.term}`).includes(term)) : issues;
-  }, [issues, search]);
   const postingControls = useMemo(() => getLoanPostingControls(companyCode), [companyCode]);
   const controlReconciliations = useMemo(() => new Map(base.map((row) => [
     row.account,
@@ -297,14 +287,13 @@ export default function LoanReconciliation({
         {analysis.length > 0 && <button className={activeView === "analise" ? "active" : ""} onClick={() => setActiveView("analise")}><BarChart3 />Análise do Balancete <span>{issues.length}</span></button>}
       </nav>
       <div className="trial-view-content">
-        {activeView !== "controle" && <div className="book-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conta, descrição ou prazo" /></label><span>{activeView === "balancete" ? visibleBase.length : visibleAnalysis.length} conta(s)</span></div>}
         {activeView === "controle" ? fixedControl ? <div className="loan-control">
           {postingControls.length > 1 && <div className="loan-contract-tabs">{postingControls.map((control) => <button key={control.id} className={control.id === fixedControl.id ? "active" : ""} onClick={() => setSelectedControlId(control.id)}><span>{control.bank}</span><b>{control.contract}</b></button>)}</div>}
           <div className="loan-control-heading"><div><small>CONTROLE FIXO · COLIGADA {fixedControl.companyCode}</small><h3>{fixedControl.bank} · Contrato {fixedControl.contract}</h3><p>{fixedControl.companyName} · {fixedControl.companyCnpj}</p></div><span>Origem <b>{fixedControl.sourceSheet}</b></span></div>
           <div className="loan-control-summary"><article><span>Valor principal</span><b>{money.format(fixedControl.principal)}</b></article><article><span>Total financiado</span><b>{money.format(fixedControl.financedTotal)}</b></article><article><span>Parcelas</span><b>{fixedControl.installments}</b></article><article><span>Taxa mensal</span><b>{percent.format(fixedControl.monthlyRate * 100)}%</b></article><article><span>Amortização mensal</span><b>{variableAmortization ? "Variável" : money.format(fixedControl.monthlyAmortization)}</b></article><article><span>{fixedControl.interestSummaryLabel || "Juros da carência"}</span><b>{money.format(fixedControl.graceInterest)}</b></article></div>
           <div className="table-wrap loan-control-table"><table><thead><tr><th>Parcela</th><th>Competência</th><th>Amortização</th><th>Juros</th><th>Parcela total</th><th>Saldo devedor</th><th>Status</th></tr></thead><tbody>{fixedSchedule.map((row) => <tr key={row.competence} className={row.competence === competence ? "current-installment" : ""}><td>{row.installment}</td><td><b>{row.competence.slice(5)}/{row.competence.slice(0, 4)}</b></td><td>{money.format(row.amortization)}</td><td>{money.format(row.interest)}</td><td><b>{money.format(row.totalInstallment)}</b></td><td>{money.format(row.outstandingBalance)}</td><td><span className="loan-control-status">{row.competence === competence ? "Competência atual" : row.status}</span></td></tr>)}</tbody></table></div>
         </div> : <div className="loan-empty"><ClipboardList /><b>Controle fixo ainda não cadastrado</b><span>O modelo de empréstimos desta empresa será incluído quando estiver disponível.</span></div>
-        : activeView === "balancete" ? base.length ? <div className="table-wrap trial-table loan-reconciliation-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th><th>Saldo controle</th><th>Diferença</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{visibleBase.map((row) => {
+        : activeView === "balancete" ? base.length ? <div className="table-wrap trial-table loan-reconciliation-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Débitos</th><th>Créditos</th><th>Saldo final</th><th>Grupo</th><th>Saldo controle</th><th>Diferença</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{base.map((row) => {
           const reconciliation = controlReconciliations.get(row.account);
           const difference = reconciliation ? roundAmount(row.closingBalance - reconciliation.expectedBalance) : null;
           const reconciled = difference !== null && isLoanBalanceReconciled(difference);
@@ -321,7 +310,7 @@ export default function LoanReconciliation({
             </td></tr>}
           </Fragment>;
         })}</tbody></table></div> : <div className="loan-empty"><FileSpreadsheet /><b>Gere o balancete de empréstimos</b><span>O controle fixo pode ser consultado sem gerar o balancete.</span></div>
-        : <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Saldo final</th><th>Grupo</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{visibleAnalysis.length ? visibleAnalysis.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.newBalance && <span>Saldo novo</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma variação de empréstimos foi criticada pelas regras atuais.</td></tr>}</tbody></table></div>}
+        : <div className="table-wrap trial-table"><table><thead><tr><th>Conta</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo anterior</th><th>Saldo final</th><th>Grupo</th><th>Variação</th><th>Variação %</th><th>Crítica</th></tr></thead><tbody>{issues.length ? issues.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.reduced || "—"}</td><td>{row.description}</td><td>{money.format(row.balances.at(-2) || 0)}</td><td>{money.format(row.balances.at(-1) || 0)}</td><td><span className={`loan-term ${row.term === "Curto prazo" ? "short" : row.term === "Longo prazo" ? "long" : "interest"}`}>{row.term}</span></td><td>{money.format(row.absoluteVariation)}</td><td>{row.percentageVariation === null ? "—" : `${percent.format(row.percentageVariation)}%`}</td><td><div className="trial-flags">{row.relevantVariation && <span>Variação relevante</span>}{row.newBalance && <span>Saldo novo</span>}</div></td></tr>) : <tr><td colSpan={9} className="empty-row">Nenhuma variação de empréstimos foi criticada pelas regras atuais.</td></tr>}</tbody></table></div>}
         <p className="trial-footnote"><FileSpreadsheet /> Período histórico: {competences.map((item) => `${item.slice(5)}/${item.slice(0, 4)}`).join(" · ")} · {postingControls.length
           ? `${postingControls.length} controle(s) fixo(s) cadastrado(s) · contrato atual ${fixedControl?.contract} · aba ${fixedControl?.sourceSheet}.`
           : "Aguardando o controle fixo de empréstimos desta empresa."}</p>
