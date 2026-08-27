@@ -186,6 +186,28 @@
 .accounting-workspace {
   min-height: 280px;
 }
+.pending-lots { padding: 0; overflow: hidden; }
+.pending-lots-header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); background: linear-gradient(120deg,#f5fbff,#fffaf2); }
+.pending-lots-header > div { display: flex; align-items: center; gap: 13px; }
+.pending-lots-header > div > span { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 12px; color: #fff; background: #173d68; }
+.pending-lots-header svg { width: 18px; }
+.pending-lots-header small { font-size: 9px; font-weight: 900; letter-spacing: .09em; color: #748095; }
+.pending-lots-header h2 { margin: 3px 0; font-size: 18px; }
+.pending-lots-header p { margin: 0!important; font-size: 10px; }
+.pending-lots-summary { padding: 14px 24px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; background: #f8fafc; }
+.pending-lots-summary article { padding: 11px 12px; border: 1px solid #e3e8ef; border-radius: 10px; background: #fff; }
+.pending-lots-summary span { display: block; font-size: 9px; color: var(--muted); }
+.pending-lots-summary b { display: block; margin-top: 4px; font-size: 13px; }
+.pending-lots > .notice { margin: 14px 24px 0; display: flex; align-items: center; gap: 8px; font-size: 10px; }
+.pending-lots > .notice svg { width: 14px; }
+.pending-lots > .notice small { margin-left: auto; font-size: 9px; }
+.pending-lots-table { margin: 14px 24px 24px; max-height: 520px; border: 1px solid var(--line); border-radius: 11px; }
+.pending-lots-table table { min-width: 950px; font-size: 10px; }
+.pending-lots-table th { position: sticky; top: 0; z-index: 1; background: #173d68; color: #fff; }
+.pending-lots-table th,.pending-lots-table td { padding: 8px 9px; }
+.pending-lots-table th:nth-child(n+4):not(:last-child),.pending-lots-table td:nth-child(n+4):not(:last-child) { text-align: right; }
+.pending-lot-status { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: #fff1d6; color: #8a5700; font-size: 8px; font-weight: 850; white-space: nowrap; }
+@media(max-width:800px){.pending-lots-summary{grid-template-columns:repeat(2,1fr)}.pending-lots-header{align-items:flex-start;flex-direction:column}}
 .book-base-nav {
   margin: 2px 10px 0;
 }
