@@ -18,3 +18,10 @@ test("painel mantém o balancete e prepara Razão e Plano de Contas", () => {
   assert.match(panel, /report === "plano-contas"/);
   assert.match(panel, /\/api\/totvs\/trial-balance/);
 });
+
+test("Módulo Contábil expõe a área Receita por Filial", () => {
+  assert.match(page, /"receita-filial"/);
+  assert.match(page, /label: "Receita por Filial"/);
+  assert.match(page, /accountingTab === "receita-filial"/);
+  assert.match(page, /<h2>[\s\S]*?"Receita por Filial"/);
+});
