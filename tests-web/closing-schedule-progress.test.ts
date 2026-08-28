@@ -14,7 +14,7 @@ function completed(modulo: string) {
   return { modulo, status: "concluido" as const };
 }
 
-test("conta somente os quatro módulos que alimentam o cronograma", () => {
+test("calcula somente módulos que possuem tarefas cadastradas", () => {
   const records = [
     completed("fiscal"),
     completed("folha:lote:02"),
@@ -26,12 +26,13 @@ test("conta somente os quatro módulos que alimentam o cronograma", () => {
 
   const progress = calculateClosingScheduleProgress(records, ["2"]);
 
-  assert.equal(progress.totalModules, 4);
-  assert.equal(progress.completedModulesCount, 1);
-  assert.deepEqual(progress.completedModules, ["fiscal"]);
+  assert.equal(progress.totalModules, 3);
+  assert.equal(progress.completedModulesCount, 0);
+  assert.deepEqual(progress.completedModules, []);
+  assert.deepEqual(progress.includedModules, ["financeiro", "folha", "contabil"]);
   assert.equal(progress.modulePercent.financeiro, 25);
   assert.equal(progress.modulePercent.contabil, 10);
-  assert.equal(progress.overallPercent, 38);
+  assert.equal(progress.overallPercent, 17);
 });
 
 test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
@@ -39,7 +40,7 @@ test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
   assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.includes("imobilizado" as never), false);
 });
 
-test("conclui Financeiro, Folha e Contábil apenas quando todas as tarefas e empresas terminarem", () => {
+test("conclui Financeiro, Folha e Contábil sem exigir módulo Fiscal sem tarefas", () => {
   const companyCodes = ["01", "2"];
   const financialTaskIds = FINANCIAL_SCHEDULE_TASK_IDS as readonly string[];
   const accountingTaskIds = ACCOUNTING_SCHEDULE_TASK_IDS as readonly string[];
@@ -59,7 +60,7 @@ test("conclui Financeiro, Folha e Contábil apenas quando todas as tarefas e emp
 
   const progress = calculateClosingScheduleProgress(records, companyCodes);
 
-  assert.equal(progress.completedModulesCount, 4);
+  assert.equal(progress.completedModulesCount, 3);
   assert.equal(progress.overallPercent, 100);
   assert.deepEqual(progress.modulePercent, {
     financeiro: 100,
