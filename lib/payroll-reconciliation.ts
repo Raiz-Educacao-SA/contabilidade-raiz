@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx-js-style";
-import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import { applyRaizWorkbookStyle } from "./export-workbook-style.ts";
 
 export type PayrollLotRow = {
   account: string;
