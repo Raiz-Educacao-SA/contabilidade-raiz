@@ -7,7 +7,7 @@ const css = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8")
 
 test("compacta o título e os filtros do módulo de empréstimos", () => {
   assert.match(page, /selectedModule === "emprestimos" \? "loan-current-module" : ""/);
-  assert.match(css, /\.loan-content > header h1 \{[^}]*font-size: 24px;/s);
+  assert.match(css, /\.loan-content > header h1 \{[^}]*font-size: 18px;/s);
   assert.match(css, /\.loan-content \.filter-fields \{[^}]*grid-template-columns: minmax\(250px, 300px\) auto;/s);
   assert.match(css, /\.loan-content \.competence-control \{[^}]*grid-template-columns: 112px 118px;/s);
 });
