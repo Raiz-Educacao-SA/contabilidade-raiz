@@ -76,7 +76,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
+type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = AccessModule;
@@ -307,7 +307,7 @@ export default function Home() {
   const moduleCompletionIdentity = (() => {
     if (!selectedModule || selectedModule === "cronograma") return null;
     if (selectedModule === "contabil") {
-      if (accountingTab === "pis-cofins" || accountingTab === "lotes-integrar") return null;
+      if (accountingTab === "pis-cofins" || accountingTab === "receita-filial" || accountingTab === "lotes-integrar") return null;
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
     if (selectedModule === "bancaria") return null;
@@ -764,6 +764,7 @@ export default function Home() {
             {(
               [
                 { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
+                { id: "receita-filial", label: "Receita por Filial", icon: TrendingUp },
                 { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
@@ -854,6 +855,8 @@ export default function Home() {
               {selectedModule === "contabil"
                 ? accountingTab === "pis-cofins"
                   ? "PIS e COFINS"
+                  : accountingTab === "receita-filial"
+                    ? "Receita por Filial"
                   : accountingTab === "analise-balancete"
                     ? "Análise de Balancete"
                   : accountingTab === "irpj-csll"
@@ -1174,7 +1177,9 @@ export default function Home() {
         )}
         {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
-            {accountingTab === "irpj-csll" ? (
+            {accountingTab === "receita-filial" ? (
+              <TrendingUp />
+            ) : accountingTab === "irpj-csll" ? (
               <ReceiptText />
             ) : accountingTab === "provisoes" ? (
               <Save />
@@ -1187,7 +1192,9 @@ export default function Home() {
             )}
             <span className="eyebrow">MÓDULO CONTÁBIL</span>
             <h2>
-              {accountingTab === "irpj-csll"
+              {accountingTab === "receita-filial"
+                ? "Receita por Filial"
+                : accountingTab === "irpj-csll"
                 ? "IRPJ/CSLL"
                 : accountingTab === "provisoes"
                   ? "Provisões"
