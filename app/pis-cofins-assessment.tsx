@@ -1800,6 +1800,8 @@ export default function PisCofinsAssessment({
       cumulativeCofins: number;
       nonCumulativePis: number;
       nonCumulativeCofins: number;
+      financialRevenuePis: number;
+      financialRevenueCofins: number;
     };
     const byBranch = new Map<string, BranchTotals>();
     const branchTotals = (branch?: string) => {
@@ -1809,6 +1811,8 @@ export default function PisCofinsAssessment({
         cumulativeCofins: 0,
         nonCumulativePis: 0,
         nonCumulativeCofins: 0,
+        financialRevenuePis: 0,
+        financialRevenueCofins: 0,
       });
       return byBranch.get(key)!;
     };
@@ -1825,7 +1829,10 @@ export default function PisCofinsAssessment({
     });
     filteredOtherRevenueRows.forEach((row) => {
       const target = branchTotals(row.branch);
-      if (row.classification) {
+      if (row.classification.includes("Receita financeira")) {
+        target.financialRevenuePis += row.pis;
+        target.financialRevenueCofins += row.cofins;
+      } else if (row.classification) {
         target.nonCumulativePis += row.pis;
         target.nonCumulativeCofins += row.cofins;
       }
@@ -1911,6 +1918,8 @@ export default function PisCofinsAssessment({
       { key: "cumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS CUMULATIVO - COD 2172 - N/MÊS" },
       { key: "nonCumulativePis" as const, debit: "3.1.3.01.01.02", credit: "2.1.4.01.01.02", history: "PIS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
       { key: "nonCumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
+      { key: "financialRevenuePis" as const, debit: "4.2.1.08.01.08", credit: "2.1.4.01.01.02", history: "PIS S/ OUTRAS RECEITAS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
+      { key: "financialRevenueCofins" as const, debit: "4.2.1.08.01.09", credit: "2.1.4.01.01.03", history: "COFINS S/ OUTRAS RECEITAS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
     ];
     [...byBranch.entries()]
       .sort(([left], [right]) => Number(left) - Number(right))
