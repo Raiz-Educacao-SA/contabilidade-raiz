@@ -129,6 +129,8 @@ const accountingScheduleTasks: { id: AccountingTab; label: string; description: 
   { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
   { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
   { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
+  { id: "receita-filial", label: "Receita por Filial", description: "Receita detalhada por unidade" },
+  { id: "lotes-integrar", label: "Lotes a integrar", description: "Pendências de integração contábil" },
   { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
 ];
 
@@ -307,7 +309,7 @@ export default function Home() {
   const moduleCompletionIdentity = (() => {
     if (!selectedModule || selectedModule === "cronograma") return null;
     if (selectedModule === "contabil") {
-      if (accountingTab === "pis-cofins" || accountingTab === "receita-filial" || accountingTab === "lotes-integrar") return null;
+      if (accountingTab === "pis-cofins") return null;
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
     if (selectedModule === "bancaria") return null;
@@ -319,10 +321,6 @@ export default function Home() {
     };
     return sectors[selectedModule] ? { modulo: selectedModule, setor: sectors[selectedModule]! } : null;
   })();
-
-  function openLeaseApp() {
-    window.open(buildLeaseAppUrl(session), "_blank", "noreferrer");
-  }
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -775,16 +773,6 @@ export default function Home() {
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
             ).map(({ id, label, icon: Icon }) =>
-              id === "arrendamentos" ? (
-                <button
-                  key={id}
-                  className="sidebar-link-button"
-                  onClick={openLeaseApp}
-                >
-                  <Icon />
-                  {label}
-                </button>
-              ) : (
                 <button
                   key={id}
                   className={accountingTab === id ? "active" : ""}
@@ -793,7 +781,6 @@ export default function Home() {
                   <Icon />
                   {label}
                 </button>
-              )
             )}
           </nav>
         )}
@@ -1166,7 +1153,7 @@ export default function Home() {
             </p>
             <a
               className="primary lease-bridge-link"
-              href="https://arrendamentov2.vercel.app"
+              href={buildLeaseAppUrl(session)}
               target="_blank"
               rel="noreferrer"
             >
