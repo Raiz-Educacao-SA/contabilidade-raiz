@@ -35,6 +35,7 @@ import { isAllowedCorporateEmail } from "@/lib/auth-domain";
 import MonthlyReconciliationPanel from "@/app/monthly-reconciliation";
 import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
+import RevenueByBranch from "@/app/revenue-by-branch";
 import PisCofinsAssessment from "@/app/pis-cofins-assessment";
 import TrialBalanceAnalysis from "@/app/trial-balance-analysis";
 import LoanReconciliation from "@/app/loan-reconciliation";
@@ -1162,11 +1163,17 @@ export default function Home() {
             </a>
           </section>
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
+        {selectedModule === "contabil" && accountingTab === "receita-filial" && (
+          <RevenueByBranch
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
-            {accountingTab === "receita-filial" ? (
-              <TrendingUp />
-            ) : accountingTab === "irpj-csll" ? (
+            {accountingTab === "irpj-csll" ? (
               <ReceiptText />
             ) : accountingTab === "provisoes" ? (
               <Save />
@@ -1179,9 +1186,7 @@ export default function Home() {
             )}
             <span className="eyebrow">MÓDULO CONTÁBIL</span>
             <h2>
-              {accountingTab === "receita-filial"
-                ? "Receita por Filial"
-                : accountingTab === "irpj-csll"
+              {accountingTab === "irpj-csll"
                 ? "IRPJ/CSLL"
                 : accountingTab === "provisoes"
                   ? "Provisões"
