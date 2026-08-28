@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/ensure-fiscal-items.mjs && next dev",
+    "build": "node scripts/ensure-fiscal-items.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "test": "node --experimental-strip-types --test tests-web/*.test.mjs tests-web/*.test.ts"
