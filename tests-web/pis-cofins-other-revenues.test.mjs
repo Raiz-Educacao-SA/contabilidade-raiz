@@ -28,10 +28,10 @@ test("segrega PIS e COFINS de receitas financeiras em partidas próprias no lote
   assert.match(assessment, /target\.financialRevenueCofins \+= row\.cofins/);
   assert.match(
     assessment,
-    /key: "financialRevenuePis" as const, debit: "4\.2\.1\.08\.01\.08", credit: "2\.1\.4\.01\.01\.02", history: "PIS S\/ OUTRAS RECEITAS NÃO CUMULATIVO - COD 6912 - N\/MÊS"/,
+    /key: "financialRevenuePis" as const, debit: "4\.2\.1\.08\.01\.08", credit: "2\.1\.4\.01\.01\.02", history: "PIS S\/ OUTRAS RECEITAS FINANCEIRAS NÃO CUMULATIVO - COD 6912 - N\/MÊS"/,
   );
   assert.match(
     assessment,
-    /key: "financialRevenueCofins" as const, debit: "4\.2\.1\.08\.01\.09", credit: "2\.1\.4\.01\.01\.03", history: "COFINS S\/ OUTRAS RECEITAS NÃO CUMULATIVO - COD 5856 - N\/MÊS"/,
+    /key: "financialRevenueCofins" as const, debit: "4\.2\.1\.08\.01\.09", credit: "2\.1\.4\.01\.01\.03", history: "COFINS S\/ OUTRAS RECEITAS FINANCEIRAS NÃO CUMULATIVO - COD 5856 - N\/MÊS"/,
   );
 });

@@ -1918,8 +1918,8 @@ export default function PisCofinsAssessment({
       { key: "cumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS CUMULATIVO - COD 2172 - N/MÊS" },
       { key: "nonCumulativePis" as const, debit: "3.1.3.01.01.02", credit: "2.1.4.01.01.02", history: "PIS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
       { key: "nonCumulativeCofins" as const, debit: "3.1.3.01.01.03", credit: "2.1.4.01.01.03", history: "COFINS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
-      { key: "financialRevenuePis" as const, debit: "4.2.1.08.01.08", credit: "2.1.4.01.01.02", history: "PIS S/ OUTRAS RECEITAS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
-      { key: "financialRevenueCofins" as const, debit: "4.2.1.08.01.09", credit: "2.1.4.01.01.03", history: "COFINS S/ OUTRAS RECEITAS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
+      { key: "financialRevenuePis" as const, debit: "4.2.1.08.01.08", credit: "2.1.4.01.01.02", history: "PIS S/ OUTRAS RECEITAS FINANCEIRAS NÃO CUMULATIVO - COD 6912 - N/MÊS" },
+      { key: "financialRevenueCofins" as const, debit: "4.2.1.08.01.09", credit: "2.1.4.01.01.03", history: "COFINS S/ OUTRAS RECEITAS FINANCEIRAS NÃO CUMULATIVO - COD 5856 - N/MÊS" },
     ];
     [...byBranch.entries()]
       .sort(([left], [right]) => Number(left) - Number(right))
