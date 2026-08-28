@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Calculator, CheckCircle2, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { Calculator, CheckCircle2, ChevronDown, ChevronUp, Download, ReceiptText, RefreshCw, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { calculateEnergyCredit } from "@/lib/pis-cofins-credit";
@@ -954,6 +954,36 @@ export default function PisCofinsAssessment({
       modulo,
       setor,
       acao: "liberado",
+      usuario_id: userId,
+      usuario_email: userEmail,
+    });
+  }
+
+  async function reopenAssessment() {
+    if (!isFinalized) return;
+    const reopenedAt = new Date().toISOString();
+    const { modulo, setor } = scheduleIdentity;
+    setError("");
+    const { error: scheduleError } = await supabase.from("cronograma_entregas").upsert({
+      competencia: competence,
+      modulo,
+      setor,
+      status: "pendente",
+      confirmado_por: userId,
+      confirmado_email: userEmail,
+      confirmado_em: reopenedAt,
+    }, { onConflict: "competencia,modulo" });
+    if (scheduleError) {
+      setError("A tarefa não foi reaberta porque o Cronograma não pôde ser atualizado.");
+      return;
+    }
+    setFinalizedSnapshot(null);
+    setSharedCompletion({ modulo, setor, status: "pendente", confirmado_email: userEmail, confirmado_em: reopenedAt });
+    await supabase.from("cronograma_historico").insert({
+      competencia: competence,
+      modulo,
+      setor,
+      acao: "reaberto",
       usuario_id: userId,
       usuario_email: userEmail,
     });
@@ -1945,11 +1975,11 @@ export default function PisCofinsAssessment({
             </button>
             <button
               className={isFinalized ? "tax-finalize-action is-finalized" : "tax-finalize-action"}
-              disabled={!canFinalizeAssessment || isFinalized}
-              onClick={() => void finalizeAssessment()}
-              title={isFinalized ? "Apuração já finalizada. Use Limpar para refazer." : "Finalizar e travar a apuração desta empresa"}
+              disabled={!isFinalized && !canFinalizeAssessment}
+              onClick={() => void (isFinalized ? reopenAssessment() : finalizeAssessment())}
+              title={isFinalized ? "Reabrir a tarefa mantendo os dados da apuração" : "Finalizar e travar a apuração desta empresa"}
             >
-              <CheckCircle2 /> {isFinalized ? "Finalizado" : "Finalizar"}
+              {isFinalized ? <RotateCcw /> : <CheckCircle2 />} {isFinalized ? "Reabrir tarefa" : "Finalizar tarefa"}
             </button>
             <button className="tax-clear-action" disabled={!hasAssessment} onClick={clearAssessment} title="Apagar a apuração salva desta empresa e competência">
               <Trash2 /> Limpar
@@ -1975,7 +2005,7 @@ export default function PisCofinsAssessment({
         <article><span>PIS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativePis)}</b><small>Apuração menos crédito proporcional</small></article>
         <article><span>COFINS não cumulativo</span><b>{brl.format(displayedConsolidatedTotals.nonCumulativeCofins)}</b><small>Apuração menos crédito proporcional</small></article>
       </div>
-      {isFinalized && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedByDisplayName} em {finalizedAtDisplay ? new Date(finalizedAtDisplay).toLocaleString("pt-BR") : "data não registrada"}. Status compartilhado com o Cronograma. Para recalcular, use Limpar.</div>}
+      {isFinalized && <div className="tax-finalized-notice"><CheckCircle2 /> Apuração finalizada por {finalizedByDisplayName} em {finalizedAtDisplay ? new Date(finalizedAtDisplay).toLocaleString("pt-BR") : "data não registrada"}. Status compartilhado com o Cronograma. Use Reabrir tarefa para continuar.</div>}
       <section className={`tax-secondary-section ${monthlyVisible ? "" : "is-collapsed"}`}>
       <div className="tax-section-heading">
         <div><b>Faturamento Mensal</b><span>Planilha.NET 2 · ANÁLISE NF MENSALIDADES 1</span></div>

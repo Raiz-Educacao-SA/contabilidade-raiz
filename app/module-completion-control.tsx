@@ -66,8 +66,11 @@ export default function ModuleCompletionControl({ competence, modulo, setor, use
   }
 
   const done = completion?.status === "concluido";
+  const completedAt = completion?.confirmado_em
+    ? new Date(completion.confirmado_em).toLocaleString("pt-BR")
+    : "";
   return <div className="module-completion-control">
-    {done && <small>Finalizado por {completion?.confirmado_email || "usuário"}</small>}
+    {done && <small>Finalizado por {completion?.confirmado_email || "usuário"}{completedAt ? ` em ${completedAt}` : ""}</small>}
     <button type="button" className={done ? "is-finalized" : ""} disabled={loading || saving || (!done && disabled)} onClick={() => void save(!done)} title={!done && disabled ? disabledReason : undefined}>
       {done ? <RotateCcw /> : <CheckCircle2 />}{saving ? "Salvando..." : done ? "Reabrir tarefa" : "Finalizar tarefa"}
     </button>

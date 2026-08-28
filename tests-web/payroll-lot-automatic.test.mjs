@@ -8,7 +8,7 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
 test("a conferência oferece comando para ler o lote diretamente no TOTVS", () => {
   assert.match(panel, /\/api\/payroll\/lot/);
-  assert.match(panel, /1\. Ler lote no TOTVS/);
+  assert.match(panel, /Atualizar TOTVS/);
   assert.doesNotMatch(panel, /Planilha do lote/);
   assert.doesNotMatch(panel, /accept="\.xlsx,\.xls,\.xlsm"/);
   assert.match(page, /accessToken=\{session\.access_token\}/);

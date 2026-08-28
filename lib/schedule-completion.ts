@@ -24,6 +24,8 @@ export function accountingCompletionIdentity(taskId: string, companyCode: string
     provisoes: "Provisões",
     despesas: "Despesas",
     arrendamentos: "Arrendamentos",
+    "receita-filial": "Receita por Filial",
+    "lotes-integrar": "Lotes a integrar",
     "analise-balancete": "Análise Balancete",
   };
   const label = labels[taskId] || taskId;

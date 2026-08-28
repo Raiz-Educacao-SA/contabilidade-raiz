@@ -21,6 +21,8 @@ export const ACCOUNTING_SCHEDULE_TASK_IDS = [
   "provisoes",
   "despesas",
   "arrendamentos",
+  "receita-filial",
+  "lotes-integrar",
   "analise-balancete",
 ] as const;
 
