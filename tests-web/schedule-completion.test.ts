@@ -14,3 +14,8 @@ test("gera a mesma chave usada pelo Cronograma para PIS/COFINS da coligada 30", 
 test("gera chave por empresa para tarefas financeiras", () => {
   assert.equal(financialCompletionIdentity("bancaria", "7", "Empresa Teste").modulo, "financeiro:bancaria:07");
 });
+
+test("identifica Receita por Filial e Lotes a integrar no Cronograma", () => {
+  assert.equal(accountingCompletionIdentity("receita-filial", "18", "Espaço Mágico").setor, "Contabilidade · Receita por Filial · 18 — Espaço Mágico");
+  assert.equal(accountingCompletionIdentity("lotes-integrar", "18", "Espaço Mágico").setor, "Contabilidade · Lotes a integrar · 18 — Espaço Mágico");
+});
