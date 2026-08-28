@@ -1395,6 +1395,7 @@ function AreaHub({
             const item = areas[id];
             const Icon = item.icon;
             const modulePercent = scheduleProgress.modulePercent[id as ScheduleModuleKey];
+            const hasScheduleTasks = scheduleProgress.includedModules.includes(id as "financeiro" | "folha" | "contabil");
             return (
               <button
                 key={id}
@@ -1403,15 +1404,15 @@ function AreaHub({
               >
                 <span className="module-card-top">
                   <span className="module-icon"><Icon /></span>
-                  <span className="module-status">{modulePercent}%</span>
+                  <span className={`module-status ${hasScheduleTasks ? "" : "module-status-soon"}`}>{hasScheduleTasks ? `${modulePercent}%` : "Sem tarefas"}</span>
                 </span>
                 <span className="module-copy">
                   <b>{item.title}</b>
                   <small>{item.description}</small>
                 </span>
-                <span className="module-progress" aria-label={`Status de ${item.title}`}>
+                {hasScheduleTasks && <span className="module-progress" aria-label={`Status de ${item.title}`}>
                   <i style={{ width: `${modulePercent}%` }} />
-                </span>
+                </span>}
                 <span className="module-enter">Acessar módulo <ArrowLeftRight /></span>
               </button>
             );
@@ -1899,8 +1900,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       <div className="schedule-dashboard-layout">
         <div className="schedule-module-workspace">
           {(() => {
-            const confirmation = confirmations.find((item) => item.modulo === selectedStage.key && item.status === "concluido");
-
             return (
               <>
                 {selectedStage.key === "financeiro" ? (
@@ -1983,10 +1982,8 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                   </div>
                 ) : (
                   <div className="schedule-selected-module-card">
-                    <b>{confirmation ? "Entrega finalizada" : "Entrega pendente"}</b>
-                    <p>{confirmation
-                      ? `Este módulo foi liberado por ${confirmation.confirmado_email}.`
-                      : `Finalize o ${selectedStage.name} na área correspondente para que esta etapa alimente o cronograma.`}</p>
+                    <b>Sem tarefas cadastradas</b>
+                    <p>O {selectedStage.name} ainda não participa do cálculo do cronograma. O progresso será habilitado quando as tarefas do módulo forem incluídas.</p>
                   </div>
                 )}
               </>
