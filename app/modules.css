@@ -2290,7 +2290,7 @@
   font-size: 12px;
   line-height: 1.3;
 }
-.pending-lots-content > header h1 { margin: 2px 0; font-size: 13px; }
+.pending-lots-content > header h1 { margin: 2px 0; font-size: 11px; }
 .pending-lots-content > header p { font-size: 9px; }
 .pending-lots-content > header .eyebrow { font-size: 8px; }
 .pending-lots-content .top-context { grid-template-columns: 140px minmax(0,1fr) auto; }
