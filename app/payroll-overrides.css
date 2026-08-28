@@ -15,7 +15,7 @@
 
 .payroll-top-context {
   display: grid;
-  grid-template-columns: 250px minmax(420px, 1fr) auto;
+  grid-template-columns: 210px minmax(360px, 1fr) auto auto;
   align-items: center;
   margin-top: 12px;
   padding: 6px;
@@ -92,7 +92,7 @@
 }
 
 .payroll-filter-actions {
-  min-width: 455px;
+  min-width: 420px;
   justify-content: flex-end;
 }
 
@@ -102,16 +102,46 @@
 }
 
 .payroll-filter-actions .payroll-action-button {
-  min-height: 34px;
-  padding: 0 9px;
-  border-radius: 10px;
-  font-size: 10px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 9px;
+  font-size: 9px;
   white-space: nowrap;
 }
 
 .payroll-filter-actions .payroll-action-button svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
+}
+
+.payroll-top-context .module-completion-control {
+  min-width: 126px;
+  margin-left: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.payroll-top-context .module-completion-control small {
+  max-width: 150px;
+  overflow: hidden;
+  font-size: 7px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payroll-top-context .module-completion-control button {
+  min-height: 32px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.payroll-top-context .module-completion-control button svg {
+  width: 12px;
+  height: 12px;
 }
 
 .payroll-command-header-actions {
@@ -125,20 +155,36 @@
 }
 
 .payroll-command-card {
-  min-height: 86px;
-  padding: 12px;
+  min-height: 68px;
+  padding: 8px 10px;
+  gap: 8px;
+  border-radius: 13px;
+}
+
+.payroll-command-card .payroll-command-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.payroll-command-card .payroll-command-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .payroll-command-card b {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .payroll-command-card p {
-  font-size: 10px;
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.25;
 }
 
 .payroll-command-card small {
-  font-size: 9px;
+  padding: 4px 7px;
+  font-size: 8px;
 }
 
 .payroll-command-footer {
@@ -146,12 +192,17 @@
   font-size: 10px;
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1180px) {
   .payroll-top-context {
     grid-template-columns: 1fr;
   }
 
   .payroll-filter-actions {
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .payroll-top-context .module-completion-control {
     min-width: 0;
     justify-content: flex-start;
   }
