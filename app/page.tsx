@@ -764,13 +764,13 @@ export default function Home() {
             {(
               [
                 { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
-                { id: "receita-filial", label: "Receita por Filial", icon: TrendingUp },
                 { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "provisoes", label: "Provisões", icon: Save },
                 { id: "despesas", label: "Despesas", icon: ReceiptText },
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
+                { id: "receita-filial", label: "Receita por Filial", icon: TrendingUp },
                 { id: "lotes-integrar", label: "Lotes a integrar", icon: ListChecks },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
