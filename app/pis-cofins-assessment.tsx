@@ -169,7 +169,12 @@ type EnergyCreditRow = {
   costCenter: string;
   ticket: null | { id: string; status: string; link: string; name: string; matchScore: number; documents: { name: string; url: string }[] };
 };
-type LeaseCreditRow = Omit<EnergyCreditRow, "ticket">;
+type LeaseCreditRow = Omit<EnergyCreditRow, "ticket"> & {
+  supplierCode?: string;
+  supplierName?: string;
+  supplierDocument?: string;
+  supplierDocumentType?: "CNPJ";
+};
 type EnergyConsumptionEntry = {
   value: number;
   confirmedAt: string;
@@ -200,6 +205,11 @@ const rates = {
   Cumulativo: { pis: 0.0065, cofins: 0.03 },
   "Não-Cumulativo": { pis: 0.0165, cofins: 0.076 },
 } as const;
+
+const formatCnpj = (value = "") => value.replace(
+  /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+  "$1.$2.$3/$4-$5",
+);
 
 function energyCreditKey(row: Pick<EnergyCreditRow, "branch" | "entryId" | "document">) {
   return [row.branch, row.entryId, row.document].join("|");
@@ -661,7 +671,7 @@ export default function PisCofinsAssessment({
 
   function exportLeaseCredits() {
     if (!leaseRows.length) return;
-    const sheet = XLSX.utils.json_to_sheet(leaseRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "IDMOV de origem": row.integrationKey, Origem: row.sourceSystem, Complemento: row.complement, "Centro de custo": row.costCenter, "Valor débito": row.value })));
+    const sheet = XLSX.utils.json_to_sheet(leaseRows.map((row) => ({ Coligada: row.company, Filial: row.branch, Data: row.date.slice(0, 10).split("-").reverse().join("/"), Conta: row.account, "Cód. reduzido": row.reduced, Lançamento: row.entryId, Documento: row.document, "IDMOV de origem": row.integrationKey, Origem: row.sourceSystem, "Cód. fornecedor": row.supplierCode, Fornecedor: row.supplierName, CNPJ: formatCnpj(row.supplierDocument), Complemento: row.complement, "Centro de custo": row.costCenter, "Valor débito": row.value })));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Arrendamentos");
     applyRaizWorkbookStyle(workbook);
@@ -2350,10 +2360,10 @@ export default function PisCofinsAssessment({
               <div className="tax-other-summary">
                 <article><span>Lançamentos</span><b>{leaseRows.length}</b><small>Conta 2.1.7.01.01.53</small></article>
                 <article><span>Valor a débito</span><b>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</b><small>Competência {competenceLabel}</small></article>
-                <article><span>Origem</span><b>Financeiro</b><small>RM Fluxus / Financeiro</small></article>
+                <article><span>Origem</span><b>Financeiro</b><small>Somente fornecedor com CNPJ</small></article>
                 <article><span>Filiais</span><b>{new Set(leaseRows.map((row) => row.branch)).size}</b><small>Filtro aplicado</small></article>
               </div>
-              {leaseRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Origem</th><th>Complemento</th><th>Centro de custo</th><th>Valor débito</th></tr></thead><tbody>{leaseRows.map((row) => <tr key={`${row.branch}-${row.entryId}-${row.document}-${row.value}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.sourceSystem || "Financeiro"}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={10}>Subtotal da competência</td><td>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Arrendamentos</b><span>Nenhum débito financeiro foi encontrado na conta 2.1.7.01.01.53 para os filtros selecionados.</span></div>}
+              {leaseRows.length ? <div className="table-wrap energy-credit-table"><table><thead><tr><th>Filial</th><th>Data</th><th>Conta</th><th>Cód. reduzido</th><th>Lançamento</th><th>Documento</th><th>IDMOV de origem</th><th>Origem</th><th>Fornecedor</th><th>CNPJ</th><th>Complemento</th><th>Centro de custo</th><th>Valor débito</th></tr></thead><tbody>{leaseRows.map((row) => <tr key={`${row.branch}-${row.entryId}-${row.document}-${row.value}`}><td>{row.branch}</td><td>{row.date.slice(0, 10).split("-").reverse().join("/")}</td><td>{row.account}</td><td>{row.reduced}</td><td>{row.entryId}</td><td>{row.document || "—"}</td><td><b>{row.integrationKey || "—"}</b></td><td>{row.sourceSystem || "Financeiro"}</td><td>{row.supplierName || row.supplierCode || "—"}</td><td>{formatCnpj(row.supplierDocument) || "—"}</td><td>{row.complement || "—"}</td><td>{row.costCenter || "—"}</td><td><b>{brl.format(row.value)}</b></td></tr>)}</tbody><tfoot><tr><td colSpan={12}>Subtotal da competência</td><td>{brl.format(leaseRows.reduce((sum, row) => sum + row.value, 0))}</td></tr></tfoot></table></div> : <div className="tax-source-empty"><Calculator /><b>Sem movimento de Arrendamentos</b><span>Nenhum débito financeiro de fornecedor com CNPJ foi encontrado na conta 2.1.7.01.01.53 para os filtros selecionados.</span></div>}
             </>}
           </> : <>
             {energyError && <div className="notice error">{energyError}</div>}

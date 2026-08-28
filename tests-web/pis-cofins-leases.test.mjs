@@ -23,6 +23,20 @@ test("mantém apenas lançamentos de origem Financeiro e lê a conta a débito",
   assert.doesNotMatch(route, /RM Saldus/);
 });
 
+test("mantém a fonte contábil e valida no Financeiro somente fornecedor com CNPJ", () => {
+  assert.match(route, /dataServerName: "FinLanDataBR"/);
+  assert.match(route, /decodedTag\(record, "CGCCFO"\)/);
+  assert.match(route, /isValidCnpj/);
+  assert.match(route, /supplierDocument\.length === 11/);
+  assert.match(route, /supplierDocumentType: "CNPJ"/);
+});
+
+test("considera todos os valores positivos lançados a débito na conta de Arrendamentos", () => {
+  assert.match(route, /account === LEASE_ACCOUNT/);
+  assert.match(route, /value > 0/);
+  assert.doesNotMatch(route, /reduced === LEASE_REDUCED_CODE/);
+});
+
 test("elimina apenas a repetição da mesma partida contábil", () => {
   assert.match(route, /decodedTag\(record, "IDPARTIDA"\)/);
 });
