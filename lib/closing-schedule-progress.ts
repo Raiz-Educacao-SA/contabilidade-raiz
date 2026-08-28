@@ -1,4 +1,5 @@
 export const CLOSING_SCHEDULE_MODULES = ["financeiro", "fiscal", "folha", "contabil"] as const;
+export const CLOSING_SCHEDULE_MODULES_WITH_TASKS = ["financeiro", "folha", "contabil"] as const;
 
 export type ClosingScheduleModule = (typeof CLOSING_SCHEDULE_MODULES)[number];
 
@@ -97,17 +98,19 @@ export function calculateClosingScheduleProgress(
     folha: detailedModulePercent(completed, "folha", PAYROLL_SCHEDULE_TASK_IDS, companyCodes),
     contabil: detailedModulePercent(completed, "contabil", ACCOUNTING_SCHEDULE_TASK_IDS, companyCodes),
   };
-  const completedModules = CLOSING_SCHEDULE_MODULES.filter((module) => modulePercent[module] === 100);
+  const includedModules = [...CLOSING_SCHEDULE_MODULES_WITH_TASKS];
+  const completedModules = includedModules.filter((module) => modulePercent[module] === 100);
   const overallPercent = Math.round(
-    CLOSING_SCHEDULE_MODULES.reduce((total, module) => total + modulePercent[module], 0) /
-      CLOSING_SCHEDULE_MODULES.length,
+    includedModules.reduce((total, module) => total + modulePercent[module], 0) /
+      includedModules.length,
   );
 
   return {
     modulePercent,
+    includedModules,
     completedModules,
     completedModulesCount: completedModules.length,
-    totalModules: CLOSING_SCHEDULE_MODULES.length,
+    totalModules: includedModules.length,
     overallPercent,
   };
 }
