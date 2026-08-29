@@ -1822,6 +1822,35 @@
 .revenue-content .top-context {
   margin-top: 12px;
   padding: 5px;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: nowrap;
+}
+.revenue-content .filter-heading {
+  min-width: 0;
+  flex: 0 0 220px;
+  padding-right: 8px;
+  gap: 7px;
+}
+.revenue-content .filter-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+.revenue-content .filter-fields {
+  width: auto;
+  max-width: 100%;
+  flex: 0 1 610px;
+  grid-template-columns: minmax(250px, 330px) minmax(225px, 1fr);
+  gap: 6px;
+}
+.revenue-content .company-control,
+.revenue-content .competence-control {
+  min-width: 0;
+}
+.revenue-content .competence-control {
+  grid-template-columns: 110px 118px;
+  gap: 6px;
 }
 .revenue-content .top-context label {
   height: 38px;
@@ -1838,6 +1867,91 @@
 }
 .revenue-content .filter-heading small {
   font-size: 8px;
+}
+.revenue-content .module-completion-control {
+  min-width: 220px;
+  max-width: 360px;
+  flex: 1 1 260px;
+  margin-left: auto;
+  display: grid;
+  align-content: center;
+  justify-items: end;
+  gap: 3px;
+}
+.revenue-content .module-completion-control small {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 8px;
+  line-height: 1.2;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.revenue-content .module-completion-control button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.revenue-content .module-completion-control button svg {
+  width: 13px;
+  height: 13px;
+}
+.revenue-content .module-completion-control > span {
+  max-width: 100%;
+  font-size: 8px;
+}
+@media (max-width: 1450px) {
+  .revenue-content .top-context {
+    flex-wrap: wrap;
+  }
+  .revenue-content .filter-fields {
+    flex: 1 1 610px;
+  }
+  .revenue-content .module-completion-control {
+    width: 100%;
+    max-width: none;
+    flex: 1 1 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .revenue-content .module-completion-control small {
+    justify-self: end;
+  }
+  .revenue-content .module-completion-control > span {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 900px) {
+  .revenue-content .filter-heading {
+    width: 100%;
+    flex-basis: 100%;
+  }
+  .revenue-content .filter-fields {
+    width: 100%;
+    flex-basis: 100%;
+    grid-template-columns: 1fr;
+  }
+  .revenue-content .competence-control {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 620px) {
+  .revenue-content .competence-control,
+  .revenue-content .module-completion-control {
+    grid-template-columns: 1fr;
+  }
+  .revenue-content .module-completion-control {
+    justify-items: stretch;
+  }
+  .revenue-content .module-completion-control small,
+  .revenue-content .module-completion-control > span {
+    text-align: left;
+    justify-self: stretch;
+  }
+  .revenue-content .module-completion-control button {
+    justify-content: center;
+  }
 }
 .revenue-content > .metrics {
   margin-top: 7px;
