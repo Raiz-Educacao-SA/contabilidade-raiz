@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -37,5 +38,21 @@ test("não duplica a mesma partida retornada pelas duas consultas", () => {
   assert.deepEqual(
     deduplicateAccountingRecords(["<Resultado>1</Resultado>", "<Resultado>1</Resultado>"]),
     ["<Resultado>1</Resultado>"],
+  );
+});
+
+test("mantém os filtros e a finalização na mesma linha em telas de trabalho", () => {
+  const css = readFileSync(
+    new URL("../app/modules.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    css,
+    /@media \(max-width: 1050px\) \{\s*\.revenue-content \.top-context \{\s*flex-wrap: wrap;/,
+  );
+  assert.doesNotMatch(
+    css,
+    /@media \(max-width: 1450px\) \{\s*\.revenue-content \.top-context/,
   );
 });
