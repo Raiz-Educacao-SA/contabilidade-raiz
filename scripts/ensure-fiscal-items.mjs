@@ -4,11 +4,21 @@ const path = new URL("../app/page.tsx", import.meta.url);
 let source = readFileSync(path, "utf8");
 
 function replaceOnce(search, replacement, label) {
-  if (source.includes(replacement)) return;
-  if (!source.includes(search)) {
+  const normalizeLineEndings = (value, lineEnding) =>
+    value.replaceAll("\r\n", "\n").replaceAll("\n", lineEnding);
+  const variants = (value) => [
+    normalizeLineEndings(value, "\n"),
+    normalizeLineEndings(value, "\r\n"),
+  ];
+  if (variants(replacement).some((candidate) => source.includes(candidate))) return;
+  const matchedSearch = variants(search).find((candidate) => source.includes(candidate));
+  if (!matchedSearch) {
     throw new Error(`Não foi possível aplicar o ajuste do módulo fiscal: ${label}.`);
   }
-  source = source.replace(search, replacement);
+  source = source.replace(
+    matchedSearch,
+    normalizeLineEndings(replacement, "\n"),
+  );
 }
 
 replaceOnce(

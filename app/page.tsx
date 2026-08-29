@@ -78,6 +78,7 @@ type Account = {
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
+type FiscalTab = "paa" | "iss" | "ecd";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = AccessModule;
@@ -277,6 +278,7 @@ export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [tab, setTab] = useState<Tab>("conciliacao");
   const [accountingTab, setAccountingTab] = useState<AccountingTab>("pis-cofins");
+  const [fiscalTab, setFiscalTab] = useState<FiscalTab>("paa");
   const [pendingLotsAllCompanies, setPendingLotsAllCompanies] = useState(false);
   const [pendingLotsUpdating, setPendingLotsUpdating] = useState(false);
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
@@ -758,6 +760,24 @@ export default function Home() {
             ))}
           </nav>
         )}
+        {selectedModule === "fiscal" && (
+          <nav className="accounting-nav fiscal-nav">
+            {([
+              { id: "paa", label: "PAA", icon: ListChecks },
+              { id: "iss", label: "ISS", icon: ReceiptText },
+              { id: "ecd", label: "ECD", icon: BookOpenCheck },
+            ] as const).map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                className={fiscalTab === id ? "active" : ""}
+                onClick={() => setFiscalTab(id)}
+              >
+                <Icon />
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
         {selectedModule === "contabil" && (
           <nav className="accounting-nav">
             {(
@@ -840,7 +860,13 @@ export default function Home() {
           <div>
             <span className="eyebrow">CONTABILIDADE RAIZ</span>
             <h1>
-              {selectedModule === "contabil"
+              {selectedModule === "fiscal"
+                ? fiscalTab === "paa"
+                  ? "PAA"
+                  : fiscalTab === "iss"
+                    ? "ISS"
+                    : "ECD"
+                : selectedModule === "contabil"
                 ? accountingTab === "pis-cofins"
                   ? "PIS e COFINS"
                   : accountingTab === "receita-filial"
@@ -1203,6 +1229,20 @@ export default function Home() {
             </p>
           </section>
         )}
+        {selectedModule === "fiscal" && (
+          <section className="panel module-workspace accounting-workspace fiscal-workspace">
+            {fiscalTab === "paa" ? (
+              <ListChecks />
+            ) : fiscalTab === "iss" ? (
+              <ReceiptText />
+            ) : (
+              <BookOpenCheck />
+            )}
+            <span className="eyebrow">MÓDULO FISCAL</span>
+            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECD"}</h2>
+            <p>Área preparada para receber as regras, bases, documentos e conferências desta rotina fiscal.</p>
+          </section>
+        )}
         {selectedModule === "cronograma" && scheduleView === "acompanhamento" && (
           <ClosingSchedule
             year={year}
@@ -1227,6 +1267,7 @@ export default function Home() {
           selectedModule !== "receita" &&
           selectedModule !== "emprestimos" &&
           selectedModule !== "folha" &&
+          selectedModule !== "fiscal" &&
           selectedModule !== "contabil" &&
           selectedModule !== "cronograma" && (
             <section className="panel module-workspace">
