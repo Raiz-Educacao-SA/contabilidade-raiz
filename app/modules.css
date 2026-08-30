@@ -1706,12 +1706,12 @@
 .revenue-status .has-warning b {
   color: #c43d2f;
 }
-.revenue-status .has-neutral {
-  border-color: #c9c2f4;
-  background: #f8f7ff;
+.revenue-status .has-generation {
+  border-color: #9ed8d2;
+  background: #f2fbfa;
 }
-.revenue-status .has-neutral b {
-  color: #5d4acb;
+.revenue-status .has-generation b {
+  color: #087f75;
 }
 .revenue-view-tabs {
   padding: 7px 20px 0;
@@ -1798,12 +1798,12 @@
   font-size: 11px;
   color: var(--muted);
 }
-.revenue-warning.is-reversal {
-  border-color: #c9c2f4;
-  background: #f8f7ff;
+.revenue-warning.is-generation {
+  border-color: #9ed8d2;
+  background: #f2fbfa;
 }
-.revenue-warning.is-reversal svg {
-  color: #5d4acb;
+.revenue-warning.is-generation svg {
+  color: #087f75;
 }
 .revenue-table {
   margin: 0 20px 20px;
@@ -1951,12 +1951,12 @@
   font-size: 9px;
   white-space: nowrap;
 }
-.revenue-badge.reversal {
-  background: #ece9ff;
-  color: #5140bd;
+.revenue-badge.generation {
+  background: #dff6f2;
+  color: #087f75;
 }
-.revenue-reversal-table table {
-  min-width: 1350px;
+.revenue-generation-table table {
+  min-width: 1550px;
 }
 .revenue-content .module-completion-control button svg {
   width: 13px;

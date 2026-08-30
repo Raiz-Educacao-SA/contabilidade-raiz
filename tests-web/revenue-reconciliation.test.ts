@@ -10,9 +10,9 @@ import {
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
+  isExcludedRevenueGenerationType,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
-  isRevenueReversal,
   normalizeRevenueRa,
   PAA_DISCOUNT_ACCOUNT,
   REVENUE_ACCOUNT_DESCRIPTIONS,
@@ -96,15 +96,14 @@ test("remove apropriação de receita mesmo com variação de acento e espaços"
   assert.equal(isRevenueAppropriation("MENSALIDADE"), false);
 });
 
-test("identifica estorno somente quando o complemento começa com Estorno:", () => {
-  assert.equal(
-    isRevenueReversal(
-      "Estorno: QI20011631 - ALUNO - Serviço: EM - Mensalidade - Parcela: 6/ Cota: 1",
-    ),
-    true,
-  );
-  assert.equal(isRevenueReversal("  ESTORNO : QI20011631 - ALUNO"), true);
-  assert.equal(isRevenueReversal("Mensalidade - estorno solicitado"), false);
+test("mantém O e segrega os tipos de geração I e E", () => {
+  assert.equal(isExcludedRevenueGenerationType("E"), true);
+  assert.equal(isExcludedRevenueGenerationType("  e  "), true);
+  assert.equal(isExcludedRevenueGenerationType("I"), true);
+  assert.equal(isExcludedRevenueGenerationType(" i "), true);
+  assert.equal(isExcludedRevenueGenerationType("O"), false);
+  assert.equal(isExcludedRevenueGenerationType("   "), false);
+  assert.equal(isExcludedRevenueGenerationType(undefined), false);
 });
 
 test("normaliza RA numérico sem alterar RA alfanumérico", () => {
@@ -112,17 +111,18 @@ test("normaliza RA numérico sem alterar RA alfanumérico", () => {
   assert.equal(normalizeRevenueRa("CA25034679"), "CA25034679");
 });
 
-test("compensa estornos antes de apurar receitas e descontos", () => {
+test("consolida receitas e descontos por RA", () => {
   const summaries = summarizeAccountingRevenue([
-    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue" },
-    { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "ESTORNO" },
-    { ra: "123", name: "Aluno", value: 200, kind: "discount" },
-    { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "ESTORNO" },
+    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue", generationType: "O" },
+    { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "AJUSTE", generationType: " O " },
+    { ra: "123", name: "Aluno", value: 200, kind: "discount", generationType: "O" },
+    { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "AJUSTE" },
   ]);
 
   assert.equal(summaries.get("123")?.revenue, 900);
   assert.equal(summaries.get("123")?.discount, 180);
-  assert.deepEqual(summaries.get("123")?.complements, ["ESTORNO"]);
+  assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
+  assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
 });
 
 test("aplica a classificação e a tolerância da diretriz", () => {
@@ -197,24 +197,40 @@ test("alinha os botões da conciliação de receita com larguras iguais", () => 
   );
 });
 
-test("isola estornos da apuração e mantém uma aba separada", () => {
+test("não usa o histórico Estorno como regra de segregação", () => {
+  const route = readFileSync(
+    new URL("../app/api/totvs/revenue-reconciliation/route.ts", import.meta.url),
+    "utf8",
+  );
   const component = readFileSync(
     new URL("../app/revenue-reconciliation.tsx", import.meta.url),
     "utf8",
   );
 
+  assert.doesNotMatch(route, /isRevenueReversal/);
+  assert.doesNotMatch(component, /isRevenueReversal/);
+  assert.doesNotMatch(component, /Estornos desconsiderados/);
+  assert.doesNotMatch(component, /"Estornos Desconsiderados"/);
+});
+
+test("transporta e segrega o tipo de geração contábil da classificação", () => {
+  const route = readFileSync(
+    new URL("../app/api/totvs/revenue-reconciliation/route.ts", import.meta.url),
+    "utf8",
+  );
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(route, /readTag\(record, "TIPOGERACAO"\)/);
+  assert.match(route, /generationType,/);
+  assert.match(component, /Tipo de geração/);
   assert.match(
     component,
-    /c\.filter\(\(entry\) => !isRevenueReversal\(entry\.complement\)\)/,
+    /isExcludedRevenueGenerationType\(entry\.generationType\)/,
   );
-  assert.match(
-    component,
-    /c\.filter\(\(entry\) => isRevenueReversal\(entry\.complement\)\)/,
-  );
-  assert.match(component, /Estornos desconsiderados/);
-  assert.match(
-    component,
-    /não integram os totais nem a lista de divergências/,
-  );
-  assert.match(component, /"Estornos Desconsiderados"/);
+  assert.match(component, /Tipos de geração I\/E desconsiderados/);
+  assert.match(component, /TIPOGERACAO I ou E ficam fora dos totais/);
+  assert.match(component, /"Tipos I e E Isolados"/);
 });

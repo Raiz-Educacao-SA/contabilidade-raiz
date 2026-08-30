@@ -91,8 +91,8 @@ export function isRevenueAppropriation(complement: string) {
   return normalizeAccountingDescription(complement) === "APROPRIACAO RECEITA";
 }
 
-export function isRevenueReversal(complement: string) {
-  return /^\s*ESTORNO\s*:/i.test(complement);
+export function isExcludedRevenueGenerationType(generationType?: string) {
+  return ["I", "E"].includes(generationType?.trim().toUpperCase() || "");
 }
 
 export function normalizeRevenueRa(value: string) {
@@ -107,12 +107,19 @@ export type AccountingRevenueEntry = {
   value: number;
   kind: Exclude<AccountingRevenueKind, "other">;
   complement?: string;
+  generationType?: string;
 };
 
 export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
   const summaries = new Map<
     string,
-    { name: string; revenue: number; discount: number; complements: string[] }
+    {
+      name: string;
+      revenue: number;
+      discount: number;
+      complements: string[];
+      generationTypes: string[];
+    }
   >();
 
   entries.forEach((entry) => {
@@ -121,6 +128,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       revenue: 0,
       discount: 0,
       complements: [],
+      generationTypes: [],
     };
 
     if (entry.kind === "revenue") current.revenue += entry.value;
@@ -129,6 +137,13 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
     const complement = entry.complement?.trim();
     if (complement && !current.complements.includes(complement)) {
       current.complements.push(complement);
+    }
+    const generationType = entry.generationType?.trim();
+    if (
+      generationType &&
+      !current.generationTypes.includes(generationType)
+    ) {
+      current.generationTypes.push(generationType);
     }
     summaries.set(entry.ra, current);
   });

@@ -6,13 +6,12 @@ import {
   FileCheck2,
   RefreshCw,
   TriangleAlert,
-  Undo2,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import {
   classifyRevenueReconciliation,
-  isRevenueReversal,
+  isExcludedRevenueGenerationType,
   REVENUE_TOLERANCE,
   summarizeAccountingRevenue,
 } from "@/lib/revenue-reconciliation";
@@ -30,8 +29,8 @@ type C = {
   name: string;
   value: number;
   kind: "revenue" | "discount";
-  isReversal: boolean;
   complement: string;
+  generationType?: string;
   account?: string;
   description?: string;
 };
@@ -108,7 +107,9 @@ export default function RevenueReconciliation({
     [fr, setFr] = useState(false),
     [cr, setCr] = useState(false),
     [loading, setLoading] = useState<"fiscal" | "accounting" | null>(null),
-    [activeView, setActiveView] = useState<"divergences" | "reversals">("divergences"),
+    [activeView, setActiveView] = useState<"divergences" | "generationTypes">(
+      "divergences",
+    ),
     [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
   async function update(source: "fiscal" | "accounting") {
@@ -139,11 +140,17 @@ export default function RevenueReconciliation({
     }
   }
   const accountingRows = useMemo(
-    () => c.filter((entry) => !isRevenueReversal(entry.complement)),
+    () =>
+      c.filter(
+        (entry) => !isExcludedRevenueGenerationType(entry.generationType),
+      ),
     [c],
   );
-  const reversals = useMemo(
-    () => c.filter((entry) => isRevenueReversal(entry.complement)),
+  const generationTypeRows = useMemo(
+    () =>
+      c.filter((entry) =>
+        isExcludedRevenueGenerationType(entry.generationType),
+      ),
     [c],
   );
   const rows = useMemo(() => {
@@ -191,6 +198,7 @@ export default function RevenueReconciliation({
         discountDifference: dd,
         impact: dr - dd,
         status,
+        generationTypes: b?.generationTypes.join(" | ") || "",
         complements: b?.complements.join(" | ") || "",
         comment:
           status !== "Divergente"
@@ -225,6 +233,7 @@ export default function RevenueReconciliation({
       "Diferença desconto": x.discountDifference,
       Impacto: x.impact,
       Orientação: x.comment,
+      "Tipo de geração": x.generationTypes,
       "Complemento contábil": x.complements,
     }));
     const workbook = XLSX.utils.book_new(),
@@ -243,6 +252,7 @@ export default function RevenueReconciliation({
       { wch: 20 },
       { wch: 16 },
       { wch: 31 },
+      { wch: 18 },
       { wch: 58 },
     ];
     XLSX.utils.book_append_sheet(workbook, worksheet, "Divergências");
@@ -270,6 +280,7 @@ export default function RevenueReconciliation({
       "Diferença desconto": x.discountDifference,
       Impacto: x.impact,
       Orientação: x.comment,
+      "Tipo de geração": x.generationTypes,
       "Complemento contábil": x.complements,
     });
     const workbook = XLSX.utils.book_new();
@@ -338,7 +349,7 @@ export default function RevenueReconciliation({
       ]),
       ["", "", "", "", "", "", "", ""],
       ["LEITURA DAS BASES", "", "", "", "", "", "", ""],
-      ["Base fiscal", f.length, "Base contábil considerada", accountingRows.length, "Estornos isolados", reversals.length, "Tolerância", "R$ 0,01"],
+      ["Base fiscal", f.length, "Base contábil recebida", c.length, "Base contábil considerada", accountingRows.length, "TIPOGERACAO I/E isolado", generationTypeRows.length],
     ];
     const dashboard = XLSX.utils.aoa_to_sheet(dashboardRows);
     dashboard["!cols"] = [
@@ -385,7 +396,7 @@ export default function RevenueReconciliation({
     };
     const detailColumns = [
       { wch: 16 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
-      { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
+      { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 18 }, { wch: 58 },
     ];
     appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
     appendJsonSheet("Conciliados", rows.filter((x) => x.status === "Conciliado").map(mapRow), detailColumns);
@@ -398,14 +409,14 @@ export default function RevenueReconciliation({
         Aluno: x.name,
         Tipo: x.kind === "revenue" ? "Receita" : "Desconto",
         Valor: x.value,
-        Estorno: x.isReversal ? "Sim" : "Não",
+        "Tipo de geração": x.generationType || "Não informado",
         Complemento: x.complement,
       })),
-      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 70 }],
+      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 70 }],
     );
     appendJsonSheet(
-      "Estornos Desconsiderados",
-      reversals.map((x) => ({
+      "Tipos I e E Isolados",
+      generationTypeRows.map((x) => ({
         RA: x.ra,
         Competência: competenceLabel,
         Aluno: x.name,
@@ -413,9 +424,10 @@ export default function RevenueReconciliation({
         Descrição: x.description || "",
         Tipo: x.kind === "revenue" ? "Receita" : "Desconto",
         Valor: x.value,
+        "Tipo de geração": x.generationType || "",
         Complemento: x.complement,
       })),
-      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 18 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 80 }],
+      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 18 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 80 }],
     );
     appendJsonSheet(
       "Receitas Fiscal",
@@ -434,8 +446,8 @@ export default function RevenueReconciliation({
       ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
       ["Etapa", "Regra", "Resultado", "Observação"],
       ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
-      ["2", "Atualizar base Contábil", `${accountingRows.length} lançamento(s) considerado(s)`, "Receitas e descontos conforme a diretriz funcional"],
-      ["3", "Tratamento de estornos", `${reversals.length} estorno(s) isolado(s)`, "Complementos iniciados por Estorno: não integram os totais nem as divergências"],
+      ["2", "Atualizar base Contábil", `${c.length} lançamento(s) recebido(s)`, `${accountingRows.length} lançamento(s) considerado(s) após as segregações`],
+      ["3", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
       ["4", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["5", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
       ["6", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
@@ -523,9 +535,9 @@ export default function RevenueReconciliation({
           <b>{fr && cr ? pending.length : "—"}</b>
           <small>Para tratamento</small>
         </article>
-        <article className={reversals.length ? "has-neutral" : ""}>
-          <span>Estornos isolados</span>
-          <b>{fr && cr ? reversals.length : "—"}</b>
+        <article className={generationTypeRows.length ? "has-generation" : ""}>
+          <span>Tipos de geração I/E isolados</span>
+          <b>{fr && cr ? generationTypeRows.length : "—"}</b>
           <small>Desconsiderados da análise</small>
         </article>
       </div>
@@ -543,11 +555,12 @@ export default function RevenueReconciliation({
           <button
             type="button"
             role="tab"
-            aria-selected={activeView === "reversals"}
-            className={activeView === "reversals" ? "active" : ""}
-            onClick={() => setActiveView("reversals")}
+            aria-selected={activeView === "generationTypes"}
+            className={activeView === "generationTypes" ? "active" : ""}
+            onClick={() => setActiveView("generationTypes")}
           >
-            <Undo2 /> Estornos desconsiderados <span>{reversals.length}</span>
+            <FileCheck2 /> Tipos de geração I/E desconsiderados{" "}
+            <span>{generationTypeRows.length}</span>
           </button>
         </div>
       )}
@@ -557,17 +570,23 @@ export default function RevenueReconciliation({
           <b>Atualize as duas bases</b>
           <span>O cruzamento mensal será executado por RA + competência.</span>
         </div>
-      ) : activeView === "reversals" ? (
-        reversals.length ? (
+      ) : activeView === "generationTypes" ? (
+        generationTypeRows.length ? (
           <>
-            <div className="revenue-warning is-reversal">
-              <Undo2 />
+            <div className="revenue-warning is-generation">
+              <FileCheck2 />
               <div>
-                <b>{reversals.length} estorno(s) desconsiderado(s)</b>
-                <span>Estes lançamentos não integram os totais nem a lista de divergências.</span>
+                <b>
+                  {generationTypeRows.length} lançamento(s) com tipo de geração I/E
+                  desconsiderado(s)
+                </b>
+                <span>
+                  Lançamentos com TIPOGERACAO I ou E ficam fora dos totais e da
+                  lista de divergências. O tipo O permanece na análise.
+                </span>
               </div>
             </div>
-            <div className="table-wrap revenue-table revenue-reversal-table">
+            <div className="table-wrap revenue-table revenue-generation-table">
               <table>
                 <thead>
                   <tr>
@@ -578,20 +597,26 @@ export default function RevenueReconciliation({
                     <th>Conta</th>
                     <th>Descrição</th>
                     <th>Tipo</th>
+                    <th>Tipo de geração</th>
                     <th>Valor</th>
                     <th>Complemento contábil</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reversals.map((entry) => (
+                  {generationTypeRows.map((entry) => (
                     <tr key={entry.id}>
-                      <td><span className="revenue-badge reversal">Desconsiderado</span></td>
+                      <td>
+                        <span className="revenue-badge generation">
+                          Desconsiderado
+                        </span>
+                      </td>
                       <td><b>{entry.ra}</b></td>
                       <td>{competenceLabel}</td>
                       <td>{entry.name || "—"}</td>
                       <td>{entry.account || "—"}</td>
                       <td>{entry.description || "—"}</td>
                       <td>{entry.kind === "revenue" ? "Receita" : "Desconto"}</td>
+                      <td><b>{entry.generationType}</b></td>
                       <td>{brl.format(entry.value)}</td>
                       <td className="revenue-complement">{entry.complement}</td>
                     </tr>
@@ -603,8 +628,8 @@ export default function RevenueReconciliation({
         ) : (
           <div className="revenue-empty success">
             <FileCheck2 />
-            <b>Nenhum estorno identificado</b>
-            <span>Não há complementos iniciados por “Estorno:” nesta competência.</span>
+            <b>Nenhum tipo de geração I/E identificado</b>
+            <span>Não há TIPOGERACAO I ou E nesta competência.</span>
           </div>
         )
       ) : pending.length ? (
@@ -637,6 +662,7 @@ export default function RevenueReconciliation({
                   <th>Δ Desconto</th>
                   <th>Impacto</th>
                   <th>Orientação</th>
+                  <th>Tipo de geração</th>
                   <th>Complemento contábil</th>
                 </tr>
               </thead>
@@ -674,6 +700,7 @@ export default function RevenueReconciliation({
                       <b>{brl.format(x.impact)}</b>
                     </td>
                     <td>{x.comment}</td>
+                    <td>{x.generationTypes || "Não informado"}</td>
                     <td className="revenue-complement">
                       {x.complements || "—"}
                     </td>

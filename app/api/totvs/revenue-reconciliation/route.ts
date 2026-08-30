@@ -4,7 +4,6 @@ import {
   classifyAccountingRevenue,
   deduplicateAccountingRecords,
   isRevenueAppropriation,
-  isRevenueReversal,
   normalizeRevenueRa,
 } from "@/lib/revenue-reconciliation";
 
@@ -156,6 +155,7 @@ export async function GET(request: NextRequest) {
       const student = extractStudent(complement);
       const account = readTag(record, "CODCONTA");
       const description = readTag(record, "DESCRICAO");
+      const generationType = readTag(record, "TIPOGERACAO").trim();
       const kind = classifyAccountingRevenue(account, description);
       if (!student.ra || kind === "other") return [];
 
@@ -166,10 +166,10 @@ export async function GET(request: NextRequest) {
           name: student.name,
           description,
           complement,
+          generationType,
           account,
           value: parseNumber(readTag(record, "VALOR")),
           kind,
-          isReversal: isRevenueReversal(complement),
         },
       ];
     });
