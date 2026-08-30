@@ -5,28 +5,67 @@ import test from "node:test";
 import {
   accountingRevenueQueryAccounts,
   classifyAccountingRevenue,
+  classifyRevenueReconciliation,
   deduplicateAccountingRecords,
+  DISCOUNT_ACCOUNT_DESCRIPTIONS,
+  DISCOUNT_ACCOUNT_PREFIX,
+  INSTITUTIONAL_DISCOUNT_ACCOUNT,
+  isRevenueAppropriation,
+  normalizeRevenueRa,
   PAA_DISCOUNT_ACCOUNT,
+  REVENUE_ACCOUNT_DESCRIPTIONS,
+  REVENUE_ACCOUNT_PREFIX,
+  summarizeAccountingRevenue,
 } from "../lib/revenue-reconciliation.ts";
 
-test("consulta mensalidades e a conta de Bolsas PAA", () => {
+test("consulta os grupos contábeis completos de receitas e descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
-    "3.1.1.01.01",
-    PAA_DISCOUNT_ACCOUNT,
+    REVENUE_ACCOUNT_PREFIX,
+    DISCOUNT_ACCOUNT_PREFIX,
   ]);
+  assert.ok(INSTITUTIONAL_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
+  assert.ok(PAA_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
 });
 
-test("classifica Bolsas PAA como desconto contábil", () => {
+test("classifica todas as receitas previstas no conciliador de referência", () => {
+  REVENUE_ACCOUNT_DESCRIPTIONS.forEach((description) => {
+    assert.equal(
+      classifyAccountingRevenue(`${REVENUE_ACCOUNT_PREFIX}.99`, description),
+      "revenue",
+      description,
+    );
+  });
+});
+
+test("classifica todas as bolsas e descontos previstos no conciliador", () => {
+  DISCOUNT_ACCOUNT_DESCRIPTIONS.forEach((description) => {
+    assert.equal(
+      classifyAccountingRevenue(`${DISCOUNT_ACCOUNT_PREFIX}.99`, description),
+      "discount",
+      description,
+    );
+  });
   assert.equal(
-    classifyAccountingRevenue("3.1.2.02.02.03", "Bolsas PAA"),
+    classifyAccountingRevenue(INSTITUTIONAL_DISCOUNT_ACCOUNT, "Bolsas Institucionais"),
+    "discount",
+  );
+  assert.equal(
+    classifyAccountingRevenue(PAA_DISCOUNT_ACCOUNT, "Bolsas PAA"),
     "discount",
   );
 });
 
-test("mantém mensalidade como receita e ignora conta fora do escopo", () => {
+test("normaliza acentos e espaços, sem incluir descrições fora do script", () => {
   assert.equal(
-    classifyAccountingRevenue("3.1.1.01.01.04", "Mensalidade Ensino Médio"),
+    classifyAccountingRevenue(
+      `${REVENUE_ACCOUNT_PREFIX}.04`,
+      "  Mensalidade   Educação   Infantil  ",
+    ),
     "revenue",
+  );
+  assert.equal(
+    classifyAccountingRevenue(`${DISCOUNT_ACCOUNT_PREFIX}.99`, "Bolsa não parametrizada"),
+    "other",
   );
   assert.equal(
     classifyAccountingRevenue("1.1.2.01.01.23", "Contas a Receber"),
@@ -34,9 +73,66 @@ test("mantém mensalidade como receita e ignora conta fora do escopo", () => {
   );
 });
 
-test("não duplica a mesma partida retornada pelas duas consultas", () => {
+test("remove apropriação de receita mesmo com variação de acento e espaços", () => {
+  assert.equal(isRevenueAppropriation(" APROPRIAÇÃO   RECEITA "), true);
+  assert.equal(isRevenueAppropriation("APROPRIACAO RECEITA"), true);
+  assert.equal(isRevenueAppropriation("MENSALIDADE"), false);
+});
+
+test("normaliza RA numérico sem alterar RA alfanumérico", () => {
+  assert.equal(normalizeRevenueRa("1234567.0"), "1234567");
+  assert.equal(normalizeRevenueRa("CA25034679"), "CA25034679");
+});
+
+test("compensa estornos antes de apurar receitas e descontos", () => {
+  const summaries = summarizeAccountingRevenue([
+    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue" },
+    { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "ESTORNO" },
+    { ra: "123", name: "Aluno", value: 200, kind: "discount" },
+    { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "ESTORNO" },
+  ]);
+
+  assert.equal(summaries.get("123")?.revenue, 900);
+  assert.equal(summaries.get("123")?.discount, 180);
+  assert.deepEqual(summaries.get("123")?.complements, ["ESTORNO"]);
+});
+
+test("aplica a classificação e a tolerância do script", () => {
+  assert.equal(
+    classifyRevenueReconciliation({
+      fiscalRevenue: 100,
+      accountingRevenue: 100.01,
+      fiscalDiscount: 10,
+      accountingDiscount: 10,
+    }),
+    "Conciliado",
+  );
+  assert.equal(
+    classifyRevenueReconciliation({
+      fiscalRevenue: 100,
+      accountingRevenue: 0,
+      fiscalDiscount: 0,
+      accountingDiscount: 0,
+    }),
+    "Só no Fiscal",
+  );
+  assert.equal(
+    classifyRevenueReconciliation({
+      fiscalRevenue: 0,
+      accountingRevenue: 100,
+      fiscalDiscount: 0,
+      accountingDiscount: 0,
+    }),
+    "Só no Contábil",
+  );
+});
+
+test("não duplica a mesma partida retornada pelas consultas", () => {
   assert.deepEqual(
-    deduplicateAccountingRecords(["<Resultado>1</Resultado>", "<Resultado>1</Resultado>"]),
+    deduplicateAccountingRecords([
+      "<Resultado>1</Resultado>",
+      "<Resultado>1</Resultado>",
+    ]),
     ["<Resultado>1</Resultado>"],
   );
 });

@@ -1,10 +1,182 @@
-import { NextRequest,NextResponse } from "next/server";
-import { accountingRevenueQueryAccounts, classifyAccountingRevenue, deduplicateAccountingRecords } from "@/lib/revenue-reconciliation";
-export const runtime="nodejs";
-const esc=(v:string)=>v.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");const dec=(v:string)=>v.replace(/&#xD;|&#13;/gi,"\r").replace(/&#xA;|&#10;/gi,"\n").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&");const tag=(x:string,n:string)=>dec(x.match(new RegExp(`<${n}>([\\s\\S]*?)<\\/${n}>`,"i"))?.[1]?.trim()||"");const num=(v:string)=>{const n=Number(v);if(Number.isFinite(n))return n;const p=Number(String(v||"0").replace(/\./g,"").replace(",","."));return Number.isFinite(p)?p:0};
-async function auth(r:NextRequest){const a=r.headers.get("authorization"),u=process.env.NEXT_PUBLIC_SUPABASE_URL,k=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;if(!a||!u||!k)return false;return(await fetch(`${u}/auth/v1/user`,{headers:{authorization:a,apikey:k},cache:"no-store"})).ok}
-async function query(code:string,system:string,parameters:string){const base=(process.env.TOTVS_WS_PRD_BASE_URL||"https://raizeducacao160286.rm.cloudtotvs.com.br:8051").replace(/\/$/,""),user=process.env.TOTVS_WS_PRD_USER,password=process.env.TOTVS_WS_PRD_PASSWORD;if(!user||!password)throw new Error("Credenciais técnicas do TOTVS não configuradas.");const body=`<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>${code}</codSentenca><codColigada>0</codColigada><codSistema>${system}</codSistema><parameters>${esc(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;const res=await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`,{method:"POST",headers:{authorization:`Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`,"content-type":"text/xml; charset=utf-8",soapaction:"http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL"},body,cache:"no-store"});const soap=await res.text();if(!res.ok||soap.includes(":Fault>"))throw new Error(tag(soap,"faultstring")||"Falha na consulta TOTVS.");const xml=dec(tag(soap,"RealizarConsultaSQLResult"));return Array.from(xml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi),m=>m[1])}
-const student=(c:string)=>{const p=c.replace(/^ESTORNO:\s*/i,"").split(/\s+-\s+/),ra=(p[0]||"").trim();return{ra:/^(?:[A-Z]{1,5})?\d{5,}$/i.test(ra)?ra:"",name:(p[1]||"").trim()}};
-export async function GET(r:NextRequest){try{if(!await auth(r))return NextResponse.json({error:"Sessão inválida ou expirada."},{status:401});const company=r.nextUrl.searchParams.get("company")?.trim(),competence=r.nextUrl.searchParams.get("competence")?.trim(),source=r.nextUrl.searchParams.get("source");if(!company||!/^\d+$/.test(company)||!/^\d{4}-\d{2}$/.test(competence||"")||!["fiscal","accounting"].includes(source||""))return NextResponse.json({error:"Parâmetros inválidos."},{status:400});const[y,m]=competence!.split("-").map(Number),ini=`${y}-${String(m).padStart(2,"0")}-01`,fim=`${y}-${String(m).padStart(2,"0")}-${String(new Date(Date.UTC(y,m,0)).getUTCDate()).padStart(2,"0")}`;
-if(source==="fiscal"){const records=await query("RAIZ.REC.FISCAL","T",`CODCOLIGADA=${company};DATAINI_D=${ini};DATAFIM_D=${fim}`);const rows=records.map((x,i)=>({id:`F-${i}`,ra:tag(x,"RA"),name:tag(x,"ALUNO"),status:tag(x,"STATUS"),originalValue:num(tag(x,"VALORORIGINAL")),discount:num(tag(x,"BOLSA"))})).filter(x=>x.ra);return NextResponse.json({source,rows,records:rows.length})}
-const recordGroups=await Promise.all(accountingRevenueQueryAccounts().map((account)=>query("PLAN.C.0002.0001","C",`CODCOLINI=${company};CODCOLFIM=${company};DATAINI_D=${ini};DATAFIM_D=${fim};CONTA=${account}`)));const records=deduplicateAccountingRecords(recordGroups.flat());const rows=records.flatMap((x,i)=>{const complement=tag(x,"COMPLEMENTO");if(complement.trim().toUpperCase()==="APROPRIAÇÃO RECEITA")return[];const s=student(complement),account=tag(x,"CODCONTA"),description=tag(x,"DESCRICAO"),kind=classifyAccountingRevenue(account,description);if(!s.ra||kind==="other")return[];return[{id:`C-${i}`,ra:s.ra,name:s.name,description,complement,account,value:Math.abs(num(tag(x,"VALOR"))),kind,isReversal:/^ESTORNO:/i.test(complement)}]});return NextResponse.json({source,rows,records:rows.length})}catch(e){return NextResponse.json({error:(e as Error).message},{status:503})}}
+import { NextRequest, NextResponse } from "next/server";
+import {
+  accountingRevenueQueryAccounts,
+  classifyAccountingRevenue,
+  deduplicateAccountingRecords,
+  isRevenueAppropriation,
+  normalizeRevenueRa,
+} from "@/lib/revenue-reconciliation";
+
+export const runtime = "nodejs";
+
+const escapeXml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+const decodeXml = (value: string) =>
+  value
+    .replace(/&#xD;|&#13;/gi, "\r")
+    .replace(/&#xA;|&#10;/gi, "\n")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+
+const readTag = (xml: string, name: string) =>
+  decodeXml(
+    xml.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() ||
+      "",
+  );
+
+const parseNumber = (value: string) => {
+  const direct = Number(value);
+  if (Number.isFinite(direct)) return direct;
+  const localized = Number(String(value || "0").replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(localized) ? localized : 0;
+};
+
+async function authenticate(request: NextRequest) {
+  const authorization = request.headers.get("authorization");
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!authorization || !supabaseUrl || !supabaseKey) return false;
+  return (
+    await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { authorization, apikey: supabaseKey },
+      cache: "no-store",
+    })
+  ).ok;
+}
+
+async function queryTotvs(code: string, system: string, parameters: string) {
+  const base = (
+    process.env.TOTVS_WS_PRD_BASE_URL ||
+    "https://raizeducacao160286.rm.cloudtotvs.com.br:8051"
+  ).replace(/\/$/, "");
+  const user = process.env.TOTVS_WS_PRD_USER;
+  const password = process.env.TOTVS_WS_PRD_PASSWORD;
+  if (!user || !password) {
+    throw new Error("Credenciais técnicas do TOTVS não configuradas.");
+  }
+
+  const body = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>${code}</codSentenca><codColigada>0</codColigada><codSistema>${system}</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, {
+    method: "POST",
+    headers: {
+      authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`,
+      "content-type": "text/xml; charset=utf-8",
+      soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL",
+    },
+    body,
+    cache: "no-store",
+  });
+  const soap = await response.text();
+  if (!response.ok || soap.includes(":Fault>")) {
+    throw new Error(readTag(soap, "faultstring") || "Falha na consulta TOTVS.");
+  }
+  const xml = decodeXml(readTag(soap, "RealizarConsultaSQLResult"));
+  return Array.from(xml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) =>
+    match[1],
+  );
+}
+
+function extractStudent(complement: string) {
+  const parts = complement.replace(/^ESTORNO:\s*/i, "").split(/\s+-\s+/);
+  const ra = normalizeRevenueRa((parts[0] || "").trim());
+  return {
+    ra: /^(?:[A-Z]{1,5})?\d{5,}$/i.test(ra) ? ra : "",
+    name: (parts[1] || "").trim(),
+  };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    if (!(await authenticate(request))) {
+      return NextResponse.json(
+        { error: "Sessão inválida ou expirada." },
+        { status: 401 },
+      );
+    }
+
+    const company = request.nextUrl.searchParams.get("company")?.trim();
+    const competence = request.nextUrl.searchParams.get("competence")?.trim();
+    const source = request.nextUrl.searchParams.get("source");
+    if (
+      !company ||
+      !/^\d+$/.test(company) ||
+      !/^\d{4}-\d{2}$/.test(competence || "") ||
+      !["fiscal", "accounting"].includes(source || "")
+    ) {
+      return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
+    }
+
+    const [year, month] = competence!.split("-").map(Number);
+    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const endDate = `${year}-${String(month).padStart(2, "0")}-${String(
+      new Date(Date.UTC(year, month, 0)).getUTCDate(),
+    ).padStart(2, "0")}`;
+
+    if (source === "fiscal") {
+      const records = await queryTotvs(
+        "RAIZ.REC.FISCAL",
+        "T",
+        `CODCOLIGADA=${company};DATAINI_D=${startDate};DATAFIM_D=${endDate}`,
+      );
+      const rows = records
+        .map((record, index) => ({
+          id: `F-${index}`,
+          ra: normalizeRevenueRa(readTag(record, "RA")),
+          name: readTag(record, "ALUNO").trim(),
+          status: readTag(record, "STATUS"),
+          originalValue: parseNumber(readTag(record, "VALORORIGINAL")),
+          discount: parseNumber(readTag(record, "BOLSA")),
+        }))
+        .filter((row) => row.ra);
+      return NextResponse.json({ source, rows, records: rows.length });
+    }
+
+    const recordGroups = await Promise.all(
+      accountingRevenueQueryAccounts().map((account) =>
+        queryTotvs(
+          "PLAN.C.0002.0001",
+          "C",
+          `CODCOLINI=${company};CODCOLFIM=${company};DATAINI_D=${startDate};DATAFIM_D=${endDate};CONTA=${account}`,
+        ),
+      ),
+    );
+    const records = deduplicateAccountingRecords(recordGroups.flat());
+    const rows = records.flatMap((record, index) => {
+      const complement = readTag(record, "COMPLEMENTO");
+      if (isRevenueAppropriation(complement)) return [];
+
+      const student = extractStudent(complement);
+      const account = readTag(record, "CODCONTA");
+      const description = readTag(record, "DESCRICAO");
+      const kind = classifyAccountingRevenue(account, description);
+      if (!student.ra || kind === "other") return [];
+
+      return [
+        {
+          id: `C-${index}`,
+          ra: student.ra,
+          name: student.name,
+          description,
+          complement,
+          account,
+          value: parseNumber(readTag(record, "VALOR")),
+          kind,
+          isReversal: /^ESTORNO:/i.test(complement),
+        },
+      ];
+    });
+    return NextResponse.json({ source, rows, records: rows.length });
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 503 },
+    );
+  }
+}

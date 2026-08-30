@@ -9,6 +9,11 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import {
+  classifyRevenueReconciliation,
+  REVENUE_TOLERANCE,
+  summarizeAccountingRevenue,
+} from "@/lib/revenue-reconciliation";
 type F = {
   id: string;
   ra: string;
@@ -30,7 +35,7 @@ const brl = new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
   }),
-  tol = 0.01;
+  tol = REVENUE_TOLERANCE;
 const excelMoney = 'R$ #,##0.00;[Red]-R$ #,##0.00';
 const excelPercent = '0.0%';
 const excelColors = {
@@ -143,46 +148,32 @@ export default function RevenueReconciliation({
       a.disc += x.discount;
       fm.set(x.ra, a);
     });
-    const cm = new Map<
-      string,
-      { name: string; rev: number; disc: number; complements: string[] }
-    >();
-    c.forEach((x) => {
-      const a = cm.get(x.ra) || {
-        name: x.name,
-        rev: 0,
-        disc: 0,
-        complements: [],
-      };
-      if (x.kind === "revenue") a.rev += x.value;
-      else a.disc += x.value;
-      const complement = x.complement?.trim();
-      if (complement && !a.complements.includes(complement))
-        a.complements.push(complement);
-      cm.set(x.ra, a);
-    });
+    const cm = summarizeAccountingRevenue(c);
     return [...new Set([...fm.keys(), ...cm.keys()])].map((ra) => {
       const a = fm.get(ra),
         b = cm.get(ra),
-        dr = (b?.rev || 0) - (a?.rev || 0),
-        dd = (b?.disc || 0) - (a?.disc || 0),
-        status = !a
-          ? "Só no Contábil"
-          : !b
-            ? "Só no Fiscal"
-            : Math.abs(dr) <= tol && Math.abs(dd) <= tol
-              ? "Conciliado"
-              : "Divergente";
+        accountingRevenue = b?.revenue || 0,
+        accountingDiscount = b?.discount || 0,
+        fiscalRevenue = a?.rev || 0,
+        fiscalDiscount = a?.disc || 0,
+        dr = accountingRevenue - fiscalRevenue,
+        dd = accountingDiscount - fiscalDiscount,
+        status = classifyRevenueReconciliation({
+          fiscalRevenue,
+          accountingRevenue,
+          fiscalDiscount,
+          accountingDiscount,
+        });
       return {
         ra,
         competence: competenceLabel,
         name: a?.name || b?.name || "",
         fiscalStatus: a?.status || "",
-        fiscalRevenue: a?.rev || 0,
-        accountingRevenue: b?.rev || 0,
+        fiscalRevenue,
+        accountingRevenue,
         revenueDifference: dr,
-        fiscalDiscount: a?.disc || 0,
-        accountingDiscount: b?.disc || 0,
+        fiscalDiscount,
+        accountingDiscount,
         discountDifference: dd,
         impact: dr - dd,
         status,
@@ -202,13 +193,9 @@ export default function RevenueReconciliation({
     reconciled = rows.length - pending.length,
     reconciledPercentage = rows.length ? (reconciled / rows.length) * 100 : 0,
     fRev = f.reduce((s, x) => s + x.originalValue, 0),
-    cRev = c
-      .filter((x) => x.kind === "revenue")
-      .reduce((s, x) => s + x.value, 0),
+    cRev = rows.reduce((sum, row) => sum + row.accountingRevenue, 0),
     fDisc = f.reduce((s, x) => s + x.discount, 0),
-    cDisc = c
-      .filter((x) => x.kind === "discount")
-      .reduce((s, x) => s + x.value, 0);
+    cDisc = rows.reduce((sum, row) => sum + row.accountingDiscount, 0);
   function exportDivergences() {
     const data = pending.map((x) => ({
       Status: x.status,
@@ -419,10 +406,11 @@ export default function RevenueReconciliation({
       ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
       ["Etapa", "Regra", "Resultado", "Observação"],
       ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
-      ["2", "Atualizar base Contábil", `${c.length} lançamento(s) carregado(s)`, "Grupo contábil parametrizado na API"],
-      ["3", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
-      ["4", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["5", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
+      ["2", "Atualizar base Contábil", `${c.length} lançamento(s) carregado(s)`, "Receitas e descontos parametrizados no conciliador de referência"],
+      ["3", "Tratamento contábil", "Apropriações removidas e estornos compensados", "Os valores são somados com o sinal antes da apuração mensal"],
+      ["4", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
+      ["5", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
+      ["6", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
