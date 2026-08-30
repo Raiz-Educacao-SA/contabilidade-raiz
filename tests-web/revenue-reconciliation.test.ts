@@ -181,7 +181,7 @@ test("mantém os filtros e a finalização na mesma linha em telas de trabalho",
   );
 });
 
-test("alinha os botões da conciliação de receita com larguras iguais", () => {
+test("mantém compactos os botões da conciliação de receita", () => {
   const css = readFileSync(
     new URL("../app/modules.css", import.meta.url),
     "utf8",
@@ -189,11 +189,11 @@ test("alinha os botões da conciliação de receita com larguras iguais", () => 
 
   assert.match(
     css,
-    /\.revenue-content \.revenue-actions \{[\s\S]*?width: min\(100%, 720px\);[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
+    /\.revenue-content \.revenue-actions \{[\s\S]*?width: auto;[\s\S]*?display: flex;/,
   );
   assert.match(
     css,
-    /\.revenue-content \.revenue-actions button \{[\s\S]*?width: 100%;[\s\S]*?justify-content: center;/,
+    /\.revenue-content \.revenue-actions button \{[\s\S]*?width: auto;[\s\S]*?min-height: 32px;[\s\S]*?padding: 6px 12px;/,
   );
 });
 
