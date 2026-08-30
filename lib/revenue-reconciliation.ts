@@ -91,6 +91,10 @@ export function isRevenueAppropriation(complement: string) {
   return normalizeAccountingDescription(complement) === "APROPRIACAO RECEITA";
 }
 
+export function isRevenueReversal(complement: string) {
+  return /^\s*ESTORNO\s*:/i.test(complement);
+}
+
 export function normalizeRevenueRa(value: string) {
   const normalized = value.trim();
   if (/^\d+\.0+$/.test(normalized)) return normalized.replace(/\.0+$/, "");

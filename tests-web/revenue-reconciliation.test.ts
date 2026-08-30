@@ -12,6 +12,7 @@ import {
   DISCOUNT_ACCOUNT_PREFIX,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
+  isRevenueReversal,
   normalizeRevenueRa,
   PAA_DISCOUNT_ACCOUNT,
   REVENUE_ACCOUNT_DESCRIPTIONS,
@@ -95,6 +96,17 @@ test("remove apropriação de receita mesmo com variação de acento e espaços"
   assert.equal(isRevenueAppropriation("MENSALIDADE"), false);
 });
 
+test("identifica estorno somente quando o complemento começa com Estorno:", () => {
+  assert.equal(
+    isRevenueReversal(
+      "Estorno: QI20011631 - ALUNO - Serviço: EM - Mensalidade - Parcela: 6/ Cota: 1",
+    ),
+    true,
+  );
+  assert.equal(isRevenueReversal("  ESTORNO : QI20011631 - ALUNO"), true);
+  assert.equal(isRevenueReversal("Mensalidade - estorno solicitado"), false);
+});
+
 test("normaliza RA numérico sem alterar RA alfanumérico", () => {
   assert.equal(normalizeRevenueRa("1234567.0"), "1234567");
   assert.equal(normalizeRevenueRa("CA25034679"), "CA25034679");
@@ -167,4 +179,26 @@ test("mantém os filtros e a finalização na mesma linha em telas de trabalho",
     css,
     /@media \(max-width: 1450px\) \{\s*\.revenue-content \.top-context/,
   );
+});
+
+test("isola estornos da apuração e mantém uma aba separada", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    component,
+    /c\.filter\(\(entry\) => !isRevenueReversal\(entry\.complement\)\)/,
+  );
+  assert.match(
+    component,
+    /c\.filter\(\(entry\) => isRevenueReversal\(entry\.complement\)\)/,
+  );
+  assert.match(component, /Estornos desconsiderados/);
+  assert.match(
+    component,
+    /não integram os totais nem a lista de divergências/,
+  );
+  assert.match(component, /"Estornos Desconsiderados"/);
 });

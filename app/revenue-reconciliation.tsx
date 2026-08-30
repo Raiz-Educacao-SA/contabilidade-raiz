@@ -6,11 +6,13 @@ import {
   FileCheck2,
   RefreshCw,
   TriangleAlert,
+  Undo2,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import {
   classifyRevenueReconciliation,
+  isRevenueReversal,
   REVENUE_TOLERANCE,
   summarizeAccountingRevenue,
 } from "@/lib/revenue-reconciliation";
@@ -30,6 +32,8 @@ type C = {
   kind: "revenue" | "discount";
   isReversal: boolean;
   complement: string;
+  account?: string;
+  description?: string;
 };
 const brl = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -104,6 +108,7 @@ export default function RevenueReconciliation({
     [fr, setFr] = useState(false),
     [cr, setCr] = useState(false),
     [loading, setLoading] = useState<"fiscal" | "accounting" | null>(null),
+    [activeView, setActiveView] = useState<"divergences" | "reversals">("divergences"),
     [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
   async function update(source: "fiscal" | "accounting") {
@@ -125,6 +130,7 @@ export default function RevenueReconciliation({
       } else {
         setC(p.rows || []);
         setCr(true);
+        setActiveView("divergences");
       }
     } catch (e) {
       setError((e as Error).message);
@@ -132,6 +138,14 @@ export default function RevenueReconciliation({
       setLoading(null);
     }
   }
+  const accountingRows = useMemo(
+    () => c.filter((entry) => !isRevenueReversal(entry.complement)),
+    [c],
+  );
+  const reversals = useMemo(
+    () => c.filter((entry) => isRevenueReversal(entry.complement)),
+    [c],
+  );
   const rows = useMemo(() => {
     const fm = new Map<
       string,
@@ -148,7 +162,7 @@ export default function RevenueReconciliation({
       a.disc += x.discount;
       fm.set(x.ra, a);
     });
-    const cm = summarizeAccountingRevenue(c);
+    const cm = summarizeAccountingRevenue(accountingRows);
     return [...new Set([...fm.keys(), ...cm.keys()])].map((ra) => {
       const a = fm.get(ra),
         b = cm.get(ra),
@@ -188,7 +202,7 @@ export default function RevenueReconciliation({
                 : "Verificar diferença de desconto",
       };
     });
-  }, [f, c, competenceLabel]);
+  }, [f, accountingRows, competenceLabel]);
   const pending = rows.filter((x) => x.status !== "Conciliado"),
     reconciled = rows.length - pending.length,
     reconciledPercentage = rows.length ? (reconciled / rows.length) * 100 : 0,
@@ -324,7 +338,7 @@ export default function RevenueReconciliation({
       ]),
       ["", "", "", "", "", "", "", ""],
       ["LEITURA DAS BASES", "", "", "", "", "", "", ""],
-      ["Base fiscal", f.length, "Base contábil", c.length, "Chave", "RA + Competência", "Tolerância", "R$ 0,01"],
+      ["Base fiscal", f.length, "Base contábil considerada", accountingRows.length, "Estornos isolados", reversals.length, "Tolerância", "R$ 0,01"],
     ];
     const dashboard = XLSX.utils.aoa_to_sheet(dashboardRows);
     dashboard["!cols"] = [
@@ -378,7 +392,7 @@ export default function RevenueReconciliation({
     appendJsonSheet("Resumo Geral", rows.map(mapRow), detailColumns);
     appendJsonSheet(
       "Receitas Contábil",
-      c.map((x) => ({
+      accountingRows.map((x) => ({
         RA: x.ra,
         Competência: competenceLabel,
         Aluno: x.name,
@@ -388,6 +402,20 @@ export default function RevenueReconciliation({
         Complemento: x.complement,
       })),
       [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 70 }],
+    );
+    appendJsonSheet(
+      "Estornos Desconsiderados",
+      reversals.map((x) => ({
+        RA: x.ra,
+        Competência: competenceLabel,
+        Aluno: x.name,
+        Conta: x.account || "",
+        Descrição: x.description || "",
+        Tipo: x.kind === "revenue" ? "Receita" : "Desconto",
+        Valor: x.value,
+        Complemento: x.complement,
+      })),
+      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 18 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 80 }],
     );
     appendJsonSheet(
       "Receitas Fiscal",
@@ -406,8 +434,8 @@ export default function RevenueReconciliation({
       ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
       ["Etapa", "Regra", "Resultado", "Observação"],
       ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
-      ["2", "Atualizar base Contábil", `${c.length} lançamento(s) carregado(s)`, "Receitas e descontos parametrizados no conciliador de referência"],
-      ["3", "Tratamento contábil", "Apropriações removidas e estornos compensados", "Os valores são somados com o sinal antes da apuração mensal"],
+      ["2", "Atualizar base Contábil", `${accountingRows.length} lançamento(s) considerado(s)`, "Receitas e descontos conforme a diretriz funcional"],
+      ["3", "Tratamento de estornos", `${reversals.length} estorno(s) isolado(s)`, "Complementos iniciados por Estorno: não integram os totais nem as divergências"],
       ["4", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["5", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
       ["6", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
@@ -495,13 +523,90 @@ export default function RevenueReconciliation({
           <b>{fr && cr ? pending.length : "—"}</b>
           <small>Para tratamento</small>
         </article>
+        <article className={reversals.length ? "has-neutral" : ""}>
+          <span>Estornos isolados</span>
+          <b>{fr && cr ? reversals.length : "—"}</b>
+          <small>Desconsiderados da análise</small>
+        </article>
       </div>
+      {fr && cr && (
+        <div className="revenue-view-tabs" role="tablist" aria-label="Visualizações da conciliação de receita">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "divergences"}
+            className={activeView === "divergences" ? "active" : ""}
+            onClick={() => setActiveView("divergences")}
+          >
+            <TriangleAlert /> Divergências <span>{pending.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeView === "reversals"}
+            className={activeView === "reversals" ? "active" : ""}
+            onClick={() => setActiveView("reversals")}
+          >
+            <Undo2 /> Estornos desconsiderados <span>{reversals.length}</span>
+          </button>
+        </div>
+      )}
       {!fr || !cr ? (
         <div className="revenue-empty">
           <RefreshCw />
           <b>Atualize as duas bases</b>
           <span>O cruzamento mensal será executado por RA + competência.</span>
         </div>
+      ) : activeView === "reversals" ? (
+        reversals.length ? (
+          <>
+            <div className="revenue-warning is-reversal">
+              <Undo2 />
+              <div>
+                <b>{reversals.length} estorno(s) desconsiderado(s)</b>
+                <span>Estes lançamentos não integram os totais nem a lista de divergências.</span>
+              </div>
+            </div>
+            <div className="table-wrap revenue-table revenue-reversal-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>RA</th>
+                    <th>Competência</th>
+                    <th>Aluno</th>
+                    <th>Conta</th>
+                    <th>Descrição</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Complemento contábil</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reversals.map((entry) => (
+                    <tr key={entry.id}>
+                      <td><span className="revenue-badge reversal">Desconsiderado</span></td>
+                      <td><b>{entry.ra}</b></td>
+                      <td>{competenceLabel}</td>
+                      <td>{entry.name || "—"}</td>
+                      <td>{entry.account || "—"}</td>
+                      <td>{entry.description || "—"}</td>
+                      <td>{entry.kind === "revenue" ? "Receita" : "Desconto"}</td>
+                      <td>{brl.format(entry.value)}</td>
+                      <td className="revenue-complement">{entry.complement}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="revenue-empty success">
+            <FileCheck2 />
+            <b>Nenhum estorno identificado</b>
+            <span>Não há complementos iniciados por “Estorno:” nesta competência.</span>
+          </div>
+        )
       ) : pending.length ? (
         <>
           <div className="revenue-warning">

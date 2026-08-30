@@ -4,6 +4,7 @@ import {
   classifyAccountingRevenue,
   deduplicateAccountingRecords,
   isRevenueAppropriation,
+  isRevenueReversal,
   normalizeRevenueRa,
 } from "@/lib/revenue-reconciliation";
 
@@ -84,7 +85,7 @@ async function queryTotvs(code: string, system: string, parameters: string) {
 }
 
 function extractStudent(complement: string) {
-  const parts = complement.replace(/^ESTORNO:\s*/i, "").split(/\s+-\s+/);
+  const parts = complement.replace(/^\s*ESTORNO\s*:\s*/i, "").split(/\s+-\s+/);
   const ra = normalizeRevenueRa((parts[0] || "").trim());
   return {
     ra: /^(?:[A-Z]{1,5})?\d{5,}$/i.test(ra) ? ra : "",
@@ -168,7 +169,7 @@ export async function GET(request: NextRequest) {
           account,
           value: parseNumber(readTag(record, "VALOR")),
           kind,
-          isReversal: /^ESTORNO:/i.test(complement),
+          isReversal: isRevenueReversal(complement),
         },
       ];
     });
