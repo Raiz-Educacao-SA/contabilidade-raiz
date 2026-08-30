@@ -2032,7 +2032,8 @@
   font-size: 10px;
 }
 .revenue-content .revenue-head {
-  padding: 10px 16px;
+  padding: 8px 16px;
+  justify-content: center;
 }
 .revenue-content .revenue-head h2 {
   margin: 2px 0;
@@ -2041,8 +2042,17 @@
 .revenue-content .revenue-head p {
   font-size: 10px;
 }
+.revenue-content .revenue-actions {
+  width: min(100%, 720px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
 .revenue-content .revenue-actions button {
-  padding: 8px 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  justify-content: center;
   font-size: 10px;
 }
 .revenue-content .revenue-status {
@@ -2050,8 +2060,10 @@
   gap: 6px;
 }
 .revenue-content .revenue-status article {
+  min-width: 0;
   padding: 7px 9px;
   gap: 2px;
+  justify-content: center;
 }
 .revenue-content .revenue-status span,
 .revenue-content .revenue-status small {
@@ -2059,6 +2071,14 @@
 }
 .revenue-content .revenue-status b {
   font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .revenue-content .revenue-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
 }
 .revenue-content .revenue-warning {
   margin: 8px 16px;

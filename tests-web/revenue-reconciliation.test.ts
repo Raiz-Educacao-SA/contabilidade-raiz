@@ -181,6 +181,22 @@ test("mantém os filtros e a finalização na mesma linha em telas de trabalho",
   );
 });
 
+test("alinha os botões da conciliação de receita com larguras iguais", () => {
+  const css = readFileSync(
+    new URL("../app/modules.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    css,
+    /\.revenue-content \.revenue-actions \{[\s\S]*?width: min\(100%, 720px\);[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/,
+  );
+  assert.match(
+    css,
+    /\.revenue-content \.revenue-actions button \{[\s\S]*?width: 100%;[\s\S]*?justify-content: center;/,
+  );
+});
+
 test("isola estornos da apuração e mantém uma aba separada", () => {
   const component = readFileSync(
     new URL("../app/revenue-reconciliation.tsx", import.meta.url),
