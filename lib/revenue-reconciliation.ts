@@ -8,6 +8,7 @@ export type RevenueReconciliationStatus =
 
 export const REVENUE_TOLERANCE = 0.01;
 export const REVENUE_ACCOUNT_PREFIX = "3.1.1.01.01";
+export const COMMERCIAL_DISCOUNT_ACCOUNT = "3.1.2.02.01.01";
 export const DISCOUNT_ACCOUNT_PREFIX = "3.1.2.02.02";
 export const INSTITUTIONAL_DISCOUNT_ACCOUNT = "3.1.2.02.02.01";
 export const PAA_DISCOUNT_ACCOUNT = "3.1.2.02.02.03";
@@ -54,7 +55,11 @@ const DISCOUNT_DESCRIPTIONS = new Set(
 );
 
 export function accountingRevenueQueryAccounts() {
-  return [REVENUE_ACCOUNT_PREFIX, DISCOUNT_ACCOUNT_PREFIX] as const;
+  return [
+    REVENUE_ACCOUNT_PREFIX,
+    COMMERCIAL_DISCOUNT_ACCOUNT,
+    DISCOUNT_ACCOUNT_PREFIX,
+  ] as const;
 }
 
 export function classifyAccountingRevenue(
@@ -72,7 +77,8 @@ export function classifyAccountingRevenue(
   }
 
   if (
-    normalizedAccount.startsWith(DISCOUNT_ACCOUNT_PREFIX) &&
+    (normalizedAccount === COMMERCIAL_DISCOUNT_ACCOUNT ||
+      normalizedAccount.startsWith(DISCOUNT_ACCOUNT_PREFIX)) &&
     DISCOUNT_DESCRIPTIONS.has(normalizedDescription)
   ) {
     return "discount";

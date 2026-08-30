@@ -4,6 +4,8 @@ import test from "node:test";
 const moduleUrl = new URL("../lib/closing-schedule-progress.ts", import.meta.url);
 const {
   ACCOUNTING_SCHEDULE_TASK_IDS,
+  BOOK_SCHEDULE_TASK_IDS,
+  FISCAL_SCHEDULE_TASK_IDS,
   FINANCIAL_SCHEDULE_TASK_IDS,
   PAYROLL_SCHEDULE_TASK_IDS,
   calculateClosingScheduleProgress,
@@ -14,7 +16,7 @@ function completed(modulo: string) {
   return { modulo, status: "concluido" as const };
 }
 
-test("calcula somente módulos que possuem tarefas cadastradas", () => {
+test("calcula somente confirmações detalhadas por tarefa e empresa", () => {
   const records = [
     completed("fiscal"),
     completed("folha:lote:02"),
@@ -26,13 +28,14 @@ test("calcula somente módulos que possuem tarefas cadastradas", () => {
 
   const progress = calculateClosingScheduleProgress(records, ["2"]);
 
-  assert.equal(progress.totalModules, 3);
+  assert.equal(progress.totalModules, 5);
   assert.equal(progress.completedModulesCount, 0);
   assert.deepEqual(progress.completedModules, []);
-  assert.deepEqual(progress.includedModules, ["financeiro", "folha", "contabil"]);
+  assert.deepEqual(progress.includedModules, ["financeiro", "fiscal", "folha", "contabil", "book"]);
   assert.equal(progress.modulePercent.financeiro, 25);
+  assert.equal(progress.modulePercent.folha, 17);
   assert.equal(progress.modulePercent.contabil, 10);
-  assert.equal(progress.overallPercent, 17);
+  assert.equal(progress.overallPercent, 10);
 });
 
 test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
@@ -40,11 +43,13 @@ test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
   assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.includes("imobilizado" as never), false);
 });
 
-test("conclui Financeiro, Folha e Contábil sem exigir módulo Fiscal sem tarefas", () => {
+test("conclui todos os módulos quando todas as tarefas por empresa foram finalizadas", () => {
   const companyCodes = ["01", "2"];
   const financialTaskIds = FINANCIAL_SCHEDULE_TASK_IDS as readonly string[];
   const accountingTaskIds = ACCOUNTING_SCHEDULE_TASK_IDS as readonly string[];
   const payrollTaskIds = PAYROLL_SCHEDULE_TASK_IDS as readonly string[];
+  const fiscalTaskIds = FISCAL_SCHEDULE_TASK_IDS as readonly string[];
+  const bookTaskIds = BOOK_SCHEDULE_TASK_IDS as readonly string[];
   const records = [
     ...financialTaskIds.flatMap((task) =>
       ["01", "02"].map((company) => completed(`financeiro:${task}:${company}`)),
@@ -52,33 +57,41 @@ test("conclui Financeiro, Folha e Contábil sem exigir módulo Fiscal sem tarefa
     ...accountingTaskIds.flatMap((task) =>
       ["01", "02"].map((company) => completed(`contabil:${task}:${company}`)),
     ),
-    completed("fiscal"),
+    ...fiscalTaskIds.flatMap((task) =>
+      ["01", "02"].map((company) => completed(`fiscal:${task}:${company}`)),
+    ),
     ...payrollTaskIds.flatMap((task) =>
       ["01", "02"].map((company) => completed(`folha:${task}:${company}`)),
+    ),
+    ...bookTaskIds.flatMap((task) =>
+      ["01", "02"].map((company) => completed(`book:${task}:${company}`)),
     ),
   ];
 
   const progress = calculateClosingScheduleProgress(records, companyCodes);
 
-  assert.equal(progress.completedModulesCount, 3);
+  assert.equal(progress.completedModulesCount, 5);
   assert.equal(progress.overallPercent, 100);
   assert.deepEqual(progress.modulePercent, {
     financeiro: 100,
     fiscal: 100,
     folha: 100,
     contabil: 100,
+    book: 100,
   });
 });
 
-test("ignora confirmações gerais antigas de Financeiro, Folha e Contábil", () => {
+test("ignora confirmações gerais antigas dos módulos", () => {
   const progress = calculateClosingScheduleProgress(
-    [completed("financeiro"), completed("folha"), completed("contabil")],
+    [completed("financeiro"), completed("fiscal"), completed("folha"), completed("contabil"), completed("book")],
     ["01"],
   );
 
   assert.equal(progress.modulePercent.financeiro, 0);
   assert.equal(progress.modulePercent.folha, 0);
   assert.equal(progress.modulePercent.contabil, 0);
+  assert.equal(progress.modulePercent.fiscal, 0);
+  assert.equal(progress.modulePercent.book, 0);
   assert.equal(progress.completedModulesCount, 0);
   assert.equal(progress.overallPercent, 0);
 });
@@ -115,5 +128,22 @@ test("resume separadamente o andamento da Folha por empresa", () => {
       status: "andamento",
       observation: "3 de 6 atividades concluídas.",
     },
+  );
+});
+
+test("resume separadamente Fiscal e Book por empresa", () => {
+  const records = [
+    completed("fiscal:paa:02"),
+    completed("fiscal:iss:02"),
+    completed("book:balancete:02"),
+  ];
+
+  assert.equal(
+    summarizeScheduleCompanyProgress(records, "fiscal", FISCAL_SCHEDULE_TASK_IDS, "2").completedCount,
+    2,
+  );
+  assert.equal(
+    summarizeScheduleCompanyProgress(records, "book", BOOK_SCHEDULE_TASK_IDS, "2").completedCount,
+    1,
   );
 });

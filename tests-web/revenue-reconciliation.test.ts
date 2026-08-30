@@ -6,6 +6,7 @@ import {
   accountingRevenueQueryAccounts,
   classifyAccountingRevenue,
   classifyRevenueReconciliation,
+  COMMERCIAL_DISCOUNT_ACCOUNT,
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
@@ -18,16 +19,17 @@ import {
   summarizeAccountingRevenue,
 } from "../lib/revenue-reconciliation.ts";
 
-test("consulta os grupos contábeis completos de receitas e descontos", () => {
+test("consulta receitas e todos os grupos contábeis de descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
     REVENUE_ACCOUNT_PREFIX,
+    COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ]);
   assert.ok(INSTITUTIONAL_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
   assert.ok(PAA_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
 });
 
-test("classifica todas as receitas previstas no conciliador de referência", () => {
+test("classifica todas as receitas previstas na diretriz funcional", () => {
   REVENUE_ACCOUNT_DESCRIPTIONS.forEach((description) => {
     assert.equal(
       classifyAccountingRevenue(`${REVENUE_ACCOUNT_PREFIX}.99`, description),
@@ -37,7 +39,7 @@ test("classifica todas as receitas previstas no conciliador de referência", () 
   });
 });
 
-test("classifica todas as bolsas e descontos previstos no conciliador", () => {
+test("classifica todas as bolsas e descontos previstos na diretriz funcional", () => {
   DISCOUNT_ACCOUNT_DESCRIPTIONS.forEach((description) => {
     assert.equal(
       classifyAccountingRevenue(`${DISCOUNT_ACCOUNT_PREFIX}.99`, description),
@@ -45,6 +47,13 @@ test("classifica todas as bolsas e descontos previstos no conciliador", () => {
       description,
     );
   });
+  assert.equal(
+    classifyAccountingRevenue(
+      COMMERCIAL_DISCOUNT_ACCOUNT,
+      "Desconto Comercial s/ Mensalidades",
+    ),
+    "discount",
+  );
   assert.equal(
     classifyAccountingRevenue(INSTITUTIONAL_DISCOUNT_ACCOUNT, "Bolsas Institucionais"),
     "discount",
@@ -55,7 +64,7 @@ test("classifica todas as bolsas e descontos previstos no conciliador", () => {
   );
 });
 
-test("normaliza acentos e espaços, sem incluir descrições fora do script", () => {
+test("normaliza acentos e espaços, sem incluir descrições fora da diretriz", () => {
   assert.equal(
     classifyAccountingRevenue(
       `${REVENUE_ACCOUNT_PREFIX}.04`,
@@ -69,6 +78,13 @@ test("normaliza acentos e espaços, sem incluir descrições fora do script", ()
   );
   assert.equal(
     classifyAccountingRevenue("1.1.2.01.01.23", "Contas a Receber"),
+    "other",
+  );
+  assert.equal(
+    classifyAccountingRevenue(
+      "9.9.9.99.99.99",
+      "Desconto Comercial s/ Mensalidades",
+    ),
     "other",
   );
 });
@@ -97,7 +113,7 @@ test("compensa estornos antes de apurar receitas e descontos", () => {
   assert.deepEqual(summaries.get("123")?.complements, ["ESTORNO"]);
 });
 
-test("aplica a classificação e a tolerância do script", () => {
+test("aplica a classificação e a tolerância da diretriz", () => {
   assert.equal(
     classifyRevenueReconciliation({
       fiscalRevenue: 100,

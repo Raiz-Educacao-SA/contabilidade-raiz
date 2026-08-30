@@ -6,16 +6,33 @@ export type ScheduleCompletion = {
   confirmado_em: string | null;
 };
 
+export type ScheduleCompletionIdentity = Pick<ScheduleCompletion, "modulo" | "setor">;
+
 export function normalizeScheduleCompanyCode(code: string) {
   const value = String(code || "").trim();
   return value ? value.padStart(2, "0") : value;
 }
 
-export function accountingCompletionIdentity(taskId: string, companyCode: string, companyName: string) {
+function scopedCompletionIdentity(
+  prefix: "financeiro" | "fiscal" | "folha" | "contabil" | "book" | "compras",
+  areaLabel: string,
+  taskId: string,
+  taskLabel: string,
+  companyCode: string,
+  companyName: string,
+): ScheduleCompletionIdentity {
   const code = normalizeScheduleCompanyCode(companyCode);
   const cleanName = String(companyName || "")
     .replace(new RegExp(`^(?:${code}|${String(companyCode || "").trim()})\\s*[—-]\\s*`), "")
     .trim();
+
+  return {
+    modulo: `${prefix}:${taskId}:${code}`,
+    setor: `${areaLabel} · ${taskLabel} · ${code} — ${cleanName || companyName}`,
+  };
+}
+
+export function accountingCompletionIdentity(taskId: string, companyCode: string, companyName: string) {
   const labels: Record<string, string> = {
     "pis-cofins": "PIS e COFINS",
     "irpj-csll": "IRPJ/CSLL",
@@ -29,17 +46,10 @@ export function accountingCompletionIdentity(taskId: string, companyCode: string
     "analise-balancete": "Análise Balancete",
   };
   const label = labels[taskId] || taskId;
-  return {
-    modulo: `contabil:${taskId}:${code}`,
-    setor: `Contabilidade · ${label} · ${code} — ${cleanName || companyName}`,
-  };
+  return scopedCompletionIdentity("contabil", "Contabilidade", taskId, label, companyCode, companyName);
 }
 
 export function financialCompletionIdentity(taskId: string, companyCode: string, companyName: string) {
-  const code = normalizeScheduleCompanyCode(companyCode);
-  const cleanName = String(companyName || "")
-    .replace(new RegExp(`^(?:${code}|${String(companyCode || "").trim()})\\s*[—-]\\s*`), "")
-    .trim();
   const labels: Record<string, string> = {
     bancaria: "Conciliação Bancária",
     receita: "Conciliação de Receita",
@@ -47,8 +57,39 @@ export function financialCompletionIdentity(taskId: string, companyCode: string,
     parcelamentos: "Conciliação de Parcelamentos",
   };
   const label = labels[taskId] || taskId;
-  return {
-    modulo: `financeiro:${taskId}:${code}`,
-    setor: `Financeiro · ${label} · ${code} — ${cleanName || companyName}`,
+  return scopedCompletionIdentity("financeiro", "Financeiro", taskId, label, companyCode, companyName);
+}
+
+export function fiscalCompletionIdentity(taskId: string, companyCode: string, companyName: string) {
+  const labels: Record<string, string> = {
+    paa: "PAA",
+    iss: "ISS",
+    ecd: "ECD",
   };
+  return scopedCompletionIdentity("fiscal", "Fiscal", taskId, labels[taskId] || taskId, companyCode, companyName);
+}
+
+export function payrollCompletionIdentity(taskId: string, companyCode: string, companyName: string) {
+  const labels: Record<string, string> = {
+    lote: "Conferência do Lote",
+    liquidos: "Líquidos da Folha",
+    inss: "INSS",
+    fgts: "FGTS",
+    irrf: "IRRF",
+    provisoes: "Provisões",
+  };
+  return scopedCompletionIdentity("folha", "Folha de Pagamento", taskId, labels[taskId] || taskId, companyCode, companyName);
+}
+
+export function bookCompletionIdentity(taskId: string, companyCode: string, companyName: string) {
+  const labels: Record<string, string> = {
+    balancete: "Balancete",
+    razao: "Razão",
+    "plano-contas": "Plano de Contas",
+  };
+  return scopedCompletionIdentity("book", "Book Contábil", taskId, labels[taskId] || taskId, companyCode, companyName);
+}
+
+export function purchasesCompletionIdentity(companyCode: string, companyName: string) {
+  return scopedCompletionIdentity("compras", "Compras", "rotina", "Rotina de Compras", companyCode, companyName);
 }

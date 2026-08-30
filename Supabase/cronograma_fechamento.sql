@@ -31,10 +31,10 @@ with check (
       and (
         lower(ue.perfil) = 'administrador'
         or ((modulo = 'financeiro' or modulo like 'financeiro:%') and lower(trim(ue.perfil)) = 'financeiro')
-        or (modulo = 'fiscal' and lower(trim(ue.perfil)) = 'fiscal')
-        or (modulo = 'compras' and lower(ue.perfil) = 'compras')
-        or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
-        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
+        or ((modulo = 'fiscal' or modulo like 'fiscal:%') and lower(trim(ue.perfil)) = 'fiscal')
+        or ((modulo = 'compras' or modulo like 'compras:%') and lower(ue.perfil) = 'compras')
+        or ((modulo = 'folha' or modulo like 'folha:%') and lower(ue.perfil) in ('folha', 'folha de pagamento'))
+        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book' or modulo like 'book:%') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
       )
   )
 );
@@ -52,10 +52,10 @@ with check (
       and (
         lower(ue.perfil) = 'administrador'
         or ((modulo = 'financeiro' or modulo like 'financeiro:%') and lower(trim(ue.perfil)) = 'financeiro')
-        or (modulo = 'fiscal' and lower(trim(ue.perfil)) = 'fiscal')
-        or (modulo = 'compras' and lower(ue.perfil) = 'compras')
-        or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
-        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
+        or ((modulo = 'fiscal' or modulo like 'fiscal:%') and lower(trim(ue.perfil)) = 'fiscal')
+        or ((modulo = 'compras' or modulo like 'compras:%') and lower(ue.perfil) = 'compras')
+        or ((modulo = 'folha' or modulo like 'folha:%') and lower(ue.perfil) in ('folha', 'folha de pagamento'))
+        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book' or modulo like 'book:%') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
       )
   )
 );
@@ -94,10 +94,10 @@ with check (
       and (
         lower(ue.perfil) = 'administrador'
         or ((modulo = 'financeiro' or modulo like 'financeiro:%') and lower(trim(ue.perfil)) = 'financeiro')
-        or (modulo = 'fiscal' and lower(trim(ue.perfil)) = 'fiscal')
-        or (modulo = 'compras' and lower(ue.perfil) = 'compras')
-        or (modulo = 'folha' and lower(ue.perfil) in ('folha', 'folha de pagamento'))
-        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
+        or ((modulo = 'fiscal' or modulo like 'fiscal:%') and lower(trim(ue.perfil)) = 'fiscal')
+        or ((modulo = 'compras' or modulo like 'compras:%') and lower(ue.perfil) = 'compras')
+        or ((modulo = 'folha' or modulo like 'folha:%') and lower(ue.perfil) in ('folha', 'folha de pagamento'))
+        or ((modulo = 'contabil' or modulo like 'contabil:%' or modulo = 'book' or modulo like 'book:%') and lower(trim(ue.perfil)) in ('contabil', 'contábil', 'contabilidade'))
       )
   )
 );

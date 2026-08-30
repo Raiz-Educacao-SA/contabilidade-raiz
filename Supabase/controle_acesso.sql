@@ -309,10 +309,10 @@ with check (
   and public.usuario_tem_modulo(
     case
       when modulo = 'financeiro' or modulo like 'financeiro:%' then 'financeiro'
-      when modulo = 'fiscal' then 'fiscal'
-      when modulo = 'compras' then 'compras'
-      when modulo = 'folha' then 'folha'
-      when modulo = 'book' then 'book'
+      when modulo = 'fiscal' or modulo like 'fiscal:%' then 'fiscal'
+      when modulo = 'compras' or modulo like 'compras:%' then 'compras'
+      when modulo = 'folha' or modulo like 'folha:%' then 'folha'
+      when modulo = 'book' or modulo like 'book:%' then 'book'
       else 'contabil'
     end,
     auth.uid()
@@ -329,10 +329,10 @@ with check (
   and public.usuario_tem_modulo(
     case
       when modulo = 'financeiro' or modulo like 'financeiro:%' then 'financeiro'
-      when modulo = 'fiscal' then 'fiscal'
-      when modulo = 'compras' then 'compras'
-      when modulo = 'folha' then 'folha'
-      when modulo = 'book' then 'book'
+      when modulo = 'fiscal' or modulo like 'fiscal:%' then 'fiscal'
+      when modulo = 'compras' or modulo like 'compras:%' then 'compras'
+      when modulo = 'folha' or modulo like 'folha:%' then 'folha'
+      when modulo = 'book' or modulo like 'book:%' then 'book'
       else 'contabil'
     end,
     auth.uid()

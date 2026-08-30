@@ -3,33 +3,37 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { ScheduleCompletion } from "@/lib/schedule-completion";
+import type { ScheduleCompletion, ScheduleCompletionIdentity } from "@/lib/schedule-completion";
 
-export default function ModuleCompletionControl({ competence, modulo, setor, userId, userEmail, disabled = false, disabledReason = "" }: {
+export default function ModuleCompletionControl({ competence, modulo, setor, additionalItems = [], userId, userEmail, disabled = false, disabledReason = "" }: {
   competence: string;
   modulo: string;
   setor: string;
+  additionalItems?: ScheduleCompletionIdentity[];
   userId: string;
   userEmail: string;
   disabled?: boolean;
   disabledReason?: string;
 }) {
-  const [completion, setCompletion] = useState<ScheduleCompletion | null>(null);
+  const [completions, setCompletions] = useState<ScheduleCompletion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const items = [{ modulo, setor }, ...additionalItems];
+  const moduleKeys = items.map((item) => item.modulo);
+  const moduleKeysKey = moduleKeys.join("|");
 
   useEffect(() => {
     let active = true;
+    const expectedModuleKeys = moduleKeysKey.split("|").filter(Boolean);
     const load = async () => {
       const { data, error: loadError } = await supabase
         .from("cronograma_entregas")
         .select("modulo,setor,status,confirmado_email,confirmado_em")
         .eq("competencia", competence)
-        .eq("modulo", modulo)
-        .maybeSingle();
+        .in("modulo", expectedModuleKeys);
       if (!active) return;
-      setCompletion(loadError ? null : data as ScheduleCompletion | null);
+      setCompletions(loadError ? [] : data as ScheduleCompletion[]);
       setError(loadError ? "Não foi possível consultar o status compartilhado." : "");
       setLoading(false);
     };
@@ -41,36 +45,59 @@ export default function ModuleCompletionControl({ competence, modulo, setor, use
       .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${competence}` }, () => void load())
       .subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
-  }, [competence, modulo]);
+  }, [competence, modulo, moduleKeysKey]);
 
   async function save(done: boolean) {
     setSaving(true);
     setError("");
     const confirmedAt = new Date().toISOString();
-    const { error: saveError } = await supabase.from("cronograma_entregas").upsert({
-      competencia: competence, modulo, setor,
+    const completionRows = items.map((item) => ({
+      competencia: competence,
+      modulo: item.modulo,
+      setor: item.setor,
       status: done ? "concluido" : "pendente",
       confirmado_por: userId, confirmado_email: userEmail, confirmado_em: confirmedAt,
-    }, { onConflict: "competencia,modulo" });
+    }));
+    const { error: saveError } = await supabase
+      .from("cronograma_entregas")
+      .upsert(completionRows, { onConflict: "competencia,modulo" });
     if (saveError) {
       setError("Não foi possível atualizar o Cronograma.");
       setSaving(false);
       return;
     }
-    await supabase.from("cronograma_historico").insert({
-      competencia: competence, modulo, setor,
-      acao: done ? "liberado" : "reaberto", usuario_id: userId, usuario_email: userEmail,
-    });
-    setCompletion({ modulo, setor, status: done ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt });
+    const historyRows = items.map((item) => ({
+      competencia: competence,
+      modulo: item.modulo,
+      setor: item.setor,
+      acao: done ? "liberado" : "reaberto",
+      usuario_id: userId,
+      usuario_email: userEmail,
+    }));
+    const { error: historyError } = await supabase
+      .from("cronograma_historico")
+      .insert(historyRows);
+    if (historyError) setError("A tarefa foi atualizada, mas o histórico não pôde ser registrado.");
+    setCompletions(items.map((item) => ({
+      ...item,
+      status: done ? "concluido" : "pendente",
+      confirmado_email: userEmail,
+      confirmado_em: confirmedAt,
+    })));
     setSaving(false);
   }
 
-  const done = completion?.status === "concluido";
-  const completedAt = completion?.confirmado_em
-    ? new Date(completion.confirmado_em).toLocaleString("pt-BR")
+  const done = moduleKeys.length > 0 && moduleKeys.every((key) =>
+    completions.some((completion) => completion.modulo === key && completion.status === "concluido"),
+  );
+  const latestCompletion = completions
+    .filter((completion) => completion.status === "concluido")
+    .sort((left, right) => String(right.confirmado_em || "").localeCompare(String(left.confirmado_em || "")))[0];
+  const completedAt = latestCompletion?.confirmado_em
+    ? new Date(latestCompletion.confirmado_em).toLocaleString("pt-BR")
     : "";
   return <div className="module-completion-control">
-    {done && <small>Finalizado por {completion?.confirmado_email || "usuário"}{completedAt ? ` em ${completedAt}` : ""}</small>}
+    {done && <small>Finalizado por {latestCompletion?.confirmado_email || "usuário"}{completedAt ? ` em ${completedAt}` : ""}</small>}
     <button type="button" className={done ? "is-finalized" : ""} disabled={loading || saving || (!done && disabled)} onClick={() => void save(!done)} title={!done && disabled ? disabledReason : undefined}>
       {done ? <RotateCcw /> : <CheckCircle2 />}{saving ? "Salvando..." : done ? "Reabrir tarefa" : "Finalizar tarefa"}
     </button>

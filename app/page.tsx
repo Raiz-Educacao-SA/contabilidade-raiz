@@ -47,10 +47,20 @@ import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import AccessManagement from "@/app/access-management";
 import { resolveAllowedModules, type AccessModule } from "@/lib/access-control";
-import { accountingCompletionIdentity, financialCompletionIdentity } from "@/lib/schedule-completion";
+import {
+  accountingCompletionIdentity,
+  bookCompletionIdentity,
+  financialCompletionIdentity,
+  fiscalCompletionIdentity,
+  payrollCompletionIdentity,
+  purchasesCompletionIdentity,
+  type ScheduleCompletionIdentity,
+} from "@/lib/schedule-completion";
 import { resolveUserDisplayName } from "@/lib/user-display-name";
 import {
   CLOSING_SCHEDULE_MODULES,
+  BOOK_SCHEDULE_TASK_IDS,
+  FISCAL_SCHEDULE_TASK_IDS,
   FINANCIAL_SCHEDULE_TASK_IDS,
   PAYROLL_SCHEDULE_TASK_IDS,
   calculateClosingScheduleProgress,
@@ -121,6 +131,7 @@ const scheduleSidebarModules = [
   { id: "folha", label: "Módulo Folha de Pagamento", icon: UsersRound },
   { id: "fiscal", label: "Módulo Fiscal", icon: FileSpreadsheet },
   { id: "contabil", label: "Módulo Contábil", icon: BookText },
+  { id: "book", label: "Book Contábil", icon: BookOpenCheck },
 ] as const;
 
 const accountingScheduleTasks: { id: AccountingTab; label: string; description: string }[] = [
@@ -152,6 +163,20 @@ const payrollScheduleTasks: { id: PayrollScheduleTaskId; label: string; descript
   { id: "fgts", label: "FGTS", description: "Conferência do fundo de garantia" },
   { id: "irrf", label: "IRRF", description: "Conferência do imposto de renda retido" },
   { id: "provisoes", label: "Provisões", description: "Férias, 13º salário e encargos" },
+];
+
+type FiscalScheduleTaskId = (typeof FISCAL_SCHEDULE_TASK_IDS)[number];
+const fiscalScheduleTasks: { id: FiscalScheduleTaskId; label: string; description: string }[] = [
+  { id: "paa", label: "PAA", description: "Conferência da apuração PAA" },
+  { id: "iss", label: "ISS", description: "Conferência da apuração de ISS" },
+  { id: "ecd", label: "ECD", description: "Conferência da escrituração contábil digital" },
+];
+
+type BookScheduleTaskId = (typeof BOOK_SCHEDULE_TASK_IDS)[number];
+const bookScheduleTasks: { id: BookScheduleTaskId; label: string; description: string }[] = [
+  { id: "balancete", label: "Balancete", description: "Relatório base do balancete" },
+  { id: "razao", label: "Razão", description: "Relatório base do razão" },
+  { id: "plano-contas", label: "Plano de Contas", description: "Relatório base do plano de contas" },
 ];
 
 const modules = {
@@ -309,7 +334,7 @@ export default function Home() {
   const allowedAreas: Area[] = resolveAllowedModules(userProfiles, moduleGrants);
   const selectedCompanyCode = company?.empresas?.codcoligada ?? "";
   const selectedCompanyName = company?.empresas?.razao_social ?? "";
-  const moduleCompletionIdentity = (() => {
+  const moduleCompletionIdentity: (ScheduleCompletionIdentity & { additionalItems?: ScheduleCompletionIdentity[] }) | null = (() => {
     if (!selectedModule || selectedModule === "cronograma") return null;
     if (selectedModule === "contabil") {
       if (accountingTab === "pis-cofins") return null;
@@ -319,10 +344,22 @@ export default function Home() {
     if (["receita", "emprestimos", "parcelamentos"].includes(selectedModule)) {
       return financialCompletionIdentity(selectedModule, selectedCompanyCode, selectedCompanyName);
     }
-    const sectors: Partial<Record<Module, string>> = {
-      fiscal: "Fiscal", compras: "Compras", folha: "Folha de Pagamento", book: "Contabilidade",
-    };
-    return sectors[selectedModule] ? { modulo: selectedModule, setor: sectors[selectedModule]! } : null;
+    if (selectedModule === "fiscal") {
+      return fiscalCompletionIdentity(fiscalTab, selectedCompanyCode, selectedCompanyName);
+    }
+    if (selectedModule === "folha") {
+      const payrollItems = PAYROLL_SCHEDULE_TASK_IDS.map((taskId) =>
+        payrollCompletionIdentity(taskId, selectedCompanyCode, selectedCompanyName),
+      );
+      return { ...payrollItems[0], additionalItems: payrollItems.slice(1) };
+    }
+    if (selectedModule === "book") {
+      return bookCompletionIdentity(bookReport, selectedCompanyCode, selectedCompanyName);
+    }
+    if (selectedModule === "compras") {
+      return purchasesCompletionIdentity(selectedCompanyCode, selectedCompanyName);
+    }
+    return null;
   })();
 
   useEffect(() => {
@@ -1002,6 +1039,7 @@ export default function Home() {
               competence={competence}
               modulo={moduleCompletionIdentity.modulo}
               setor={moduleCompletionIdentity.setor}
+              additionalItems={moduleCompletionIdentity.additionalItems}
               userId={session.user.id}
               userEmail={session.user.email ?? ""}
             />
@@ -1330,7 +1368,6 @@ function AreaHub({
   const scheduleCompetence = `${closingYear}-${closingMonth}`;
   const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
   const scheduleProgress = calculateClosingScheduleProgress(completionRecords, companyCodes);
-  const bookCompleted = completionRecords.some((record) => record.modulo === "book" && record.status === "concluido");
 
   useEffect(() => {
     let active = true;
@@ -1436,7 +1473,7 @@ function AreaHub({
             const item = areas[id];
             const Icon = item.icon;
             const modulePercent = scheduleProgress.modulePercent[id as ScheduleModuleKey];
-            const hasScheduleTasks = scheduleProgress.includedModules.includes(id as "financeiro" | "folha" | "contabil");
+            const hasScheduleTasks = scheduleProgress.includedModules.includes(id as ScheduleModuleKey);
             return (
               <button
                 key={id}
@@ -1490,14 +1527,14 @@ function AreaHub({
             >
               <span className="module-card-top">
                 <span className="module-icon"><BookIcon /></span>
-                <span className="module-status">{bookCompleted ? 100 : 0}%</span>
+                <span className="module-status">{scheduleProgress.modulePercent.book}%</span>
               </span>
               <span className="module-copy">
                 <b>Book Contábil</b>
                 <small>Consolida os resultados dos módulos e entrega a visão final do fechamento.</small>
               </span>
               <span className="module-progress" aria-label="Status do Book Contábil">
-                <i style={{ width: bookCompleted ? "100%" : "0%" }} />
+                <i style={{ width: `${scheduleProgress.modulePercent.book}%` }} />
               </span>
               <span className="module-enter">Acessar Book <ArrowLeftRight /></span>
             </button>
@@ -1622,7 +1659,7 @@ function ScheduleCompanyMatrix<T extends ScheduleMatrixTask>({
   onToggleAll,
   onToggleCompanyAll,
 }: {
-  prefix: "financeiro" | "folha" | "contabil";
+  prefix: ScheduleModuleKey;
   tasks: readonly T[];
   companies: ScheduleCompany[];
   confirmations: ScheduleConfirmation[];
@@ -1743,6 +1780,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     { key: "folha", name: "Módulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
     { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Concluir apurações e obrigações fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "D+6", icon: FileSpreadsheet },
     { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
+    { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Conferir os relatórios base do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookOpenCheck },
   ];
   const selectedStage = stages.find((stage) => stage.key === selectedScheduleModule) ?? stages[0];
   const canConfirmSector = (sector: string) =>
@@ -1777,9 +1815,21 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const payrollTotalCount = payrollScheduleTasks.length * companies.length;
+  const fiscalDoneCount = fiscalScheduleTasks.reduce(
+    (total, task) => total + companies.filter((company) => isDone(`fiscal:${task.id}:${scheduleCompanyCode(company)}`)).length,
+    0,
+  );
+  const fiscalTotalCount = fiscalScheduleTasks.length * companies.length;
+  const bookDoneCount = bookScheduleTasks.reduce(
+    (total, task) => total + companies.filter((company) => isDone(`book:${task.id}:${scheduleCompanyCode(company)}`)).length,
+    0,
+  );
+  const bookTotalCount = bookScheduleTasks.length * companies.length;
   const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
   const payrollPercent = payrollTotalCount ? Math.round((payrollDoneCount / payrollTotalCount) * 100) : 0;
+  const fiscalPercent = fiscalTotalCount ? Math.round((fiscalDoneCount / fiscalTotalCount) * 100) : 0;
+  const bookPercent = bookTotalCount ? Math.round((bookDoneCount / bookTotalCount) * 100) : 0;
   const overallProgress = calculateClosingScheduleProgress(
     confirmations,
     companies.map((company) => company.code),
@@ -1843,89 +1893,27 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     setConfirmingModule("");
   }
 
-  async function toggleAccountingTask(task: (typeof accountingScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
+  async function toggleScheduleTask(prefix: ScheduleModuleKey, sector: string, task: ScheduleMatrixTask, company: ScheduleCompany, checked: boolean) {
     await saveScheduleItem({
-      key: `contabil:${task.id}:${scheduleCompanyCode(company)}`,
-      sector: `Contabilidade · ${task.label} · ${companyLabel(company)}`,
+      key: `${prefix}:${task.id}:${scheduleCompanyCode(company)}`,
+      sector: `${sector} · ${task.label} · ${companyLabel(company)}`,
       label: `${task.label} · ${companyLabel(company)}`,
     }, checked);
   }
 
-  async function toggleFinancialTask(task: (typeof financialScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
-    await saveScheduleItem({
-      key: `financeiro:${task.id}:${scheduleCompanyCode(company)}`,
-      sector: `Financeiro · ${task.label} · ${companyLabel(company)}`,
-      label: `${task.label} · ${companyLabel(company)}`,
-    }, checked);
-  }
-
-  async function togglePayrollTask(task: (typeof payrollScheduleTasks)[number], company: ScheduleCompany, checked: boolean) {
-    await saveScheduleItem({
-      key: `folha:${task.id}:${scheduleCompanyCode(company)}`,
-      sector: `Folha de Pagamento · ${task.label} · ${companyLabel(company)}`,
-      label: `${task.label} · ${companyLabel(company)}`,
-    }, checked);
-  }
-
-  async function toggleAccountingTaskAll(task: (typeof accountingScheduleTasks)[number], checked: boolean) {
-    const batchKey = `contabil:${task.id}:todas`;
+  async function toggleScheduleTaskAll(prefix: ScheduleModuleKey, sector: string, task: ScheduleMatrixTask, checked: boolean) {
+    const batchKey = `${prefix}:${task.id}:todas`;
     setConfirmingGroup(batchKey);
     for (const company of companies) {
-      await saveScheduleItem({
-        key: `contabil:${task.id}:${scheduleCompanyCode(company)}`,
-        sector: `Contabilidade · ${task.label} · ${companyLabel(company)}`,
-        label: `${task.label} · ${companyLabel(company)}`,
-      }, checked);
+      await toggleScheduleTask(prefix, sector, task, company, checked);
     }
     setConfirmingGroup("");
   }
 
-  async function toggleFinancialTaskAll(task: (typeof financialScheduleTasks)[number], checked: boolean) {
-    const batchKey = `financeiro:${task.id}:todas`;
-    setConfirmingGroup(batchKey);
-    for (const company of companies) {
-      await saveScheduleItem({
-        key: `financeiro:${task.id}:${scheduleCompanyCode(company)}`,
-        sector: `Financeiro · ${task.label} · ${companyLabel(company)}`,
-        label: `${task.label} · ${companyLabel(company)}`,
-      }, checked);
-    }
-    setConfirmingGroup("");
-  }
-
-  async function togglePayrollTaskAll(task: (typeof payrollScheduleTasks)[number], checked: boolean) {
-    const batchKey = `folha:${task.id}:todas`;
-    setConfirmingGroup(batchKey);
-    for (const company of companies) {
-      await saveScheduleItem({
-        key: `folha:${task.id}:${scheduleCompanyCode(company)}`,
-        sector: `Folha de Pagamento · ${task.label} · ${companyLabel(company)}`,
-        label: `${task.label} · ${companyLabel(company)}`,
-      }, checked);
-    }
-    setConfirmingGroup("");
-  }
-
-  async function toggleAccountingCompanyAll(company: ScheduleCompany, checked: boolean) {
-    setConfirmingGroup(`contabil:todas:${scheduleCompanyCode(company)}`);
-    for (const task of accountingScheduleTasks) {
-      await toggleAccountingTask(task, company, checked);
-    }
-    setConfirmingGroup("");
-  }
-
-  async function toggleFinancialCompanyAll(company: ScheduleCompany, checked: boolean) {
-    setConfirmingGroup(`financeiro:todas:${scheduleCompanyCode(company)}`);
-    for (const task of financialScheduleTasks) {
-      await toggleFinancialTask(task, company, checked);
-    }
-    setConfirmingGroup("");
-  }
-
-  async function togglePayrollCompanyAll(company: ScheduleCompany, checked: boolean) {
-    setConfirmingGroup(`folha:todas:${scheduleCompanyCode(company)}`);
-    for (const task of payrollScheduleTasks) {
-      await togglePayrollTask(task, company, checked);
+  async function toggleScheduleCompanyAll(prefix: ScheduleModuleKey, sector: string, tasks: readonly ScheduleMatrixTask[], company: ScheduleCompany, checked: boolean) {
+    setConfirmingGroup(`${prefix}:todas:${scheduleCompanyCode(company)}`);
+    for (const task of tasks) {
+      await toggleScheduleTask(prefix, sector, task, company, checked);
     }
     setConfirmingGroup("");
   }
@@ -1964,9 +1952,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       companyLabel={companyLabel}
                       isDone={isDone}
                       confirmationDetail={getConfirmationDetail}
-                      onToggle={toggleFinancialTask}
-                      onToggleAll={toggleFinancialTaskAll}
-                      onToggleCompanyAll={toggleFinancialCompanyAll}
+                      onToggle={(task, company, checked) => toggleScheduleTask("financeiro", "Financeiro", task, company, checked)}
+                      onToggleAll={(task, checked) => toggleScheduleTaskAll("financeiro", "Financeiro", task, checked)}
+                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("financeiro", "Financeiro", financialScheduleTasks, company, checked)}
                     />
                   </div>
                 ) : selectedStage.key === "folha" ? (
@@ -1990,9 +1978,35 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       companyLabel={companyLabel}
                       isDone={isDone}
                       confirmationDetail={getConfirmationDetail}
-                      onToggle={togglePayrollTask}
-                      onToggleAll={togglePayrollTaskAll}
-                      onToggleCompanyAll={togglePayrollCompanyAll}
+                      onToggle={(task, company, checked) => toggleScheduleTask("folha", "Folha de Pagamento", task, company, checked)}
+                      onToggleAll={(task, checked) => toggleScheduleTaskAll("folha", "Folha de Pagamento", task, checked)}
+                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("folha", "Folha de Pagamento", payrollScheduleTasks, company, checked)}
+                    />
+                  </div>
+                ) : selectedStage.key === "fiscal" ? (
+                  <div className="schedule-accounting-checklist">
+                    <header>
+                      <div>
+                        <span>MÓDULO FISCAL</span>
+                        <b>Módulo Fiscal - {months[month - 1]} de {year}</b>
+                      </div>
+                      <small>{fiscalPercent}% · {fiscalDoneCount}/{fiscalTotalCount || 0} finalizada(s)</small>
+                    </header>
+                    <ScheduleCompanyMatrix
+                      prefix="fiscal"
+                      tasks={fiscalScheduleTasks}
+                      companies={companies}
+                      confirmations={confirmations}
+                      loading={scheduleLoading}
+                      confirmingModule={confirmingGroup || confirmingModule}
+                      canEdit={canConfirmSector("Fiscal")}
+                      companyCode={scheduleCompanyCode}
+                      companyLabel={companyLabel}
+                      isDone={isDone}
+                      confirmationDetail={getConfirmationDetail}
+                      onToggle={(task, company, checked) => toggleScheduleTask("fiscal", "Fiscal", task, company, checked)}
+                      onToggleAll={(task, checked) => toggleScheduleTaskAll("fiscal", "Fiscal", task, checked)}
+                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("fiscal", "Fiscal", fiscalScheduleTasks, company, checked)}
                     />
                   </div>
                 ) : selectedStage.key === "contabil" ? (
@@ -2016,9 +2030,35 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                       companyLabel={companyLabel}
                       isDone={isDone}
                       confirmationDetail={getConfirmationDetail}
-                      onToggle={toggleAccountingTask}
-                      onToggleAll={toggleAccountingTaskAll}
-                      onToggleCompanyAll={toggleAccountingCompanyAll}
+                      onToggle={(task, company, checked) => toggleScheduleTask("contabil", "Contabilidade", task, company, checked)}
+                      onToggleAll={(task, checked) => toggleScheduleTaskAll("contabil", "Contabilidade", task, checked)}
+                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("contabil", "Contabilidade", accountingScheduleTasks, company, checked)}
+                    />
+                  </div>
+                ) : selectedStage.key === "book" ? (
+                  <div className="schedule-accounting-checklist">
+                    <header>
+                      <div>
+                        <span>BOOK CONTÁBIL</span>
+                        <b>Book Contábil - {months[month - 1]} de {year}</b>
+                      </div>
+                      <small>{bookPercent}% · {bookDoneCount}/{bookTotalCount || 0} finalizada(s)</small>
+                    </header>
+                    <ScheduleCompanyMatrix
+                      prefix="book"
+                      tasks={bookScheduleTasks}
+                      companies={companies}
+                      confirmations={confirmations}
+                      loading={scheduleLoading}
+                      confirmingModule={confirmingGroup || confirmingModule}
+                      canEdit={canConfirmSector("Contabilidade")}
+                      companyCode={scheduleCompanyCode}
+                      companyLabel={companyLabel}
+                      isDone={isDone}
+                      confirmationDetail={getConfirmationDetail}
+                      onToggle={(task, company, checked) => toggleScheduleTask("book", "Book Contábil", task, company, checked)}
+                      onToggleAll={(task, checked) => toggleScheduleTaskAll("book", "Book Contábil", task, checked)}
+                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("book", "Book Contábil", bookScheduleTasks, company, checked)}
                     />
                   </div>
                 ) : (
@@ -2080,6 +2120,16 @@ function ClosingHistory() {
       const [, taskId, companyCode] = modulo.split(":");
       const task = payrollScheduleTasks.find((item) => item.id === taskId);
       return `${task?.label ?? "Item do Módulo Folha de Pagamento"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
+    }
+    if (modulo.startsWith("fiscal:")) {
+      const [, taskId, companyCode] = modulo.split(":");
+      const task = fiscalScheduleTasks.find((item) => item.id === taskId);
+      return `${task?.label ?? "Item do Módulo Fiscal"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
+    }
+    if (modulo.startsWith("book:")) {
+      const [, taskId, companyCode] = modulo.split(":");
+      const task = bookScheduleTasks.find((item) => item.id === taskId);
+      return `${task?.label ?? "Item do Book Contábil"}${companyCode ? ` · Coligada ${companyCode}` : ""}`;
     }
     return moduleNames[modulo] ?? modulo;
   };
