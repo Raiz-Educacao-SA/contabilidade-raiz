@@ -57,3 +57,15 @@ test("mantém Todas, Atualizar e Finalizar tarefa na mesma linha dos filtros", (
     /\.pending-lots-content \.module-completion-control button \{ min-height: 34px; padding: 7px 10px;/,
   );
 });
+
+test("menu lateral contábil fica mais compacto sem comprimir o conteúdo", () => {
+  assert.match(
+    styles,
+    /\.shell \{\s*grid-template-columns: 210px minmax\(0, 1fr\);/,
+  );
+  assert.match(
+    styles,
+    /\.shell > aside \{[^}]*padding-right: 14px;[^}]*padding-left: 14px;/s,
+  );
+  assert.match(styles, /\.logo-image \{[^}]*width: 50px;[^}]*height: 50px;/s);
+});

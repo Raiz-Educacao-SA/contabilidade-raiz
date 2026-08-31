@@ -1062,7 +1062,11 @@
   color: var(--muted);
 }
 .shell {
-  grid-template-columns: 225px 1fr;
+  grid-template-columns: 210px minmax(0, 1fr);
+}
+.shell > aside {
+  padding-right: 14px;
+  padding-left: 14px;
 }
 .top-context {
   margin: 28px 0 14px;
@@ -1204,11 +1208,16 @@
   margin-top: 14px;
 }
 .logo {
+  gap: 10px;
   padding-left: 4px;
   padding-right: 4px;
 }
+.logo-image {
+  width: 50px;
+  height: 50px;
+}
 .logo b {
-  font-size: 13px;
+  font-size: 12px;
 }
 .current-module {
   line-height: 1.35;
