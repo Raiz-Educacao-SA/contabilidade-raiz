@@ -11,6 +11,7 @@ import * as XLSX from "xlsx-js-style";
 import { applyRevenueWorkbookStyle } from "@/lib/revenue-export-workbook";
 import {
   classifyRevenueReconciliation,
+  consolidateFiscalRevenueRows,
   isExcludedRevenueGenerationType,
   REVENUE_TOLERANCE,
   revenueReconciliationExportFileName,
@@ -242,12 +243,13 @@ export default function RevenueReconciliation({
       ),
     [c],
   );
+  const fiscalRows = useMemo(() => consolidateFiscalRevenueRows(f), [f]);
   const rows = useMemo(() => {
     const fm = new Map<
       string,
       { name: string; status: string; rev: number; disc: number }
     >();
-    f.forEach((x) => {
+    fiscalRows.forEach((x) => {
       const a = fm.get(x.ra) || {
         name: x.name,
         status: x.status,
@@ -299,13 +301,13 @@ export default function RevenueReconciliation({
                 : "Verificar diferença de desconto",
       };
     });
-  }, [f, accountingRows, competenceLabel]);
+  }, [fiscalRows, accountingRows, competenceLabel]);
   const pending = rows.filter((x) => x.status !== "Conciliado"),
     reconciled = rows.length - pending.length,
     reconciledPercentage = rows.length ? (reconciled / rows.length) * 100 : 0,
-    fRev = f.reduce((s, x) => s + x.originalValue, 0),
+    fRev = fiscalRows.reduce((s, x) => s + x.originalValue, 0),
     cRev = rows.reduce((sum, row) => sum + row.accountingRevenue, 0),
-    fDisc = f.reduce((s, x) => s + x.discount, 0),
+    fDisc = fiscalRows.reduce((s, x) => s + x.discount, 0),
     cDisc = rows.reduce((sum, row) => sum + row.accountingDiscount, 0);
   function exportAnalysis() {
     const generatedAt = new Date().toLocaleString("pt-BR", {
@@ -364,7 +366,8 @@ export default function RevenueReconciliation({
       ]),
       ["", "", "", "", "", "", "", ""],
       ["LEITURA DAS BASES", "", "", "", "", "", "", ""],
-      ["Base fiscal", f.length, "Base contábil recebida", c.length, "Base contábil considerada", accountingRows.length, "TIPOGERACAO I/E isolado", generationTypeRows.length],
+      ["Base fiscal recebida", f.length, "RA fiscais considerados", fiscalRows.length, "Base contábil recebida", c.length, "Base contábil considerada", accountingRows.length],
+      ["TIPOGERACAO I/E isolado", generationTypeRows.length, "", "", "", "", "", ""],
     ];
     const dashboard = XLSX.utils.aoa_to_sheet(dashboardRows);
     dashboard["!cols"] = [
@@ -389,7 +392,7 @@ export default function RevenueReconciliation({
     setNumberFormat(dashboard, 8, 10, [1, 2, 3], excelMoney);
     setNumberFormat(dashboard, 14, 17, [1], excelInteger);
     setNumberFormat(dashboard, 14, 17, [2], excelPercent);
-    setNumberFormat(dashboard, 20, 20, [1, 3, 5, 7], excelInteger);
+    setNumberFormat(dashboard, 20, 21, [1, 3, 5, 7], excelInteger);
     XLSX.utils.book_append_sheet(workbook, dashboard, "Dashboard");
 
     const appendJsonSheet = (
@@ -440,6 +443,19 @@ export default function RevenueReconciliation({
     );
     appendJsonSheet(
       "Receitas Fiscal",
+      fiscalRows.map((x) => ({
+        RA: x.ra,
+        Competência: competenceLabel,
+        Aluno: x.name,
+        Status: x.status,
+        "Valor original": x.originalValue,
+        Bolsa: x.discount,
+        "Valor líquido": x.originalValue - x.discount,
+      })),
+      [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }],
+    );
+    appendJsonSheet(
+      "Fiscal Fonte Bruta",
       f.map((x) => ({
         RA: x.ra,
         Competência: competenceLabel,
@@ -455,11 +471,12 @@ export default function RevenueReconciliation({
       ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
       ["Etapa", "Regra", "Resultado", "Observação"],
       ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
-      ["2", "Atualizar base Contábil", `${c.length} lançamento(s) recebido(s)`, `${accountingRows.length} lançamento(s) considerado(s) após as segregações`],
-      ["3", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
-      ["4", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
-      ["5", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["6", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
+      ["2", "Prioridade do status fiscal", `${fiscalRows.length} RA fiscal(is) consolidado(s)`, "Na receita, AUTORIZADA prevalece sobre NÃO ENVIADA; os descontos permanecem consolidados. Sem AUTORIZADA, mantêm-se os registros disponíveis"],
+      ["3", "Atualizar base Contábil", `${c.length} lançamento(s) recebido(s)`, `${accountingRows.length} lançamento(s) considerado(s) após as segregações`],
+      ["4", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
+      ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
+      ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
+      ["7", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];

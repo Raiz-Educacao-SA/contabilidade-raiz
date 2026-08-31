@@ -140,6 +140,48 @@ export type AccountingRevenueEntry = {
   generationType?: string;
 };
 
+export type FiscalRevenueEntry = {
+  id: string;
+  ra: string;
+  name: string;
+  status: string;
+  originalValue: number;
+  discount: number;
+};
+
+export function consolidateFiscalRevenueRows<T extends FiscalRevenueEntry>(
+  entries: T[],
+) {
+  const rowsByRa = new Map<string, T[]>();
+
+  entries.forEach((entry) => {
+    const rows = rowsByRa.get(entry.ra) || [];
+    rows.push(entry);
+    rowsByRa.set(entry.ra, rows);
+  });
+
+  return [...rowsByRa.values()].map((rows) => {
+    const authorizedRows = rows.filter(
+      (row) => normalizeAccountingDescription(row.status) === "AUTORIZADA",
+    );
+    const revenueRows = authorizedRows.length > 0 ? authorizedRows : rows;
+    const representative = authorizedRows[0] || rows[0];
+
+    return {
+      ...representative,
+      id: rows.map((row) => row.id).join("|"),
+      status: authorizedRows.length > 0
+        ? "AUTORIZADA"
+        : [...new Set(rows.map((row) => row.status.trim()).filter(Boolean))].join(" | "),
+      originalValue: revenueRows.reduce(
+        (sum, row) => sum + row.originalValue,
+        0,
+      ),
+      discount: rows.reduce((sum, row) => sum + row.discount, 0),
+    };
+  });
+}
+
 export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
   const summaries = new Map<
     string,

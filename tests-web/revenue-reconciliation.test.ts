@@ -13,6 +13,7 @@ import {
   classifyAccountingRevenue,
   classifyRevenueReconciliation,
   COMMERCIAL_DISCOUNT_ACCOUNT,
+  consolidateFiscalRevenueRows,
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
@@ -169,6 +170,65 @@ test("consolida receitas e descontos por RA", () => {
   assert.equal(summaries.get("123")?.discount, 180);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
+});
+
+test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {
+  const rows = consolidateFiscalRevenueRows([
+    {
+      id: "1",
+      ra: "2012558363",
+      name: "Aluno",
+      status: "NÃO ENVIADA",
+      originalValue: 511.06,
+      discount: 100,
+    },
+    {
+      id: "2",
+      ra: "2012558363",
+      name: "Aluno",
+      status: "AUTORIZADA",
+      originalValue: 2164.3,
+      discount: 332.86,
+    },
+  ]);
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "AUTORIZADA");
+  assert.equal(rows[0].originalValue, 2164.3);
+  assert.equal(rows[0].discount, 432.86);
+});
+
+test("mantém os registros fiscais disponíveis quando não há AUTORIZADA", () => {
+  const rows = consolidateFiscalRevenueRows([
+    {
+      id: "1",
+      ra: "9GT24004401",
+      name: "Aluno A",
+      status: "NÃO ENVIADA",
+      originalValue: 2000,
+      discount: 200,
+    },
+    {
+      id: "2",
+      ra: "9GT24004401",
+      name: "Aluno A",
+      status: "NÃO ENVIADA",
+      originalValue: 500,
+      discount: 50,
+    },
+    {
+      id: "3",
+      ra: "OUTRO123",
+      name: "Aluno B",
+      status: "NÃO ENVIADA",
+      originalValue: 1000,
+      discount: 0,
+    },
+  ]);
+
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find((row) => row.ra === "9GT24004401")?.originalValue, 2500);
+  assert.equal(rows.find((row) => row.ra === "9GT24004401")?.discount, 250);
 });
 
 test("aplica a classificação e a tolerância da diretriz", () => {
