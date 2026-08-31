@@ -592,6 +592,10 @@
 }
 @media (max-width: 760px) { .trial-analysis-actions { align-items: stretch; flex-direction: column; } .trial-action-buttons { flex-direction: column; } .trial-summary, .loan-analysis .trial-summary, .trial-category-summary { grid-template-columns: repeat(2, 1fr); } }
 .intercompany-panel { position: relative; overflow: hidden; padding: 0; }
+.intercompany-content .top-context .module-completion-control { flex: 0 0 170px; max-width: 170px; flex-direction: column; align-items: stretch; justify-content: center; gap: 3px; }
+.intercompany-content .top-context .module-completion-control button { order: 1; width: 100%; justify-content: center; }
+.intercompany-content .top-context .module-completion-control small { order: 2; max-width: 170px; font-size: 7px; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.intercompany-content .top-context .module-completion-control > span { order: 3; max-width: 170px; font-size: 7px; line-height: 1.15; text-align: center; }
 .intercompany-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(120deg, #f4fbf8, #fffaf0); }
 .intercompany-heading h2 { margin: 0 0 2px; font-size: 11px; }
 .intercompany-heading p { margin: 0; color: var(--muted); font-size: 9px; }

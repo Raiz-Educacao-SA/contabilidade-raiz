@@ -936,7 +936,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : accountingTab === "lotes-integrar" ? "pending-lots-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : accountingTab === "lotes-integrar" ? "pending-lots-content" : accountingTab === "intercompany" ? "intercompany-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
       >
         <header>
           <div>

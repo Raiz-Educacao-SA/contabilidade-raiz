@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const component = readFileSync(new URL("../app/intercompany-analysis.tsx", import.meta.url), "utf8");
 const detailRoute = readFileSync(new URL("../app/api/totvs/intercompany/entries/route.ts", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8");
 
 test("Intercompany separa visualmente Mútuo, Almoxarifado e Transação", () => {
   assert.match(component, /const intercompanyGroups: Nature\[\] = \["Mútuo", "Almoxarifado", "Transação"\]/);
@@ -46,4 +48,11 @@ test("Identificar consulta o Razão da competência por conta e separa os lança
 test("a exportação mantém uma aba para cada grupo", () => {
   assert.match(component, /intercompanyGroups\.forEach\(\(item\) => XLSX\.utils\.book_append_sheet/);
   assert.match(component, /"Diferença do movimento"/);
+});
+
+test("a identificação da finalização fica abaixo do botão no Intercompany", () => {
+  assert.match(page, /accountingTab === "intercompany" \? "intercompany-content"/);
+  assert.match(styles, /\.intercompany-content \.top-context \.module-completion-control \{[^}]*max-width: 170px;[^}]*flex-direction: column;/s);
+  assert.match(styles, /\.intercompany-content \.top-context \.module-completion-control button \{[^}]*order: 1;/s);
+  assert.match(styles, /\.intercompany-content \.top-context \.module-completion-control small \{[^}]*order: 2;/s);
 });
