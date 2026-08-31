@@ -70,7 +70,7 @@ export const rootWarehouseDestinations: RootDestination[] = [
   { code: "11", name: "Grupo Educacional Unificado", historyName: "GRUPO EDUCACIONAL UNIFICADO", debitAccount: "1.1.2.03.06.11", debitReduced: "2969", aliases: ["grupo educacional unificado", "geu"] },
   { code: "12", name: "Colégio Leonardo da Vinci Ltda", historyName: "LEONARDO DA VINCI", debitAccount: "1.1.2.03.06.12", debitReduced: "2945", aliases: ["colegio leonardo da vinci", "leonardo da vinci"] },
   { code: "16", name: "Colégios Integrados Leonardo da Vinci Ltda", historyName: "COLÉGIOS INTEGRADOS LEONARDO DA VINCI", debitAccount: "1.1.2.03.06.16", debitReduced: "2961", aliases: ["colegios integrados leonardo da vinci", "clv gama"] },
-  { code: "25", name: "Colégio Sarah Dawsey", historyName: "SARAH DAWSEY", debitAccount: "1.1.2.03.06.25", debitReduced: "", aliases: ["sarah dawsey", "colegio sarah dawsey"] },
+  { code: "25", name: "Colégio Sarah Dawsey", historyName: "SARAH DAWSEY", debitAccount: "1.1.2.03.04.31", debitReduced: "2947", aliases: ["sarah dawsey", "colegio sarah dawsey"] },
   { code: "29", name: "Colégio Americano Ltda", historyName: "COLÉGIO AMERICANO", debitAccount: "1.1.2.03.06.29", debitReduced: "2959", aliases: ["colegio americano", "americano"] },
 ];
 

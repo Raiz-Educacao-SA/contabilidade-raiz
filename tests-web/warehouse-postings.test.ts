@@ -186,6 +186,12 @@ test("na Raiz reconhece Global Tree e os demais destinos do modelo real", () => 
     { destinationCode: "10", amount: 300, branchCode: "1" },
     { destinationCode: "25", amount: 400, branchCode: "1" },
   ]);
+  const sarahDawsey = result.postings.find((posting) => posting.destinationCode === "25");
+  assert.ok(sarahDawsey);
+  assert.equal(sarahDawsey.debitAccount, "1.1.2.03.04.31");
+  assert.equal(sarahDawsey.debitReduced, "2947");
+  assert.equal(sarahDawsey.creditAccount, "1.1.5.01.01.05");
+  assert.equal(sarahDawsey.creditReduced, "2401");
 });
 
 test("usa os códigos de filial confirmados no histórico contábil para QI e Global Tree", () => {
