@@ -10,7 +10,6 @@ import {
 
 import {
   accountingRevenueQueryAccounts,
-  accountingRevenueQueryAccountsForCompany,
   classifyAccountingRevenue,
   classifyRevenueReconciliation,
   COMMERCIAL_DISCOUNT_ACCOUNT,
@@ -20,7 +19,6 @@ import {
   DISCOUNT_ACCOUNT_PREFIX,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
-  isCompany18MdRevenue,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
   isValidRevenueRa,
@@ -29,7 +27,6 @@ import {
   REVENUE_ACCOUNT_DESCRIPTIONS,
   REVENUE_ACCOUNT_PREFIX,
   revenueReconciliationExportFileName,
-  SOUTHEAST_MD_REVENUE_ACCOUNT,
   summarizeAccountingRevenue,
 } from "../lib/revenue-reconciliation.ts";
 import { revenueReconciliationCacheKey } from "../lib/revenue-reconciliation-cache.ts";
@@ -43,43 +40,6 @@ test("consulta receitas e todos os grupos contábeis de descontos", () => {
   ]);
   assert.ok(INSTITUTIONAL_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
   assert.ok(PAA_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
-});
-
-test("inclui a conta MD Sudeste exclusivamente na consulta da coligada 18", () => {
-  assert.ok(
-    accountingRevenueQueryAccountsForCompany("18").includes(
-      SOUTHEAST_MD_REVENUE_ACCOUNT,
-    ),
-  );
-  assert.equal(
-    accountingRevenueQueryAccountsForCompany("02").includes(
-      SOUTHEAST_MD_REVENUE_ACCOUNT,
-    ),
-    false,
-  );
-});
-
-test("classifica como receita somente conta 231030201 com histórico MD na coligada 18", () => {
-  assert.equal(
-    isCompany18MdRevenue(
-      "18",
-      "2.3.1.03.02.01",
-      "2012557332 - ALUNO - Serviço: MD Interno - Ensino Fundamental",
-    ),
-    true,
-  );
-  assert.equal(
-    isCompany18MdRevenue("18", "231030201", "Histórico MD"),
-    true,
-  );
-  assert.equal(
-    isCompany18MdRevenue("18", "2.3.1.03.02.01", "Mensalidade regular"),
-    false,
-  );
-  assert.equal(
-    isCompany18MdRevenue("02", "2.3.1.03.02.01", "Serviço: MD"),
-    false,
-  );
 });
 
 test("classifica todas as receitas previstas na diretriz funcional", () => {

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  accountingRevenueQueryAccountsForCompany,
+  accountingRevenueQueryAccounts,
   classifyAccountingRevenue,
   deduplicateAccountingRecords,
-  isCompany18MdRevenue,
   isRevenueAppropriation,
   isValidRevenueRa,
   normalizeRevenueRa,
@@ -141,7 +140,7 @@ export async function GET(request: NextRequest) {
     }
 
     const recordGroups = await Promise.all(
-      accountingRevenueQueryAccountsForCompany(company).map((account) =>
+      accountingRevenueQueryAccounts().map((account) =>
         queryTotvs(
           "PLAN.C.0002.0001",
           "C",
@@ -158,18 +157,12 @@ export async function GET(request: NextRequest) {
       const account = readTag(record, "CODCONTA");
       const description = readTag(record, "DESCRICAO");
       const generationType = readTag(record, "TIPOGERACAO").trim();
-      const isMdRevenue = isCompany18MdRevenue(company, account, complement);
-      const kind = isMdRevenue
-        ? "revenue"
-        : classifyAccountingRevenue(account, description);
+      const kind = classifyAccountingRevenue(account, description);
       if (!student.ra || kind === "other") return [];
 
       return [
         {
           id: `C-${index}`,
-          entryId: readTag(record, "IDLANCAMENTO"),
-          branch: readTag(record, "CODFILIAL"),
-          date: readTag(record, "DATA"),
           ra: student.ra,
           name: student.name,
           description,
@@ -178,7 +171,6 @@ export async function GET(request: NextRequest) {
           account,
           value: parseNumber(readTag(record, "VALOR")),
           kind,
-          isMdRevenue,
         },
       ];
     });

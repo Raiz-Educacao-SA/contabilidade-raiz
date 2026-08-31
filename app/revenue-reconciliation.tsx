@@ -39,9 +39,6 @@ type F = {
 };
 type C = {
   id: string;
-  entryId?: string;
-  branch?: string;
-  date?: string;
   ra: string;
   name: string;
   value: number;
@@ -50,7 +47,6 @@ type C = {
   generationType?: string;
   account?: string;
   description?: string;
-  isMdRevenue?: boolean;
 };
 type RevenueCacheSnapshot = {
   fiscalRows: F[];
@@ -247,10 +243,6 @@ export default function RevenueReconciliation({
       ),
     [c],
   );
-  const mdRevenueRows = useMemo(
-    () => accountingRows.filter((entry) => entry.isMdRevenue),
-    [accountingRows],
-  );
   const fiscalRows = useMemo(() => consolidateFiscalRevenueRows(f), [f]);
   const rows = useMemo(() => {
     const fm = new Map<
@@ -434,28 +426,6 @@ export default function RevenueReconciliation({
       })),
       [{ wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 70 }],
     );
-    if (Number(companyCode) === 18) {
-      appendJsonSheet(
-        "Receitas MD Sudeste",
-        mdRevenueRows.map((x) => ({
-          Coligada: companyCode,
-          Filial: x.branch || "",
-          Lançamento: x.entryId || "",
-          Data: x.date || "",
-          RA: x.ra,
-          Aluno: x.name,
-          Conta: x.account || "",
-          Descrição: x.description || "",
-          Valor: Math.abs(x.value),
-          "Tipo de geração": x.generationType || "Não informado",
-          Histórico: x.complement,
-        })),
-        [
-          { wch: 10 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-          { wch: 34 }, { wch: 18 }, { wch: 34 }, { wch: 16 }, { wch: 18 }, { wch: 80 },
-        ],
-      );
-    }
     appendJsonSheet(
       "Tipos I e E Isolados",
       generationTypeRows.map((x) => ({
@@ -502,12 +472,11 @@ export default function RevenueReconciliation({
       ["Etapa", "Regra", "Resultado", "Observação"],
       ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
       ["2", "Prioridade do status fiscal", `${fiscalRows.length} RA fiscal(is) consolidado(s)`, "Na receita, AUTORIZADA prevalece sobre NÃO ENVIADA; os descontos permanecem consolidados. Sem AUTORIZADA, mantêm-se os registros disponíveis"],
-      ["3", "Receitas MD da coligada 18", `${mdRevenueRows.length} lançamento(s) considerado(s)`, "Conta 2.3.1.03.02.01 com histórico contendo MD; detalhamento na aba Receitas MD Sudeste"],
-      ["4", "Atualizar base Contábil", `${c.length} lançamento(s) recebido(s)`, `${accountingRows.length} lançamento(s) considerado(s) após as segregações`],
-      ["5", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
-      ["6", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
-      ["7", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["8", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
+      ["3", "Atualizar base Contábil", `${c.length} lançamento(s) recebido(s)`, `${accountingRows.length} lançamento(s) considerado(s) após as segregações`],
+      ["4", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
+      ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
+      ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
+      ["7", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];

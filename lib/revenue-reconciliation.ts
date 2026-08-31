@@ -13,7 +13,6 @@ export const COMMERCIAL_DISCOUNT_ACCOUNT = "3.1.2.02.01.01";
 export const DISCOUNT_ACCOUNT_PREFIX = "3.1.2.02.02";
 export const INSTITUTIONAL_DISCOUNT_ACCOUNT = "3.1.2.02.02.01";
 export const PAA_DISCOUNT_ACCOUNT = "3.1.2.02.02.03";
-export const SOUTHEAST_MD_REVENUE_ACCOUNT = "2.3.1.03.02.01";
 
 export const REVENUE_ACCOUNT_DESCRIPTIONS = [
   "Mensalidade Creche",
@@ -65,26 +64,6 @@ export function accountingRevenueQueryAccounts() {
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ] as const;
-}
-
-export function accountingRevenueQueryAccountsForCompany(companyCode: string) {
-  const accounts: string[] = [...accountingRevenueQueryAccounts()];
-  if (Number(companyCode) === 18) accounts.push(SOUTHEAST_MD_REVENUE_ACCOUNT);
-  return accounts;
-}
-
-export function isCompany18MdRevenue(
-  companyCode: string,
-  account: string,
-  history: string,
-) {
-  const normalizedAccount = account.replace(/\D/g, "");
-  const normalizedHistory = normalizeAccountingDescription(history);
-  return (
-    Number(companyCode) === 18 &&
-    normalizedAccount === SOUTHEAST_MD_REVENUE_ACCOUNT.replace(/\D/g, "") &&
-    /\bMD\b/.test(normalizedHistory)
-  );
 }
 
 export function classifyAccountingRevenue(
