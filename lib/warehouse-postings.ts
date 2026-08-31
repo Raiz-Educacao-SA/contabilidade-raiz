@@ -435,7 +435,7 @@ function formatAmount(value: number) {
 }
 
 export function buildWarehousePostingsCsv(postings: WarehousePosting[], competence: string) {
-  const rows: string[][] = [["M", "99", "IMPORTAÇÃO DE LANÇAMENTOS", postingDate(competence)]];
+  const rows: string[][] = [["M", "99", "IMPORTAÇÃO DE LANÇAMENTOS", postingDate(competence), "", "", "", "", ""]];
   postings.forEach((posting) => rows.push([
     "*P",
     posting.document,

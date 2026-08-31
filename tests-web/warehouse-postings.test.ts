@@ -147,10 +147,10 @@ test("gera o CSV padrão TOTVS com o último dia real da competência", () => {
   ], { selectedCompanyCode: "05", selectedCompanyName: "AO CUBO" });
   const csv = buildWarehousePostingsCsv(parsed.postings, "2026-07");
 
-  assert.match(csv, /^M;99;IMPORTAÇÃO DE LANÇAMENTOS;31\/07\/2026\r\n/);
+  assert.match(csv, /^M;99;IMPORTAÇÃO DE LANÇAMENTOS;31\/07\/2026;;;;;\r\n/);
   assert.match(csv, /\*P;ALMOXARIFADO;4\.2\.1\.03\.01\.20;2\.1\.7\.01\.02\.15;;1\.234,56;71;CONSUMO MATERIAL DE ALMOXARIFADO - N\/MÊS;1/);
   const [master, posting] = csv.trim().split("\r\n");
-  assert.equal(master.split(";").length, 4);
+  assert.equal(master.split(";").length, 9);
   assert.equal(posting.split(";").length, 9);
 });
 
