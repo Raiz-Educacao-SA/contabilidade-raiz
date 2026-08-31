@@ -40,6 +40,14 @@ type IdentifiedEntry = AccountingEntry & {
   side: "Ativo a receber" | "Passivo a pagar";
   matchStatus: "Com contrapartida" | "Sem contrapartida";
 };
+type EntryComparison = {
+  id: string;
+  receivable: IdentifiedEntry | null;
+  payable: IdentifiedEntry | null;
+  status: "Conferido" | "Falta no ativo" | "Falta no passivo";
+  missingCompanyCode: string;
+  missingCompanyName: string;
+};
 type Nature = "Mútuo" | "Almoxarifado" | "Transação";
 type AnalysisRow = {
   id: string;
@@ -265,6 +273,9 @@ export default function IntercompanyAnalysis({
   const [identifiedEntries, setIdentifiedEntries] = useState<IdentifiedEntry[]>(
     [],
   );
+  const [entryComparisons, setEntryComparisons] = useState<EntryComparison[]>(
+    [],
+  );
   const [loadingEntries, setLoadingEntries] = useState(false);
 
   const normalizedCompanies = useMemo(
@@ -327,6 +338,7 @@ export default function IntercompanyAnalysis({
     setHasAnalyzed(false);
     setSelectedRow(null);
     setIdentifiedEntries([]);
+    setEntryComparisons([]);
     setActiveGroup("Mútuo");
     setSearch("");
     setMessage("");
@@ -385,6 +397,7 @@ export default function IntercompanyAnalysis({
     setAnalyzing(true);
     setSelectedRow(null);
     setIdentifiedEntries([]);
+    setEntryComparisons([]);
     const output: AnalysisRow[] = [];
     const companyMap = new Map(
       normalizedCompanies.map((item) => [item.code, item]),
@@ -534,6 +547,7 @@ export default function IntercompanyAnalysis({
   ) {
     const matchedReceivables = new Set<number>();
     const matchedPayables = new Set<number>();
+    const payableByReceivable = new Map<number, number>();
     creditorRows.forEach((entry, receivableIndex) => {
       const payableIndex = debtorRows.findIndex(
         (candidate, index) =>
@@ -544,10 +558,10 @@ export default function IntercompanyAnalysis({
       if (payableIndex >= 0) {
         matchedReceivables.add(receivableIndex);
         matchedPayables.add(payableIndex);
+        payableByReceivable.set(receivableIndex, payableIndex);
       }
     });
-    return [
-      ...creditorRows.map((entry, index) => ({
+    const receivables: IdentifiedEntry[] = creditorRows.map((entry, index) => ({
         ...entry,
         companyCode: row.creditorCode,
         companyName: row.creditorName,
@@ -555,8 +569,8 @@ export default function IntercompanyAnalysis({
         matchStatus: matchedReceivables.has(index)
           ? ("Com contrapartida" as const)
           : ("Sem contrapartida" as const),
-      })),
-      ...debtorRows.map((entry, index) => ({
+      }));
+    const payables: IdentifiedEntry[] = debtorRows.map((entry, index) => ({
         ...entry,
         companyCode: row.debtorCode,
         companyName: row.debtorName,
@@ -564,8 +578,32 @@ export default function IntercompanyAnalysis({
         matchStatus: matchedPayables.has(index)
           ? ("Com contrapartida" as const)
           : ("Sem contrapartida" as const),
-      })),
+      }));
+    const comparisons: EntryComparison[] = [
+      ...receivables.map((receivable, index) => {
+        const payableIndex = payableByReceivable.get(index);
+        const payable = payableIndex === undefined ? null : payables[payableIndex];
+        return {
+          id: `ativo-${receivable.id}-${payable?.id || "sem-passivo"}`,
+          receivable,
+          payable,
+          status: payable ? ("Conferido" as const) : ("Falta no passivo" as const),
+          missingCompanyCode: payable ? "" : row.debtorCode,
+          missingCompanyName: payable ? "" : row.debtorName,
+        };
+      }),
+      ...payables
+        .filter((_, index) => !matchedPayables.has(index))
+        .map((payable) => ({
+          id: `passivo-${payable.id}-sem-ativo`,
+          receivable: null,
+          payable,
+          status: "Falta no ativo" as const,
+          missingCompanyCode: row.creditorCode,
+          missingCompanyName: row.creditorName,
+        })),
     ];
+    return { entries: [...receivables, ...payables], comparisons };
   }
 
   async function identifyDivergentEntries(row: AnalysisRow) {
@@ -573,17 +611,28 @@ export default function IntercompanyAnalysis({
     setSelectedRow(row);
     setLoadingEntries(true);
     setIdentifiedEntries([]);
+    setEntryComparisons([]);
     try {
       const [creditorRows, debtorRows] = await Promise.all([
         loadAccountingEntries(row.creditorCode, accounts.receivable),
         loadAccountingEntries(row.debtorCode, accounts.payable),
       ]);
+      const comparison = compareEntries(row, creditorRows, debtorRows);
       setIdentifiedEntries(
-        compareEntries(row, creditorRows, debtorRows).sort(
+        comparison.entries.sort(
           (a, b) =>
             a.companyCode.localeCompare(b.companyCode) ||
             a.date.localeCompare(b.date) ||
             a.account.localeCompare(b.account),
+          ),
+      );
+      setEntryComparisons(
+        comparison.comparisons.sort(
+          (a, b) =>
+            Number(a.status === "Conferido") - Number(b.status === "Conferido") ||
+            (a.receivable?.date || a.payable?.date || "").localeCompare(
+              b.receivable?.date || b.payable?.date || "",
+            ),
         ),
       );
     } catch (error) {
@@ -660,6 +709,19 @@ export default function IntercompanyAnalysis({
         : [],
     [identifiedEntries, selectedRow],
   );
+  const entryComparisonSummary = useMemo(
+    () => ({
+      receivables: entryComparisons.filter((item) => item.receivable).length,
+      payables: entryComparisons.filter((item) => item.payable).length,
+      missingInReceivables: entryComparisons.filter(
+        (item) => item.status === "Falta no ativo",
+      ).length,
+      missingInPayables: entryComparisons.filter(
+        (item) => item.status === "Falta no passivo",
+      ).length,
+    }),
+    [entryComparisons],
+  );
 
   function exportResults() {
     if (!results.length) return;
@@ -704,6 +766,7 @@ export default function IntercompanyAnalysis({
     setActiveGroup(group);
     setSelectedRow(null);
     setIdentifiedEntries([]);
+    setEntryComparisons([]);
   }
 
   return (
@@ -1025,6 +1088,7 @@ export default function IntercompanyAnalysis({
                   onClick={() => {
                     setSelectedRow(null);
                     setIdentifiedEntries([]);
+                    setEntryComparisons([]);
                   }}
                 >
                   Fechar
@@ -1036,7 +1100,165 @@ export default function IntercompanyAnalysis({
                   Consultando o Razão das duas empresas...
                 </div>
               ) : (
-                <div className="intercompany-company-entry-grid">
+                <>
+                  <div className="intercompany-entry-comparison-summary">
+                    <article>
+                      <span>Lançamentos no ativo</span>
+                      <b>{entryComparisonSummary.receivables}</b>
+                    </article>
+                    <article>
+                      <span>Lançamentos no passivo</span>
+                      <b>{entryComparisonSummary.payables}</b>
+                    </article>
+                    <article
+                      className={
+                        entryComparisonSummary.missingInReceivables
+                          ? "has-warning"
+                          : ""
+                      }
+                    >
+                      <span>Faltando no ativo</span>
+                      <b>{entryComparisonSummary.missingInReceivables}</b>
+                    </article>
+                    <article
+                      className={
+                        entryComparisonSummary.missingInPayables
+                          ? "has-warning"
+                          : ""
+                      }
+                    >
+                      <span>Faltando no passivo</span>
+                      <b>{entryComparisonSummary.missingInPayables}</b>
+                    </article>
+                  </div>
+                  <div className="intercompany-entry-comparison-heading">
+                    <div>
+                      <b>Conferência partida a partida</b>
+                      <span>
+                        Comparação pela data e pelo valor invertido entre ativo
+                        e passivo.
+                      </span>
+                    </div>
+                    <small>
+                      As pendências indicam a empresa em que a contrapartida
+                      não foi localizada.
+                    </small>
+                  </div>
+                  {entryComparisons.length ? (
+                    <div className="table-wrap intercompany-entry-comparison-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Situação</th>
+                            <th>Data</th>
+                            <th>Empresa / conta do ativo</th>
+                            <th>Lançamento / partida do ativo</th>
+                            <th>Documento do ativo</th>
+                            <th>Valor do ativo</th>
+                            <th>Empresa / conta do passivo</th>
+                            <th>Lançamento / partida do passivo</th>
+                            <th>Documento do passivo</th>
+                            <th>Valor do passivo</th>
+                            <th>Identificação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entryComparisons.map((comparison) => {
+                            const receivable = comparison.receivable;
+                            const payable = comparison.payable;
+                            const diagnosis =
+                              comparison.status === "Conferido"
+                                ? "Ativo e passivo localizados."
+                                : `Lançamento ausente no ${comparison.status === "Falta no ativo" ? "ativo" : "passivo"} de ${comparison.missingCompanyCode} — ${comparison.missingCompanyName}.`;
+                            return (
+                              <tr key={comparison.id}>
+                                <td>
+                                  <span
+                                    className={`intercompany-status ${comparison.status === "Conferido" ? "ok" : "warning"}`}
+                                  >
+                                    {comparison.status === "Conferido" ? (
+                                      <CheckCircle2 />
+                                    ) : (
+                                      <AlertTriangle />
+                                    )}
+                                    {comparison.status}
+                                  </span>
+                                </td>
+                                <td>
+                                  {receivable?.date || payable?.date || "—"}
+                                </td>
+                                <td>
+                                  {receivable ? (
+                                    <div className="intercompany-account-cell">
+                                      <strong>
+                                        {receivable.companyCode} — {receivable.companyName}
+                                      </strong>
+                                      <span>{receivable.account}</span>
+                                      <small>Red. {receivable.reduced || "—"}</small>
+                                    </div>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                                <td>
+                                  {receivable
+                                    ? `${receivable.entryId || "—"} / ${receivable.partId || "—"}`
+                                    : "—"}
+                                </td>
+                                <td>{receivable?.document || "—"}</td>
+                                <td
+                                  className={
+                                    (receivable?.value || 0) < 0
+                                      ? "negative"
+                                      : ""
+                                  }
+                                >
+                                  {receivable
+                                    ? money.format(receivable.value)
+                                    : "—"}
+                                </td>
+                                <td>
+                                  {payable ? (
+                                    <div className="intercompany-account-cell">
+                                      <strong>
+                                        {payable.companyCode} — {payable.companyName}
+                                      </strong>
+                                      <span>{payable.account}</span>
+                                      <small>Red. {payable.reduced || "—"}</small>
+                                    </div>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                                <td>
+                                  {payable
+                                    ? `${payable.entryId || "—"} / ${payable.partId || "—"}`
+                                    : "—"}
+                                </td>
+                                <td>{payable?.document || "—"}</td>
+                                <td
+                                  className={
+                                    (payable?.value || 0) < 0 ? "negative" : ""
+                                  }
+                                >
+                                  {payable ? money.format(payable.value) : "—"}
+                                </td>
+                                <td className="intercompany-missing-diagnosis">
+                                  {diagnosis}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="intercompany-entry-empty">
+                      Nenhum lançamento localizado no ativo ou no passivo para
+                      a competência selecionada.
+                    </div>
+                  )}
+                  <div className="intercompany-company-entry-grid">
                   {entryGroups.map((group) => (
                     <section
                       className="intercompany-company-entries"
@@ -1115,7 +1337,8 @@ export default function IntercompanyAnalysis({
                       )}
                     </section>
                   ))}
-                </div>
+                  </div>
+                </>
               )}
             </div>
           )}

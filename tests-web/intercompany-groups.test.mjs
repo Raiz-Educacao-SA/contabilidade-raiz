@@ -57,6 +57,22 @@ test("Identificar consulta o Razão da competência por conta e separa os lança
   assert.match(detailRoute, /accountSet\.has\(account\)/);
 });
 
+test("Identificar compara ativo e passivo e informa em qual empresa falta o lançamento", () => {
+  assert.match(component, /Promise\.all\(\[/);
+  assert.match(component, /const payableByReceivable = new Map<number, number>\(\)/);
+  assert.match(component, /status: "Conferido" \| "Falta no ativo" \| "Falta no passivo"/);
+  assert.match(component, /Conferência partida a partida/);
+  assert.match(component, /Comparação pela data e pelo valor invertido entre ativo/);
+  assert.match(component, /Lançamento ausente no/);
+  assert.match(component, /comparison\.missingCompanyCode/);
+  assert.match(component, /comparison\.missingCompanyName/);
+  assert.match(component, /Lançamentos no ativo/);
+  assert.match(component, /Lançamentos no passivo/);
+  assert.match(component, /Faltando no ativo/);
+  assert.match(component, /Faltando no passivo/);
+  assert.match(styles, /\.intercompany-entry-comparison-table/);
+});
+
 test("a exportação mantém uma aba para cada grupo", () => {
   assert.match(component, /intercompanyGroups\.forEach\([\s\S]*?XLSX\.utils\.book_append_sheet/);
   assert.match(component, /"Diferença do movimento"/);
