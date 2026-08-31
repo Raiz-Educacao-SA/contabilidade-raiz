@@ -80,6 +80,16 @@ const sourceDestinationRules: Array<{ code: string; aliases: string[] }> = [
 ];
 
 const sourceBranchRules: Record<string, Array<{ branch: string; aliases: string[] }>> = {
+  "2": [
+    { branch: "9", aliases: ["qi rio 2 expansao"] },
+    { branch: "1", aliases: ["qi matriz"] },
+    { branch: "2", aliases: ["qi tijuca"] },
+    { branch: "3", aliases: ["qi botafogo"] },
+    { branch: "6", aliases: ["qi freguesia"] },
+    { branch: "7", aliases: ["qi rio 2"] },
+    { branch: "8", aliases: ["qi met jacinto", "qi jacinto"] },
+    { branch: "10", aliases: ["qi valqueire"] },
+  ],
   "5": [
     { branch: "6", aliases: ["cubo barra golf"] },
     { branch: "2", aliases: ["cubo barra"] },
@@ -96,6 +106,14 @@ const sourceBranchRules: Record<string, Array<{ branch: string; aliases: string[
     { branch: "9", aliases: ["matriz madureira"] },
     { branch: "10", aliases: ["matriz retiro dos artistas"] },
     { branch: "11", aliases: ["matriz tijuca"] },
+  ],
+  "9": [
+    { branch: "1", aliases: ["global tree rio 2", "global tree botafogo"] },
+    { branch: "2", aliases: ["global tree recreio"] },
+    { branch: "3", aliases: ["global tree barra golf"] },
+    { branch: "4", aliases: ["global tree peninsula"] },
+    { branch: "5", aliases: ["global tree marapendi"] },
+    { branch: "6", aliases: ["global tree abm"] },
   ],
   "10": [
     { branch: "1", aliases: ["qi recreio"] },

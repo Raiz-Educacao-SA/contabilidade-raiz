@@ -143,3 +143,36 @@ test("na Raiz reconhece Global Tree e os demais destinos do modelo real", () => 
     { destinationCode: "25", amount: 400, branchCode: "1" },
   ]);
 });
+
+test("usa os códigos de filial confirmados no histórico contábil para QI e Global Tree", () => {
+  const rows = [
+    ["Ano", "Mês", " Preço total ", "Unidade", "Marca"],
+    [2026, "JUNHO", 2013.32, "QI TIJUCA", "QI"],
+    [2026, "JUNHO", 309.63, "QI RIO 2 EXPANSÃO", "QI"],
+    [2026, "JUNHO", 595.59, "QI MET. JACINTO", "QI"],
+    [2026, "JUNHO", 498.53, "GLOBAL TREE RIO 2", "GLOBAL TREE"],
+    [2026, "JUNHO", 86.86, "GLOBAL TREE ABM", "GLOBAL TREE"],
+  ];
+  const qi = parseWarehouseSheets([{ name: "Materiais", rows }], {
+    selectedCompanyCode: "02",
+    selectedCompanyName: "02 — COLÉGIO QI",
+    competence: "2026-06",
+  });
+  const globalTree = parseWarehouseSheets([{ name: "Materiais", rows }], {
+    selectedCompanyCode: "09",
+    selectedCompanyName: "09 — GLOBAL TREE",
+    competence: "2026-06",
+  });
+
+  assert.equal(qi.errors.length, 0);
+  assert.deepEqual(qi.postings.map(({ branchCode, amount }) => ({ branchCode, amount })), [
+    { branchCode: "2", amount: 2013.32 },
+    { branchCode: "8", amount: 595.59 },
+    { branchCode: "9", amount: 309.63 },
+  ]);
+  assert.equal(globalTree.errors.length, 0);
+  assert.deepEqual(globalTree.postings.map(({ branchCode, amount }) => ({ branchCode, amount })), [
+    { branchCode: "1", amount: 498.53 },
+    { branchCode: "6", amount: 86.86 },
+  ]);
+});
