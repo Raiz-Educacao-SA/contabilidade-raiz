@@ -106,6 +106,31 @@ export function normalizeRevenueRa(value: string) {
   return normalized;
 }
 
+export function isValidRevenueRa(value: string) {
+  const normalized = normalizeRevenueRa(value);
+  return /^(?=[A-Z0-9]*\d)[A-Z0-9]{5,}$/i.test(normalized);
+}
+
+export function revenueReconciliationExportFileName(
+  companyCode: string,
+  companyName: string,
+  competenceLabel: string,
+) {
+  const normalizedCode = String(companyCode).padStart(2, "0");
+  const numericCode = Number(companyCode);
+  const companyWithoutLeadingCode = Number.isFinite(numericCode)
+    ? companyName.replace(
+        new RegExp(`^\\s*0*${numericCode}\\s*(?:[—–-]+|_+)\\s*`, "u"),
+        "",
+      )
+    : companyName;
+  const companySlug = companyWithoutLeadingCode
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "") || "Empresa";
+
+  return `${normalizedCode}_${companySlug}_Faturamento_VS_Educacional_${competenceLabel.replace("/", ".")}.xlsx`;
+}
+
 export type AccountingRevenueEntry = {
   ra: string;
   name: string;

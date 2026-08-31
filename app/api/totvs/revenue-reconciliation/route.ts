@@ -4,6 +4,7 @@ import {
   classifyAccountingRevenue,
   deduplicateAccountingRecords,
   isRevenueAppropriation,
+  isValidRevenueRa,
   normalizeRevenueRa,
 } from "@/lib/revenue-reconciliation";
 
@@ -87,7 +88,7 @@ function extractStudent(complement: string) {
   const parts = complement.replace(/^\s*ESTORNO\s*:\s*/i, "").split(/\s+-\s+/);
   const ra = normalizeRevenueRa((parts[0] || "").trim());
   return {
-    ra: /^(?:[A-Z]{1,5})?\d{5,}$/i.test(ra) ? ra : "",
+    ra: isValidRevenueRa(ra) ? ra : "",
     name: (parts[1] || "").trim(),
   };
 }

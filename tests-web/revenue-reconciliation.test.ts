@@ -20,10 +20,12 @@ import {
   isExcludedRevenueGenerationType,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
+  isValidRevenueRa,
   normalizeRevenueRa,
   PAA_DISCOUNT_ACCOUNT,
   REVENUE_ACCOUNT_DESCRIPTIONS,
   REVENUE_ACCOUNT_PREFIX,
+  revenueReconciliationExportFileName,
   summarizeAccountingRevenue,
 } from "../lib/revenue-reconciliation.ts";
 import { revenueReconciliationCacheKey } from "../lib/revenue-reconciliation-cache.ts";
@@ -130,6 +132,29 @@ test("mantém O e segrega os tipos de geração I e E", () => {
 test("normaliza RA numérico sem alterar RA alfanumérico", () => {
   assert.equal(normalizeRevenueRa("1234567.0"), "1234567");
   assert.equal(normalizeRevenueRa("CA25034679"), "CA25034679");
+});
+
+test("aceita RA alfanumérico da Global Tree sem aceitar textos comuns", () => {
+  assert.equal(isValidRevenueRa("9GT24004401"), true);
+  assert.equal(isValidRevenueRa("CA25034679"), true);
+  assert.equal(isValidRevenueRa("1234567.0"), true);
+  assert.equal(isValidRevenueRa("ALUNO"), false);
+  assert.equal(isValidRevenueRa("9GT 24004401"), false);
+});
+
+test("não duplica o código da empresa no nome do arquivo exportado", () => {
+  assert.equal(
+    revenueReconciliationExportFileName(
+      "18",
+      "18 — REDE DE ENSINO APOGEU LTDA",
+      "07/2026",
+    ),
+    "18_REDE_DE_ENSINO_APOGEU_LTDA_Faturamento_VS_Educacional_07.2026.xlsx",
+  );
+  assert.equal(
+    revenueReconciliationExportFileName("2", "02 — COLÉGIO QI", "07/2026"),
+    "02_COLÉGIO_QI_Faturamento_VS_Educacional_07.2026.xlsx",
+  );
 });
 
 test("consolida receitas e descontos por RA", () => {

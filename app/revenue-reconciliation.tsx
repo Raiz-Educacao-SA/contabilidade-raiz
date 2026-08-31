@@ -13,6 +13,7 @@ import {
   classifyRevenueReconciliation,
   isExcludedRevenueGenerationType,
   REVENUE_TOLERANCE,
+  revenueReconciliationExportFileName,
   summarizeAccountingRevenue,
 } from "@/lib/revenue-reconciliation";
 import {
@@ -466,7 +467,11 @@ export default function RevenueReconciliation({
     applyRevenueWorkbookStyle(workbook);
     XLSX.writeFile(
       workbook,
-      `${String(companyCode).padStart(2, "0")}_${companyName.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "")}_Faturamento_VS_Educacional_${competenceLabel.replace("/", ".")}.xlsx`,
+      revenueReconciliationExportFileName(
+        companyCode,
+        companyName,
+        competenceLabel,
+      ),
       { compression: true },
     );
   }
