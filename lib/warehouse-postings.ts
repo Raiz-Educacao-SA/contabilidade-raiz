@@ -441,7 +441,6 @@ export function buildWarehousePostingsCsv(postings: WarehousePosting[], competen
     posting.document,
     posting.debitAccount,
     posting.creditAccount,
-    "",
     formatAmount(posting.amount),
     "71",
     posting.history,
