@@ -4,6 +4,7 @@ import test from "node:test";
 
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/warehouse-postings.tsx", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8");
 const completion = readFileSync(new URL("../lib/schedule-completion.ts", import.meta.url), "utf8");
 const scheduleProgress = readFileSync(new URL("../lib/closing-schedule-progress.ts", import.meta.url), "utf8");
 
@@ -29,6 +30,10 @@ test("painel importa Excel, separa todas as empresas e gera um CSV por empresa",
   assert.match(panel, /Arquivo aceito/);
   assert.match(panel, /Sem lançamentos/);
   assert.match(panel, /fileName && result\.errors\.length === 0 && result\.postings\.length === 0/);
+});
+
+test("mantém o texto da tabela de Almoxarifado compacto", () => {
+  assert.match(styles, /\.warehouse-table table\s*\{[^}]*font-size:\s*11px/s);
 });
 
 test("arquivo fica fixado após o fechamento, mantendo a extração por empresa", () => {

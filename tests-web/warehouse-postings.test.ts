@@ -14,6 +14,9 @@ test("uma importação abre os lançamentos de todas as empresas com movimento",
         ["Ano", "Mês", " Preço total ", "Unidade", "Marca"],
         [2026, "JUNHO", 100, "CUBO BARRA", "CUBO"],
         [2026, "JUNHO", 200, "GLOBAL TREE MARAPENDI", "GLOBAL TREE"],
+        [2026, "JUNHO", 300, "QI METROPOLITANO", "QI"],
+        [2026, "JUNHO", 50, "QI MET. JACINTO", "QI"],
+        [2026, "JUNHO", 75, "CRECHE E ESCOLA SUNNY DAYS", "QI"],
       ],
     },
   ], {
@@ -26,10 +29,17 @@ test("uma importação abre os lançamentos de todas as empresas com movimento",
   });
 
   assert.equal(result.errors.length, 0);
-  assert.equal(result.sourceRows, 2);
-  assert.deepEqual([...new Set(result.postings.map((posting) => posting.companyCode))], ["1", "5", "9"]);
-  assert.equal(result.postings.filter((posting) => posting.companyCode === "1").length, 2);
+  assert.equal(result.sourceRows, 5);
+  assert.deepEqual([...new Set(result.postings.map((posting) => posting.companyCode))], ["1", "5", "6", "9"]);
+  assert.equal(result.postings.filter((posting) => posting.companyCode === "1").length, 3);
   assert.equal(result.postings.find((posting) => posting.companyCode === "5")?.amount, 100);
+  assert.deepEqual(result.postings
+    .filter((posting) => posting.companyCode === "6")
+    .map(({ branchCode, amount }) => ({ branchCode, amount })), [
+    { branchCode: "1", amount: 300 },
+    { branchCode: "2", amount: 50 },
+    { branchCode: "3", amount: 75 },
+  ]);
   assert.equal(result.postings.find((posting) => posting.companyCode === "9")?.amount, 200);
 });
 
@@ -137,8 +147,11 @@ test("gera o CSV padrão TOTVS com o último dia real da competência", () => {
   ], { selectedCompanyCode: "05", selectedCompanyName: "AO CUBO" });
   const csv = buildWarehousePostingsCsv(parsed.postings, "2026-07");
 
-  assert.match(csv, /^M;99;IMPORTAÇÃO DE LANÇAMENTOS;31\/07\/2026;;;;;\r\n/);
-  assert.match(csv, /\*P;ALMOXARIFADO;4\.2\.1\.03\.01\.20;2\.1\.7\.01\.02\.15;AJ ALMOXARIFADO;1\.234,56;71;CONSUMO MATERIAL DE ALMOXARIFADO - N\/MÊS;1/);
+  assert.match(csv, /^M;99;IMPORTAÇÃO DE LANÇAMENTOS;31\/07\/2026\r\n/);
+  assert.match(csv, /\*P;AJ ALMOXARIFADO;4\.2\.1\.03\.01\.20;2\.1\.7\.01\.02\.15;;1\.234,56;71;CONSUMO MATERIAL DE ALMOXARIFADO - N\/MÊS;1/);
+  const [master, posting] = csv.trim().split("\r\n");
+  assert.equal(master.split(";").length, 4);
+  assert.equal(posting.split(";").length, 9);
 });
 
 test("lê o modelo real de Materiais, filtra a competência e segrega o Ao Cubo", () => {
@@ -194,7 +207,7 @@ test("na Raiz reconhece Global Tree e os demais destinos do modelo real", () => 
   assert.equal(sarahDawsey.creditReduced, "2401");
 });
 
-test("usa os códigos de filial confirmados no histórico contábil para QI e Global Tree", () => {
+test("usa os códigos de filial confirmados para QI, QI Metropolitano e Global Tree", () => {
   const rows = [
     ["Ano", "Mês", " Preço total ", "Unidade", "Marca"],
     [2026, "JUNHO", 2013.32, "QI TIJUCA", "QI"],
@@ -213,12 +226,20 @@ test("usa os códigos de filial confirmados no histórico contábil para QI e Gl
     selectedCompanyName: "09 — GLOBAL TREE",
     competence: "2026-06",
   });
+  const qiMetropolitano = parseWarehouseSheets([{ name: "Materiais", rows }], {
+    selectedCompanyCode: "06",
+    selectedCompanyName: "06 — COLÉGIO QI METROPOLITANO",
+    competence: "2026-06",
+  });
 
   assert.equal(qi.errors.length, 0);
   assert.deepEqual(qi.postings.map(({ branchCode, amount }) => ({ branchCode, amount })), [
     { branchCode: "2", amount: 2013.32 },
-    { branchCode: "8", amount: 595.59 },
     { branchCode: "9", amount: 309.63 },
+  ]);
+  assert.equal(qiMetropolitano.errors.length, 0);
+  assert.deepEqual(qiMetropolitano.postings.map(({ branchCode, amount }) => ({ branchCode, amount })), [
+    { branchCode: "2", amount: 595.59 },
   ]);
   assert.equal(globalTree.errors.length, 0);
   assert.deepEqual(globalTree.postings.map(({ branchCode, amount }) => ({ branchCode, amount })), [

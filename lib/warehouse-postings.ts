@@ -75,7 +75,7 @@ export const rootWarehouseDestinations: RootDestination[] = [
 ];
 
 const sourceDestinationRules: Array<{ code: string; aliases: string[] }> = [
-  { code: "6", aliases: ["qi metropolitano"] },
+  { code: "6", aliases: ["qi metropolitano", "qi met jacinto", "qi jacinto", "colegio qi metropolitano jacinto", "sunny days", "creche e escola sunny days"] },
   { code: "10", aliases: ["qi recreio", "sa pereira", "sap barrinha"] },
   { code: "16", aliases: ["gama"] },
   { code: "12", aliases: ["alfa", "beta"] },
@@ -106,7 +106,11 @@ const sourceBranchRules: Record<string, Array<{ branch: string; aliases: string[
     { branch: "2", aliases: ["cubo barra"] },
     { branch: "5", aliases: ["cubo botafogo"] },
   ],
-  "6": [{ branch: "1", aliases: ["qi metropolitano"] }],
+  "6": [
+    { branch: "2", aliases: ["qi met jacinto", "qi jacinto", "qi metropolitano jacinto", "colegio qi metropolitano jacinto"] },
+    { branch: "3", aliases: ["sunny days", "creche e escola sunny days"] },
+    { branch: "1", aliases: ["qi metropolitano"] },
+  ],
   "8": [
     { branch: "1", aliases: ["matriz rocha miranda"] },
     { branch: "2", aliases: ["matriz campo grande"] },
@@ -431,13 +435,13 @@ function formatAmount(value: number) {
 }
 
 export function buildWarehousePostingsCsv(postings: WarehousePosting[], competence: string) {
-  const rows: string[][] = [["M", "99", "IMPORTAÇÃO DE LANÇAMENTOS", postingDate(competence), "", "", "", "", ""]];
+  const rows: string[][] = [["M", "99", "IMPORTAÇÃO DE LANÇAMENTOS", postingDate(competence)]];
   postings.forEach((posting) => rows.push([
     "*P",
-    "ALMOXARIFADO",
+    posting.document,
     posting.debitAccount,
     posting.creditAccount,
-    posting.document,
+    "",
     formatAmount(posting.amount),
     "71",
     posting.history,

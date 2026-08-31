@@ -4353,6 +4353,7 @@
 }
 .warehouse-table table {
   min-width: 1280px;
+  font-size: 11px;
 }
 .warehouse-table th {
   position: sticky;
