@@ -56,7 +56,7 @@ const GENERAL_CREDIT_ACCOUNT = "2.1.7.01.02.15";
 const GENERAL_CREDIT_REDUCED = "2403";
 const ROOT_CREDIT_ACCOUNT = "1.1.5.01.01.05";
 const ROOT_CREDIT_REDUCED = "2401";
-const DOCUMENT = "AJ ALMOXARIFADO";
+const DOCUMENT = "ALMOXARIFADO";
 const GENERAL_HISTORY = "CONSUMO MATERIAL DE ALMOXARIFADO - N/MÊS";
 
 export const rootWarehouseDestinations: RootDestination[] = [
