@@ -54,3 +54,23 @@ export async function writeRevenueReconciliationCache(key: string, value: unknow
     };
   });
 }
+
+export async function deleteRevenueReconciliationCache(key: string) {
+  try {
+    const database = await openRevenueCache();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(revenueCacheStoreName, "readwrite");
+      transaction.objectStore(revenueCacheStoreName).delete(key);
+      transaction.oncomplete = () => {
+        database.close();
+        resolve();
+      };
+      transaction.onerror = () => {
+        database.close();
+        reject(transaction.error);
+      };
+    });
+  } catch {
+    // A limpeza visual da tela não deve depender do cache local.
+  }
+}

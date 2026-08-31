@@ -265,7 +265,7 @@ test("libera a conciliação somente após as duas bases atualizarem com sucesso
   assert.match(panel, /accountingFresh &&[\s\S]*statementsFresh &&[\s\S]*!accountingBusy &&[\s\S]*!dataEngineBusy/);
   assert.match(panel, /setAccountingUpdated\(false\)[\s\S]*setAccountingUpdated\(true\)/);
   assert.match(panel, /setStatementsUpdated\(false\)[\s\S]*setStatementsUpdated\(true\)/);
-  assert.match(panel, /disabled=\{!reconciliationReady\}/);
+  assert.match(panel, /disabled=\{taskFinalized \|\| !reconciliationReady\}/);
   assert.match(panel, /Atualize primeiro a base contábil/);
   assert.match(panel, /Atualize agora os extratos bancários/);
   assert.match(panel, /Bases prontas; clique para executar a conciliação/);
@@ -273,11 +273,11 @@ test("libera a conciliação somente após as duas bases atualizarem com sucesso
 
 test("executa as três etapas em sequência e usa cor somente após a conclusão", () => {
   assert.match(panel, /accountingStepComplete \? "is-complete" : "is-available"/);
-  assert.match(panel, /disabled=\{accountingBusy \|\| dataEngineBusy\}/);
+  assert.match(panel, /disabled=\{taskFinalized \|\| accountingBusy \|\| dataEngineBusy\}/);
   assert.match(panel, /statementsStepComplete \? "is-complete" : accountingFresh \? "is-available" : "is-locked"/);
-  assert.match(panel, /disabled=\{!accountingFresh \|\| dataEngineBusy\}/);
+  assert.match(panel, /disabled=\{taskFinalized \|\| !accountingFresh \|\| dataEngineBusy\}/);
   assert.match(panel, /resultsCurrent \? "is-complete" : reconciliationReady \? "is-available" : "is-locked"/);
-  assert.match(panel, /disabled=\{!reconciliationReady\}/);
+  assert.match(panel, /disabled=\{taskFinalized \|\| !reconciliationReady\}/);
   assert.match(panel, /resultsCurrent \? "Conciliação concluída" : "Conciliação automática"/);
   assert.match(monthlyCss, /button\.workflow-action\.is-available \{[\s\S]*?background: #fff !important;[\s\S]*?color: #566071 !important;/);
   assert.match(monthlyCss, /button\.workflow-action\.is-locked \{[\s\S]*?background: #eef1f5 !important;/);

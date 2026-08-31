@@ -367,9 +367,33 @@ export default function Home() {
       const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
       const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
       const savedClosingDate = window.localStorage.getItem("contabilidade-raiz:closing-date");
+      const savedPosition = window.localStorage.getItem("contabilidade-raiz:last-position");
       if (savedYear >= 2000 && savedYear <= 2100) setYear(savedYear);
       if (savedMonth >= 1 && savedMonth <= 12) setMonth(savedMonth);
       if (savedClosingDate && /^\d{4}-\d{2}-\d{2}$/.test(savedClosingDate)) setClosingDate(savedClosingDate);
+      if (savedPosition) {
+        try {
+          const position = JSON.parse(savedPosition) as Record<string, string>;
+          const validModules = new Set(Object.keys(modules));
+          const validAreas = new Set(Object.keys(areas));
+          const validTabs = new Set(["conciliacao", "contas", "extratos", "saldos"]);
+          const validAccountingTabs = new Set(accountingScheduleTasks.map((item) => item.id));
+          const validFiscalTabs = new Set(fiscalScheduleTasks.map((item) => item.id));
+          const validBookReports = new Set(bookScheduleTasks.map((item) => item.id));
+          const validScheduleViews = new Set(["acompanhamento", "historico"]);
+          const validScheduleModules = new Set<string>(CLOSING_SCHEDULE_MODULES);
+          if (validModules.has(position.selectedModule)) setSelectedModule(position.selectedModule as Module);
+          if (validAreas.has(position.selectedArea)) setSelectedArea(position.selectedArea as Area);
+          if (validTabs.has(position.tab)) setTab(position.tab as Tab);
+          if (validAccountingTabs.has(position.accountingTab as AccountingTab)) setAccountingTab(position.accountingTab as AccountingTab);
+          if (validFiscalTabs.has(position.fiscalTab as FiscalTab)) setFiscalTab(position.fiscalTab as FiscalTab);
+          if (validBookReports.has(position.bookReport as BookReport)) setBookReport(position.bookReport as BookReport);
+          if (validScheduleViews.has(position.scheduleView)) setScheduleView(position.scheduleView as ScheduleView);
+          if (validScheduleModules.has(position.selectedScheduleModule)) setSelectedScheduleModule(position.selectedScheduleModule as ScheduleModuleKey);
+        } catch {
+          // Um marcador inválido não impede o carregamento normal da aplicação.
+        }
+      }
       setFilterStorageReady(true);
     });
   }, []);
@@ -382,6 +406,27 @@ export default function Home() {
     if (!filterStorageReady) return;
     window.localStorage.setItem("contabilidade-raiz:closing-date", closingDate);
   }, [filterStorageReady, closingDate]);
+  useEffect(() => {
+    if (!filterStorageReady) return;
+    const previous = (() => {
+      try {
+        return JSON.parse(window.localStorage.getItem("contabilidade-raiz:last-position") || "{}") as Record<string, string>;
+      } catch {
+        return {};
+      }
+    })();
+    window.localStorage.setItem("contabilidade-raiz:last-position", JSON.stringify({
+      ...previous,
+      ...(selectedModule ? { selectedModule } : {}),
+      ...(selectedArea ? { selectedArea } : {}),
+      tab,
+      accountingTab,
+      fiscalTab,
+      bookReport,
+      scheduleView,
+      selectedScheduleModule,
+    }));
+  }, [accountingTab, bookReport, filterStorageReady, fiscalTab, scheduleView, selectedArea, selectedModule, selectedScheduleModule, tab]);
 
   useEffect(() => {
     if (!session || !filterStorageReady) return;
@@ -1865,14 +1910,17 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     setConfirmingModule(item.key);
     setScheduleError("");
     const confirmedAt = new Date().toISOString();
+    const previous = confirmations.find((confirmation) => confirmation.modulo === item.key);
+    const recordedEmail = checked ? userEmail : previous?.confirmado_email || userEmail;
+    const recordedAt = checked ? confirmedAt : previous?.confirmado_em || confirmedAt;
     const { error } = await supabase.from("cronograma_entregas").upsert({
       competencia: scheduleCompetence,
       modulo: item.key,
       setor: item.sector,
       status: checked ? "concluido" : "pendente",
       confirmado_por: userId,
-      confirmado_email: userEmail,
-      confirmado_em: confirmedAt,
+      confirmado_email: recordedEmail,
+      confirmado_em: recordedAt,
     }, { onConflict: "competencia,modulo" });
     if (error) {
       setScheduleError("O OK não pôde ser registrado. Tente novamente.");
@@ -1888,7 +1936,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       if (historyError) setScheduleError("O OK foi atualizado, mas o histórico não pôde ser registrado.");
       setConfirmations((current) => [
         ...current.filter((currentItem) => currentItem.modulo !== item.key),
-        { modulo: item.key, setor: item.sector, status: checked ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt },
+        { modulo: item.key, setor: item.sector, status: checked ? "concluido" : "pendente", confirmado_email: recordedEmail, confirmado_em: recordedAt },
       ]);
     }
     setConfirmingModule("");

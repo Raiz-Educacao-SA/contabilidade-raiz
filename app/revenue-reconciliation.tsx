@@ -5,6 +5,7 @@ import {
   Download,
   FileCheck2,
   RefreshCw,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
@@ -18,6 +19,7 @@ import {
   summarizeAccountingRevenue,
 } from "@/lib/revenue-reconciliation";
 import {
+  deleteRevenueReconciliationCache,
   readRevenueReconciliationCache,
   revenueReconciliationCacheKey,
   writeRevenueReconciliationCache,
@@ -131,20 +133,18 @@ export default function RevenueReconciliation({
       if (!active) return;
       const completion = completionError ? null : data as ScheduleCompletion | null;
       const finalized = completion?.status === "concluido";
+      const snapshot = await readRevenueReconciliationCache<RevenueCacheSnapshot>(cacheKey);
+      if (!active) return;
       setIsFinalized(finalized);
-      setFinalizedAt(finalized ? completion?.confirmado_em || "" : "");
-      setFinalizedBy(finalized ? completion?.confirmado_email || "" : "");
+      setFinalizedAt(completion?.confirmado_em || snapshot?.finalizedAt || "");
+      setFinalizedBy(completion?.confirmado_email || snapshot?.finalizedBy || "");
 
-      if (finalized) {
-        const snapshot = await readRevenueReconciliationCache<RevenueCacheSnapshot>(cacheKey);
-        if (!active) return;
-        if (snapshot) {
-          setF(Array.isArray(snapshot.fiscalRows) ? snapshot.fiscalRows : []);
-          setC(Array.isArray(snapshot.accountingRows) ? snapshot.accountingRows : []);
-          setFr(Boolean(snapshot.fiscalLoaded));
-          setCr(Boolean(snapshot.accountingLoaded));
-          setActiveView(snapshot.activeView === "generationTypes" ? "generationTypes" : "divergences");
-        }
+      if (snapshot) {
+        setF(Array.isArray(snapshot.fiscalRows) ? snapshot.fiscalRows : []);
+        setC(Array.isArray(snapshot.accountingRows) ? snapshot.accountingRows : []);
+        setFr(Boolean(snapshot.fiscalLoaded));
+        setCr(Boolean(snapshot.accountingLoaded));
+        setActiveView(snapshot.activeView === "generationTypes" ? "generationTypes" : "divergences");
       }
       setRestoredCacheKey(cacheKey);
       setCacheReady(true);
@@ -178,8 +178,8 @@ export default function RevenueReconciliation({
       accountingLoaded: cr,
       activeView,
       updatedAt: new Date().toISOString(),
-      finalizedAt: isFinalized ? finalizedAt : "",
-      finalizedBy: isFinalized ? finalizedBy : "",
+      finalizedAt,
+      finalizedBy,
     };
     void writeRevenueReconciliationCache(cacheKey, snapshot).catch(() => {
       console.warn("Não foi possível salvar a última conciliação de Receita no cache local.");
@@ -195,8 +195,8 @@ export default function RevenueReconciliation({
       ) return;
       const finalized = detail.status === "concluido";
       setIsFinalized(finalized);
-      setFinalizedAt(finalized ? detail.confirmedAt : "");
-      setFinalizedBy(finalized ? detail.userEmail : "");
+      if (detail.confirmedAt) setFinalizedAt(detail.confirmedAt);
+      if (detail.userEmail) setFinalizedBy(detail.userEmail);
     };
     window.addEventListener(MODULE_COMPLETION_CHANGED_EVENT, handleCompletionChange);
     return () => window.removeEventListener(MODULE_COMPLETION_CHANGED_EVENT, handleCompletionChange);
@@ -228,6 +228,18 @@ export default function RevenueReconciliation({
     } finally {
       setLoading(null);
     }
+  }
+
+  function clearReconciliation() {
+    if (isFinalized || (!fr && !cr)) return;
+    if (!window.confirm("Deseja limpar a última conciliação desta empresa e competência?")) return;
+    setF([]);
+    setC([]);
+    setFr(false);
+    setCr(false);
+    setActiveView("divergences");
+    setError("");
+    void deleteRevenueReconciliationCache(cacheKey);
   }
   const accountingRows = useMemo(
     () =>
@@ -526,6 +538,15 @@ export default function RevenueReconciliation({
           >
             <Download />
             Exportar
+          </button>
+          <button
+            className="secondary"
+            disabled={isFinalized || (!fr && !cr) || loading !== null}
+            onClick={clearReconciliation}
+            title={isFinalized ? "Reabra a tarefa antes de limpar os dados." : "Limpar a conciliação desta empresa e competência"}
+          >
+            <Trash2 />
+            Limpar
           </button>
         </div>
       </div>

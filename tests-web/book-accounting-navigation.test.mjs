@@ -35,7 +35,7 @@ test("todos os itens financeiros e contábeis permitem finalizar e reabrir", () 
   assert.doesNotMatch(page, /accountingTab === "receita-filial"\) return null/);
   assert.match(page, /href=\{buildLeaseAppUrl\(session\)\}/);
   assert.doesNotMatch(page, /openLeaseApp/);
-  assert.match(completion, /Finalizado por[\s\S]*completedAt/);
+  assert.match(completion, /\{done \? "Finalizado" : "Última finalização"\} por[\s\S]*completedAt/);
   assert.match(completion, /Reabrir tarefa/);
   assert.match(completion, /Finalizar tarefa/);
   assert.match(pisCofins, /async function reopenAssessment/);
