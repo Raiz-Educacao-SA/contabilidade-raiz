@@ -17,11 +17,18 @@ test("Intercompany separa visualmente Mútuo, Almoxarifado e Transação", () =>
 test("a conferência usa movimento mensal, não saldo de encerramento", () => {
   assert.match(component, /type BalanceRow = \{[^}]*movement: number/);
   assert.match(component, /sum \+ row\.movement/);
-  assert.match(component, /const difference = \(receivable\?\.movement \|\| 0\) \+ payable\.value/);
-  assert.match(component, /const difference = \(receivable\?\.movement \|\| 0\) \+ \(payable\?\.movement \|\| 0\)/);
+  assert.match(component, /const difference = receivableMovement \+ payable\.value/);
+  assert.match(component, /const difference = receivableMovement \+ payableMovement/);
   assert.match(component, /Movimento do ativo/);
   assert.match(component, /Movimento do passivo/);
   assert.doesNotMatch(component, /closingBalance/);
+});
+
+test("contas sem movimento e cruzamentos totalmente zerados não são exibidos", () => {
+  assert.match(component, /isIntercompanyAccount\(row\.account\) && hasMonthlyMovement\(row\.movement\)/);
+  assert.match(component, /const moving = found\.filter\(\(row\) => hasMonthlyMovement\(row\.movement\)\)/);
+  assert.match(component, /if \(!hasMonthlyMovement\(receivableMovement\) && !hasMonthlyMovement\(payable\.value\)\) return/);
+  assert.match(component, /if \(!hasMonthlyMovement\(receivableMovement\) && !hasMonthlyMovement\(payableMovement\)\) return/);
 });
 
 test("Identificar consulta o Razão da competência por conta e separa os lançamentos por empresa", () => {

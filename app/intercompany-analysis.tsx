@@ -48,6 +48,7 @@ type AnalysisRow = {
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const tolerance = 1;
+const hasMonthlyMovement = (value: number) => Math.abs(Number(value) || 0) >= 0.005;
 const holdingCode = "1";
 const normalizeCode = (value: string) => String(Number(value));
 const intercompanyGroups: Nature[] = ["Mútuo", "Almoxarifado", "Transação"];
@@ -93,7 +94,8 @@ function exact(rows: BalanceRow[], account: string) {
 
 function sumAccounts(rows: BalanceRow[], accounts: string[]) {
   const found = accounts.map((account) => exact(rows, account)).filter(Boolean) as BalanceRow[];
-  return { found, value: found.reduce((sum, row) => sum + row.movement, 0), reduced: found.map((row) => row.reduced).filter(Boolean).join(" + ") };
+  const moving = found.filter((row) => hasMonthlyMovement(row.movement));
+  return { found, moving, value: moving.reduce((sum, row) => sum + row.movement, 0), reduced: moving.map((row) => row.reduced).filter(Boolean).join(" + ") };
 }
 
 function holdingReceivableAccount(prefix: string, counterparty: string) {
@@ -141,7 +143,7 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
 
   const intercompanyAccounts = useMemo(() => {
     if (!selectedCompany) return [];
-    return (balances[selectedCompany.code] || []).filter((row) => isIntercompanyAccount(row.account)).map((row) => ({ ...row, companyCode: selectedCompany.code, companyName: selectedCompany.name, group: intercompanyAccountGroup(row.account) as Nature, nature: intercompanyAccountNature(row.account) })).sort((a, b) => a.group.localeCompare(b.group) || a.account.localeCompare(b.account));
+    return (balances[selectedCompany.code] || []).filter((row) => isIntercompanyAccount(row.account) && hasMonthlyMovement(row.movement)).map((row) => ({ ...row, companyCode: selectedCompany.code, companyName: selectedCompany.name, group: intercompanyAccountGroup(row.account) as Nature, nature: intercompanyAccountNature(row.account) })).sort((a, b) => a.group.localeCompare(b.group) || a.account.localeCompare(b.account));
   }, [balances, selectedCompany]);
 
   const sourceGroups = useMemo(() => intercompanyGroups.map((group) => {
@@ -184,9 +186,10 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
       if (!receivableAccount || !payableAccounts.length) return;
       const receivable = exact(balances[creditor.code], receivableAccount);
       const payable = sumAccounts(balances[debtor.code], payableAccounts);
-      if (!receivable && !payable.found.length) return;
-      const difference = (receivable?.movement || 0) + payable.value;
-      output.push({ id: `mutuo-${creditor.code}-${debtor.code}`, nature: "Mútuo", creditorCode: creditor.code, creditorName: creditor.name, debtorCode: debtor.code, debtorName: debtor.name, receivableAccount, receivableReduced: receivable?.reduced || "", receivableMovement: receivable?.movement || 0, payableAccount: payableAccounts.join(" + "), payableReduced: payable.reduced, payableMovement: payable.value, difference, status: analysisStatus(Boolean(receivable), payable.found.length > 0, difference) });
+      const receivableMovement = receivable?.movement || 0;
+      if (!hasMonthlyMovement(receivableMovement) && !hasMonthlyMovement(payable.value)) return;
+      const difference = receivableMovement + payable.value;
+      output.push({ id: `mutuo-${creditor.code}-${debtor.code}`, nature: "Mútuo", creditorCode: creditor.code, creditorName: creditor.name, debtorCode: debtor.code, debtorName: debtor.name, receivableAccount, receivableReduced: hasMonthlyMovement(receivableMovement) ? receivable?.reduced || "" : "", receivableMovement, payableAccount: payable.moving.length ? payable.moving.map((row) => row.account).join(" + ") : payableAccounts.join(" + "), payableReduced: payable.reduced, payableMovement: payable.value, difference, status: analysisStatus(Boolean(receivable), payable.found.length > 0, difference) });
     };
     available.filter((item) => item.code !== selectedCode).forEach((counterparty) => { appendMutual(selectedCompany, counterparty); appendMutual(counterparty, selectedCompany); });
     const holding = companyMap.get(holdingCode);
@@ -194,9 +197,11 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
       const receivableAccount = holdingReceivableAccount(rule.receivablePrefix, counterparty.code);
       const receivable = exact(balances[holdingCode], receivableAccount);
       const payable = exact(balances[counterparty.code], rule.payableAccount);
-      if (!receivable && !payable) return;
-      const difference = (receivable?.movement || 0) + (payable?.movement || 0);
-      output.push({ id: `${rule.nature}-${counterparty.code}`, nature: rule.nature, creditorCode: holdingCode, creditorName: holding.name, debtorCode: counterparty.code, debtorName: counterparty.name, receivableAccount, receivableReduced: receivable?.reduced || "", receivableMovement: receivable?.movement || 0, payableAccount: rule.payableAccount, payableReduced: payable?.reduced || "", payableMovement: payable?.movement || 0, difference, status: analysisStatus(Boolean(receivable), Boolean(payable), difference) });
+      const receivableMovement = receivable?.movement || 0;
+      const payableMovement = payable?.movement || 0;
+      if (!hasMonthlyMovement(receivableMovement) && !hasMonthlyMovement(payableMovement)) return;
+      const difference = receivableMovement + payableMovement;
+      output.push({ id: `${rule.nature}-${counterparty.code}`, nature: rule.nature, creditorCode: holdingCode, creditorName: holding.name, debtorCode: counterparty.code, debtorName: counterparty.name, receivableAccount, receivableReduced: hasMonthlyMovement(receivableMovement) ? receivable?.reduced || "" : "", receivableMovement, payableAccount: rule.payableAccount, payableReduced: hasMonthlyMovement(payableMovement) ? payable?.reduced || "" : "", payableMovement, difference, status: analysisStatus(Boolean(receivable), Boolean(payable), difference) });
     }));
     setResults(output); setAnalyzing(false); setHasAnalyzed(true);
     const treatmentCount = output.filter((row) => row.status !== "Conciliado").length;
