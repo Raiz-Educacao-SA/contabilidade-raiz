@@ -8,7 +8,10 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
-import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import {
+  applyRevenueWorkbookStyle,
+  compactRevenueBar,
+} from "@/lib/revenue-export-workbook";
 import {
   classifyRevenueReconciliation,
   isExcludedRevenueGenerationType,
@@ -41,32 +44,7 @@ const brl = new Intl.NumberFormat("pt-BR", {
   tol = REVENUE_TOLERANCE;
 const excelMoney = 'R$ #,##0.00;[Red]-R$ #,##0.00';
 const excelPercent = '0.0%';
-const excelColors = {
-  navy: "14213D",
-  blue: "2F80C0",
-  paleBlue: "F3F8FE",
-  white: "FFFFFF",
-};
-type StyledCell = XLSX.CellObject & { s?: unknown };
-type SheetStyle = NonNullable<StyledCell["s"]>;
-function setCellStyle(worksheet: XLSX.WorkSheet, address: string, style: SheetStyle) {
-  const cell = worksheet[address] as StyledCell | undefined;
-  if (cell) cell.s = style;
-}
-function styleRange(
-  worksheet: XLSX.WorkSheet,
-  rowStart: number,
-  rowEnd: number,
-  colStart: number,
-  colEnd: number,
-  style: SheetStyle,
-) {
-  for (let row = rowStart; row <= rowEnd; row += 1) {
-    for (let col = colStart; col <= colEnd; col += 1) {
-      setCellStyle(worksheet, XLSX.utils.encode_cell({ r: row, c: col }), style);
-    }
-  }
-}
+const excelInteger = '#,##0';
 function setNumberFormat(
   worksheet: XLSX.WorkSheet,
   rowStart: number,
@@ -80,16 +58,6 @@ function setNumberFormat(
       if (cell?.t === "n") cell.z = format;
     });
   }
-}
-function compactBar(percent: number) {
-  const safe = Math.max(0, Math.min(100, percent));
-  const filled = Math.round(safe / 5);
-  return `${"█".repeat(filled)}${"░".repeat(20 - filled)} ${safe.toFixed(1).replace(".", ",")}%`;
-}
-function compactPercentBar(percent: number) {
-  const safe = Math.max(0, Math.min(100, percent));
-  const filled = Math.round(safe / 5);
-  return `${"#".repeat(filled)}${".".repeat(20 - filled)} ${safe.toFixed(1).replace(".", ",")}%`;
 }
 export default function RevenueReconciliation({
   companyCode,
@@ -218,50 +186,6 @@ export default function RevenueReconciliation({
     cRev = rows.reduce((sum, row) => sum + row.accountingRevenue, 0),
     fDisc = f.reduce((s, x) => s + x.discount, 0),
     cDisc = rows.reduce((sum, row) => sum + row.accountingDiscount, 0);
-  function exportDivergences() {
-    const data = pending.map((x) => ({
-      Status: x.status,
-      RA: x.ra,
-      Competência: x.competence,
-      Aluno: x.name,
-      "Status fiscal": x.fiscalStatus,
-      "Receita fiscal": x.fiscalRevenue,
-      "Receita contábil": x.accountingRevenue,
-      "Diferença receita": x.revenueDifference,
-      "Desconto fiscal": x.fiscalDiscount,
-      "Desconto contábil": x.accountingDiscount,
-      "Diferença desconto": x.discountDifference,
-      Impacto: x.impact,
-      Orientação: x.comment,
-      "Tipo de geração": x.generationTypes,
-      "Complemento contábil": x.complements,
-    }));
-    const workbook = XLSX.utils.book_new(),
-      worksheet = XLSX.utils.json_to_sheet(data);
-    worksheet["!cols"] = [
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 13 },
-      { wch: 34 },
-      { wch: 16 },
-      { wch: 17 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 16 },
-      { wch: 31 },
-      { wch: 18 },
-      { wch: 58 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Divergências");
-    applyRaizWorkbookStyle(workbook);
-    XLSX.writeFile(
-      workbook,
-      `conciliacao-receita-${companyCode}-${competence}.xlsx`,
-    );
-  }
   function exportAnalysis() {
     const generatedAt = new Date().toLocaleString("pt-BR", {
       timeZone: "America/Sao_Paulo",
@@ -284,36 +208,6 @@ export default function RevenueReconciliation({
       "Complemento contábil": x.complements,
     });
     const workbook = XLSX.utils.book_new();
-    const border = {
-      top: { style: "thin", color: { rgb: "D9E2EF" } },
-      bottom: { style: "thin", color: { rgb: "D9E2EF" } },
-      left: { style: "thin", color: { rgb: "D9E2EF" } },
-      right: { style: "thin", color: { rgb: "D9E2EF" } },
-    };
-    const titleStyle = {
-      font: { name: "Arial", sz: 13, bold: true, color: { rgb: excelColors.white } },
-      fill: { fgColor: { rgb: excelColors.navy } },
-      alignment: { horizontal: "center", vertical: "center" },
-      border,
-    };
-    const sectionStyle = {
-      font: { name: "Arial", sz: 10, bold: true, color: { rgb: excelColors.white } },
-      fill: { fgColor: { rgb: excelColors.blue } },
-      alignment: { horizontal: "center", vertical: "center" },
-      border,
-    };
-    const headerStyle = {
-      font: { name: "Arial", sz: 10, bold: true, color: { rgb: excelColors.white } },
-      fill: { fgColor: { rgb: excelColors.navy } },
-      alignment: { horizontal: "center", vertical: "center" },
-      border,
-    };
-    const cardStyle = {
-      font: { name: "Arial", sz: 10, bold: true, color: { rgb: excelColors.navy } },
-      fill: { fgColor: { rgb: excelColors.paleBlue } },
-      alignment: { vertical: "center" },
-      border,
-    };
     const statusCounts = [
       { status: "Conciliado", count: rows.filter((x) => x.status === "Conciliado").length },
       { status: "Divergente", count: rows.filter((x) => x.status === "Divergente").length },
@@ -341,7 +235,7 @@ export default function RevenueReconciliation({
         item.status,
         item.count,
         rows.length ? item.count / rows.length : 0,
-        compactPercentBar(rows.length ? (item.count / rows.length) * 100 : 0),
+        compactRevenueBar(rows.length ? (item.count / rows.length) * 100 : 0),
         "",
         "",
         "",
@@ -356,7 +250,7 @@ export default function RevenueReconciliation({
       { wch: 28 },
       { wch: 18 },
       { wch: 18 },
-      { wch: 18 },
+      { wch: 32 },
       { wch: 18 },
       { wch: 18 },
       { wch: 20 },
@@ -369,17 +263,12 @@ export default function RevenueReconciliation({
       { s: { r: 12, c: 0 }, e: { r: 12, c: 7 } },
       { s: { r: 19, c: 0 }, e: { r: 19, c: 7 } },
     ];
-    styleRange(dashboard, 0, 0, 0, 7, titleStyle);
-    styleRange(dashboard, 3, 3, 0, 7, sectionStyle);
-    styleRange(dashboard, 6, 6, 0, 7, sectionStyle);
-    styleRange(dashboard, 12, 12, 0, 7, sectionStyle);
-    styleRange(dashboard, 19, 19, 0, 7, sectionStyle);
-    styleRange(dashboard, 4, 4, 0, 7, cardStyle);
-    styleRange(dashboard, 7, 7, 0, 3, headerStyle);
-    styleRange(dashboard, 13, 13, 0, 3, headerStyle);
+    setNumberFormat(dashboard, 4, 4, [1, 3, 5], excelInteger);
     setNumberFormat(dashboard, 4, 4, [7], excelPercent);
     setNumberFormat(dashboard, 8, 10, [1, 2, 3], excelMoney);
+    setNumberFormat(dashboard, 14, 17, [1], excelInteger);
     setNumberFormat(dashboard, 14, 17, [2], excelPercent);
+    setNumberFormat(dashboard, 20, 20, [1, 3, 5, 7], excelInteger);
     XLSX.utils.book_append_sheet(workbook, dashboard, "Dashboard");
 
     const appendJsonSheet = (
@@ -390,7 +279,6 @@ export default function RevenueReconciliation({
       const worksheet = XLSX.utils.json_to_sheet(data);
       worksheet["!cols"] = columns;
       const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
-      styleRange(worksheet, 0, 0, range.s.c, range.e.c, headerStyle);
       setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [4, 5, 6, 7, 8, 9, 10, 11], excelMoney);
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     };
@@ -450,14 +338,12 @@ export default function RevenueReconciliation({
       ["3", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
       ["4", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["5", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["6", "Exportação", "Dashboard + detalhes", "Layout padronizado com títulos azuis e quadros"],
+      ["6", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
-    styleRange(audit, 0, 0, 0, 3, titleStyle);
-    styleRange(audit, 1, 1, 0, 3, headerStyle);
     XLSX.utils.book_append_sheet(workbook, audit, "Auditoria");
-    applyRaizWorkbookStyle(workbook);
+    applyRevenueWorkbookStyle(workbook);
     XLSX.writeFile(
       workbook,
       `${String(companyCode).padStart(2, "0")}_${companyName.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "")}_Faturamento_VS_Educacional_${competenceLabel.replace("/", ".")}.xlsx`,

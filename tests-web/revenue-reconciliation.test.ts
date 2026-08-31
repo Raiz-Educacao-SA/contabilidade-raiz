@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import XLSX from "xlsx-js-style";
+
+import {
+  applyRevenueWorkbookStyle,
+  compactRevenueBar,
+} from "../lib/revenue-export-workbook.ts";
 
 import {
   accountingRevenueQueryAccounts,
@@ -195,6 +201,44 @@ test("mantém compactos os botões da conciliação de receita", () => {
     css,
     /\.revenue-content \.revenue-actions button \{[\s\S]*?width: auto;[\s\S]*?min-height: 32px;[\s\S]*?padding: 6px 12px;/,
   );
+});
+
+test("colore somente a primeira linha e preserva formatos numéricos no Excel", () => {
+  const workbook = XLSX.utils.book_new();
+  const dashboard = XLSX.utils.aoa_to_sheet([
+    ["TÍTULO", ""],
+    ["Quantidade", 293],
+    ["Percentual", 0.166],
+  ]);
+  const details = XLSX.utils.aoa_to_sheet([
+    ["RA", "Valor"],
+    ["011153329", 4012],
+  ]);
+  dashboard.B2.z = "#,##0";
+  dashboard.B3.z = "0.0%";
+  XLSX.utils.book_append_sheet(workbook, dashboard, "Dashboard");
+  XLSX.utils.book_append_sheet(workbook, details, "Divergências");
+
+  applyRevenueWorkbookStyle(workbook);
+
+  const dashboardTitle = dashboard.A1 as XLSX.CellObject & { s?: { fill?: { fgColor?: { rgb?: string } } } };
+  const dashboardData = dashboard.A2 as XLSX.CellObject & { s?: { fill?: unknown } };
+  const detailsTitle = details.A1 as XLSX.CellObject & { s?: { fill?: { fgColor?: { rgb?: string } } } };
+  const detailsData = details.A2 as XLSX.CellObject & { s?: { fill?: unknown } };
+
+  assert.equal(dashboardTitle.s?.fill?.fgColor?.rgb, "14213D");
+  assert.equal(detailsTitle.s?.fill?.fgColor?.rgb, "14213D");
+  assert.equal(dashboardData.s?.fill, undefined);
+  assert.equal(detailsData.s?.fill, undefined);
+  assert.equal(dashboard.B2.z, "#,##0");
+  assert.equal(dashboard.B3.z, "0.0%");
+});
+
+test("gera barra compacta legível sem caracteres de erro do Excel", () => {
+  const bar = compactRevenueBar(82.8);
+  assert.match(bar, /82,8%$/);
+  assert.doesNotMatch(bar, /#/);
+  assert.equal(bar.length, 26);
 });
 
 test("não usa o histórico Estorno como regra de segregação", () => {
