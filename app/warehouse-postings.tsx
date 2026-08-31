@@ -14,6 +14,14 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 
 const emptyResult: WarehouseImportResult = { postings: [], sourceRows: 0, errors: [] };
 
+function normalizeStoredResult(result?: WarehouseImportResult): WarehouseImportResult {
+  if (!result) return emptyResult;
+  return {
+    ...result,
+    errors: result.errors.filter((error) => !/^O arquivo não possui valores para a coligada/i.test(error)),
+  };
+}
+
 export default function WarehousePostings({ companyCode, companyName, competence }: {
   companyCode: string;
   companyName: string;
@@ -40,7 +48,7 @@ export default function WarehousePostings({ companyCode, companyName, competence
         }
         const parsed = JSON.parse(cached) as { fileName?: string; result?: WarehouseImportResult };
         setFileName(parsed.fileName || "");
-        setResult(parsed.result || emptyResult);
+        setResult(normalizeStoredResult(parsed.result));
       } catch {
         setFileName("");
         setResult(emptyResult);
@@ -205,8 +213,8 @@ export default function WarehousePostings({ companyCode, companyName, competence
       ) : (
         <div className="warehouse-empty compact">
           <FileSpreadsheet />
-          <b>Nenhum lançamento válido encontrado</b>
-          <span>Confira as colunas de empresa, filial e valor do arquivo importado.</span>
+          <b>Sem movimento nesta competência</b>
+          <span>Esta empresa não possui valores no controle importado. Nenhum lançamento será gerado, e a tarefa pode ser finalizada normalmente.</span>
         </div>
       )}
     </section>

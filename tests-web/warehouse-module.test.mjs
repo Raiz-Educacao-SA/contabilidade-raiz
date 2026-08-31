@@ -22,6 +22,8 @@ test("painel importa Excel, apresenta prévia e gera Lançamentos em CSV", () =>
   assert.match(panel, /> Lançamentos/);
   assert.match(panel, /coligada\$\{normalizedCompanyCode\.padStart\(2, "0"\)\}-almoxarifado\.csv/);
   assert.match(panel, /localStorage\.setItem\(cacheKey/);
+  assert.match(panel, /Sem movimento nesta competência/);
+  assert.match(panel, /a tarefa pode ser finalizada normalmente/);
 });
 
 test("Almoxarifado alimenta o Cronograma por empresa", () => {

@@ -354,9 +354,6 @@ export function parseWarehouseSheets(sheets: WarehouseSheet[], options: Warehous
   });
 
   if (!sheetsWithHeaders) errors.push("Nenhuma aba com estrutura válida foi encontrada no arquivo.");
-  if (sheetsWithHeaders && !sourceRows && !errors.some((error) => /linha|filial|destino/.test(error))) {
-    errors.push(`O arquivo não possui valores para a coligada ${selectedCode.padStart(2, "0")}.`);
-  }
 
   return {
     postings: [...postings.values()].sort((left, right) =>

@@ -87,6 +87,22 @@ test("bloqueia empresa da Raiz sem conta cadastrada", () => {
   assert.match(result.errors.join(" "), /sem conta de Almoxarifado cadastrada/);
 });
 
+test("aceita empresa sem valores na competência sem gerar erro ou lançamento", () => {
+  const result = parseWarehouseSheets([
+    {
+      name: "Materiais",
+      rows: [
+        ["Ano", "Mês", " Preço total ", "Unidade", "Marca"],
+        [2026, "JUNHO", 500, "CUBO BARRA", "CUBO"],
+      ],
+    },
+  ], { selectedCompanyCode: "09", selectedCompanyName: "09 — GLOBAL TREE", competence: "2026-06" });
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.sourceRows, 0);
+  assert.equal(result.postings.length, 0);
+});
+
 test("gera o CSV padrão TOTVS com o último dia real da competência", () => {
   const parsed = parseWarehouseSheets([
     { name: "Controle", rows: [["Filial", "Valor"], ["01", 1234.56]] },
