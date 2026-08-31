@@ -1143,6 +1143,7 @@ export default function Home() {
         )}
         {selectedModule === "receita" && (
           <RevenueReconciliation
+            key={`${companyId}-${competence}`}
             companyCode={company?.empresas?.codcoligada ?? ""}
             companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
             competence={competence}

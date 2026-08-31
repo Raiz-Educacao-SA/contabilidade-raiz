@@ -2045,18 +2045,26 @@
 .revenue-content .revenue-actions {
   width: auto;
   display: flex;
-  gap: 7px;
+  gap: 5px;
 }
 .revenue-content .revenue-actions button {
   width: auto;
-  min-height: 32px;
-  padding: 6px 12px;
+  min-height: 28px;
+  padding: 4px 8px;
   justify-content: center;
-  font-size: 10px;
+  gap: 4px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.revenue-content .revenue-actions button svg,
+.revenue-content .export-revenue svg {
+  width: 12px;
+  height: 12px;
 }
 .revenue-content .revenue-status {
   padding: 8px 16px;
   gap: 6px;
+  grid-template-columns: minmax(125px, 1fr) minmax(125px, 1fr) minmax(220px, 1.35fr) repeat(3, minmax(105px, 0.8fr));
 }
 .revenue-content .revenue-status article {
   min-width: 0;
@@ -2069,9 +2077,35 @@
   font-size: 8px;
 }
 .revenue-content .revenue-status b {
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.2;
   white-space: nowrap;
+}
+.revenue-content .revenue-progress {
+  width: 100%;
+  height: 4px;
+  margin-top: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe6ee;
+}
+.revenue-content .revenue-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #168657, #43b581);
+  transition: width 180ms ease;
+}
+.revenue-content .export-revenue {
+  min-height: 28px;
+  padding: 4px 8px;
+  gap: 4px;
+  font-size: 9px;
+}
+@media (max-width: 1180px) {
+  .revenue-content .revenue-status {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 @media (max-width: 900px) {
   .revenue-content .revenue-actions {
@@ -2080,6 +2114,14 @@
   }
   .revenue-content .revenue-actions button {
     width: 100%;
+  }
+  .revenue-content .revenue-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 620px) {
+  .revenue-content .revenue-status {
+    grid-template-columns: 1fr;
   }
 }
 .revenue-content .revenue-warning {

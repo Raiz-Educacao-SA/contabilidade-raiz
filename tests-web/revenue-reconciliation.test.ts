@@ -26,6 +26,7 @@ import {
   REVENUE_ACCOUNT_PREFIX,
   summarizeAccountingRevenue,
 } from "../lib/revenue-reconciliation.ts";
+import { revenueReconciliationCacheKey } from "../lib/revenue-reconciliation-cache.ts";
 
 test("consulta receitas e todos os grupos contábeis de descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
@@ -213,8 +214,27 @@ test("mantém compactos os botões da conciliação de receita", () => {
   );
   assert.match(
     css,
-    /\.revenue-content \.revenue-actions button \{[\s\S]*?width: auto;[\s\S]*?min-height: 32px;[\s\S]*?padding: 6px 12px;/,
+    /\.revenue-content \.revenue-actions button \{[\s\S]*?width: auto;[\s\S]*?min-height: 28px;[\s\S]*?padding: 4px 8px;/,
   );
+  assert.match(
+    css,
+    /\.revenue-content \.revenue-status \{[\s\S]*?grid-template-columns: minmax\(125px, 1fr\)[\s\S]*?minmax\(220px, 1\.35fr\)/,
+  );
+});
+
+test("isola a conciliação por empresa e competência", () => {
+  assert.equal(
+    revenueReconciliationCacheKey("5", "2026-07"),
+    "revenue-reconciliation:05:2026-07",
+  );
+
+  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../app/revenue-reconciliation.tsx", import.meta.url), "utf8");
+  const completion = readFileSync(new URL("../app/module-completion-control.tsx", import.meta.url), "utf8");
+  assert.match(page, /<RevenueReconciliation\s+key=\{`\$\{companyId\}-\$\{competence\}`\}/);
+  assert.match(panel, /readRevenueReconciliationCache<RevenueCacheSnapshot>\(cacheKey\)/);
+  assert.match(panel, /completion\?\.status === "concluido"/);
+  assert.match(completion, /MODULE_COMPLETION_CHANGED_EVENT/);
 });
 
 test("colore somente a primeira linha e preserva formatos numéricos no Excel", () => {
@@ -253,6 +273,32 @@ test("gera barra compacta legível sem caracteres de erro do Excel", () => {
   assert.match(bar, /82,8%$/);
   assert.doesNotMatch(bar, /#/);
   assert.equal(bar.length, 26);
+});
+
+test("remove a coluna Visual do dashboard exportado", () => {
+  const panel = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.doesNotMatch(panel, /"% sobre total", "Visual"/);
+  assert.doesNotMatch(panel, /compactRevenueBar\(/);
+});
+
+test("exibe uma barra compacta com o percentual conciliado somente na tela", () => {
+  const panel = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+  const css = readFileSync(
+    new URL("../app/modules.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(panel, /className="revenue-progress"/);
+  assert.match(panel, /role="progressbar"/);
+  assert.match(panel, /Math\.min\(100, Math\.max\(0, reconciledPercentage\)\)/);
+  assert.match(css, /\.revenue-content \.revenue-progress \{[\s\S]*?height: 4px;/);
 });
 
 test("não usa o histórico Estorno como regra de segregação", () => {

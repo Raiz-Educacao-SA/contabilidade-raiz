@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { ScheduleCompletion, ScheduleCompletionIdentity } from "@/lib/schedule-completion";
+import {
+  MODULE_COMPLETION_CHANGED_EVENT,
+  type ModuleCompletionChangeDetail,
+  type ScheduleCompletion,
+  type ScheduleCompletionIdentity,
+} from "@/lib/schedule-completion";
 
 export default function ModuleCompletionControl({ competence, modulo, setor, additionalItems = [], userId, userEmail, disabled = false, disabledReason = "" }: {
   competence: string;
@@ -84,6 +89,16 @@ export default function ModuleCompletionControl({ competence, modulo, setor, add
       confirmado_email: userEmail,
       confirmado_em: confirmedAt,
     })));
+    const completionChange: ModuleCompletionChangeDetail = {
+      competence,
+      moduleKeys,
+      status: done ? "concluido" : "pendente",
+      confirmedAt,
+      userEmail,
+    };
+    window.dispatchEvent(new CustomEvent(MODULE_COMPLETION_CHANGED_EVENT, {
+      detail: completionChange,
+    }));
     setSaving(false);
   }
 

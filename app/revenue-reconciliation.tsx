@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Calculator,
   Download,
@@ -8,16 +8,25 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
-import {
-  applyRevenueWorkbookStyle,
-  compactRevenueBar,
-} from "@/lib/revenue-export-workbook";
+import { applyRevenueWorkbookStyle } from "@/lib/revenue-export-workbook";
 import {
   classifyRevenueReconciliation,
   isExcludedRevenueGenerationType,
   REVENUE_TOLERANCE,
   summarizeAccountingRevenue,
 } from "@/lib/revenue-reconciliation";
+import {
+  readRevenueReconciliationCache,
+  revenueReconciliationCacheKey,
+  writeRevenueReconciliationCache,
+} from "@/lib/revenue-reconciliation-cache";
+import {
+  financialCompletionIdentity,
+  MODULE_COMPLETION_CHANGED_EVENT,
+  type ModuleCompletionChangeDetail,
+  type ScheduleCompletion,
+} from "@/lib/schedule-completion";
+import { supabase } from "@/lib/supabase";
 type F = {
   id: string;
   ra: string;
@@ -36,6 +45,16 @@ type C = {
   generationType?: string;
   account?: string;
   description?: string;
+};
+type RevenueCacheSnapshot = {
+  fiscalRows: F[];
+  accountingRows: C[];
+  fiscalLoaded: boolean;
+  accountingLoaded: boolean;
+  activeView: "divergences" | "generationTypes";
+  updatedAt: string;
+  finalizedAt: string;
+  finalizedBy: string;
 };
 const brl = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -78,8 +97,109 @@ export default function RevenueReconciliation({
     [activeView, setActiveView] = useState<"divergences" | "generationTypes">(
       "divergences",
     ),
+    [cacheReady, setCacheReady] = useState(false),
+    [restoredCacheKey, setRestoredCacheKey] = useState(""),
+    [isFinalized, setIsFinalized] = useState(false),
+    [finalizedAt, setFinalizedAt] = useState(""),
+    [finalizedBy, setFinalizedBy] = useState(""),
     [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
+  const cacheKey = revenueReconciliationCacheKey(companyCode, competence);
+  const scheduleIdentity = useMemo(
+    () => financialCompletionIdentity("receita", companyCode, companyName),
+    [companyCode, companyName],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const loadLastClosedTask = async () => {
+      if (!companyCode) {
+        if (active) {
+          setRestoredCacheKey(cacheKey);
+          setCacheReady(true);
+        }
+        return;
+      }
+      const { data, error: completionError } = await supabase
+        .from("cronograma_entregas")
+        .select("modulo,setor,status,confirmado_email,confirmado_em")
+        .eq("competencia", competence)
+        .eq("modulo", scheduleIdentity.modulo)
+        .maybeSingle();
+      if (!active) return;
+      const completion = completionError ? null : data as ScheduleCompletion | null;
+      const finalized = completion?.status === "concluido";
+      setIsFinalized(finalized);
+      setFinalizedAt(finalized ? completion?.confirmado_em || "" : "");
+      setFinalizedBy(finalized ? completion?.confirmado_email || "" : "");
+
+      if (finalized) {
+        const snapshot = await readRevenueReconciliationCache<RevenueCacheSnapshot>(cacheKey);
+        if (!active) return;
+        if (snapshot) {
+          setF(Array.isArray(snapshot.fiscalRows) ? snapshot.fiscalRows : []);
+          setC(Array.isArray(snapshot.accountingRows) ? snapshot.accountingRows : []);
+          setFr(Boolean(snapshot.fiscalLoaded));
+          setCr(Boolean(snapshot.accountingLoaded));
+          setActiveView(snapshot.activeView === "generationTypes" ? "generationTypes" : "divergences");
+        }
+      }
+      setRestoredCacheKey(cacheKey);
+      setCacheReady(true);
+    };
+
+    void loadLastClosedTask();
+    const channel = supabase.channel(`receita-conclusao-${competence}-${companyCode}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "cronograma_entregas",
+          filter: `competencia=eq.${competence}`,
+        },
+        () => void loadLastClosedTask(),
+      )
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [cacheKey, companyCode, competence, scheduleIdentity.modulo]);
+
+  useEffect(() => {
+    if (!cacheReady || restoredCacheKey !== cacheKey || (!fr && !cr)) return;
+    const snapshot: RevenueCacheSnapshot = {
+      fiscalRows: f,
+      accountingRows: c,
+      fiscalLoaded: fr,
+      accountingLoaded: cr,
+      activeView,
+      updatedAt: new Date().toISOString(),
+      finalizedAt: isFinalized ? finalizedAt : "",
+      finalizedBy: isFinalized ? finalizedBy : "",
+    };
+    void writeRevenueReconciliationCache(cacheKey, snapshot).catch(() => {
+      console.warn("Não foi possível salvar a última conciliação de Receita no cache local.");
+    });
+  }, [activeView, c, cacheKey, cacheReady, f, finalizedAt, finalizedBy, fr, cr, isFinalized, restoredCacheKey]);
+
+  useEffect(() => {
+    const handleCompletionChange = (event: Event) => {
+      const detail = (event as CustomEvent<ModuleCompletionChangeDetail>).detail;
+      if (
+        detail?.competence !== competence ||
+        !detail.moduleKeys.includes(scheduleIdentity.modulo)
+      ) return;
+      const finalized = detail.status === "concluido";
+      setIsFinalized(finalized);
+      setFinalizedAt(finalized ? detail.confirmedAt : "");
+      setFinalizedBy(finalized ? detail.userEmail : "");
+    };
+    window.addEventListener(MODULE_COMPLETION_CHANGED_EVENT, handleCompletionChange);
+    return () => window.removeEventListener(MODULE_COMPLETION_CHANGED_EVENT, handleCompletionChange);
+  }, [competence, scheduleIdentity.modulo]);
+
   async function update(source: "fiscal" | "accounting") {
     setLoading(source);
     setError("");
@@ -230,12 +350,12 @@ export default function RevenueReconciliation({
       ["Receita líquida", netFiscal, netAccounting, netAccounting - netFiscal, "", "", "", ""],
       ["", "", "", "", "", "", "", ""],
       ["GRÁFICO COMPACTO DE CONCILIAÇÃO", "", "", "", "", "", "", ""],
-      ["Status", "Quantidade", "% sobre total", "Visual", "", "", "", ""],
+      ["Status", "Quantidade", "% sobre total", "", "", "", "", ""],
       ...statusCounts.map((item) => [
         item.status,
         item.count,
         rows.length ? item.count / rows.length : 0,
-        compactRevenueBar(rows.length ? (item.count / rows.length) * 100 : 0),
+        "",
         "",
         "",
         "",
@@ -356,7 +476,7 @@ export default function RevenueReconciliation({
         <div className="revenue-actions">
           <button
             className="fiscal-button"
-            disabled={loading !== null}
+            disabled={loading !== null || isFinalized}
             onClick={() => void update("fiscal")}
           >
             <FileCheck2 />
@@ -364,7 +484,7 @@ export default function RevenueReconciliation({
           </button>
           <button
             className="accounting-button"
-            disabled={loading !== null}
+            disabled={loading !== null || isFinalized}
             onClick={() => void update("accounting")}
           >
             <Calculator />
@@ -415,6 +535,20 @@ export default function RevenueReconciliation({
               : "—"}
           </b>
           <small>{fr && cr ? `${reconciled} de ${rows.length} RA` : "RA sem diferença"}</small>
+          <div
+            className="revenue-progress"
+            role="progressbar"
+            aria-label="Percentual conciliado"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={fr && cr ? Math.round(reconciledPercentage) : 0}
+          >
+            <span
+              style={{
+                width: `${fr && cr ? Math.min(100, Math.max(0, reconciledPercentage)) : 0}%`,
+              }}
+            />
+          </div>
         </article>
         <article className={pending.length ? "has-warning" : ""}>
           <span>Inconsistências</span>

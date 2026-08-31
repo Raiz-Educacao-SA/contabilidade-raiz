@@ -8,6 +8,16 @@ export type ScheduleCompletion = {
 
 export type ScheduleCompletionIdentity = Pick<ScheduleCompletion, "modulo" | "setor">;
 
+export const MODULE_COMPLETION_CHANGED_EVENT = "contabilidade-raiz:module-completion-changed";
+
+export type ModuleCompletionChangeDetail = {
+  competence: string;
+  moduleKeys: string[];
+  status: ScheduleCompletion["status"];
+  confirmedAt: string;
+  userEmail: string;
+};
+
 export function normalizeScheduleCompanyCode(code: string) {
   const value = String(code || "").trim();
   return value ? value.padStart(2, "0") : value;
