@@ -4134,6 +4134,200 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Importação do controle e geração dos lançamentos de Almoxarifado. */
+.warehouse-panel {
+  overflow: hidden;
+  padding: 0;
+}
+.warehouse-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(110deg, #effaf4, #fffaf1);
+}
+.warehouse-heading h2 {
+  margin: 3px 0;
+  color: #10294b;
+  font-size: 17px;
+}
+.warehouse-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+.warehouse-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: nowrap;
+}
+.warehouse-actions button,
+.warehouse-upload {
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+.warehouse-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #b8c5d4;
+  border-radius: 9px;
+  background: #fff;
+  color: #173d68;
+  font-weight: 900;
+  cursor: pointer;
+}
+.warehouse-upload:hover {
+  border-color: #2779bd;
+}
+.warehouse-upload.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.warehouse-upload input {
+  display: none;
+}
+.warehouse-actions svg {
+  width: 14px;
+  height: 14px;
+}
+.warehouse-clear {
+  color: #b42318;
+}
+.warehouse-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 18px;
+  background: #f8fafc;
+}
+.warehouse-summary article {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.warehouse-summary span,
+.warehouse-summary small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.warehouse-summary b {
+  display: block;
+  overflow: hidden;
+  margin: 2px 0;
+  color: #10294b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.warehouse-errors {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 18px 10px;
+  padding: 10px 12px;
+  border: 1px solid #f1b4a8;
+  border-radius: 10px;
+  background: #fff7f5;
+  color: #b42318;
+}
+.warehouse-errors svg {
+  width: 18px;
+  min-width: 18px;
+}
+.warehouse-errors div,
+.warehouse-errors span {
+  display: grid;
+  gap: 3px;
+}
+.warehouse-errors b {
+  font-size: 9px;
+}
+.warehouse-errors span {
+  color: #7a271a;
+  font-size: 8px;
+}
+.warehouse-empty {
+  min-height: 260px;
+  margin: 0 18px 16px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  border: 1px dashed #c7d2df;
+  border-radius: 12px;
+  color: #66758a;
+  text-align: center;
+}
+.warehouse-empty.compact {
+  min-height: 160px;
+}
+.warehouse-empty svg {
+  width: 30px;
+  height: 30px;
+}
+.warehouse-empty b {
+  color: #173d68;
+  font-size: 11px;
+}
+.warehouse-empty span {
+  max-width: 620px;
+  font-size: 9px;
+}
+.warehouse-table {
+  max-height: min(54vh, 560px);
+  margin: 0 18px 16px;
+  border-radius: 10px;
+}
+.warehouse-table table {
+  min-width: 1280px;
+}
+.warehouse-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.warehouse-table td:nth-last-child(2),
+.warehouse-table tfoot td:nth-last-child(2) {
+  text-align: right;
+  white-space: nowrap;
+}
+.warehouse-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  background: #eef5fb;
+  color: #173d68;
+  font-weight: 900;
+}
+@media (max-width: 900px) {
+  .warehouse-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .warehouse-actions {
+    flex-wrap: wrap;
+  }
+  .warehouse-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .warehouse-summary {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 620px) {
   .workflow-overview {
     grid-template-columns: 1fr;

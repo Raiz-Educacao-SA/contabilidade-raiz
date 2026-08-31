@@ -22,6 +22,7 @@ export const ACCOUNTING_SCHEDULE_TASK_IDS = [
   "pis-cofins",
   "irpj-csll",
   "rateio-csc",
+  "almoxarifado",
   "intercompany",
   "provisoes",
   "despesas",

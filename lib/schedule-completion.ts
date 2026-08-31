@@ -47,6 +47,7 @@ export function accountingCompletionIdentity(taskId: string, companyCode: string
     "pis-cofins": "PIS e COFINS",
     "irpj-csll": "IRPJ/CSLL",
     "rateio-csc": "Rateio CSC",
+    almoxarifado: "Almoxarifado",
     intercompany: "Intercompany",
     provisoes: "Provisões",
     despesas: "Despesas",

@@ -17,6 +17,7 @@ import {
   ListChecks,
   ListTree,
   LogOut,
+  PackageOpen,
   Plus,
   ReceiptText,
   RefreshCw,
@@ -43,6 +44,7 @@ import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import PendingAccountingLots from "@/app/pending-accounting-lots";
+import WarehousePostings from "@/app/warehouse-postings";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import AccessManagement from "@/app/access-management";
@@ -87,7 +89,7 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
+type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "almoxarifado" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
 type FiscalTab = "paa" | "iss" | "ecd";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
@@ -138,6 +140,7 @@ const accountingScheduleTasks: { id: AccountingTab; label: string; description: 
   { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
   { id: "irpj-csll", label: "IRPJ/CSLL", description: "Apuração do imposto" },
   { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
+  { id: "almoxarifado", label: "Almoxarifado", description: "Importação do controle e geração dos lançamentos" },
   { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
   { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
   { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
@@ -867,6 +870,7 @@ export default function Home() {
                 { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
                 { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
+                { id: "almoxarifado", label: "Almoxarifado", icon: PackageOpen },
                 { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "provisoes", label: "Provisões", icon: Save },
                 { id: "despesas", label: "Despesas", icon: ReceiptText },
@@ -959,6 +963,8 @@ export default function Home() {
                     ? "IRPJ/CSLL"
                     : accountingTab === "rateio-csc"
                       ? "Rateio CSC"
+                    : accountingTab === "almoxarifado"
+                      ? "Almoxarifado"
                       : accountingTab === "provisoes"
                           ? "Provisões"
                         : accountingTab === "despesas"
@@ -1253,6 +1259,14 @@ export default function Home() {
         {selectedModule === "contabil" && accountingTab === "rateio-csc" && (
           <CscAllocation key={competence} companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])} competence={competence} accessToken={session.access_token} />
         )}
+        {selectedModule === "contabil" && accountingTab === "almoxarifado" && (
+          <WarehousePostings
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
+            competence={competence}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "arrendamentos" && (
           <section className="panel module-workspace accounting-workspace lease-bridge">
             <HandCoins />
@@ -1281,7 +1295,7 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "almoxarifado" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "irpj-csll" ? (
               <ReceiptText />

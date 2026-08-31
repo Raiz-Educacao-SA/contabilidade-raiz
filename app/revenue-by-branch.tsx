@@ -143,7 +143,7 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
 
   return <section className="panel trial-analysis revenue-branch-retrospective">
     <div className="trial-analysis-actions">
-      <div><h2>Retrospectiva · Receita por Filial</h2><p>Movimento mensal das contas iniciadas por 3, de janeiro até o mês filtrado, aberto por conta e filial, com variação mês a mês.</p></div>
+      <div><h2>Retrospectiva · Receita por Filial</h2><p>Movimento mensal das contas contábeis iniciadas por 3, de janeiro até o mês filtrado, aberto por conta e filial, com variação mês a mês.</p></div>
       <div className="trial-action-buttons">
         <button className={`secondary ${rows.length ? "source-loaded" : ""}`} onClick={() => void update()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando..." : "Atualizar retrospectiva"}</button>
         <button className="secondary" onClick={exportRetrospective} disabled={!rows.length}><Download />Exportar</button>

@@ -34,12 +34,12 @@ test("calcula somente confirmações detalhadas por tarefa e empresa", () => {
   assert.deepEqual(progress.includedModules, ["financeiro", "fiscal", "folha", "contabil", "book"]);
   assert.equal(progress.modulePercent.financeiro, 25);
   assert.equal(progress.modulePercent.folha, 17);
-  assert.equal(progress.modulePercent.contabil, 10);
+  assert.equal(progress.modulePercent.contabil, 9);
   assert.equal(progress.overallPercent, 10);
 });
 
 test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
-  assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.length, 10);
+  assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.length, 11);
   assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.includes("imobilizado" as never), false);
 });
 

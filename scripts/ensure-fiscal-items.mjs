@@ -3,6 +3,20 @@ import { readFileSync, writeFileSync } from "node:fs";
 const path = new URL("../app/page.tsx", import.meta.url);
 let source = readFileSync(path, "utf8");
 
+const fiscalModuleAlreadyConfigured = [
+  'type FiscalTab = "paa" | "iss" | "ecd";',
+  'useState<FiscalTab>("paa")',
+  'className="accounting-nav fiscal-nav"',
+  'selectedModule === "fiscal"',
+  'className="panel module-workspace accounting-workspace fiscal-workspace"',
+  'selectedModule !== "fiscal"',
+].every((marker) => source.includes(marker));
+
+if (fiscalModuleAlreadyConfigured) {
+  console.log("Módulo Fiscal: PAA, ISS e ECD já estão configurados em app/page.tsx.");
+  process.exit(0);
+}
+
 function replaceOnce(search, replacement, label) {
   const normalizeLineEndings = (value, lineEnding) =>
     value.replaceAll("\r\n", "\n").replaceAll("\n", lineEnding);
