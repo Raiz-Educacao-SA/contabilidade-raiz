@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
+import { findHoldingAccountByCompanyName } from "@/lib/intercompany-account-matcher";
 
 type CompanyOption = { code: string; name: string };
 type BalanceRow = {
@@ -57,9 +58,11 @@ type AnalysisRow = {
   debtorCode: string;
   debtorName: string;
   receivableAccount: string;
+  receivableDescription: string;
   receivableReduced: string;
   receivableMovement: number;
   payableAccount: string;
+  payableDescription: string;
   payableReduced: string;
   payableMovement: number;
   difference: number;
@@ -202,15 +205,15 @@ function sumAccounts(rows: BalanceRow[], accounts: string[]) {
     found,
     moving,
     value: moving.reduce((sum, row) => sum + row.movement, 0),
+    description: moving
+      .map((row) => row.description)
+      .filter(Boolean)
+      .join(" + "),
     reduced: moving
       .map((row) => row.reduced)
       .filter(Boolean)
       .join(" + "),
   };
-}
-
-function holdingReceivableAccount(prefix: string, counterparty: string) {
-  return `${prefix}.${String(Number(counterparty)).padStart(2, "0")}`;
 }
 
 function analysisStatus(
@@ -240,7 +243,7 @@ function crossingDiagnosis(row: AnalysisRow) {
 
 function accountsFromRow(row: AnalysisRow) {
   return {
-    receivable: [row.receivableAccount],
+    receivable: [row.receivableAccount].filter(Boolean),
     payable: row.payableAccount
       .split(" + ")
       .map((account) => account.trim())
@@ -425,6 +428,7 @@ export default function IntercompanyAnalysis({
         debtorCode: debtor.code,
         debtorName: debtor.name,
         receivableAccount,
+        receivableDescription: receivable?.description || "",
         receivableReduced: hasMonthlyMovement(receivableMovement)
           ? receivable?.reduced || ""
           : "",
@@ -432,6 +436,7 @@ export default function IntercompanyAnalysis({
         payableAccount: payable.moving.length
           ? payable.moving.map((row) => row.account).join(" + ")
           : payableAccounts.join(" + "),
+        payableDescription: payable.description,
         payableReduced: payable.reduced,
         payableMovement: payable.value,
         difference,
@@ -458,11 +463,11 @@ export default function IntercompanyAnalysis({
               (selectedCode === holdingCode || item.code === selectedCode),
           )
           .forEach((counterparty) => {
-            const receivableAccount = holdingReceivableAccount(
+            const receivable = findHoldingAccountByCompanyName(
+              balances[holdingCode],
               rule.receivablePrefix,
-              counterparty.code,
+              counterparty,
             );
-            const receivable = exact(balances[holdingCode], receivableAccount);
             const payable = exact(
               balances[counterparty.code],
               rule.payableAccount,
@@ -482,12 +487,14 @@ export default function IntercompanyAnalysis({
               creditorName: holding.name,
               debtorCode: counterparty.code,
               debtorName: counterparty.name,
-              receivableAccount,
+              receivableAccount: receivable?.account || "",
+              receivableDescription: receivable?.description || "",
               receivableReduced: hasMonthlyMovement(receivableMovement)
                 ? receivable?.reduced || ""
                 : "",
               receivableMovement,
               payableAccount: rule.payableAccount,
+              payableDescription: payable?.description || "",
               payableReduced: hasMonthlyMovement(payableMovement)
                 ? payable?.reduced || ""
                 : "",
@@ -520,10 +527,12 @@ export default function IntercompanyAnalysis({
   }
 
   async function loadAccountingEntries(company: string, accounts: string[]) {
+    const validAccounts = accounts.filter(Boolean);
+    if (!validAccounts.length) return [];
     const query = new URLSearchParams({
       company,
       competence,
-      accounts: accounts.join(","),
+      accounts: validAccounts.join(","),
     });
     const response = await fetch(
       `/api/totvs/intercompany/entries?${query.toString()}`,
@@ -730,10 +739,12 @@ export default function IntercompanyAnalysis({
         Grupo: row.nature,
         "Empresa com ativo": `${row.creditorCode} — ${row.creditorName}`,
         "Conta a receber": row.receivableAccount,
+        "Descrição do ativo": row.receivableDescription,
         "Reduzido a receber": row.receivableReduced,
         "Movimento do ativo": row.receivableMovement,
         "Empresa com passivo": `${row.debtorCode} — ${row.debtorName}`,
         "Conta a pagar": row.payableAccount,
+        "Descrição do passivo": row.payableDescription,
         "Reduzido a pagar": row.payableReduced,
         "Movimento do passivo": row.payableMovement,
         "Diferença do movimento": row.difference,
@@ -991,7 +1002,14 @@ export default function IntercompanyAnalysis({
                                 <strong>
                                   {row.creditorCode} — {row.creditorName}
                                 </strong>
-                                <span>{row.receivableAccount}</span>
+                                <span>
+                                  {row.receivableAccount ||
+                                    "Conta não localizada pelo nome da empresa"}
+                                </span>
+                                <small>
+                                  {row.receivableDescription ||
+                                    "Descrição não localizada"}
+                                </small>
                                 <small>
                                   Red. {row.receivableReduced || "—"}
                                 </small>
@@ -1010,6 +1028,10 @@ export default function IntercompanyAnalysis({
                                   {row.debtorCode} — {row.debtorName}
                                 </strong>
                                 <span>{row.payableAccount}</span>
+                                <small>
+                                  {row.payableDescription ||
+                                    "Descrição não localizada"}
+                                </small>
                                 <small>Red. {row.payableReduced || "—"}</small>
                               </div>
                             </td>

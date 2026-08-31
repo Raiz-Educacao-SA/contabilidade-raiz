@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const component = readFileSync(new URL("../app/intercompany-analysis.tsx", import.meta.url), "utf8");
 const detailRoute = readFileSync(new URL("../app/api/totvs/intercompany/entries/route.ts", import.meta.url), "utf8");
+const accountMatcher = readFileSync(new URL("../lib/intercompany-account-matcher.ts", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8");
 
@@ -46,7 +47,7 @@ test("contas sem movimento e cruzamentos totalmente zerados não são exibidos",
 
 test("Identificar consulta o Razão da competência por conta e separa os lançamentos por empresa", () => {
   assert.match(component, /\/api\/totvs\/intercompany\/entries/);
-  assert.match(component, /accounts: accounts\.join\(","\)/);
+  assert.match(component, /accounts: validAccounts\.join\(","\)/);
   assert.match(component, /Lançamentos do Razão das contas por empresa/);
   assert.match(component, /intercompany-company-entries/);
   assert.match(component, /disabled=\{loadingEntries\}/);
@@ -55,6 +56,19 @@ test("Identificar consulta o Razão da competência por conta e separa os lança
   assert.match(detailRoute, /tag\(record, "IDPARTIDA"\)/);
   assert.match(detailRoute, /tag\(record, "COMPLEMENTO"\)/);
   assert.match(detailRoute, /accountSet\.has\(account\)/);
+});
+
+test("Almoxarifado e Transação localizam a conta pelo nome da empresa", () => {
+  assert.match(component, /findHoldingAccountByCompanyName\(/);
+  assert.doesNotMatch(component, /function holdingReceivableAccount/);
+  assert.match(component, /receivableDescription/);
+  assert.match(component, /Conta não localizada pelo nome da empresa/);
+  assert.match(accountMatcher, /row\.description/);
+  assert.match(accountMatcher, /normalizedDescription\.includes\(alias\)/);
+  assert.match(
+    accountMatcher,
+    /if \(matches\.length > 1 && matches\[0\]\.score === matches\[1\]\.score\) return undefined/,
+  );
 });
 
 test("Identificar compara ativo e passivo e informa em qual empresa falta o lançamento", () => {
