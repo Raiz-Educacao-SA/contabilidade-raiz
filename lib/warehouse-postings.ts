@@ -5,6 +5,7 @@ export type WarehouseSheet = {
 
 export type WarehousePosting = {
   companyCode: string;
+  companyName: string;
   branchCode: string;
   destinationCode: string;
   destinationName: string;
@@ -35,6 +36,16 @@ type RootDestination = {
 type WarehouseImportOptions = {
   selectedCompanyCode: string;
   selectedCompanyName: string;
+  competence?: string;
+};
+
+type WarehouseCompany = {
+  code: string;
+  name: string;
+};
+
+type WarehouseAllImportOptions = {
+  companies: WarehouseCompany[];
   competence?: string;
 };
 
@@ -314,6 +325,7 @@ export function parseWarehouseSheets(sheets: WarehouseSheet[], options: Warehous
         sourceRows += 1;
         pushOrSum(postings, `${selectedCode}:${branchCode}`, {
           companyCode: selectedCode,
+          companyName: options.selectedCompanyName,
           branchCode,
           destinationCode: "",
           destinationName: "",
@@ -339,6 +351,7 @@ export function parseWarehouseSheets(sheets: WarehouseSheet[], options: Warehous
       sourceRows += 1;
       pushOrSum(postings, `${ROOT_COMPANY_CODE}:${destination.code}`, {
         companyCode: ROOT_COMPANY_CODE,
+        companyName: options.selectedCompanyName,
         branchCode: "1",
         destinationCode: destination.code,
         destinationName: destination.name,
@@ -361,6 +374,45 @@ export function parseWarehouseSheets(sheets: WarehouseSheet[], options: Warehous
     ),
     sourceRows,
     errors: [...new Set(errors)],
+  };
+}
+
+export function parseWarehouseSheetsForAllCompanies(
+  sheets: WarehouseSheet[],
+  options: WarehouseAllImportOptions,
+): WarehouseImportResult {
+  const companyMap = new Map<string, WarehouseCompany>();
+  options.companies.forEach((company) => {
+    const code = normalizeCode(company.code);
+    if (code) companyMap.set(code, { code, name: company.name });
+  });
+  rootWarehouseDestinations.forEach((destination) => {
+    if (!companyMap.has(destination.code)) {
+      companyMap.set(destination.code, { code: destination.code, name: destination.name });
+    }
+  });
+  if (!companyMap.has(ROOT_COMPANY_CODE)) {
+    companyMap.set(ROOT_COMPANY_CODE, { code: ROOT_COMPANY_CODE, name: "Raiz Educação S.A." });
+  }
+
+  const results = [...companyMap.values()].map((company) =>
+    parseWarehouseSheets(sheets, {
+      selectedCompanyCode: company.code,
+      selectedCompanyName: company.name,
+      competence: options.competence,
+    }),
+  );
+
+  return {
+    postings: results
+      .flatMap((result) => result.postings)
+      .sort((left, right) =>
+        Number(left.companyCode) - Number(right.companyCode) ||
+        Number(left.branchCode) - Number(right.branchCode) ||
+        Number(left.destinationCode) - Number(right.destinationCode),
+      ),
+    sourceRows: Math.max(0, ...results.map((result) => result.sourceRows)),
+    errors: [...new Set(results.flatMap((result) => result.errors))],
   };
 }
 

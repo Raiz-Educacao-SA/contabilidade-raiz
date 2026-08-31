@@ -4214,12 +4214,32 @@
   font-weight: 900;
   white-space: nowrap;
 }
+.warehouse-locked {
+  min-height: 34px;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9px;
+  background: #eaf8f1;
+  color: #087443;
+  font-size: 8px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.warehouse-locked svg {
+  width: 14px;
+  height: 14px;
+}
 .warehouse-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 10px 18px;
   background: #f8fafc;
+}
+.warehouse-summary-all {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .warehouse-summary article {
   min-width: 0;
@@ -4351,6 +4371,68 @@
   color: #173d68;
   font-weight: 900;
 }
+.warehouse-company-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+.warehouse-company-card {
+  overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
+  border: 1px solid #cad7e5;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(16, 41, 75, 0.05);
+}
+.warehouse-company-card > header {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid #d9e3ed;
+  background: #f3f8fc;
+}
+.warehouse-company-card > header div {
+  min-width: 0;
+}
+.warehouse-company-card > header small,
+.warehouse-company-card > header span {
+  display: block;
+  color: #64748b;
+  font-size: 7px;
+}
+.warehouse-company-card > header small {
+  color: #4869d8;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.warehouse-company-card > header h3 {
+  margin: 2px 0;
+  color: #10294b;
+  font-size: 12px;
+}
+.warehouse-company-export {
+  min-height: 34px;
+  padding: 7px 11px;
+  flex: 0 0 auto;
+  font-size: 8px;
+  white-space: nowrap;
+}
+.warehouse-company-export svg {
+  width: 14px;
+  height: 14px;
+}
+.warehouse-company-card .warehouse-table {
+  max-height: 340px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.warehouse-company-card .warehouse-table table {
+  min-width: 1120px;
+}
 @media (max-width: 900px) {
   .warehouse-heading {
     align-items: stretch;
@@ -4361,6 +4443,13 @@
   }
   .warehouse-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .warehouse-company-card > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .warehouse-company-export {
+    align-self: flex-start;
   }
 }
 @media (max-width: 560px) {

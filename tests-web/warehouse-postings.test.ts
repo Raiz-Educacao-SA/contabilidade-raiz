@@ -3,7 +3,35 @@ import test from "node:test";
 import {
   buildWarehousePostingsCsv,
   parseWarehouseSheets,
+  parseWarehouseSheetsForAllCompanies,
 } from "../lib/warehouse-postings.ts";
+
+test("uma importação abre os lançamentos de todas as empresas com movimento", () => {
+  const result = parseWarehouseSheetsForAllCompanies([
+    {
+      name: "Materiais",
+      rows: [
+        ["Ano", "Mês", " Preço total ", "Unidade", "Marca"],
+        [2026, "JUNHO", 100, "CUBO BARRA", "CUBO"],
+        [2026, "JUNHO", 200, "GLOBAL TREE MARAPENDI", "GLOBAL TREE"],
+      ],
+    },
+  ], {
+    companies: [
+      { code: "01", name: "RAIZ EDUCAÇÃO S.A." },
+      { code: "05", name: "AO CUBO" },
+      { code: "09", name: "GLOBAL TREE" },
+    ],
+    competence: "2026-06",
+  });
+
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.sourceRows, 2);
+  assert.deepEqual([...new Set(result.postings.map((posting) => posting.companyCode))], ["1", "5", "9"]);
+  assert.equal(result.postings.filter((posting) => posting.companyCode === "1").length, 2);
+  assert.equal(result.postings.find((posting) => posting.companyCode === "5")?.amount, 100);
+  assert.equal(result.postings.find((posting) => posting.companyCode === "9")?.amount, 200);
+});
 
 test("segrega os lançamentos das coligadas por filial com as contas fixas", () => {
   const result = parseWarehouseSheets([

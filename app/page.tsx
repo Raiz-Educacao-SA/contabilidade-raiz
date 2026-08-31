@@ -309,6 +309,8 @@ export default function Home() {
   const [fiscalTab, setFiscalTab] = useState<FiscalTab>("paa");
   const [pendingLotsAllCompanies, setPendingLotsAllCompanies] = useState(false);
   const [pendingLotsUpdating, setPendingLotsUpdating] = useState(false);
+  const [warehouseFinalized, setWarehouseFinalized] = useState(false);
+  const [warehouseReady, setWarehouseReady] = useState(false);
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
   const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
   const [selectedScheduleModule, setSelectedScheduleModule] = useState<ScheduleModuleKey>("contabil");
@@ -341,6 +343,18 @@ export default function Home() {
     if (!selectedModule || selectedModule === "cronograma") return null;
     if (selectedModule === "contabil") {
       if (accountingTab === "pis-cofins") return null;
+      if (accountingTab === "almoxarifado") {
+        const uniqueCompanies = [...new Map(companies.flatMap((item) => item.empresas ? [[
+          String(Number(item.empresas.codcoligada)),
+          { code: item.empresas.codcoligada, name: item.empresas.razao_social },
+        ] as const] : [])).values()];
+        const warehouseItems = uniqueCompanies.map((item) =>
+          accountingCompletionIdentity("almoxarifado", item.code, item.name),
+        );
+        return warehouseItems.length
+          ? { ...warehouseItems[0], additionalItems: warehouseItems.slice(1) }
+          : null;
+      }
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
     if (selectedModule === "bancaria") return null;
@@ -991,7 +1005,7 @@ export default function Home() {
             </span>
             <div>
               <b>
-                {selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc")
+                {selectedModule === "cronograma" || (selectedModule === "contabil" && (accountingTab === "rateio-csc" || accountingTab === "almoxarifado"))
                   ? selectedModule === "cronograma"
                     ? "Cronograma Fechamento"
                     : "Período"
@@ -999,11 +1013,11 @@ export default function Home() {
                   ? "Filtros"
                   : "Filtros da análise"}
               </b>
-              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc") ? "Selecione o ano e o mês" : selectedModule === "folha" ? "Selecione a coligada e a competência da folha" : "Selecione a empresa e a competência"}</small>
+              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && (accountingTab === "rateio-csc" || accountingTab === "almoxarifado")) ? "Selecione o ano e o mês" : selectedModule === "folha" ? "Selecione a coligada e a competência da folha" : "Selecione a empresa e a competência"}</small>
             </div>
           </div>
           <div className="filter-fields">
-            {selectedModule !== "cronograma" && !(selectedModule === "contabil" && accountingTab === "rateio-csc") && <label className="company-control">
+            {selectedModule !== "cronograma" && !(selectedModule === "contabil" && (accountingTab === "rateio-csc" || accountingTab === "almoxarifado")) && <label className="company-control">
               <span>{selectedModule === "folha" ? "Qual a coligada analisar?" : "Empresa"}</span>
               <div className="company-select-stack">
                 <select
@@ -1093,6 +1107,9 @@ export default function Home() {
               additionalItems={moduleCompletionIdentity.additionalItems}
               userId={session.user.id}
               userEmail={session.user.email ?? ""}
+              disabled={selectedModule === "contabil" && accountingTab === "almoxarifado" && !warehouseReady}
+              disabledReason="Importe e valide o controle do Almoxarifado antes de finalizar."
+              onStatusChange={selectedModule === "contabil" && accountingTab === "almoxarifado" ? setWarehouseFinalized : undefined}
             />
           )}
         </section>
@@ -1261,10 +1278,11 @@ export default function Home() {
         )}
         {selectedModule === "contabil" && accountingTab === "almoxarifado" && (
           <WarehousePostings
-            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
-            companyCode={company?.empresas?.codcoligada ?? ""}
-            companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
+            key={competence}
+            companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])}
             competence={competence}
+            isFinalized={warehouseFinalized}
+            onReadyChange={setWarehouseReady}
           />
         )}
         {selectedModule === "contabil" && accountingTab === "arrendamentos" && (

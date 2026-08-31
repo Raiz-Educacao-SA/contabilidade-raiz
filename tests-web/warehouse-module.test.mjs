@@ -15,12 +15,14 @@ test("Almoxarifado fica abaixo de Rateio CSC e acima de Intercompany", () => {
   assert.match(page, /accountingTab === "almoxarifado"[\s\S]*<WarehousePostings/);
 });
 
-test("painel importa Excel, apresenta prévia e gera Lançamentos em CSV", () => {
+test("painel importa Excel, separa todas as empresas e gera um CSV por empresa", () => {
   assert.match(panel, /accept="\.xlsx,\.xls,\.xlsm"/);
-  assert.match(panel, /parseWarehouseSheets/);
+  assert.match(panel, /parseWarehouseSheetsForAllCompanies/);
   assert.match(panel, /Selecionar Excel/);
   assert.match(panel, /> Lançamentos/);
-  assert.match(panel, /coligada\$\{normalizedCompanyCode\.padStart\(2, "0"\)\}-almoxarifado\.csv/);
+  assert.match(panel, /companyGroups\.map/);
+  assert.match(panel, /exportCompanyPostings\(group\)/);
+  assert.match(panel, /coligada\$\{group\.code\.padStart\(2, "0"\)\}-almoxarifado\.csv/);
   assert.match(panel, /localStorage\.setItem\(cacheKey/);
   assert.match(panel, /Sem movimento nesta competência/);
   assert.match(panel, /a tarefa pode ser finalizada normalmente/);
@@ -29,8 +31,19 @@ test("painel importa Excel, apresenta prévia e gera Lançamentos em CSV", () =>
   assert.match(panel, /fileName && result\.errors\.length === 0 && result\.postings\.length === 0/);
 });
 
+test("arquivo fica fixado após o fechamento, mantendo a extração por empresa", () => {
+  assert.match(panel, /isFinalized \? "Arquivo fixado"/);
+  assert.match(panel, /disabled=\{loading \|\| isFinalized\}/);
+  assert.match(panel, /disabled=\{!fileName \|\| loading \|\| isFinalized\}/);
+  assert.match(panel, /className="primary warehouse-company-export"/);
+  assert.match(page, /onStatusChange=\{selectedModule === "contabil" && accountingTab === "almoxarifado" \? setWarehouseFinalized : undefined\}/);
+  assert.match(page, /Importe e valide o controle do Almoxarifado antes de finalizar/);
+  assert.match(panel, /onReadyChange\(Boolean\(fileName && result\.errors\.length === 0\)\)/);
+});
+
 test("Almoxarifado alimenta o Cronograma por empresa", () => {
   assert.match(completion, /almoxarifado: "Almoxarifado"/);
   assert.match(scheduleProgress, /"rateio-csc",\s*"almoxarifado",\s*"intercompany"/);
   assert.match(page, /id: "almoxarifado", label: "Almoxarifado", description: "Importação do controle e geração dos lançamentos"/);
+  assert.match(page, /warehouseItems\.slice\(1\)/);
 });
