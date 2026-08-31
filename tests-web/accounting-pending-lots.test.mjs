@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/pending-accounting-lots.tsx", import.meta.url), "utf8");
 const route = readFileSync(new URL("../app/api/totvs/accounting/pending-lots/route.ts", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8");
 
 test("módulo contábil oferece a rotina Lotes a integrar", () => {
   assert.match(page, /Lotes a integrar/);
@@ -40,4 +41,19 @@ test("opção Todas realiza apenas uma requisição consolidada no navegador", (
   assert.match(panel, /allCompanies \? "all" : companyCode/);
   assert.doesNotMatch(panel, /for \(let index = 0; index < targets\.length/);
   assert.doesNotMatch(panel, /companies\.map/);
+});
+
+test("mantém Todas, Atualizar e Finalizar tarefa na mesma linha dos filtros", () => {
+  assert.match(
+    styles,
+    /\.pending-lots-content \.top-context \{ grid-template-columns: 140px minmax\(0,1fr\) auto auto;/,
+  );
+  assert.match(
+    styles,
+    /\.pending-lots-content \.module-completion-control \{ max-width: 150px; margin-left: 0;/,
+  );
+  assert.match(
+    styles,
+    /\.pending-lots-content \.module-completion-control button \{ min-height: 34px; padding: 7px 10px;/,
+  );
 });

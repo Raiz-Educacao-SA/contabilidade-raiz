@@ -9,7 +9,7 @@ type CompanyOption = { code: string; name: string };
 type BalanceRow = { reduced: string; account: string; description: string; closingBalance: number };
 type AccountingEntry = { id: string; date: string; account: string; accountName: string; value: number; nature: string };
 type DivergentEntry = AccountingEntry & { companyCode: string; companyName: string; missingCompany: string; side: "Ativo a receber" | "Passivo a pagar"; crossing: string; reason: string; crossingDifference: number };
-type Nature = "Mútuos" | "Rateio CSC" | "Almoxarifado" | "Transações individuais";
+type Nature = "Mútuo" | "Almoxarifado" | "Transação";
 type AnalysisRow = {
   id: string;
   nature: Nature;
@@ -31,6 +31,7 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const tolerance = 1.0;
 const holdingCode = "1";
 const normalizeCode = (value: string) => String(Number(value));
+const intercompanyGroups: Nature[] = ["Mútuo", "Almoxarifado", "Transação"];
 
 const mutualReceivableByCounterparty: Record<string, string> = {
   "1": "1.2.1.01.01.07", "2": "1.2.1.01.01.01", "3": "1.2.1.01.01.19", "4": "1.2.1.01.01.03",
@@ -54,14 +55,16 @@ const mutualPayableByCounterparty: Record<string, string[]> = {
 };
 
 const holdingRules: Array<{ nature: Nature; receivablePrefix: string; payableAccount: string }> = [
-  { nature: "Rateio CSC", receivablePrefix: "1.1.2.03.04", payableAccount: "2.1.7.01.02.07" },
   { nature: "Almoxarifado", receivablePrefix: "1.1.2.03.06", payableAccount: "2.1.7.01.02.15" },
-  { nature: "Transações individuais", receivablePrefix: "1.1.2.03.05", payableAccount: "2.1.7.01.02.16" },
+  { nature: "Transação", receivablePrefix: "1.1.2.03.05", payableAccount: "2.1.7.01.02.16" },
 ];
 const mutualReceivableAccounts = new Set(Object.values(mutualReceivableByCounterparty));
 const mutualPayableAccounts = new Set(Object.values(mutualPayableByCounterparty).flat());
-const holdingPayableAccounts = new Set(holdingRules.map((rule) => rule.payableAccount));
-const isIntercompanyAccount = (account: string) => mutualReceivableAccounts.has(account) || mutualPayableAccounts.has(account) || holdingPayableAccounts.has(account) || holdingRules.some((rule) => account.startsWith(`${rule.receivablePrefix}.`));
+const intercompanyAccountGroup = (account: string): Nature | null => {
+  if (mutualReceivableAccounts.has(account) || mutualPayableAccounts.has(account)) return "Mútuo";
+  return holdingRules.find((rule) => rule.payableAccount === account || account.startsWith(`${rule.receivablePrefix}.`))?.nature || null;
+};
+const isIntercompanyAccount = (account: string) => Boolean(intercompanyAccountGroup(account));
 const intercompanyAccountNature = (account: string) => mutualReceivableAccounts.has(account) || holdingRules.some((rule) => account.startsWith(`${rule.receivablePrefix}.`)) ? "Ativo intercompany" : "Passivo intercompany";
 
 function exact(rows: BalanceRow[], account: string) { return rows.find((row) => row.account === account); }
@@ -107,14 +110,12 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
   const isUpdatedForSelection = updatedCompetence === competence && updatedCompanyCode === selectedCode;
   const intercompanyAccounts = useMemo(() => {
     if (!selectedCompany) return [];
-    return (balances[selectedCompany.code] || []).filter((row) => isIntercompanyAccount(row.account)).map((row) => ({ ...row, companyCode: selectedCompany.code, companyName: selectedCompany.name, nature: intercompanyAccountNature(row.account) })).sort((a, b) => a.account.localeCompare(b.account));
+    return (balances[selectedCompany.code] || []).filter((row) => isIntercompanyAccount(row.account)).map((row) => ({ ...row, companyCode: selectedCompany.code, companyName: selectedCompany.name, group: intercompanyAccountGroup(row.account) as Nature, nature: intercompanyAccountNature(row.account) })).sort((a, b) => a.group.localeCompare(b.group) || a.account.localeCompare(b.account));
   }, [balances, selectedCompany]);
-  const sourceTotals = useMemo(() => intercompanyAccounts.reduce((totals, row) => {
-    if (row.nature === "Ativo intercompany") totals.asset += row.closingBalance;
-    else totals.liability += row.closingBalance;
-    totals.net += row.closingBalance;
-    return totals;
-  }, { asset: 0, liability: 0, net: 0 }), [intercompanyAccounts]);
+  const sourceGroups = useMemo(() => intercompanyGroups.map((group) => {
+    const rows = intercompanyAccounts.filter((row) => row.group === group);
+    return { group, count: rows.length, balance: rows.reduce((total, row) => total + row.closingBalance, 0) };
+  }), [intercompanyAccounts]);
 
   async function updateBalances() {
     setLoading(true); setUpdatedCompetence(""); setUpdatedCompanyCode(""); setHasAnalyzed(false); setEntryScope(null); setSelectedRow(null); setDivergentEntries([]); setMessage(""); setResults([]);
@@ -154,7 +155,7 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
       const payable = sumAccounts(balances[debtor.code], payableAccounts);
       if (!receivable && !payable.found.length) return;
       const difference = (receivable?.closingBalance || 0) + payable.value;
-      output.push({ id: `mutuo-${creditor.code}-${debtor.code}`, nature: "Mútuos", creditorCode: creditor.code, creditorName: creditor.name, debtorCode: debtor.code, debtorName: debtor.name, receivableAccount, receivableReduced: receivable?.reduced || "", receivableBalance: receivable?.closingBalance || 0, payableAccount: payableAccounts.join(" + "), payableReduced: payable.reduced, payableBalance: payable.value, difference, status: status(Boolean(receivable), payable.found.length > 0, difference) });
+      output.push({ id: `mutuo-${creditor.code}-${debtor.code}`, nature: "Mútuo", creditorCode: creditor.code, creditorName: creditor.name, debtorCode: debtor.code, debtorName: debtor.name, receivableAccount, receivableReduced: receivable?.reduced || "", receivableBalance: receivable?.closingBalance || 0, payableAccount: payableAccounts.join(" + "), payableReduced: payable.reduced, payableBalance: payable.value, difference, status: status(Boolean(receivable), payable.found.length > 0, difference) });
     };
 
     available.filter((item) => item.code !== selectedCode).forEach((counterparty) => {
@@ -237,6 +238,16 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
     missing: results.filter((row) => row.status.includes("ausente") || row.status === "Contas ausentes").length,
     difference: results.filter((row) => row.status !== "Conciliado").reduce((sum, row) => sum + Math.abs(row.difference), 0),
   }), [results]);
+  const groupSummary = useMemo(() => intercompanyGroups.map((group) => {
+    const rows = results.filter((row) => row.nature === group);
+    return {
+      group,
+      crossings: rows.length,
+      reconciled: rows.filter((row) => row.status === "Conciliado").length,
+      treatment: rows.filter((row) => row.status !== "Conciliado").length,
+      difference: rows.filter((row) => row.status !== "Conciliado").reduce((sum, row) => sum + Math.abs(row.difference), 0),
+    };
+  }), [results]);
   const filtered = useMemo(() => results.filter((row) => row.status !== "Conciliado" && (nature === "Todas" || row.nature === nature) && (!search.trim() || `${row.creditorCode} ${row.creditorName} ${row.debtorCode} ${row.debtorName} ${row.receivableAccount} ${row.payableAccount}`.toLowerCase().includes(search.toLowerCase()))), [results, nature, search]);
 
   function exportResults() {
@@ -244,7 +255,7 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
     const rows = results.filter((row) => row.status !== "Conciliado").map((row) => ({ Natureza: row.nature, "Empresa credora": `${row.creditorCode} — ${row.creditorName}`, "Empresa devedora": `${row.debtorCode} — ${row.debtorName}`, "Conta a receber": row.receivableAccount, "Reduzido a receber": row.receivableReduced, "Saldo a receber": row.receivableBalance, "Conta a pagar": row.payableAccount, "Reduzido a pagar": row.payableReduced, "Saldo a pagar": row.payableBalance, "Ativo + Passivo": row.difference, Situação: row.status, "Motivo da diferença": crossingDiagnosis(row) }));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows.filter((row) => row.Situação !== "Conciliado")), "Divergências");
-    (["Mútuos", "Rateio CSC", "Almoxarifado", "Transações individuais"] as Nature[]).forEach((item) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows.filter((row) => row.Natureza === item)), item.slice(0, 31)));
+    intercompanyGroups.forEach((item) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows.filter((row) => row.Natureza === item)), item));
     applyRaizWorkbookStyle(workbook);
     XLSX.writeFile(workbook, `Intercompany_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
@@ -253,10 +264,11 @@ export default function IntercompanyAnalysis({ companies, selectedCompanyCode, c
     {(loading || analyzing) && <div className="intercompany-processing"><RefreshCw className="spin" /><b>{loading ? "Atualizando Intercompany" : "Analisando Intercompany"}</b><span>Aguarde a conclusão da etapa.</span></div>}
     <div className="intercompany-heading"><div><h2>Intercompany</h2><p>Análise da empresa selecionada contra os saldos das contrapartes.</p></div><div className="intercompany-actions"><button className={`secondary ${isUpdatedForSelection ? "source-loaded" : ""}`} onClick={() => void updateBalances()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando Intercompany" : "Atualizar Intercompany"}</button><button className="primary" onClick={analyze} disabled={!isUpdatedForSelection || analyzing}><Building2 />{analyzing ? "Analisando Intercompany" : "Analisar Intercompany"}</button><button className="secondary" onClick={() => void identifyAllDivergentEntries()} disabled={!results.some((row) => row.status !== "Conciliado") || loadingEntries}><Search />{loadingEntries && entryScope === "all" ? "Identificando..." : "Identificar"}</button><button className="secondary" onClick={exportResults} disabled={!results.length}><Download />Exportar análise</button></div></div>
     {message && <div className="notice">{message}</div>}
-    {isUpdatedForSelection && !hasAnalyzed && (intercompanyAccounts.length ? <div className="intercompany-source-view"><div className="intercompany-source-heading"><b>Contas Intercompany de {selectedCompany?.code} — {selectedCompany?.name}</b><span>{intercompanyAccounts.length} conta(s) · competência {competence.slice(5)}/{competence.slice(0, 4)}</span></div><div className="intercompany-source-summary"><article><span>Total do ativo</span><b>{money.format(sourceTotals.asset)}</b></article><article><span>Total do passivo</span><b>{money.format(sourceTotals.liability)}</b></article><article><span>Ativo + Passivo</span><b className={Math.abs(sourceTotals.net) > tolerance ? "negative" : ""}>{money.format(sourceTotals.net)}</b></article></div><div className="table-wrap intercompany-source-table"><table><thead><tr><th>Natureza</th><th>Conta contábil</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo final</th></tr></thead><tbody>{intercompanyAccounts.map((row, index) => <tr key={`${row.companyCode}-${row.account}-${index}`}><td>{row.nature}</td><td>{row.account}</td><td>{row.reduced || "—"}</td><td>{row.description || "—"}</td><td className={row.closingBalance < 0 ? "negative" : ""}><b>{money.format(row.closingBalance)}</b></td></tr>)}</tbody></table></div></div> : <div className="intercompany-entry-empty">Nenhuma conta Intercompany foi localizada no balancete da empresa selecionada.</div>)}
+    {isUpdatedForSelection && !hasAnalyzed && (intercompanyAccounts.length ? <div className="intercompany-source-view"><div className="intercompany-source-heading"><b>Contas Intercompany de {selectedCompany?.code} — {selectedCompany?.name}</b><span>{intercompanyAccounts.length} conta(s) · competência {competence.slice(5)}/{competence.slice(0, 4)}</span></div><div className="intercompany-source-summary">{sourceGroups.map((item) => <article key={item.group}><span>{item.group}</span><b>{money.format(item.balance)}</b><small>{item.count} conta(s)</small></article>)}</div><div className="table-wrap intercompany-source-table"><table><thead><tr><th>Grupo</th><th>Natureza</th><th>Conta contábil</th><th>Cód. reduzido</th><th>Descrição</th><th>Saldo final</th></tr></thead><tbody>{intercompanyAccounts.map((row, index) => <tr key={`${row.companyCode}-${row.account}-${index}`}><td><b>{row.group}</b></td><td>{row.nature}</td><td>{row.account}</td><td>{row.reduced || "—"}</td><td>{row.description || "—"}</td><td className={row.closingBalance < 0 ? "negative" : ""}><b>{money.format(row.closingBalance)}</b></td></tr>)}</tbody></table></div></div> : <div className="intercompany-entry-empty">Nenhuma conta Intercompany foi localizada no balancete da empresa selecionada.</div>)}
     {hasAnalyzed && <><div className="intercompany-summary intercompany-summary-divergences"><article className={summary.treatment ? "has-warning" : ""}><span>Total para tratamento</span><b>{summary.treatment}</b></article><article className={summary.divergent ? "has-warning" : ""}><span>Divergências de saldo</span><b>{summary.divergent}</b></article><article className={summary.missing ? "has-warning" : ""}><span>Contas ausentes</span><b>{summary.missing}</b></article><article><span>Diferença absoluta</span><b>{money.format(summary.difference)}</b></article></div>
-      <div className="intercompany-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar empresa ou conta" /></label><select value={nature} onChange={(event) => setNature(event.target.value as typeof nature)}><option>Todas</option><option>Mútuos</option><option>Rateio CSC</option><option>Almoxarifado</option><option>Transações individuais</option></select><span>{filtered.length} divergência(s)</span></div>
-      <div className="table-wrap intercompany-table"><table><thead><tr><th>Natureza</th><th>Contraparte</th><th>Ativo a receber</th><th>Passivo a pagar</th><th>Ativo + Passivo</th><th>Situação</th><th>Motivo da diferença</th><th>Lançamentos</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => { const counterpart = row.creditorCode === selectedCode ? { code: row.debtorCode, name: row.debtorName } : { code: row.creditorCode, name: row.creditorName }; return <tr key={row.id}><td>{row.nature}</td><td><b>{counterpart.code}</b> — {counterpart.name}</td><td><div className="intercompany-account-cell"><span>{row.receivableAccount}</span><small>Red. {row.receivableReduced || "—"}</small><b>{money.format(row.receivableBalance)}</b></div></td><td><div className="intercompany-account-cell"><span>{row.payableAccount}</span><small>Red. {row.payableReduced || "—"}</small><b>{money.format(row.payableBalance)}</b></div></td><td className={Math.abs(row.difference) > tolerance ? "negative" : ""}><b>{money.format(row.difference)}</b></td><td><span className={`intercompany-status ${row.status === "Conciliado" ? "ok" : "warning"}`}>{row.status === "Conciliado" ? <CheckCircle2 /> : <AlertTriangle />}{row.status}</span></td><td className="intercompany-diagnosis">{crossingDiagnosis(row)}</td><td><button className="intercompany-detail-button" onClick={() => void identifyDivergentEntries(row)} disabled={row.status === "Conciliado" || loadingEntries}>{loadingEntries && selectedRow?.id === row.id ? "Buscando..." : "Identificar"}</button></td></tr>; }) : <tr><td colSpan={8} className="empty-row">Nenhuma divergência encontrada para os filtros selecionados.</td></tr>}</tbody></table></div>
+      <div className="intercompany-group-summary">{groupSummary.map((item) => <button key={item.group} className={nature === item.group ? "active" : ""} onClick={() => setNature(nature === item.group ? "Todas" : item.group)}><span>{item.group}</span><b>{item.treatment} para tratar</b><small>{item.reconciled} conciliado(s) de {item.crossings} · diferença {money.format(item.difference)}</small></button>)}</div>
+      <div className="intercompany-toolbar"><label><Search /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar empresa ou conta" /></label><select value={nature} onChange={(event) => setNature(event.target.value as typeof nature)}><option>Todas</option>{intercompanyGroups.map((item) => <option key={item}>{item}</option>)}</select><span>{filtered.length} divergência(s)</span></div>
+      <div className="table-wrap intercompany-table"><table><thead><tr><th>Grupo</th><th>Outra empresa</th><th>Empresa com ativo a receber</th><th>Empresa com passivo a pagar</th><th>Ativo + Passivo</th><th>Situação</th><th>Motivo da diferença</th><th>Lançamentos</th></tr></thead><tbody>{filtered.length ? filtered.map((row) => { const counterpart = row.creditorCode === selectedCode ? { code: row.debtorCode, name: row.debtorName } : { code: row.creditorCode, name: row.creditorName }; return <tr key={row.id}><td>{row.nature}</td><td><b>{counterpart.code}</b> — {counterpart.name}</td><td><div className="intercompany-account-cell"><strong>{row.creditorCode} — {row.creditorName}</strong><span>{row.receivableAccount}</span><small>Red. {row.receivableReduced || "—"}</small><b>{money.format(row.receivableBalance)}</b></div></td><td><div className="intercompany-account-cell"><strong>{row.debtorCode} — {row.debtorName}</strong><span>{row.payableAccount}</span><small>Red. {row.payableReduced || "—"}</small><b>{money.format(row.payableBalance)}</b></div></td><td className={Math.abs(row.difference) > tolerance ? "negative" : ""}><b>{money.format(row.difference)}</b></td><td><span className={`intercompany-status ${row.status === "Conciliado" ? "ok" : "warning"}`}>{row.status === "Conciliado" ? <CheckCircle2 /> : <AlertTriangle />}{row.status}</span></td><td className="intercompany-diagnosis">{crossingDiagnosis(row)}</td><td><button className="intercompany-detail-button" onClick={() => void identifyDivergentEntries(row)} disabled={row.status === "Conciliado" || loadingEntries}>{loadingEntries && selectedRow?.id === row.id ? "Buscando..." : "Identificar"}</button></td></tr>; }) : <tr><td colSpan={8} className="empty-row">Nenhuma divergência encontrada para os filtros selecionados.</td></tr>}</tbody></table></div>
       {entryScope && <div className="intercompany-entry-panel"><div className="intercompany-entry-heading"><div><b>Lançamentos divergentes</b><span>{entryScope === "all" ? "Todos os cruzamentos que requerem tratamento" : `${selectedRow?.creditorCode} × ${selectedRow?.debtorCode} · ${selectedRow?.nature}`}</span></div><button onClick={() => { setEntryScope(null); setSelectedRow(null); setDivergentEntries([]); }}>Fechar</button></div>{loadingEntries ? <div className="intercompany-entry-empty"><RefreshCw className="spin" />Identificando lançamentos sem contrapartida...</div> : divergentEntries.length ? <div className="table-wrap intercompany-entry-table"><table><thead><tr><th>Cruzamento</th><th>Lado</th><th>Empresa com lançamento</th><th>Empresa sem lançamento</th><th>Data</th><th>Conta</th><th>Descrição</th><th>Valor</th><th>Ativo + Passivo</th><th>Motivo</th></tr></thead><tbody>{divergentEntries.map((entry, index) => <tr key={`${entry.companyCode}-${entry.id}-${index}`}><td>{entry.crossing}</td><td><b>{entry.side}</b></td><td><b>{entry.companyCode}</b> — {entry.companyName}</td><td>{entry.missingCompany}</td><td>{entry.date || "—"}</td><td>{entry.account}</td><td>{entry.accountName}</td><td className={entry.value < 0 ? "negative" : ""}><b>{money.format(entry.value)}</b></td><td className={Math.abs(entry.crossingDifference) > tolerance ? "negative" : ""}><b>{money.format(entry.crossingDifference)}</b></td><td className="intercompany-entry-reason">{entry.reason}</td></tr>)}</tbody></table></div> : <div className="intercompany-entry-empty">Nenhum lançamento individual sem contrapartida foi localizado nessa consulta.</div>}</div>}</>}
     {!isUpdatedForSelection && !loading && <div className="intercompany-empty"><Building2 /><b>Atualize Intercompany para iniciar</b><span>Será analisado o balancete da empresa selecionada e os saldos correspondentes nas demais empresas.</span></div>}
   </section>;
