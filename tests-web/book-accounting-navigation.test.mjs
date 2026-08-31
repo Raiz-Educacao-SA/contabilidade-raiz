@@ -26,7 +26,7 @@ test("Módulo Contábil expõe a área Receita por Filial", () => {
   assert.match(page, /label: "Receita por Filial"/);
   assert.match(page, /accountingTab === "receita-filial"/);
   assert.match(page, /<h1>[\s\S]*?"Receita por Filial"/);
-  assert.match(page, /label: "Arrendamentos"[\s\S]*label: "Receita por Filial"[\s\S]*label: "Lotes a integrar"[\s\S]*label: "Análise Balancete"/);
+  assert.match(page, /label: "Intercompany"[\s\S]*label: "Receita por Filial"[\s\S]*label: "Arrendamentos"[\s\S]*label: "Despesas"[\s\S]*label: "Provisões"[\s\S]*label: "IRPJ\/CSLL"[\s\S]*label: "Lotes a integrar"[\s\S]*label: "Análise Balancete"/);
 });
 
 test("todos os itens financeiros e contábeis permitem finalizar e reabrir", () => {

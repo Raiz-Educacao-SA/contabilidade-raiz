@@ -20,14 +20,14 @@ export const BOOK_SCHEDULE_TASK_IDS = ["balancete", "razao", "plano-contas"] as 
 
 export const ACCOUNTING_SCHEDULE_TASK_IDS = [
   "pis-cofins",
-  "irpj-csll",
   "rateio-csc",
   "almoxarifado",
   "intercompany",
-  "provisoes",
-  "despesas",
-  "arrendamentos",
   "receita-filial",
+  "arrendamentos",
+  "despesas",
+  "provisoes",
+  "irpj-csll",
   "lotes-integrar",
   "analise-balancete",
 ] as const;
