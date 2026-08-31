@@ -12,6 +12,10 @@ const number = (value: string) => {
   const parsed = Number(value.replace(/\./g, "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : 0;
 };
+const signedMovement = (value: string) => {
+  const parsed = number(value);
+  return parsed < 0 ? -Math.abs(parsed) : Math.abs(parsed);
+};
 
 async function authorized(request: NextRequest) {
   const authorization = request.headers.get("authorization");
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
       const entryId = tag(record, "IDLANCAMENTO");
       const partId = tag(record, "IDPARTIDA");
       const date = tag(record, "DATA");
-      const value = number(tag(record, "VALOR"));
+      const value = signedMovement(tag(record, "VALOR"));
       const key = [company, branch, entryId, partId || index, account, date, value].join("|");
       if (seen.has(key)) return [];
       seen.add(key);
@@ -82,6 +86,7 @@ export async function GET(request: NextRequest) {
         reduced: tag(record, "REDUZIDO"),
         accountName: tag(record, "DESCRICAO"),
         value,
+        movementNature: value < 0 ? "Crédito" : "Débito",
         complement: tag(record, "COMPLEMENTO"),
         document: tag(record, "DOCUMENTO"),
         sourceSystem: tag(record, "NOMESISTEMA"),

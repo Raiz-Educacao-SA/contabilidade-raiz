@@ -12,6 +12,7 @@ import {
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 import { findHoldingAccountByCompanyName } from "@/lib/intercompany-account-matcher";
+import { diagnoseIntercompanyEntries } from "@/lib/intercompany-entry-matcher";
 
 type CompanyOption = { code: string; name: string };
 type BalanceRow = {
@@ -30,6 +31,7 @@ type AccountingEntry = {
   reduced: string;
   accountName: string;
   value: number;
+  movementNature: "Débito" | "Crédito";
   complement: string;
   document: string;
   sourceSystem: string;
@@ -39,15 +41,31 @@ type IdentifiedEntry = AccountingEntry & {
   companyCode: string;
   companyName: string;
   side: "Ativo a receber" | "Passivo a pagar";
-  matchStatus: "Com contrapartida" | "Sem contrapartida";
+  matchStatus:
+    | "Com contrapartida"
+    | "Sem contrapartida"
+    | "Alteração de contas"
+    | "Conta oposta";
 };
 type EntryComparison = {
   id: string;
   receivable: IdentifiedEntry | null;
   payable: IdentifiedEntry | null;
-  status: "Conferido" | "Falta no ativo" | "Falta no passivo";
+  wrongAccount: IdentifiedEntry | null;
+  expectedAccount: string;
+  status:
+    | "Conferido"
+    | "Falta no ativo"
+    | "Falta no passivo"
+    | "Alteração de contas";
   missingCompanyCode: string;
   missingCompanyName: string;
+};
+type CompanyEntryAccountSet = {
+  code: string;
+  name: string;
+  receivable: string[];
+  payable: string[];
 };
 type Nature = "Mútuo" | "Almoxarifado" | "Transação";
 type AnalysisRow = {
@@ -241,13 +259,59 @@ function crossingDiagnosis(row: AnalysisRow) {
   return "Os movimentos mensais do ativo e do passivo estão conciliados.";
 }
 
-function accountsFromRow(row: AnalysisRow) {
+function splitAccounts(value: string) {
+  return value
+    .split(" + ")
+    .map((account) => account.trim())
+    .filter(Boolean);
+}
+
+function identificationAccountSets(
+  row: AnalysisRow,
+  balances: Record<string, BalanceRow[]>,
+): { creditor: CompanyEntryAccountSet; debtor: CompanyEntryAccountSet } {
+  if (row.nature === "Mútuo") {
+    return {
+      creditor: {
+        code: row.creditorCode,
+        name: row.creditorName,
+        receivable: [row.receivableAccount].filter(Boolean),
+        payable: mutualPayableByCounterparty[row.debtorCode] || [],
+      },
+      debtor: {
+        code: row.debtorCode,
+        name: row.debtorName,
+        receivable: [mutualReceivableByCounterparty[row.creditorCode]].filter(
+          Boolean,
+        ),
+        payable: splitAccounts(row.payableAccount),
+      },
+    };
+  }
+
+  const rule = holdingRules.find((item) => item.nature === row.nature);
+  const debtorWrongReceivable = rule
+    ? findHoldingAccountByCompanyName(
+        balances[row.debtorCode] || [],
+        rule.receivablePrefix,
+        { code: row.creditorCode, name: row.creditorName },
+      )
+    : undefined;
   return {
-    receivable: [row.receivableAccount].filter(Boolean),
-    payable: row.payableAccount
-      .split(" + ")
-      .map((account) => account.trim())
-      .filter(Boolean),
+    creditor: {
+      code: row.creditorCode,
+      name: row.creditorName,
+      receivable: [row.receivableAccount].filter(Boolean),
+      payable: rule ? [rule.payableAccount] : [],
+    },
+    debtor: {
+      code: row.debtorCode,
+      name: row.debtorName,
+      receivable: debtorWrongReceivable?.account
+        ? [debtorWrongReceivable.account]
+        : [],
+      payable: splitAccounts(row.payableAccount),
+    },
   };
 }
 
@@ -551,82 +615,162 @@ export default function IntercompanyAnalysis({
 
   function compareEntries(
     row: AnalysisRow,
-    creditorRows: AccountingEntry[],
-    debtorRows: AccountingEntry[],
+    accountSets: {
+      creditor: CompanyEntryAccountSet;
+      debtor: CompanyEntryAccountSet;
+    },
+    creditorReceivableRows: AccountingEntry[],
+    creditorPayableRows: AccountingEntry[],
+    debtorReceivableRows: AccountingEntry[],
+    debtorPayableRows: AccountingEntry[],
   ) {
-    const matchedReceivables = new Set<number>();
-    const matchedPayables = new Set<number>();
-    const payableByReceivable = new Map<number, number>();
-    creditorRows.forEach((entry, receivableIndex) => {
-      const payableIndex = debtorRows.findIndex(
-        (candidate, index) =>
-          !matchedPayables.has(index) &&
-          candidate.date === entry.date &&
-          Math.abs(candidate.value + entry.value) <= tolerance,
-      );
-      if (payableIndex >= 0) {
-        matchedReceivables.add(receivableIndex);
-        matchedPayables.add(payableIndex);
-        payableByReceivable.set(receivableIndex, payableIndex);
-      }
-    });
-    const receivables: IdentifiedEntry[] = creditorRows.map((entry, index) => ({
+    const pairing = diagnoseIntercompanyEntries(
+      creditorReceivableRows,
+      debtorPayableRows,
+      creditorPayableRows,
+      debtorReceivableRows,
+      tolerance,
+    );
+    const diagnosisByReceivable = new Map(
+      pairing.diagnostics
+        .filter((item) => item.receivableIndex !== null)
+        .map((item) => [item.receivableIndex as number, item]),
+    );
+    const diagnosisByPayable = new Map(
+      pairing.diagnostics
+        .filter((item) => item.payableIndex !== null)
+        .map((item) => [item.payableIndex as number, item]),
+    );
+    const expectedStatus = (
+      status?: EntryComparison["status"],
+    ): IdentifiedEntry["matchStatus"] => {
+      if (status === "Conferido") return "Com contrapartida";
+      if (status === "Alteração de contas") return "Alteração de contas";
+      return "Sem contrapartida";
+    };
+    const receivables: IdentifiedEntry[] = creditorReceivableRows.map(
+      (entry, index) => ({
         ...entry,
         companyCode: row.creditorCode,
         companyName: row.creditorName,
         side: "Ativo a receber" as const,
-        matchStatus: matchedReceivables.has(index)
-          ? ("Com contrapartida" as const)
-          : ("Sem contrapartida" as const),
-      }));
-    const payables: IdentifiedEntry[] = debtorRows.map((entry, index) => ({
+        matchStatus: expectedStatus(diagnosisByReceivable.get(index)?.status),
+      }),
+    );
+    const creditorWrongPayables: IdentifiedEntry[] = creditorPayableRows.map(
+      (entry, index) => ({
+        ...entry,
+        companyCode: row.creditorCode,
+        companyName: row.creditorName,
+        side: "Passivo a pagar" as const,
+        matchStatus: pairing.usedCreditorWrongPayables.has(index)
+          ? ("Alteração de contas" as const)
+          : ("Conta oposta" as const),
+      }),
+    );
+    const debtorWrongReceivables: IdentifiedEntry[] = debtorReceivableRows.map(
+      (entry, index) => ({
+        ...entry,
+        companyCode: row.debtorCode,
+        companyName: row.debtorName,
+        side: "Ativo a receber" as const,
+        matchStatus: pairing.usedDebtorWrongReceivables.has(index)
+          ? ("Alteração de contas" as const)
+          : ("Conta oposta" as const),
+      }),
+    );
+    const payables: IdentifiedEntry[] = debtorPayableRows.map((entry, index) => ({
         ...entry,
         companyCode: row.debtorCode,
         companyName: row.debtorName,
         side: "Passivo a pagar" as const,
-        matchStatus: matchedPayables.has(index)
-          ? ("Com contrapartida" as const)
-          : ("Sem contrapartida" as const),
+        matchStatus: expectedStatus(diagnosisByPayable.get(index)?.status),
       }));
-    const comparisons: EntryComparison[] = [
-      ...receivables.map((receivable, index) => {
-        const payableIndex = payableByReceivable.get(index);
-        const payable = payableIndex === undefined ? null : payables[payableIndex];
+    const comparisons: EntryComparison[] = pairing.diagnostics.map(
+      (diagnosis, index) => {
+        const receivable =
+          diagnosis.receivableIndex === null
+            ? null
+            : receivables[diagnosis.receivableIndex];
+        const payable =
+          diagnosis.payableIndex === null
+            ? null
+            : payables[diagnosis.payableIndex];
+        const wrongAccount =
+          diagnosis.wrongAccountSource === "creditorPayable" &&
+          diagnosis.wrongAccountIndex !== null
+            ? creditorWrongPayables[diagnosis.wrongAccountIndex]
+            : diagnosis.wrongAccountSource === "debtorReceivable" &&
+                diagnosis.wrongAccountIndex !== null
+              ? debtorWrongReceivables[diagnosis.wrongAccountIndex]
+              : null;
+        const accountChangeInCreditor =
+          diagnosis.wrongAccountSource === "creditorPayable";
+        const missingInCreditor = diagnosis.status === "Falta no ativo";
+        const hasIssue = diagnosis.status !== "Conferido";
         return {
-          id: `ativo-${receivable.id}-${payable?.id || "sem-passivo"}`,
+          id: `comparacao-${index}-${receivable?.id || payable?.id || wrongAccount?.id || "sem-partida"}`,
           receivable,
           payable,
-          status: payable ? ("Conferido" as const) : ("Falta no passivo" as const),
-          missingCompanyCode: payable ? "" : row.debtorCode,
-          missingCompanyName: payable ? "" : row.debtorName,
+          wrongAccount,
+          expectedAccount:
+            diagnosis.status === "Alteração de contas"
+              ? (accountChangeInCreditor
+                  ? accountSets.creditor.receivable
+                  : accountSets.debtor.payable
+                ).join(" + ")
+              : "",
+          status: diagnosis.status,
+          missingCompanyCode: hasIssue
+            ? accountChangeInCreditor || missingInCreditor
+              ? row.creditorCode
+              : row.debtorCode
+            : "",
+          missingCompanyName: hasIssue
+            ? accountChangeInCreditor || missingInCreditor
+              ? row.creditorName
+              : row.debtorName
+            : "",
         };
-      }),
-      ...payables
-        .filter((_, index) => !matchedPayables.has(index))
-        .map((payable) => ({
-          id: `passivo-${payable.id}-sem-ativo`,
-          receivable: null,
-          payable,
-          status: "Falta no ativo" as const,
-          missingCompanyCode: row.creditorCode,
-          missingCompanyName: row.creditorName,
-        })),
-    ];
-    return { entries: [...receivables, ...payables], comparisons };
+      },
+    );
+    return {
+      entries: [
+        ...receivables,
+        ...creditorWrongPayables,
+        ...debtorWrongReceivables,
+        ...payables,
+      ],
+      comparisons,
+    };
   }
 
   async function identifyDivergentEntries(row: AnalysisRow) {
-    const accounts = accountsFromRow(row);
+    const accountSets = identificationAccountSets(row, balances);
     setSelectedRow(row);
     setLoadingEntries(true);
     setIdentifiedEntries([]);
     setEntryComparisons([]);
     try {
-      const [creditorRows, debtorRows] = await Promise.all([
-        loadAccountingEntries(row.creditorCode, accounts.receivable),
-        loadAccountingEntries(row.debtorCode, accounts.payable),
+      const [
+        creditorReceivableRows,
+        creditorPayableRows,
+        debtorReceivableRows,
+        debtorPayableRows,
+      ] = await Promise.all([
+        loadAccountingEntries(row.creditorCode, accountSets.creditor.receivable),
+        loadAccountingEntries(row.creditorCode, accountSets.creditor.payable),
+        loadAccountingEntries(row.debtorCode, accountSets.debtor.receivable),
+        loadAccountingEntries(row.debtorCode, accountSets.debtor.payable),
       ]);
-      const comparison = compareEntries(row, creditorRows, debtorRows);
+      const comparison = compareEntries(
+        row,
+        accountSets,
+        creditorReceivableRows,
+        creditorPayableRows,
+        debtorReceivableRows,
+        debtorPayableRows,
+      );
       setIdentifiedEntries(
         comparison.entries.sort(
           (a, b) =>
@@ -689,34 +833,26 @@ export default function IntercompanyAnalysis({
     groupedResults.find((section) => section.group === activeGroup) ||
     groupedResults[0];
   const entryGroups = useMemo(
-    () =>
-      selectedRow
-        ? [
-            {
-              code: selectedRow.creditorCode,
-              name: selectedRow.creditorName,
-              side: "Ativo a receber",
-              accounts: selectedRow.receivableAccount,
-              rows: identifiedEntries.filter(
-                (entry) =>
-                  entry.companyCode === selectedRow.creditorCode &&
-                  entry.side === "Ativo a receber",
-              ),
-            },
-            {
-              code: selectedRow.debtorCode,
-              name: selectedRow.debtorName,
-              side: "Passivo a pagar",
-              accounts: selectedRow.payableAccount,
-              rows: identifiedEntries.filter(
-                (entry) =>
-                  entry.companyCode === selectedRow.debtorCode &&
-                  entry.side === "Passivo a pagar",
-              ),
-            },
-          ]
-        : [],
-    [identifiedEntries, selectedRow],
+    () => {
+      if (!selectedRow) return [];
+      const accountSets = identificationAccountSets(selectedRow, balances);
+      return [accountSets.creditor, accountSets.debtor].flatMap((company) =>
+        ([
+          ["Ativo a receber", company.receivable],
+          ["Passivo a pagar", company.payable],
+        ] as const).map(([side, accounts]) => ({
+          code: company.code,
+          name: company.name,
+          side,
+          accounts: accounts.join(" + ") || "Conta não localizada",
+          rows: identifiedEntries.filter(
+            (entry) =>
+              entry.companyCode === company.code && entry.side === side,
+          ),
+        })),
+      );
+    },
+    [balances, identifiedEntries, selectedRow],
   );
   const entryComparisonSummary = useMemo(
     () => ({
@@ -727,6 +863,9 @@ export default function IntercompanyAnalysis({
       ).length,
       missingInPayables: entryComparisons.filter(
         (item) => item.status === "Falta no passivo",
+      ).length,
+      accountChanges: entryComparisons.filter(
+        (item) => item.status === "Alteração de contas",
       ).length,
     }),
     [entryComparisons],
@@ -1152,18 +1291,28 @@ export default function IntercompanyAnalysis({
                       <span>Faltando no passivo</span>
                       <b>{entryComparisonSummary.missingInPayables}</b>
                     </article>
+                    <article
+                      className={
+                        entryComparisonSummary.accountChanges
+                          ? "has-warning account-change"
+                          : ""
+                      }
+                    >
+                      <span>Alteração de contas</span>
+                      <b>{entryComparisonSummary.accountChanges}</b>
+                    </article>
                   </div>
                   <div className="intercompany-entry-comparison-heading">
                     <div>
                       <b>Conferência partida a partida</b>
                       <span>
-                        Comparação pela data e pelo valor invertido entre ativo
-                        e passivo.
+                        Comparação pela data e pelo movimento líquido: débitos
+                        positivos e créditos negativos.
                       </span>
                     </div>
                     <small>
-                      As pendências indicam a empresa em que a contrapartida
-                      não foi localizada.
+                      O sistema também consulta o ativo e o passivo de cada
+                      empresa para localizar lançamentos feitos na conta oposta.
                     </small>
                   </div>
                   {entryComparisons.length ? (
@@ -1181,6 +1330,7 @@ export default function IntercompanyAnalysis({
                             <th>Lançamento / partida do passivo</th>
                             <th>Documento do passivo</th>
                             <th>Valor do passivo</th>
+                            <th>Conta utilizada incorretamente</th>
                             <th>Identificação</th>
                           </tr>
                         </thead>
@@ -1191,7 +1341,9 @@ export default function IntercompanyAnalysis({
                             const diagnosis =
                               comparison.status === "Conferido"
                                 ? "Ativo e passivo localizados."
-                                : `Lançamento ausente no ${comparison.status === "Falta no ativo" ? "ativo" : "passivo"} de ${comparison.missingCompanyCode} — ${comparison.missingCompanyName}.`;
+                                : comparison.status === "Alteração de contas"
+                                  ? `Alteração de contas em ${comparison.missingCompanyCode} — ${comparison.missingCompanyName}: transferir da conta ${comparison.wrongAccount?.account || "—"} para ${comparison.expectedAccount || "—"}.`
+                                  : `Lançamento ausente no ${comparison.status === "Falta no ativo" ? "ativo" : "passivo"} de ${comparison.missingCompanyCode} — ${comparison.missingCompanyName}.`;
                             return (
                               <tr key={comparison.id}>
                                 <td>
@@ -1265,6 +1417,25 @@ export default function IntercompanyAnalysis({
                                 >
                                   {payable ? money.format(payable.value) : "—"}
                                 </td>
+                                <td>
+                                  {comparison.wrongAccount ? (
+                                    <div className="intercompany-account-cell">
+                                      <strong>
+                                        {comparison.wrongAccount.companyCode} —{" "}
+                                        {comparison.wrongAccount.companyName}
+                                      </strong>
+                                      <span>
+                                        {comparison.wrongAccount.account}
+                                      </span>
+                                      <small>
+                                        {comparison.wrongAccount.side} · Red. {" "}
+                                        {comparison.wrongAccount.reduced || "—"}
+                                      </small>
+                                    </div>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
                                 <td className="intercompany-missing-diagnosis">
                                   {diagnosis}
                                 </td>
@@ -1288,6 +1459,7 @@ export default function IntercompanyAnalysis({
                     >
                       <header>
                         <div>
+                          <span>Empresa analisada</span>
                           <b>
                             {group.code} — {group.name}
                           </b>
@@ -1316,6 +1488,7 @@ export default function IntercompanyAnalysis({
                                 <th>Lançamento</th>
                                 <th>Partida</th>
                                 <th>Documento</th>
+                                <th>Natureza</th>
                                 <th>Descrição</th>
                                 <th>Complemento</th>
                                 <th>Valor</th>
@@ -1337,6 +1510,7 @@ export default function IntercompanyAnalysis({
                                   <td>{entry.entryId || "—"}</td>
                                   <td>{entry.partId || "—"}</td>
                                   <td>{entry.document || "—"}</td>
+                                  <td>{entry.movementNature}</td>
                                   <td>{entry.accountName || "—"}</td>
                                   <td>{entry.complement || "—"}</td>
                                   <td

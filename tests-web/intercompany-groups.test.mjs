@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const component = readFileSync(new URL("../app/intercompany-analysis.tsx", import.meta.url), "utf8");
 const detailRoute = readFileSync(new URL("../app/api/totvs/intercompany/entries/route.ts", import.meta.url), "utf8");
 const accountMatcher = readFileSync(new URL("../lib/intercompany-account-matcher.ts", import.meta.url), "utf8");
+const entryMatcher = readFileSync(new URL("../lib/intercompany-entry-matcher.ts", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8");
 
@@ -24,7 +25,8 @@ test("após analisar, cada grupo possui uma aba ampliada", () => {
   assert.match(component, /aria-selected=\{activeGroup === section\.group\}/);
   assert.match(component, /role="tabpanel"/);
   assert.match(component, /activeGroupResult\.rows\.map/);
-  assert.match(styles, /\.intercompany-analysis-tabs \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/s);
+  assert.match(styles, /\.intercompany-analysis-tabs \{[^}]*display: flex;[^}]*border-bottom: 1px solid var\(--line\);/s);
+  assert.match(styles, /\.intercompany-analysis-tabs button \{[^}]*min-height: 34px;[^}]*border-bottom: 3px solid transparent;/s);
   assert.match(styles, /\.intercompany-tab-panel \.intercompany-group-table \{[^}]*min-height: 280px;/s);
 });
 
@@ -73,10 +75,10 @@ test("Almoxarifado e Transação localizam a conta pelo nome da empresa", () => 
 
 test("Identificar compara ativo e passivo e informa em qual empresa falta o lançamento", () => {
   assert.match(component, /Promise\.all\(\[/);
-  assert.match(component, /const payableByReceivable = new Map<number, number>\(\)/);
-  assert.match(component, /status: "Conferido" \| "Falta no ativo" \| "Falta no passivo"/);
+  assert.match(component, /diagnoseIntercompanyEntries\(/);
+  assert.match(component, /creditorReceivableRows,[\s\S]*?creditorPayableRows,[\s\S]*?debtorReceivableRows,[\s\S]*?debtorPayableRows/);
   assert.match(component, /Conferência partida a partida/);
-  assert.match(component, /Comparação pela data e pelo valor invertido entre ativo/);
+  assert.match(component, /débitos[\s\S]*?positivos e créditos negativos/);
   assert.match(component, /Lançamento ausente no/);
   assert.match(component, /comparison\.missingCompanyCode/);
   assert.match(component, /comparison\.missingCompanyName/);
@@ -84,6 +86,12 @@ test("Identificar compara ativo e passivo e informa em qual empresa falta o lan�
   assert.match(component, /Lançamentos no passivo/);
   assert.match(component, /Faltando no ativo/);
   assert.match(component, /Faltando no passivo/);
+  assert.match(component, /Alteração de contas/);
+  assert.match(component, /Conta utilizada incorretamente/);
+  assert.match(component, /Empresa analisada/);
+  assert.match(entryMatcher, /wrongAccountSource: "creditorPayable" \| "debtorReceivable" \| null/);
+  assert.match(detailRoute, /const value = signedMovement\(tag\(record, "VALOR"\)\)/);
+  assert.match(detailRoute, /movementNature: value < 0 \? "Crédito" : "Débito"/);
   assert.match(styles, /\.intercompany-entry-comparison-table/);
 });
 
