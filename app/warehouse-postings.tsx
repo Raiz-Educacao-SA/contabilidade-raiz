@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, FileSpreadsheet, PackageOpen, ReceiptText, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, PackageOpen, ReceiptText, Trash2, Upload } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import {
   buildWarehousePostingsCsv,
@@ -134,9 +134,15 @@ export default function WarehousePostings({ companyCode, companyName, competence
               onChange={(event) => void importFile(event.target.files?.[0])}
             />
           </label>
-          <button type="button" className="primary" disabled={!canExport} onClick={exportPostings} title={result.errors.length ? "Corrija os itens indicados antes de gerar o CSV" : "Gerar CSV de lançamentos"}>
-            <ReceiptText /> Lançamentos
-          </button>
+          {fileName && result.errors.length === 0 && result.postings.length === 0 ? (
+            <span className="warehouse-no-postings" title="Arquivo aceito sem movimento para a empresa selecionada">
+              <CheckCircle2 /> Sem lançamentos
+            </span>
+          ) : (
+            <button type="button" className="primary" disabled={!canExport} onClick={exportPostings} title={result.errors.length ? "Corrija os itens indicados antes de gerar o CSV" : "Gerar CSV de lançamentos"}>
+              <ReceiptText /> Lançamentos
+            </button>
+          )}
           <button type="button" className="secondary warehouse-clear" disabled={!fileName || loading} onClick={clearImport}>
             <Trash2 /> Limpar
           </button>
@@ -156,6 +162,16 @@ export default function WarehousePostings({ companyCode, companyName, competence
           <div>
             <b>O arquivo precisa de ajustes antes de gerar os lançamentos</b>
             {result.errors.map((error) => <span key={error}>{error}</span>)}
+          </div>
+        </div>
+      )}
+
+      {fileName && result.errors.length === 0 && result.postings.length === 0 && (
+        <div className="warehouse-success" role="status">
+          <CheckCircle2 />
+          <div>
+            <b>Arquivo aceito</b>
+            <span>A empresa selecionada não possui valores nesta competência. Nenhum lançamento é necessário e a tarefa pode ser finalizada normalmente.</span>
           </div>
         </div>
       )}

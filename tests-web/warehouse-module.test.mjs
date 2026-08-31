@@ -24,6 +24,9 @@ test("painel importa Excel, apresenta prévia e gera Lançamentos em CSV", () =>
   assert.match(panel, /localStorage\.setItem\(cacheKey/);
   assert.match(panel, /Sem movimento nesta competência/);
   assert.match(panel, /a tarefa pode ser finalizada normalmente/);
+  assert.match(panel, /Arquivo aceito/);
+  assert.match(panel, /Sem lançamentos/);
+  assert.match(panel, /fileName && result\.errors\.length === 0 && result\.postings\.length === 0/);
 });
 
 test("Almoxarifado alimenta o Cronograma por empresa", () => {
