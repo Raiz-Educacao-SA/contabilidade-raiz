@@ -8,6 +8,7 @@ export type RevenueReconciliationStatus =
 
 export const REVENUE_TOLERANCE = 0.01;
 export const REVENUE_ACCOUNT_PREFIX = "3.1.1.01.01";
+export const EXTENDED_HOURS_REVENUE_ACCOUNT = "3.1.1.01.02.03";
 export const COMMERCIAL_DISCOUNT_ACCOUNT = "3.1.2.02.01.01";
 export const DISCOUNT_ACCOUNT_PREFIX = "3.1.2.02.02";
 export const INSTITUTIONAL_DISCOUNT_ACCOUNT = "3.1.2.02.02.01";
@@ -27,6 +28,8 @@ export const REVENUE_ACCOUNT_DESCRIPTIONS = [
   "Mensalidades Extras",
   "Mensalidade Pre-Vestibular",
   "Horario Integral (Estentido)",
+  "Horário Integral (Estendido)",
+  "Horário Estendido",
   "Mensalidade Curso Preparatório",
 ] as const;
 
@@ -57,6 +60,7 @@ const DISCOUNT_DESCRIPTIONS = new Set(
 export function accountingRevenueQueryAccounts() {
   return [
     REVENUE_ACCOUNT_PREFIX,
+    EXTENDED_HOURS_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ] as const;
@@ -70,7 +74,8 @@ export function classifyAccountingRevenue(
   const normalizedDescription = normalizeAccountingDescription(description);
 
   if (
-    normalizedAccount.startsWith(REVENUE_ACCOUNT_PREFIX) &&
+    (normalizedAccount.startsWith(REVENUE_ACCOUNT_PREFIX) ||
+      normalizedAccount === EXTENDED_HOURS_REVENUE_ACCOUNT) &&
     REVENUE_DESCRIPTIONS.has(normalizedDescription)
   ) {
     return "revenue";

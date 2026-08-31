@@ -16,6 +16,7 @@ import {
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
+  EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
@@ -29,6 +30,7 @@ import {
 test("consulta receitas e todos os grupos contábeis de descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
     REVENUE_ACCOUNT_PREFIX,
+    EXTENDED_HOURS_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ]);
@@ -40,6 +42,18 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
   REVENUE_ACCOUNT_DESCRIPTIONS.forEach((description) => {
     assert.equal(
       classifyAccountingRevenue(`${REVENUE_ACCOUNT_PREFIX}.99`, description),
+      "revenue",
+      description,
+    );
+  });
+
+  [
+    "Horario Integral (Estentido)",
+    "Horário Integral (Estendido)",
+    "Horário Estendido",
+  ].forEach((description) => {
+    assert.equal(
+      classifyAccountingRevenue(EXTENDED_HOURS_REVENUE_ACCOUNT, description),
       "revenue",
       description,
     );
