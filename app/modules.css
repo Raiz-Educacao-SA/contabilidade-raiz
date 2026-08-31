@@ -700,6 +700,16 @@
 .intercompany-source-groups,
 .intercompany-group-sections,
 .intercompany-company-entry-grid { display: grid; gap: 10px; }
+.intercompany-analysis-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding: 0 16px 10px; }
+.intercompany-analysis-tabs button { min-height: 52px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: #526174; text-align: left; cursor: pointer; }
+.intercompany-analysis-tabs button span { color: #173d68; font-size: 10px; font-weight: 900; }
+.intercompany-analysis-tabs button small { justify-self: end; color: var(--muted); font-size: 7px; }
+.intercompany-analysis-tabs button b { grid-column: 1 / -1; color: #b54708; font-size: 8px; }
+.intercompany-analysis-tabs button.active { border-color: #1d6fb8; background: linear-gradient(120deg, #eef6ff, #effaf4); box-shadow: inset 0 -3px #42b9b0; }
+.intercompany-analysis-tabs button.active span { color: #0f4f83; }
+.intercompany-tab-panel { margin: 0 16px 10px; }
+.intercompany-tab-panel .intercompany-group-table { min-height: 280px; max-height: min(48vh, 520px); }
+.intercompany-tab-panel .intercompany-group-table tr.selected td { background: #eef8f5; }
 .intercompany-source-groups { padding: 9px; border: 1px solid #b9dfca; border-radius: 0 0 9px 9px; background: #f8fcfa; }
 .intercompany-source-group,
 .intercompany-group-section,
@@ -755,6 +765,7 @@
   .intercompany-actions,
   .intercompany-group-heading,
   .intercompany-group-heading > div:last-child { align-items: stretch; flex-direction: column; }
+  .intercompany-analysis-tabs { grid-template-columns: 1fr; }
   .intercompany-summary,
   .intercompany-summary-divergences { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
