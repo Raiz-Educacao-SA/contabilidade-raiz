@@ -137,14 +137,14 @@ const scheduleSidebarModules = [
 ] as const;
 
 const accountingScheduleTasks: { id: AccountingTab; label: string; description: string }[] = [
-  { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
-  { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
-  { id: "almoxarifado", label: "Almoxarifado", description: "Importação do controle e geração dos lançamentos" },
-  { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
   { id: "receita-filial", label: "Receita por Filial", description: "Receita detalhada por unidade" },
   { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
   { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
   { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
+  { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
+  { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
+  { id: "almoxarifado", label: "Almoxarifado", description: "Importação do controle e geração dos lançamentos" },
+  { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
   { id: "irpj-csll", label: "IRPJ/CSLL", description: "Apuração do imposto" },
   { id: "lotes-integrar", label: "Lotes a integrar", description: "Pendências de integração contábil" },
   { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
@@ -867,14 +867,14 @@ export default function Home() {
           <nav className="accounting-nav">
             {(
               [
-                { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
-                { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
-                { id: "almoxarifado", label: "Almoxarifado", icon: PackageOpen },
-                { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "receita-filial", label: "Receita por Filial", icon: TrendingUp },
                 { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "despesas", label: "Despesas", icon: ReceiptText },
                 { id: "provisoes", label: "Provisões", icon: Save },
+                { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
+                { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
+                { id: "almoxarifado", label: "Almoxarifado", icon: PackageOpen },
+                { id: "intercompany", label: "Intercompany", icon: Building2 },
                 { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "lotes-integrar", label: "Lotes a integrar", icon: ListChecks },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
