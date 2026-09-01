@@ -27,6 +27,8 @@ test("atualização consulta o período em lotes mensais paralelos", () => {
   assert.match(route, /monthCount > 12/);
   assert.match(component, /periodStart/);
   assert.match(component, /periodEnd/);
+  assert.match(component, /Exportar Excel/);
+  assert.match(component, /disabled=\{!analysis \|\| busy\}/);
   assert.match(component, /AbortSignal\.timeout\(120_000\)/);
   assert.match(page, /accountingTab === "despesas"/);
 });
