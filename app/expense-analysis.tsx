@@ -167,15 +167,22 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
 
       const rows = [...grouped.values()];
       const accountCount = new Map<string, number>();
-      rows.forEach((row) => accountCount.set(row.supplier, (accountCount.get(row.supplier) ?? 0) + 1));
+      const supplierPriorTotal = new Map<string, number>();
+      rows.forEach((row) => {
+        accountCount.set(row.supplier, (accountCount.get(row.supplier) ?? 0) + 1);
+        const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
+        supplierPriorTotal.set(row.supplier, (supplierPriorTotal.get(row.supplier) ?? 0) + prior);
+      });
       rows.forEach((row) => {
         const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
         const target = row.months[targetMonth] ?? 0;
         row.comment = row.account.startsWith("1.") && target > 0
           ? "Ativo Imobilizado"
-          : accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
-            ? "Divergência em comparação a meses anteriores"
-            : "";
+          : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
+            ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
+            : accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
+              ? "Divergência em comparação a meses anteriores"
+              : "";
       });
       rows.sort((a, b) => a.supplier.localeCompare(b.supplier, "pt-BR") || a.account.localeCompare(b.account));
       const periodTotal = rows.reduce((sum, row) => sum + row.total, 0);
@@ -292,6 +299,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Período", `${periodStart.split("-").reverse().join("/")} a ${periodEnd.split("-").reverse().join("/")}, inclusive`],
       ["Escopo contábil", "Somente conta DÉBITO + descrição DESCRICAO"],
       ["Divergência", "Conta utilizada no mês final sem movimento nos meses anteriores, quando o fornecedor possui mais de uma conta"],
+      ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
       ["Fonte", "TOTVS RM — PlanilhaNet 08 / FORNECEDOR X MOVIMENTOS"],

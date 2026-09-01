@@ -41,3 +41,9 @@ test("exportação segue o padrão contábil aprovado", () => {
   assert.match(component, /fileTitle\(companyName\)/);
   assert.match(component, /Calibri/);
 });
+
+test("identifica nova operação de fornecedor sem histórico anterior", () => {
+  assert.match(component, /supplierPriorTotal/);
+  assert.match(component, /Nova Operação Compra\/Serviço - Definir Conta Contábil/);
+  assert.match(component, /supplierPriorTotal\.get\(row\.supplier\)/);
+});
