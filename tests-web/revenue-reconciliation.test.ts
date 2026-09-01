@@ -186,6 +186,7 @@ test("consolida receitas e descontos por RA", () => {
     { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "AJUSTE", generationType: " O " },
     { ra: "123", name: "Aluno", value: -50, kind: "revenue", account: EXTENDED_HOURS_REVENUE_ACCOUNT },
     { ra: "123", name: "Aluno", value: -25, kind: "revenue", account: OTHER_STUDENT_REVENUE_ACCOUNT },
+    { ra: "456", name: "Aluno MD", value: -300, kind: "revenue", account: DIDACTIC_MATERIAL_REVENUE_ACCOUNT },
     { ra: "123", name: "Aluno", value: 200, kind: "discount", generationType: "O" },
     { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "AJUSTE" },
   ]);
@@ -199,6 +200,19 @@ test("consolida receitas e descontos por RA", () => {
   assert.equal(summaries.get("123")?.discount, 180);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
+  assert.equal(summaries.get("456")?.revenue, 300);
+  assert.equal(summaries.get("456")?.extraRevenue, 0);
+  assert.deepEqual(summaries.get("456")?.revenueIndicators, ["Material didático"]);
+});
+
+test("sinaliza Material didático na coluna I das divergências exportadas", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /revenueIdentification: b\?\.revenueIndicators\.join\(" \| "\) \|\| ""/);
+  assert.match(component, /"Identificação da receita": x\.revenueIdentification/);
 });
 
 test("classifica como Receitas extras somente quando a conta explica toda a divergência", () => {

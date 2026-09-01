@@ -317,6 +317,7 @@ export default function RevenueReconciliation({
         status,
         classification,
         extraRevenueAccounts: b?.extraRevenueAccounts.join(" | ") || "",
+        revenueIdentification: b?.revenueIndicators.join(" | ") || "",
         generationTypes: b?.generationTypes.join(" | ") || "",
         complements: b?.complements.join(" | ") || "",
         comment:
@@ -365,7 +366,7 @@ export default function RevenueReconciliation({
       "Receita fiscal": x.fiscalRevenue,
       "Receita contábil": x.accountingRevenue,
       "Receitas extras": x.extraRevenue,
-      "Contas de receitas extras": x.extraRevenueAccounts,
+      "Identificação da receita": x.revenueIdentification,
       "Diferença receita": x.revenueDifference,
       "Desconto fiscal": x.fiscalDiscount,
       "Desconto contábil": x.accountingDiscount,

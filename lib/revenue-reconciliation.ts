@@ -213,6 +213,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       revenue: number;
       extraRevenue: number;
       extraRevenueAccounts: string[];
+      revenueIndicators: string[];
       discount: number;
       complements: string[];
       generationTypes: string[];
@@ -225,6 +226,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       revenue: 0,
       extraRevenue: 0,
       extraRevenueAccounts: [],
+      revenueIndicators: [],
       discount: 0,
       complements: [],
       generationTypes: [],
@@ -238,6 +240,15 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
         if (account && !current.extraRevenueAccounts.includes(account)) {
           current.extraRevenueAccounts.push(account);
         }
+        if (account && !current.revenueIndicators.includes(account)) {
+          current.revenueIndicators.push(account);
+        }
+      }
+      if (
+        entry.account?.trim() === DIDACTIC_MATERIAL_REVENUE_ACCOUNT &&
+        !current.revenueIndicators.includes("Material didático")
+      ) {
+        current.revenueIndicators.push("Material didático");
       }
     } else current.discount += entry.value;
 
