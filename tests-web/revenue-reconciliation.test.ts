@@ -10,6 +10,7 @@ import {
 
 import {
   accountingRevenueQueryAccounts,
+  calculateUnexplainedRevenueDifference,
   classifyAccountingRevenue,
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
@@ -30,6 +31,7 @@ import {
   PAA_DISCOUNT_ACCOUNT,
   REVENUE_ACCOUNT_DESCRIPTIONS,
   REVENUE_ACCOUNT_PREFIX,
+  requiresRevenueTreatment,
   revenueReconciliationExportFileName,
   summarizeAccountingRevenue,
 } from "../lib/revenue-reconciliation.ts";
@@ -191,7 +193,7 @@ test("consolida receitas e descontos por RA", () => {
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
 });
 
-test("classifica como Receitas extras independentemente da soma da diferença", () => {
+test("classifica todos os lançamentos das contas de Receitas extras", () => {
   assert.equal(isExtraRevenueAccount(EXTENDED_HOURS_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(OTHER_STUDENT_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(REVENUE_ACCOUNT_PREFIX), false);
@@ -247,11 +249,55 @@ test("classifica como Receitas extras independentemente da soma da diferença", 
       discountDifference: 10,
       extraRevenue: 806,
     }),
-    "",
+    "Receitas extras",
   );
 });
 
-test("isola receitas extras da lista de divergências e da comparação exportada", () => {
+test("calcula o residual e mantém a receita extra divergente quando necessário", () => {
+  assert.equal(calculateUnexplainedRevenueDifference(806, 806), 0);
+  assert.equal(calculateUnexplainedRevenueDifference(3_871.92, 806), -3_065.92);
+  assert.equal(calculateUnexplainedRevenueDifference(806, 1_612), 806);
+  assert.equal(calculateUnexplainedRevenueDifference(-806, 0), 806);
+
+  assert.equal(
+    requiresRevenueTreatment({
+      status: "Divergente",
+      classification: "Receitas extras",
+      unexplainedRevenueDifference: 0,
+      discountDifference: 0,
+    }),
+    false,
+  );
+  assert.equal(
+    requiresRevenueTreatment({
+      status: "Divergente",
+      classification: "Receitas extras",
+      unexplainedRevenueDifference: -3_065.92,
+      discountDifference: 0,
+    }),
+    true,
+  );
+  assert.equal(
+    requiresRevenueTreatment({
+      status: "Divergente",
+      classification: "Receitas extras",
+      unexplainedRevenueDifference: 0,
+      discountDifference: 10,
+    }),
+    true,
+  );
+  assert.equal(
+    requiresRevenueTreatment({
+      status: "Conciliado",
+      classification: "Receitas extras",
+      unexplainedRevenueDifference: 806,
+      discountDifference: 0,
+    }),
+    true,
+  );
+});
+
+test("isola receitas extras e preserva nas divergências os resíduos", () => {
   const component = readFileSync(
     new URL("../app/revenue-reconciliation.tsx", import.meta.url),
     "utf8",
@@ -259,13 +305,14 @@ test("isola receitas extras da lista de divergências e da comparação exportad
 
   assert.match(component, /activeView === "extraRevenue"/);
   assert.match(component, /"Receitas Extras"/);
-  assert.match(
-    component,
-    /row\.status !== "Conciliado" && !row\.classification/,
-  );
+  assert.match(component, /row\.requiresTreatment/);
   assert.match(component, /comparableAccountingRevenue/);
+  assert.match(component, /cRev - extraRevenueTotal/);
+  assert.match(component, /Diferença não explicada/);
   assert.match(component, /independentemente da soma/);
-  assert.match(component, /Estes valores não\s+compõem as inconsistências/);
+  assert.match(component, /o mesmo RA também permanecerá nas\s+divergências/);
+  assert.match(component, /Calcular diferença não explicada/);
+  assert.match(component, /Receitas extras − Diferença de receita/);
 });
 
 test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {
