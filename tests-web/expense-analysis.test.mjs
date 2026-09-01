@@ -8,8 +8,8 @@ const component = fs.readFileSync(new URL("../app/expense-analysis.tsx", import.
 test("Módulo Contábil renderiza a análise no item Despesas", () => {
   assert.match(page, /import ExpenseAnalysis/);
   assert.match(page, /accountingTab === "despesas"[\s\S]*?<ExpenseAnalysis/);
-  assert.match(expense, /Atualizar PlanilhaNet 08/);
-  assert.match(expense, /\/api\/totvs\/expenses/);
+  assert.match(component, /Atualizar PlanilhaNet 08/);
+  assert.match(component, /\/api\/totvs\/expenses/);
   assert.match(page, /accessToken=\{session\.access_token\}/);
 });
 test("análise aplica as regras aprovadas para agosto e ativos", () => {
