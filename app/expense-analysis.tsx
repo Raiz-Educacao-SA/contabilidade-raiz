@@ -211,6 +211,17 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     const headers = ["Fornecedor", "Natureza", "Conta contábil", "Descrição da conta", ...analysis.months, "Total Geral", "Comentários"];
     const columnCount = headers.length;
     const lastColumn = XLSX.utils.encode_col(columnCount - 1);
+    const movementRecords = analysis.records.filter((record) => {
+      const date = isoDate(record.DATASAIDA);
+      const account = String(record.DEBITO ?? "").trim();
+      return String(Math.trunc(numberValue(record.CODCOLIGADA))) === String(Number(companyCode)) && date >= periodStart && date <= periodEnd && account && normalized(account) !== "NENHUM REGISTRO ENCONTRADO.";
+    });
+    const movementRowByGroup = new Map<string, number>();
+    movementRecords.forEach((record, index) => {
+      const supplier = String(record.NOMEFANTASIA || record.NOME || "SEM FORNECEDOR").trim();
+      const key = [normalized(supplier), String(record.DEBITO ?? "").trim(), isoDate(record.DATASAIDA).slice(0, 7)].join("\u001f");
+      if (!movementRowByGroup.has(key)) movementRowByGroup.set(key, index + 2);
+    });
     const body = analysis.rows.map((row) => [
       row.supplier, "DÉBITO", row.account, row.description,
       ...analysis.months.map((month) => row.months[month]),
@@ -277,14 +288,21 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       styleRange(`${lastColumn}${dataStart}:${lastColumn}${dataEnd}`, { font: { name: "Calibri", sz: 11, italic: true, color: { rgb: "1F4E78" } } });
     }
     styleRange(`A${totalRow}:${lastColumn}${totalRow}`, { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
+    analysis.rows.forEach((row, rowIndex) => analysis.months.forEach((month, monthIndex) => {
+      if (!row.months[month]) return;
+      const movementRow = movementRowByGroup.get([normalized(row.supplier), row.account, month].join("\u001f"));
+      if (!movementRow) return;
+      const address = XLSX.utils.encode_cell({ r: dataStart - 1 + rowIndex, c: 4 + monthIndex });
+      const cell = sheet[address];
+      if (cell) {
+        cell.l = { Target: `#'Lançamentos Contábeis'!A${movementRow}`, Tooltip: "Abrir movimentos e tickets" };
+        cell.s = { ...(cell.s || {}), font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "0563C1" }, underline: true } };
+      }
+    }));
     XLSX.utils.book_append_sheet(workbook, sheet, "Análise de Despesa");
 
     const movementHeaders = ["IDMOV", "Data saída", "Fornecedor", "CNPJ/CPF", "Natureza", "Conta contábil", "Descrição", "Valor", "Coligada", "Filial", "Tipo movimento", "Número movimento", "Data emissão", "Usuário", "Ticket Zeev"];
-    const movements = analysis.records.filter((record) => {
-      const date = isoDate(record.DATASAIDA);
-      const account = String(record.DEBITO ?? "").trim();
-      return date >= periodStart && date <= periodEnd && account && normalized(account) !== "NENHUM REGISTRO ENCONTRADO.";
-    }).map((record) => [
+    const movements = movementRecords.map((record) => [
       record.IDMOV, isoDate(record.DATASAIDA), record.NOMEFANTASIA || record.NOME, record.CGCCFO, "DÉBITO", record.DEBITO, record.DESCRICAO, numberValue(record.VALOR),
       record.CODCOLIGADA, record.CODFILIAL, record.CODTMV, record.NUMEROMOV, isoDate(record.DATAEMISSAO), record.CODUSUARIO, record.TICKET,
     ]);
@@ -296,6 +314,15 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       const cell = movementSheet[XLSX.utils.encode_cell({ r: row, c: col })];
       if (cell) cell.s = { font: baseFont, ...(col === 7 ? { numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' } : {}) };
     }
+    movementRecords.forEach((record, index) => {
+      const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
+      if (!ticket) return;
+      const cell = movementSheet[XLSX.utils.encode_cell({ r: index + 1, c: 14 })];
+      if (cell) {
+        cell.l = { Target: `https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(ticket)}`, Tooltip: "Abrir nota fiscal no Zeev" };
+        cell.s = { font: { name: "Calibri", sz: 11, color: { rgb: "0563C1" }, underline: true } };
+      }
+    });
     XLSX.utils.book_append_sheet(workbook, movementSheet, "Lançamentos Contábeis");
 
     const rules = [
@@ -310,7 +337,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
-      ["Tickets Zeev", "Clique no valor mensal para visualizar os movimentos e abrir a nota fiscal pelo ticket informado"],
+      ["Tickets Zeev", "No Excel, clique no valor mensal para acessar os lançamentos; depois clique no ticket para abrir a nota fiscal no Zeev"],
       ["Fonte", "TOTVS RM — PlanilhaNet 08 / FORNECEDOR X MOVIMENTOS"],
       [null, null], [null, null],
       ["Controle", "Valor"],
