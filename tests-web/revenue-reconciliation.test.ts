@@ -20,7 +20,6 @@ import {
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
   DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
-  EXTRA_REVENUE_ACCOUNTS,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
   isExtraRevenueAccount,
@@ -93,7 +92,7 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
     "revenue",
   );
   assert.equal(isExtraRevenueAccount(DIDACTIC_MATERIAL_REVENUE_ACCOUNT), false);
-  assert.equal(isExtraRevenueAccount(ADDITIONAL_TUITION_REVENUE_ACCOUNT), false);
+  assert.equal(isExtraRevenueAccount(ADDITIONAL_TUITION_REVENUE_ACCOUNT), true);
 });
 
 test("classifica todas as bolsas e descontos previstos na diretriz funcional", () => {
@@ -205,7 +204,7 @@ test("consolida receitas e descontos por RA", () => {
   assert.equal(summaries.get("123")?.extraRevenue, 75);
   assert.deepEqual(
     summaries.get("123")?.extraRevenueAccounts,
-    EXTRA_REVENUE_ACCOUNTS,
+    [EXTENDED_HOURS_REVENUE_ACCOUNT, OTHER_STUDENT_REVENUE_ACCOUNT],
   );
   assert.equal(summaries.get("123")?.discount, 180);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
@@ -226,6 +225,7 @@ test("sinaliza Material didático na coluna I das divergências exportadas", () 
 });
 
 test("classifica como Receitas extras somente quando a conta explica toda a divergência", () => {
+  assert.equal(isExtraRevenueAccount(ADDITIONAL_TUITION_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(EXTENDED_HOURS_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(OTHER_STUDENT_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(REVENUE_ACCOUNT_PREFIX), false);
@@ -262,6 +262,41 @@ test("classifica como Receitas extras somente quando a conta explica toda a dive
       revenueDifference: 806,
       discountDifference: 10,
       extraRevenue: 806,
+    }),
+    "",
+  );
+});
+
+test("isola Mensalidades Extras somente quando o valor nela explica a diferença", () => {
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "IP26013300",
+      name: "Aluno",
+      value: -47,
+      kind: "revenue",
+      account: ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+    },
+  ]).get("IP26013300");
+
+  assert.equal(summary?.extraRevenue, 47);
+  assert.deepEqual(summary?.extraRevenueAccounts, [
+    ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+  ]);
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 47,
+      discountDifference: 0,
+      extraRevenue: summary?.extraRevenue || 0,
+    }),
+    "Receitas extras",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 48,
+      discountDifference: 0,
+      extraRevenue: summary?.extraRevenue || 0,
     }),
     "",
   );
