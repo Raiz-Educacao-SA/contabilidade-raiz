@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
         DATAEMISSAO: tag(record, "DATAEMISSAO"),
         DATASAIDA: tag(record, "DATASAIDA"),
         CODUSUARIO: tag(record, "CODUSUARIO"),
+        TICKET: firstTag(record, ["TICKET", "CODTICKET", "NUMEROTICKET"]),
         DEBITO: tag(record, "DEBITO"),
         DESCRICAO: firstTag(record, ["DESCDEBITO", "DESCRICAO", "DESCCONTA"]),
         VALOR: numeric(tag(record, "VALOR")),

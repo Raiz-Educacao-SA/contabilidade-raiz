@@ -47,3 +47,10 @@ test("identifica nova operação de fornecedor sem histórico anterior", () => {
   assert.match(component, /Nova Operação Compra\/Serviço - Definir Conta Contábil/);
   assert.match(component, /supplierPriorTotal\.get\(row\.supplier\)/);
 });
+
+test("abre o ticket Zeev a partir do movimento mensal", () => {
+  assert.match(component, /expense-movement-link/);
+  assert.match(component, /Abrir NF no Zeev/);
+  assert.match(component, /raizeducacao\.zeev\.it\/1\.0\/audit/);
+  assert.match(component, /Ticket Zeev/);
+});
