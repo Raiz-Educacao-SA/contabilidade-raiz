@@ -1034,33 +1034,35 @@ export default function Home() {
                 <small>Regime tributário: {companyTaxRegime}</small>
               </div>
             </label>}
-            <div className="competence-control">
-              <label>
-                <span>Mês</span>
-                <select
-                  value={month}
-                  aria-label="Mês selecionado"
-                  title={`Mês selecionado: ${months[month - 1]}`}
-                  onChange={(e) => setMonth(Number(e.target.value))}
-                >
-                  {months.map((name, index) => (
-                    <option key={name} value={index + 1}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Ano</span>
-                <input
-                  type="number"
-                  value={year}
-                  aria-label="Ano selecionado"
-                  title={`Ano selecionado: ${year}`}
-                  onChange={(e) => setYear(Number(e.target.value))}
-                />
-              </label>
-            </div>
+            {!(selectedModule === "contabil" && accountingTab === "despesas") && (
+              <div className="competence-control">
+                <label>
+                  <span>Mês</span>
+                  <select
+                    value={month}
+                    aria-label="Mês selecionado"
+                    title={`Mês selecionado: ${months[month - 1]}`}
+                    onChange={(e) => setMonth(Number(e.target.value))}
+                  >
+                    {months.map((name, index) => (
+                      <option key={name} value={index + 1}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Ano</span>
+                  <input
+                    type="number"
+                    value={year}
+                    aria-label="Ano selecionado"
+                    title={`Ano selecionado: ${year}`}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                  />
+                </label>
+              </div>
+            )}
             {selectedModule === "cronograma" && (
               <div className="schedule-window-inline">
                 <span>Janela projetada</span>

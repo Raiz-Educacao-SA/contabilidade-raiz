@@ -56,12 +56,27 @@ function isoDate(value: unknown) {
   return iso ? iso[0] : "";
 }
 
-function monthWindow(competence: string) {
+function defaultPeriod(competence: string) {
   const [year, month] = competence.split("-").map(Number);
-  return Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(Date.UTC(year, month - 6 + index, 1));
-    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-  });
+  const start = new Date(Date.UTC(year, month - 6, 1));
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return {
+    start: `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}-01`,
+    end: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+function monthsBetween(start: string, end: string) {
+  const [startYear, startMonth] = start.slice(0, 7).split("-").map(Number);
+  const [endYear, endMonth] = end.slice(0, 7).split("-").map(Number);
+  const result: string[] = [];
+  let cursor = new Date(Date.UTC(startYear, startMonth - 1, 1));
+  const limit = new Date(Date.UTC(endYear, endMonth - 1, 1));
+  while (cursor <= limit && result.length < 12) {
+    result.push(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`);
+    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+  }
+  return result;
 }
 
 function fileSafe(value: string) {
@@ -71,18 +86,22 @@ function fileSafe(value: string) {
 export default function ExpenseAnalysis({ companyCode, companyName, competence, accessToken }: Props) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [busy, setBusy] = useState(false);
+  const initialPeriod = defaultPeriod(competence);
+  const [periodStart, setPeriodStart] = useState(initialPeriod.start);
+  const [periodEnd, setPeriodEnd] = useState(initialPeriod.end);
   const [error, setError] = useState("");
-  const targetMonth = competence;
-  const targetLabel = `${competence.slice(5, 7)}/${competence.slice(0, 4)}`;
+  const targetMonth = periodEnd.slice(0, 7);
+  const targetLabel = `${targetMonth.slice(5, 7)}/${targetMonth.slice(0, 4)}`;
   const divergences = useMemo(() => analysis?.rows.filter((row) => row.comment.includes("Divergência")).length ?? 0, [analysis]);
   const assets = useMemo(() => analysis?.rows.filter((row) => row.comment === "Ativo Imobilizado").length ?? 0, [analysis]);
 
   async function refreshPlanilhaNet() {
-    if (!companyCode || !competence || !accessToken) return;
+    if (!companyCode || !accessToken) return;
+    if (!periodStart || !periodEnd || periodStart > periodEnd) return setError("Informe um período inicial e final válido.");
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/totvs/expenses?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
+      const response = await fetch(`/api/totvs/expenses?company=${encodeURIComponent(companyCode)}&start=${encodeURIComponent(periodStart)}&end=${encodeURIComponent(periodEnd)}`, {
         headers: { authorization: `Bearer ${accessToken}` },
         cache: "no-store",
         signal: AbortSignal.timeout(120_000),
@@ -93,7 +112,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, sheet, "PlanilhaNet 08");
       const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
-      const file = new File([buffer], `PlanilhaNet08_${companyCode}_${competence}.xlsx`, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const file = new File([buffer], `PlanilhaNet08_${companyCode}_${periodStart}_${periodEnd}.xlsx`, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       await load(file);
     } catch (cause) {
       setAnalysis(null);
@@ -116,7 +135,8 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       if (headerIndex < 0) throw new Error("Cabeçalho da PlanilhaNet 08 não localizado.");
       const headers = matrix[headerIndex].map(normalized);
       const records = matrix.slice(headerIndex + 1).map((row) => Object.fromEntries(headers.map((name, index) => [name, row[index]])));
-      const months = monthWindow(competence);
+      const months = monthsBetween(periodStart, periodEnd);
+      if (!months.length) throw new Error("Informe um período válido de até 12 meses.");
       const grouped = new Map<string, ExpenseRow>();
       const movementIds = new Set<string>();
       const suppliers = new Set<string>();
@@ -125,7 +145,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         if (String(Math.trunc(numberValue(record.CODCOLIGADA))) !== String(Number(companyCode))) continue;
         const date = isoDate(record.DATASAIDA);
         const month = date.slice(0, 7);
-        if (!months.includes(month)) continue;
+        if (!date || date < periodStart || date > periodEnd || !months.includes(month)) continue;
         const account = String(record.DEBITO ?? "").trim();
         if (!account || normalized(account) === "NENHUM REGISTRO ENCONTRADO.") continue;
         const supplier = String(record.NOMEFANTASIA || record.NOME || "SEM FORNECEDOR").trim();
@@ -179,16 +199,21 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     sheet["!autofilter"] = { ref: sheet["!ref"] ?? "A1:M1" };
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Análise de Despesas");
-    XLSX.writeFile(workbook, `${companyCode}_${fileSafe(companyName)}_ANALISE_DE_DESPESA_${competence.slice(5, 7)}_${competence.slice(0, 4)}.xlsx`);
+    XLSX.writeFile(workbook, `${companyCode}_${fileSafe(companyName)}_ANALISE_DE_DESPESA_${periodStart.replaceAll("-", "_")}_${periodEnd.replaceAll("-", "_")}.xlsx`);
   }
 
   return <section className="expense-analysis">
+    <div className="expense-period">
+      <label><span>Data inicial</span><input type="date" value={periodStart} max={periodEnd} onChange={(event) => { setPeriodStart(event.target.value); setAnalysis(null); }} /></label>
+      <label><span>Data final</span><input type="date" value={periodEnd} min={periodStart} onChange={(event) => { setPeriodEnd(event.target.value); setAnalysis(null); }} /></label>
+      <small>O mês da data final será usado para divergências e ativo imobilizado. Período máximo: 12 meses.</small>
+    </div>
     <div className="expense-upload">
       <div><span className="eyebrow">PLANILHANET 08 · COMPRAS</span><h2>Análise de despesas</h2><p>Atualize diretamente pelo TOTVS RM ou importe o arquivo como alternativa.</p></div>
       <div className="expense-actions"><button className="primary" disabled={busy || !accessToken} onClick={() => void refreshPlanilhaNet()}><RefreshCw className={busy ? "spin" : ""} />{busy ? "Atualizando..." : "Atualizar PlanilhaNet 08"}</button><label className="expense-file secondary"><Upload />Importar arquivo<input type="file" accept=".xlsx,.xlsm,.xls" disabled={busy} onChange={(event) => void load(event.target.files?.[0])} /></label></div>
     </div>
     {error && <div className="notice error"><AlertTriangle />{error}</div>}
-    {!analysis ? <div className="expense-empty"><FileSpreadsheet /><b>Aguardando a PlanilhaNet 08</b><span>Coligada {companyCode} · competência {targetLabel} · somente contas a débito</span></div> : <>
+    {!analysis ? <div className="expense-empty"><FileSpreadsheet /><b>Aguardando a PlanilhaNet 08</b><span>Coligada {companyCode} · período {periodStart.split("-").reverse().join("/")} a {periodEnd.split("-").reverse().join("/")} · somente contas a débito</span></div> : <>
       <div className="expense-source"><span>{analysis.fileName}</span><small>{companyCode} — {companyName}</small><button onClick={() => setAnalysis(null)}><RefreshCw />Trocar arquivo</button><button className="primary" onClick={exportAnalysis}><Download />Exportar análise</button></div>
       <div className="expense-kpis">
         <article className="target"><span>Despesas {targetLabel}</span><b>{money.format(analysis.targetTotal)}</b></article>

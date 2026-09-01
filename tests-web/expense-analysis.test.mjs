@@ -22,8 +22,11 @@ test("análise aplica as regras aprovadas para agosto e ativos", () => {
   assert.match(component, /DEBITO/);
 });
 
-test("atualização divide a retrospectiva em consultas mensais paralelas", () => {
+test("atualização consulta o período em lotes mensais paralelos", () => {
   assert.match(route, /Promise\.all\(monthlyRanges/);
-  assert.match(route, /length: 6/);
+  assert.match(route, /monthCount > 12/);
+  assert.match(component, /periodStart/);
+  assert.match(component, /periodEnd/);
   assert.match(component, /AbortSignal\.timeout\(120_000\)/);
+  assert.match(page, /accountingTab === "despesas"/);
 });
