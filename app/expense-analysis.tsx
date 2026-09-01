@@ -308,6 +308,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     ]);
     const movementSheet = XLSX.utils.aoa_to_sheet([movementHeaders, ...movements]);
     movementSheet["!autofilter"] = { ref: `A1:O${Math.max(1, movements.length + 1)}` };
+    movementSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
     movementSheet["!cols"] = [{ wch: 12 }, { wch: 16 }, { wch: 13 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 36 }, { wch: 16 }, { wch: 10 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 20 }];
     for (let col = 0; col < movementHeaders.length; col += 1) movementSheet[XLSX.utils.encode_cell({ r: 0, c: col })].s = { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center" } };
     for (let row = 1; row <= movements.length; row += 1) for (let col = 0; col < movementHeaders.length; col += 1) {
