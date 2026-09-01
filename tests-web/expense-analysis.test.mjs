@@ -75,3 +75,7 @@ test("Ticket Zeev ocupa a coluna B após IDMOV no Excel", () => {
   assert.match(component, /\["IDMOV", "Ticket Zeev", "Data saída"/);
   assert.match(component, /\{ r: index \+ 1, c: 1 \}/);
 });
+
+test("congela a primeira linha de Lançamentos Contábeis", () => {
+  assert.match(component, /movementSheet\["!freeze"\] = \{ xSplit: 0, ySplit: 1 \}/);
+});
