@@ -54,3 +54,11 @@ test("abre o ticket Zeev a partir do movimento mensal", () => {
   assert.match(component, /raizeducacao\.zeev\.it\/1\.0\/audit/);
   assert.match(component, /Ticket Zeev/);
 });
+
+test("detalhamento do valor mensal abre em janela visível", () => {
+  assert.match(component, /expense-movement-modal/);
+  assert.match(component, /role="dialog"/);
+  assert.match(component, /Tipo de movimento/);
+  assert.match(component, /CODTMV/);
+  assert.match(component, /Nenhum lançamento foi localizado/);
+});
