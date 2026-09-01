@@ -4,6 +4,7 @@ import test from "node:test";
 
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const component = fs.readFileSync(new URL("../app/expense-analysis.tsx", import.meta.url), "utf8");
+const route = fs.readFileSync(new URL("../app/api/totvs/expenses/route.ts", import.meta.url), "utf8");
 
 test("Módulo Contábil renderiza a análise no item Despesas", () => {
   assert.match(page, /import ExpenseAnalysis/);
@@ -19,4 +20,10 @@ test("análise aplica as regras aprovadas para agosto e ativos", () => {
   assert.match(component, /DATASAIDA/);
   assert.match(component, /CODCOLIGADA/);
   assert.match(component, /DEBITO/);
+});
+
+test("atualização divide a retrospectiva em consultas mensais paralelas", () => {
+  assert.match(route, /Promise\.all\(monthlyRanges/);
+  assert.match(route, /length: 6/);
+  assert.match(component, /AbortSignal\.timeout\(120_000\)/);
 });
