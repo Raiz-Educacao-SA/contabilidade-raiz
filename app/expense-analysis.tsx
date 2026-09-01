@@ -122,7 +122,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence }
         const target = row.months[targetMonth] ?? 0;
         row.comment = accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
           ? "Divergência em comparação a meses anteriores"
-          : account.startsWith("1.") && target > 0
+          : row.account.startsWith("1.") && target > 0
             ? "Ativo Imobilizado"
             : "";
       });
