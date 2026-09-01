@@ -301,23 +301,23 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     }));
     XLSX.utils.book_append_sheet(workbook, sheet, "Análise de Despesa");
 
-    const movementHeaders = ["IDMOV", "Data saída", "Fornecedor", "CNPJ/CPF", "Natureza", "Conta contábil", "Descrição", "Valor", "Coligada", "Filial", "Tipo movimento", "Número movimento", "Data emissão", "Usuário", "Ticket Zeev"];
+    const movementHeaders = ["IDMOV", "Ticket Zeev", "Data saída", "Fornecedor", "CNPJ/CPF", "Natureza", "Conta contábil", "Descrição", "Valor", "Coligada", "Filial", "Tipo movimento", "Número movimento", "Data emissão", "Usuário"];
     const movements = movementRecords.map((record) => [
-      record.IDMOV, isoDate(record.DATASAIDA), record.NOMEFANTASIA || record.NOME, record.CGCCFO, "DÉBITO", record.DEBITO, record.DESCRICAO, numberValue(record.VALOR),
-      record.CODCOLIGADA, record.CODFILIAL, record.CODTMV, record.NUMEROMOV, isoDate(record.DATAEMISSAO), record.CODUSUARIO, record.TICKET,
+      record.IDMOV, record.TICKET, isoDate(record.DATASAIDA), record.NOMEFANTASIA || record.NOME, record.CGCCFO, "DÉBITO", record.DEBITO, record.DESCRICAO, numberValue(record.VALOR),
+      record.CODCOLIGADA, record.CODFILIAL, record.CODTMV, record.NUMEROMOV, isoDate(record.DATAEMISSAO), record.CODUSUARIO,
     ]);
     const movementSheet = XLSX.utils.aoa_to_sheet([movementHeaders, ...movements]);
     movementSheet["!autofilter"] = { ref: `A1:O${Math.max(1, movements.length + 1)}` };
-    movementSheet["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 36 }, { wch: 16 }, { wch: 10 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 20 }, { wch: 16 }];
+    movementSheet["!cols"] = [{ wch: 12 }, { wch: 16 }, { wch: 13 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 36 }, { wch: 16 }, { wch: 10 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 20 }];
     for (let col = 0; col < movementHeaders.length; col += 1) movementSheet[XLSX.utils.encode_cell({ r: 0, c: col })].s = { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center" } };
     for (let row = 1; row <= movements.length; row += 1) for (let col = 0; col < movementHeaders.length; col += 1) {
       const cell = movementSheet[XLSX.utils.encode_cell({ r: row, c: col })];
-      if (cell) cell.s = { font: baseFont, ...(col === 7 ? { numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' } : {}) };
+      if (cell) cell.s = { font: baseFont, ...(col === 8 ? { numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' } : {}) };
     }
     movementRecords.forEach((record, index) => {
       const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
       if (!ticket) return;
-      const cell = movementSheet[XLSX.utils.encode_cell({ r: index + 1, c: 14 })];
+      const cell = movementSheet[XLSX.utils.encode_cell({ r: index + 1, c: 1 })];
       if (cell) {
         cell.l = { Target: `https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(ticket)}`, Tooltip: "Abrir nota fiscal no Zeev" };
         cell.s = { font: { name: "Calibri", sz: 11, color: { rgb: "0563C1" }, underline: true } };
