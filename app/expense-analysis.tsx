@@ -358,15 +358,17 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         <article className={assets ? "asset" : ""}><span>Ativos no mês</span><b>{assets}</b></article>
       </div>
       <div className="expense-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Conta contábil</th><th>Descrição da conta</th>{analysis.months.map((month) => <th key={month} className={month === targetMonth ? "target-month" : ""}>{month}</th>)}<th>Total Geral</th><th>Comentários</th></tr></thead><tbody>{analysis.rows.map((row) => <tr key={`${row.supplier}-${row.account}`}><td>{row.supplier}</td><td>{row.account}</td><td>{row.description}</td>{analysis.months.map((month) => <td key={month} className={month === targetMonth ? "target-month" : ""}>{row.months[month] ? <button className="expense-movement-link" onClick={() => setDetail({ supplier: row.supplier, account: row.account, month })}>{money.format(row.months[month])}</button> : "—"}</td>)}<td><b>{money.format(row.total)}</b></td><td className={row.comment.includes("Divergência") ? "comment-warning" : row.comment ? "comment-asset" : ""}>{row.comment}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>TOTAL DÉBITO</td>{analysis.months.map((month) => <td key={month}>{money.format(analysis.rows.reduce((sum, row) => sum + row.months[month], 0))}</td>)}<td>{money.format(analysis.periodTotal)}</td><td /></tr></tfoot></table></div>
-      {detail && <section className="expense-movement-detail">
-        <header><div><span className="eyebrow">MOVIMENTOS · {detail.month}</span><h3>{detail.supplier}</h3><small>Conta {detail.account} · {detailRecords.length} lançamento(s)</small></div><button className="icon-button" onClick={() => setDetail(null)} aria-label="Fechar movimentos"><X /></button></header>
-        <div className="expense-detail-table"><table><thead><tr><th>IDMOV</th><th>Data saída</th><th>Documento</th><th>Valor</th><th>Ticket Zeev</th><th>Nota fiscal</th></tr></thead><tbody>
-          {detailRecords.map((record, index) => {
-            const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
-            return <tr key={`${record.IDMOV || index}-${ticket}`}><td>{String(record.IDMOV || "—")}</td><td>{isoDate(record.DATASAIDA).split("-").reverse().join("/")}</td><td>{String(record.NUMEROMOV || "—")}</td><td>{money.format(numberValue(record.VALOR))}</td><td>{ticket || "Não informado"}</td><td>{ticket ? <a href={`https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(ticket)}`} target="_blank" rel="noreferrer"><ExternalLink />Abrir NF no Zeev</a> : "Ticket não localizado"}</td></tr>;
-          })}
-        </tbody></table></div>
-      </section>}
+      {detail && <div className="expense-movement-modal" role="dialog" aria-modal="true" aria-label="Movimentos da despesa" onClick={() => setDetail(null)}>
+        <section className="expense-movement-detail" onClick={(event) => event.stopPropagation()}>
+          <header><div><span className="eyebrow">MOVIMENTOS · {detail.month}</span><h3>{detail.supplier}</h3><small>Conta {detail.account} · {detailRecords.length} lançamento(s)</small></div><button className="icon-button" onClick={() => setDetail(null)} aria-label="Fechar movimentos"><X /></button></header>
+          <div className="expense-detail-table"><table><thead><tr><th>IDMOV</th><th>Filial</th><th>Tipo de movimento</th><th>Data saída</th><th>Documento</th><th>Valor</th><th>Ticket Zeev</th><th>Nota fiscal</th></tr></thead><tbody>
+            {detailRecords.length ? detailRecords.map((record, index) => {
+              const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
+              return <tr key={`${record.IDMOV || index}-${ticket}`}><td>{String(record.IDMOV || "—")}</td><td>{String(record.CODFILIAL || "—")}</td><td>{String(record.CODTMV || "—")}</td><td>{isoDate(record.DATASAIDA).split("-").reverse().join("/")}</td><td>{String(record.NUMEROMOV || "—")}</td><td>{money.format(numberValue(record.VALOR))}</td><td>{ticket || "Não informado"}</td><td>{ticket ? <a href={`https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(ticket)}`} target="_blank" rel="noreferrer"><ExternalLink />Abrir NF no Zeev</a> : "Ticket não localizado"}</td></tr>;
+            }) : <tr><td colSpan={8} className="expense-detail-empty">Nenhum lançamento foi localizado para este fornecedor, conta e mês.</td></tr>}
+          </tbody></table></div>
+        </section>
+      </div>}
     </>}
   </section>;
 }
