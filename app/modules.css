@@ -471,6 +471,17 @@
 .trial-table table { font-size: 9px; }
 .trial-table th { position: sticky; top: 0; z-index: 3; background: #173d68; color: #fff; font-size: 8px; box-shadow: 0 1px 0 #d7dfeb; }
 .trial-table th, .trial-table td { padding: 7px 9px; }
+.revenue-column-visibility { display: flex; min-height: 32px; align-items: center; flex-wrap: wrap; gap: 5px; padding: 6px 14px; border-top: 1px solid var(--line); color: #657188; background: #f8fafc; font-size: 8px; }
+.revenue-column-visibility button { display: inline-flex; min-height: 23px; align-items: center; gap: 4px; padding: 3px 7px; border: 1px solid #cfd8e6; border-radius: 999px; background: #fff; color: #24466d; font-size: 7px; font-weight: 800; }
+.revenue-column-visibility button:hover { border-color: #69beb9; background: #f1fbfa; }
+.revenue-column-visibility button.show-all { border-color: #69beb9; color: #08745f; }
+.revenue-column-visibility svg { width: 10px; height: 10px; }
+.revenue-column-header { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.revenue-column-header > span { font-weight: 850; }
+.revenue-column-hide { display: inline-flex; min-height: 18px; align-items: center; gap: 3px; padding: 2px 5px; border: 1px solid rgba(255,255,255,.42); border-radius: 5px; background: rgba(255,255,255,.12); color: #fff; font-size: 6px; font-weight: 800; line-height: 1; }
+.revenue-column-hide:hover { background: rgba(255,255,255,.24); }
+.revenue-column-hide:disabled { cursor: not-allowed; opacity: .4; }
+.revenue-column-hide svg { width: 8px; height: 8px; }
 .trial-summary article.has-warning { border-color: #efb3aa; background: #fff8f6; }
 .trial-summary article.has-warning b { color: #bb392c; }
 .loan-reconciliation-table table { min-width: 1540px; }
