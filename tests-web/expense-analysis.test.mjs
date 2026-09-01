@@ -70,3 +70,8 @@ test("Excel conecta valores aos lançamentos e tickets ao Zeev", () => {
   assert.match(component, /Abrir nota fiscal no Zeev/);
   assert.match(component, /underline: true/);
 });
+
+test("Ticket Zeev ocupa a coluna B após IDMOV no Excel", () => {
+  assert.match(component, /\["IDMOV", "Ticket Zeev", "Data saída"/);
+  assert.match(component, /\{ r: index \+ 1, c: 1 \}/);
+});
