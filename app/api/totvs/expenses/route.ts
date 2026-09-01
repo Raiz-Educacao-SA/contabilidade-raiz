@@ -28,24 +28,25 @@ export async function GET(request: NextRequest) {
   try {
     if (!await authorized(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const company = request.nextUrl.searchParams.get("company")?.trim();
-    const competence = request.nextUrl.searchParams.get("competence")?.trim();
-    if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}$/.test(competence || "")) {
-      return NextResponse.json({ error: "Coligada e competência válidas são obrigatórias." }, { status: 400 });
+    const firstDay = request.nextUrl.searchParams.get("start")?.trim() || "";
+    const lastDay = request.nextUrl.searchParams.get("end")?.trim() || "";
+    if (!company || !/^\d+$/.test(company) || !/^\d{4}-\d{2}-\d{2}$/.test(firstDay) || !/^\d{4}-\d{2}-\d{2}$/.test(lastDay) || firstDay > lastDay) {
+      return NextResponse.json({ error: "Coligada, data inicial e data final válidas são obrigatórias." }, { status: 400 });
     }
 
-    const [year, month] = competence!.split("-").map(Number);
-    const monthlyRanges = Array.from({ length: 6 }, (_, index) => {
-      const date = new Date(Date.UTC(year, month - 6 + index, 1));
+    const startDate = new Date(`${firstDay}T00:00:00Z`);
+    const endDate = new Date(`${lastDay}T00:00:00Z`);
+    const monthCount = (endDate.getUTCFullYear() - startDate.getUTCFullYear()) * 12 + endDate.getUTCMonth() - startDate.getUTCMonth() + 1;
+    if (monthCount > 12) return NextResponse.json({ error: "O período máximo da análise é de 12 meses." }, { status: 400 });
+    const monthlyRanges = Array.from({ length: monthCount }, (_, index) => {
+      const date = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + index, 1));
       const rangeYear = date.getUTCFullYear();
       const rangeMonth = date.getUTCMonth() + 1;
       const prefix = `${rangeYear}-${String(rangeMonth).padStart(2, "0")}`;
-      return {
-        firstDay: `${prefix}-01`,
-        lastDay: `${prefix}-${String(new Date(Date.UTC(rangeYear, rangeMonth, 0)).getUTCDate()).padStart(2, "0")}`,
-      };
+      const monthFirst = `${prefix}-01`;
+      const monthLast = `${prefix}-${String(new Date(Date.UTC(rangeYear, rangeMonth, 0)).getUTCDate()).padStart(2, "0")}`;
+      return { firstDay: monthFirst < firstDay ? firstDay : monthFirst, lastDay: monthLast > lastDay ? lastDay : monthLast };
     });
-    const firstDay = monthlyRanges[0].firstDay;
-    const lastDay = monthlyRanges[monthlyRanges.length - 1].lastDay;
     const batches = await Promise.all(monthlyRanges.map((range) => queryDataEngine({
       code: "PLAN.T.0003.001",
       system: "T",
@@ -70,7 +71,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       source: "TOTVS RM — PlanilhaNet 08 / FORNECEDOR X MOVIMENTOS",
       company,
-      competence,
       period: { firstDay, lastDay },
       records: rows.length,
       rows,
