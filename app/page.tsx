@@ -1067,7 +1067,7 @@ export default function Home() {
                 <b>
                   {formatShortDate(new Date(year, month, 1))} a {formatShortDate(addBusinessDays(new Date(year, month, 1), 10))}
                 </b>
-                <small>Financeiro D+3 · Folha D+5 · Fiscal D+6 · Contabilidade na data definida</small>
+                <small>Financeiro D+3 · Folha D+5 · Fiscal sem tarefas · Contabilidade na data definida</small>
               </div>
             )}
           </div>
@@ -1866,7 +1866,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const stages = [
     { key: "financeiro", name: "Módulo Financeiro", sector: "Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
     { key: "folha", name: "Módulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
-    { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Concluir apurações e obrigações fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "D+6", icon: FileSpreadsheet },
+    { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Aguardando inclusão das tarefas fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "Sem tarefas", icon: FileSpreadsheet },
     { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
     { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Conferir os relatórios base do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookOpenCheck },
   ];
@@ -1903,11 +1903,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const payrollTotalCount = payrollScheduleTasks.length * companies.length;
-  const fiscalDoneCount = fiscalScheduleTasks.reduce(
-    (total, task) => total + companies.filter((company) => isDone(`fiscal:${task.id}:${scheduleCompanyCode(company)}`)).length,
-    0,
-  );
-  const fiscalTotalCount = fiscalScheduleTasks.length * companies.length;
   const bookDoneCount = bookScheduleTasks.reduce(
     (total, task) => total + companies.filter((company) => isDone(`book:${task.id}:${scheduleCompanyCode(company)}`)).length,
     0,
@@ -1916,7 +1911,6 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
   const payrollPercent = payrollTotalCount ? Math.round((payrollDoneCount / payrollTotalCount) * 100) : 0;
-  const fiscalPercent = fiscalTotalCount ? Math.round((fiscalDoneCount / fiscalTotalCount) * 100) : 0;
   const bookPercent = bookTotalCount ? Math.round((bookDoneCount / bookTotalCount) * 100) : 0;
   const overallProgress = calculateClosingScheduleProgress(
     confirmations,
@@ -2075,30 +2069,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     />
                   </div>
                 ) : selectedStage.key === "fiscal" ? (
-                  <div className="schedule-accounting-checklist">
-                    <header>
-                      <div>
-                        <span>MÓDULO FISCAL</span>
-                        <b>Módulo Fiscal - {months[month - 1]} de {year}</b>
-                      </div>
-                      <small>{fiscalPercent}% · {fiscalDoneCount}/{fiscalTotalCount || 0} finalizada(s)</small>
-                    </header>
-                    <ScheduleCompanyMatrix
-                      prefix="fiscal"
-                      tasks={fiscalScheduleTasks}
-                      companies={companies}
-                      confirmations={confirmations}
-                      loading={scheduleLoading}
-                      confirmingModule={confirmingGroup || confirmingModule}
-                      canEdit={canConfirmSector("Fiscal")}
-                      companyCode={scheduleCompanyCode}
-                      companyLabel={companyLabel}
-                      isDone={isDone}
-                      confirmationDetail={getConfirmationDetail}
-                      onToggle={(task, company, checked) => toggleScheduleTask("fiscal", "Fiscal", task, company, checked)}
-                      onToggleAll={(task, checked) => toggleScheduleTaskAll("fiscal", "Fiscal", task, checked)}
-                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("fiscal", "Fiscal", fiscalScheduleTasks, company, checked)}
-                    />
+                  <div className="schedule-selected-module-card">
+                    <b>Sem tarefas cadastradas</b>
+                    <p>O Módulo Fiscal ainda não participa do cálculo do cronograma. O progresso será habilitado quando as tarefas fiscais forem incluídas.</p>
                   </div>
                 ) : selectedStage.key === "contabil" ? (
                   <div className="schedule-accounting-checklist">

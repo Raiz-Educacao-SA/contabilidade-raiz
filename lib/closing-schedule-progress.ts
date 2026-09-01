@@ -1,7 +1,11 @@
 export const CLOSING_SCHEDULE_MODULES = ["financeiro", "fiscal", "folha", "contabil", "book"] as const;
-export const CLOSING_SCHEDULE_MODULES_WITH_TASKS = [...CLOSING_SCHEDULE_MODULES] as const;
-
 export type ClosingScheduleModule = (typeof CLOSING_SCHEDULE_MODULES)[number];
+export const CLOSING_SCHEDULE_MODULES_WITH_TASKS: readonly ClosingScheduleModule[] = [
+  "financeiro",
+  "folha",
+  "contabil",
+  "book",
+];
 
 export const FINANCIAL_SCHEDULE_TASK_IDS = ["bancaria", "receita", "emprestimos", "parcelamentos"] as const;
 
@@ -99,7 +103,7 @@ export function calculateClosingScheduleProgress(
 
   const modulePercent: Record<ClosingScheduleModule, number> = {
     financeiro: detailedModulePercent(completed, "financeiro", FINANCIAL_SCHEDULE_TASK_IDS, companyCodes),
-    fiscal: detailedModulePercent(completed, "fiscal", FISCAL_SCHEDULE_TASK_IDS, companyCodes),
+    fiscal: 0,
     folha: detailedModulePercent(completed, "folha", PAYROLL_SCHEDULE_TASK_IDS, companyCodes),
     contabil: detailedModulePercent(completed, "contabil", ACCOUNTING_SCHEDULE_TASK_IDS, companyCodes),
     book: detailedModulePercent(completed, "book", BOOK_SCHEDULE_TASK_IDS, companyCodes),

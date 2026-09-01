@@ -28,14 +28,15 @@ test("calcula somente confirmações detalhadas por tarefa e empresa", () => {
 
   const progress = calculateClosingScheduleProgress(records, ["2"]);
 
-  assert.equal(progress.totalModules, 5);
+  assert.equal(progress.totalModules, 4);
   assert.equal(progress.completedModulesCount, 0);
   assert.deepEqual(progress.completedModules, []);
-  assert.deepEqual(progress.includedModules, ["financeiro", "fiscal", "folha", "contabil", "book"]);
+  assert.deepEqual(progress.includedModules, ["financeiro", "folha", "contabil", "book"]);
   assert.equal(progress.modulePercent.financeiro, 25);
   assert.equal(progress.modulePercent.folha, 17);
   assert.equal(progress.modulePercent.contabil, 9);
-  assert.equal(progress.overallPercent, 10);
+  assert.equal(progress.modulePercent.fiscal, 0);
+  assert.equal(progress.overallPercent, 13);
 });
 
 test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
@@ -43,7 +44,7 @@ test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
   assert.equal(ACCOUNTING_SCHEDULE_TASK_IDS.includes("imobilizado" as never), false);
 });
 
-test("conclui todos os módulos quando todas as tarefas por empresa foram finalizadas", () => {
+test("conclui todos os módulos participantes quando suas tarefas foram finalizadas", () => {
   const companyCodes = ["01", "2"];
   const financialTaskIds = FINANCIAL_SCHEDULE_TASK_IDS as readonly string[];
   const accountingTaskIds = ACCOUNTING_SCHEDULE_TASK_IDS as readonly string[];
@@ -70,15 +71,28 @@ test("conclui todos os módulos quando todas as tarefas por empresa foram finali
 
   const progress = calculateClosingScheduleProgress(records, companyCodes);
 
-  assert.equal(progress.completedModulesCount, 5);
+  assert.equal(progress.completedModulesCount, 4);
   assert.equal(progress.overallPercent, 100);
   assert.deepEqual(progress.modulePercent, {
     financeiro: 100,
-    fiscal: 100,
+    fiscal: 0,
     folha: 100,
     contabil: 100,
     book: 100,
   });
+});
+
+test("mantém o módulo Fiscal fora da porcentagem até a inclusão das tarefas", () => {
+  const records = (FISCAL_SCHEDULE_TASK_IDS as readonly string[]).map((task) =>
+    completed(`fiscal:${task}:02`),
+  );
+
+  const progress = calculateClosingScheduleProgress(records, ["02"]);
+
+  assert.equal(progress.modulePercent.fiscal, 0);
+  assert.equal(progress.includedModules.includes("fiscal"), false);
+  assert.equal(progress.totalModules, 4);
+  assert.equal(progress.overallPercent, 0);
 });
 
 test("ignora confirmações gerais antigas dos módulos", () => {
