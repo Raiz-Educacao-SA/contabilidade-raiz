@@ -9,6 +9,7 @@ import {
 } from "../lib/revenue-export-workbook.ts";
 
 import {
+  ADDITIONAL_TUITION_REVENUE_ACCOUNT,
   accountingRevenueQueryAccounts,
   classifyAccountingRevenue,
   classifyRevenueDivergence,
@@ -39,6 +40,7 @@ import { revenueReconciliationCacheKey } from "../lib/revenue-reconciliation-cac
 test("consulta receitas e todos os grupos contábeis de descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
     REVENUE_ACCOUNT_PREFIX,
+    ADDITIONAL_TUITION_REVENUE_ACCOUNT,
     EXTENDED_HOURS_REVENUE_ACCOUNT,
     OTHER_STUDENT_REVENUE_ACCOUNT,
     DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
@@ -71,6 +73,13 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
   });
   assert.equal(
     classifyAccountingRevenue(
+      ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+      "Mensalidades Extras",
+    ),
+    "revenue",
+  );
+  assert.equal(
+    classifyAccountingRevenue(
       OTHER_STUDENT_REVENUE_ACCOUNT,
       "Outras Receitas de Alunos",
     ),
@@ -84,6 +93,7 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
     "revenue",
   );
   assert.equal(isExtraRevenueAccount(DIDACTIC_MATERIAL_REVENUE_ACCOUNT), false);
+  assert.equal(isExtraRevenueAccount(ADDITIONAL_TUITION_REVENUE_ACCOUNT), false);
 });
 
 test("classifica todas as bolsas e descontos previstos na diretriz funcional", () => {
