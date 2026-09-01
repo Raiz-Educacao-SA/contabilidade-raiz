@@ -32,3 +32,12 @@ test("atualização consulta o período em lotes mensais paralelos", () => {
   assert.match(component, /AbortSignal\.timeout\(120_000\)/);
   assert.match(page, /accountingTab === "despesas"/);
 });
+
+test("exportação segue o padrão contábil aprovado", () => {
+  assert.match(component, /xlsx-js-style/);
+  assert.match(component, /Análise de Despesa/);
+  assert.match(component, /Lançamentos Contábeis/);
+  assert.match(component, /Regras e Controles/);
+  assert.match(component, /fileTitle\(companyName\)/);
+  assert.match(component, /Calibri/);
+});
