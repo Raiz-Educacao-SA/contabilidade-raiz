@@ -14,7 +14,7 @@ import {
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
   consolidateFiscalRevenueRows,
-  EXTENDED_HOURS_REVENUE_ACCOUNT,
+  EXTRA_REVENUE_ACCOUNTS,
   isExcludedRevenueGenerationType,
   REVENUE_TOLERANCE,
   revenueReconciliationExportFileName,
@@ -316,6 +316,7 @@ export default function RevenueReconciliation({
         impact: dr - dd,
         status,
         classification,
+        extraRevenueAccounts: b?.extraRevenueAccounts.join(" | ") || "",
         generationTypes: b?.generationTypes.join(" | ") || "",
         complements: b?.complements.join(" | ") || "",
         comment:
@@ -364,6 +365,7 @@ export default function RevenueReconciliation({
       "Receita fiscal": x.fiscalRevenue,
       "Receita contábil": x.accountingRevenue,
       "Receitas extras": x.extraRevenue,
+      "Contas de receitas extras": x.extraRevenueAccounts,
       "Diferença receita": x.revenueDifference,
       "Desconto fiscal": x.fiscalDiscount,
       "Desconto contábil": x.accountingDiscount,
@@ -452,7 +454,7 @@ export default function RevenueReconciliation({
     };
     const detailColumns = [
       { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
-      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
+      { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
     ];
     appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
     appendJsonSheet(
@@ -525,7 +527,7 @@ export default function RevenueReconciliation({
       ["4", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
       ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["7", "Receitas extras", EXTENDED_HOURS_REVENUE_ACCOUNT, "Quando o valor da conta explica integralmente a diferença de receita e não há diferença de desconto, o RA sai das divergências e é isolado na sheet Receitas Extras"],
+      ["7", "Receitas extras", EXTRA_REVENUE_ACCOUNTS.join(" | "), "Quando o valor dessas contas explica integralmente a diferença de receita e não há diferença de desconto, o RA sai das divergências e é isolado na sheet Receitas Extras"],
       ["8", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
@@ -692,8 +694,9 @@ export default function RevenueReconciliation({
               <div>
                 <b>{extraRevenueRows.length} receita(s) extra(s) isolada(s)</b>
                 <span>
-                  A conta {EXTENDED_HOURS_REVENUE_ACCOUNT} explica integralmente a
-                  diferença. Estes valores não compõem as inconsistências.
+                  As contas {EXTRA_REVENUE_ACCOUNTS.join(" e ")} explicam
+                  integralmente a diferença. Estes valores não compõem as
+                  inconsistências.
                 </span>
               </div>
             </div>
@@ -725,7 +728,7 @@ export default function RevenueReconciliation({
                       <td>{row.competence}</td>
                       <td>{row.name || "—"}</td>
                       <td>{row.fiscalStatus || "—"}</td>
-                      <td>{EXTENDED_HOURS_REVENUE_ACCOUNT}</td>
+                      <td>{row.extraRevenueAccounts || "—"}</td>
                       <td>{brl.format(row.fiscalRevenue)}</td>
                       <td>{brl.format(row.accountingRevenue)}</td>
                       <td><b>{brl.format(row.extraRevenue)}</b></td>

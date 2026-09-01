@@ -18,6 +18,7 @@ import {
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
+  EXTRA_REVENUE_ACCOUNTS,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
   isExtraRevenueAccount,
@@ -25,6 +26,7 @@ import {
   isRevenueAppropriation,
   isValidRevenueRa,
   normalizeRevenueRa,
+  OTHER_STUDENT_REVENUE_ACCOUNT,
   PAA_DISCOUNT_ACCOUNT,
   REVENUE_ACCOUNT_DESCRIPTIONS,
   REVENUE_ACCOUNT_PREFIX,
@@ -37,6 +39,7 @@ test("consulta receitas e todos os grupos contábeis de descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
     REVENUE_ACCOUNT_PREFIX,
     EXTENDED_HOURS_REVENUE_ACCOUNT,
+    OTHER_STUDENT_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ]);
@@ -64,6 +67,13 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
       description,
     );
   });
+  assert.equal(
+    classifyAccountingRevenue(
+      OTHER_STUDENT_REVENUE_ACCOUNT,
+      "Outras Receitas de Alunos",
+    ),
+    "revenue",
+  );
 });
 
 test("classifica todas as bolsas e descontos previstos na diretriz funcional", () => {
@@ -165,12 +175,17 @@ test("consolida receitas e descontos por RA", () => {
     { ra: "123", name: "Aluno", value: -1_000, kind: "revenue", generationType: "O", account: REVENUE_ACCOUNT_PREFIX },
     { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "AJUSTE", generationType: " O " },
     { ra: "123", name: "Aluno", value: -50, kind: "revenue", account: EXTENDED_HOURS_REVENUE_ACCOUNT },
+    { ra: "123", name: "Aluno", value: -25, kind: "revenue", account: OTHER_STUDENT_REVENUE_ACCOUNT },
     { ra: "123", name: "Aluno", value: 200, kind: "discount", generationType: "O" },
     { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "AJUSTE" },
   ]);
 
-  assert.equal(summaries.get("123")?.revenue, 950);
-  assert.equal(summaries.get("123")?.extraRevenue, 50);
+  assert.equal(summaries.get("123")?.revenue, 975);
+  assert.equal(summaries.get("123")?.extraRevenue, 75);
+  assert.deepEqual(
+    summaries.get("123")?.extraRevenueAccounts,
+    EXTRA_REVENUE_ACCOUNTS,
+  );
   assert.equal(summaries.get("123")?.discount, 180);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
@@ -178,6 +193,7 @@ test("consolida receitas e descontos por RA", () => {
 
 test("classifica como Receitas extras somente quando a conta explica toda a divergência", () => {
   assert.equal(isExtraRevenueAccount(EXTENDED_HOURS_REVENUE_ACCOUNT), true);
+  assert.equal(isExtraRevenueAccount(OTHER_STUDENT_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(REVENUE_ACCOUNT_PREFIX), false);
   assert.equal(
     classifyRevenueDivergence({
@@ -230,7 +246,7 @@ test("isola receitas extras da lista de divergências e da comparação exportad
     /row\.status !== "Conciliado" && !row\.classification/,
   );
   assert.match(component, /comparableAccountingRevenue/);
-  assert.match(component, /Estes valores não compõem as inconsistências/);
+  assert.match(component, /Estes valores não compõem as\s+inconsistências/);
 });
 
 test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {

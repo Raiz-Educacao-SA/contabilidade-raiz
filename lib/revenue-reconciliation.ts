@@ -10,6 +10,11 @@ export type RevenueReconciliationStatus =
 export const REVENUE_TOLERANCE = 0.01;
 export const REVENUE_ACCOUNT_PREFIX = "3.1.1.01.01";
 export const EXTENDED_HOURS_REVENUE_ACCOUNT = "3.1.1.01.02.03";
+export const OTHER_STUDENT_REVENUE_ACCOUNT = "3.1.1.01.02.06";
+export const EXTRA_REVENUE_ACCOUNTS = [
+  EXTENDED_HOURS_REVENUE_ACCOUNT,
+  OTHER_STUDENT_REVENUE_ACCOUNT,
+] as const;
 export const COMMERCIAL_DISCOUNT_ACCOUNT = "3.1.2.02.01.01";
 export const DISCOUNT_ACCOUNT_PREFIX = "3.1.2.02.02";
 export const INSTITUTIONAL_DISCOUNT_ACCOUNT = "3.1.2.02.02.01";
@@ -31,6 +36,7 @@ export const REVENUE_ACCOUNT_DESCRIPTIONS = [
   "Horario Integral (Estentido)",
   "Horário Integral (Estendido)",
   "Horário Estendido",
+  "Outras Receitas de Alunos",
   "Mensalidade Curso Preparatório",
 ] as const;
 
@@ -61,7 +67,7 @@ const DISCOUNT_DESCRIPTIONS = new Set(
 export function accountingRevenueQueryAccounts() {
   return [
     REVENUE_ACCOUNT_PREFIX,
-    EXTENDED_HOURS_REVENUE_ACCOUNT,
+    ...EXTRA_REVENUE_ACCOUNTS,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ] as const;
@@ -76,7 +82,7 @@ export function classifyAccountingRevenue(
 
   if (
     (normalizedAccount.startsWith(REVENUE_ACCOUNT_PREFIX) ||
-      normalizedAccount === EXTENDED_HOURS_REVENUE_ACCOUNT) &&
+      isExtraRevenueAccount(normalizedAccount)) &&
     REVENUE_DESCRIPTIONS.has(normalizedDescription)
   ) {
     return "revenue";
@@ -94,7 +100,9 @@ export function classifyAccountingRevenue(
 }
 
 export function isExtraRevenueAccount(account?: string) {
-  return account?.trim() === EXTENDED_HOURS_REVENUE_ACCOUNT;
+  return EXTRA_REVENUE_ACCOUNTS.some(
+    (extraAccount) => extraAccount === account?.trim(),
+  );
 }
 
 export function isRevenueAppropriation(complement: string) {
@@ -195,6 +203,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       name: string;
       revenue: number;
       extraRevenue: number;
+      extraRevenueAccounts: string[];
       discount: number;
       complements: string[];
       generationTypes: string[];
@@ -206,6 +215,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       name: entry.name,
       revenue: 0,
       extraRevenue: 0,
+      extraRevenueAccounts: [],
       discount: 0,
       complements: [],
       generationTypes: [],
@@ -215,6 +225,10 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       current.revenue += entry.value;
       if (isExtraRevenueAccount(entry.account)) {
         current.extraRevenue += entry.value;
+        const account = entry.account?.trim();
+        if (account && !current.extraRevenueAccounts.includes(account)) {
+          current.extraRevenueAccounts.push(account);
+        }
       }
     } else current.discount += entry.value;
 
