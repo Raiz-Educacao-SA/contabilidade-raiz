@@ -4,6 +4,7 @@ import test from "node:test";
 
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const component = fs.readFileSync(new URL("../app/expense-analysis.tsx", import.meta.url), "utf8");
+const css = fs.readFileSync(new URL("../app/expense-analysis.css", import.meta.url), "utf8");
 const route = fs.readFileSync(new URL("../app/api/totvs/expenses/route.ts", import.meta.url), "utf8");
 
 test("Módulo Contábil renderiza a análise no item Despesas", () => {
@@ -78,4 +79,11 @@ test("Ticket Zeev ocupa a coluna B após IDMOV no Excel", () => {
 
 test("congela a primeira linha de Lançamentos Contábeis", () => {
   assert.match(component, /movementSheet\["!freeze"\] = \{ xSplit: 0, ySplit: 1 \}/);
+});
+
+test("mantém compacto o título e os botões da análise de despesas", () => {
+  assert.match(css, /\.expense-upload \.eyebrow\{font-size:10px\}/);
+  assert.match(css, /\.expense-upload h2\{margin:4px 0;font-size:18px\}/);
+  assert.match(css, /\.expense-upload p\{margin:0;color:var\(--muted\);font-size:11px\}/);
+  assert.match(css, /\.expense-actions button,\.expense-actions label\{min-height:40px;padding:7px 12px;font-size:12px\}/);
 });
