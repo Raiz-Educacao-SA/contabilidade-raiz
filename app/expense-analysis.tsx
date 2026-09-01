@@ -120,10 +120,10 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence }
       rows.forEach((row) => {
         const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
         const target = row.months[targetMonth] ?? 0;
-        row.comment = accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
-          ? "Divergência em comparação a meses anteriores"
-          : row.account.startsWith("1.") && target > 0
-            ? "Ativo Imobilizado"
+        row.comment = row.account.startsWith("1.") && target > 0
+          ? "Ativo Imobilizado"
+          : accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
+            ? "Divergência em comparação a meses anteriores"
             : "";
       });
       rows.sort((a, b) => a.supplier.localeCompare(b.supplier, "pt-BR") || a.account.localeCompare(b.account));
