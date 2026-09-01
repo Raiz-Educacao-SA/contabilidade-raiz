@@ -62,3 +62,11 @@ test("detalhamento do valor mensal abre em janela visível", () => {
   assert.match(component, /CODTMV/);
   assert.match(component, /Nenhum lançamento foi localizado/);
 });
+
+test("Excel conecta valores aos lançamentos e tickets ao Zeev", () => {
+  assert.match(component, /movementRowByGroup/);
+  assert.match(component, /#'Lançamentos Contábeis'!A/);
+  assert.match(component, /Abrir movimentos e tickets/);
+  assert.match(component, /Abrir nota fiscal no Zeev/);
+  assert.match(component, /underline: true/);
+});
