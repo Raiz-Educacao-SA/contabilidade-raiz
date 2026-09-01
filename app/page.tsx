@@ -1617,14 +1617,11 @@ function AreaHub({
             >
               <span className="module-card-top">
                 <span className="module-icon"><BookIcon /></span>
-                <span className="module-status">{scheduleProgress.modulePercent.book}%</span>
+                <span className="module-status module-status-soon">Sem tarefas</span>
               </span>
               <span className="module-copy">
                 <b>Book Contábil</b>
                 <small>Consolida os resultados dos módulos e entrega a visão final do fechamento.</small>
-              </span>
-              <span className="module-progress" aria-label="Status do Book Contábil">
-                <i style={{ width: `${scheduleProgress.modulePercent.book}%` }} />
               </span>
               <span className="module-enter">Acessar Book <ArrowLeftRight /></span>
             </button>
@@ -1905,15 +1902,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const payrollTotalCount = payrollScheduleTasks.length * companies.length;
-  const bookDoneCount = bookScheduleTasks.reduce(
-    (total, task) => total + companies.filter((company) => isDone(`book:${task.id}:${scheduleCompanyCode(company)}`)).length,
-    0,
-  );
-  const bookTotalCount = bookScheduleTasks.length * companies.length;
   const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
   const payrollPercent = payrollTotalCount ? Math.round((payrollDoneCount / payrollTotalCount) * 100) : 0;
-  const bookPercent = bookTotalCount ? Math.round((bookDoneCount / bookTotalCount) * 100) : 0;
   const overallProgress = calculateClosingScheduleProgress(
     confirmations,
     companies.map((company) => company.code),
@@ -2102,30 +2093,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     />
                   </div>
                 ) : selectedStage.key === "book" ? (
-                  <div className="schedule-accounting-checklist">
-                    <header>
-                      <div>
-                        <span>BOOK CONTÁBIL</span>
-                        <b>Book Contábil - {months[month - 1]} de {year}</b>
-                      </div>
-                      <small>{bookPercent}% · {bookDoneCount}/{bookTotalCount || 0} finalizada(s)</small>
-                    </header>
-                    <ScheduleCompanyMatrix
-                      prefix="book"
-                      tasks={bookScheduleTasks}
-                      companies={companies}
-                      confirmations={confirmations}
-                      loading={scheduleLoading}
-                      confirmingModule={confirmingGroup || confirmingModule}
-                      canEdit={canConfirmSector("Contabilidade")}
-                      companyCode={scheduleCompanyCode}
-                      companyLabel={companyLabel}
-                      isDone={isDone}
-                      confirmationDetail={getConfirmationDetail}
-                      onToggle={(task, company, checked) => toggleScheduleTask("book", "Book Contábil", task, company, checked)}
-                      onToggleAll={(task, checked) => toggleScheduleTaskAll("book", "Book Contábil", task, checked)}
-                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("book", "Book Contábil", bookScheduleTasks, company, checked)}
-                    />
+                  <div className="schedule-selected-module-card">
+                    <b>Sem tarefas cadastradas</b>
+                    <p>O Book Contábil ainda não participa do cálculo do cronograma. O progresso será habilitado quando as tarefas do módulo forem incluídas.</p>
                   </div>
                 ) : (
                   <div className="schedule-selected-module-card">

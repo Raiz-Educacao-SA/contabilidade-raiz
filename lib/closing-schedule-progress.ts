@@ -4,7 +4,6 @@ export const CLOSING_SCHEDULE_MODULES_WITH_TASKS: readonly ClosingScheduleModule
   "financeiro",
   "folha",
   "contabil",
-  "book",
 ];
 
 export const FINANCIAL_SCHEDULE_TASK_IDS = ["bancaria", "receita", "emprestimos", "parcelamentos"] as const;
@@ -106,7 +105,7 @@ export function calculateClosingScheduleProgress(
     fiscal: 0,
     folha: detailedModulePercent(completed, "folha", PAYROLL_SCHEDULE_TASK_IDS, companyCodes),
     contabil: detailedModulePercent(completed, "contabil", ACCOUNTING_SCHEDULE_TASK_IDS, companyCodes),
-    book: detailedModulePercent(completed, "book", BOOK_SCHEDULE_TASK_IDS, companyCodes),
+    book: 0,
   };
   const includedModules = [...CLOSING_SCHEDULE_MODULES_WITH_TASKS];
   const completedModules = includedModules.filter((module) => modulePercent[module] === 100);

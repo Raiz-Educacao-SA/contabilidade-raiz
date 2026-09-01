@@ -28,15 +28,16 @@ test("calcula somente confirmações detalhadas por tarefa e empresa", () => {
 
   const progress = calculateClosingScheduleProgress(records, ["2"]);
 
-  assert.equal(progress.totalModules, 4);
+  assert.equal(progress.totalModules, 3);
   assert.equal(progress.completedModulesCount, 0);
   assert.deepEqual(progress.completedModules, []);
-  assert.deepEqual(progress.includedModules, ["financeiro", "folha", "contabil", "book"]);
+  assert.deepEqual(progress.includedModules, ["financeiro", "folha", "contabil"]);
   assert.equal(progress.modulePercent.financeiro, 25);
   assert.equal(progress.modulePercent.folha, 17);
   assert.equal(progress.modulePercent.contabil, 9);
   assert.equal(progress.modulePercent.fiscal, 0);
-  assert.equal(progress.overallPercent, 13);
+  assert.equal(progress.modulePercent.book, 0);
+  assert.equal(progress.overallPercent, 17);
 });
 
 test("não inclui Imobilizado nas tarefas do módulo Contábil", () => {
@@ -71,14 +72,14 @@ test("conclui todos os módulos participantes quando suas tarefas foram finaliza
 
   const progress = calculateClosingScheduleProgress(records, companyCodes);
 
-  assert.equal(progress.completedModulesCount, 4);
+  assert.equal(progress.completedModulesCount, 3);
   assert.equal(progress.overallPercent, 100);
   assert.deepEqual(progress.modulePercent, {
     financeiro: 100,
     fiscal: 0,
     folha: 100,
     contabil: 100,
-    book: 100,
+    book: 0,
   });
 });
 
@@ -91,7 +92,20 @@ test("mantém o módulo Fiscal fora da porcentagem até a inclusão das tarefas"
 
   assert.equal(progress.modulePercent.fiscal, 0);
   assert.equal(progress.includedModules.includes("fiscal"), false);
-  assert.equal(progress.totalModules, 4);
+  assert.equal(progress.totalModules, 3);
+  assert.equal(progress.overallPercent, 0);
+});
+
+test("mantém o Book Contábil fora da porcentagem até a inclusão das tarefas", () => {
+  const records = (BOOK_SCHEDULE_TASK_IDS as readonly string[]).map((task) =>
+    completed(`book:${task}:02`),
+  );
+
+  const progress = calculateClosingScheduleProgress(records, ["02"]);
+
+  assert.equal(progress.modulePercent.book, 0);
+  assert.equal(progress.includedModules.includes("book"), false);
+  assert.equal(progress.totalModules, 3);
   assert.equal(progress.overallPercent, 0);
 });
 
