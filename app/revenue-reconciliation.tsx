@@ -818,10 +818,6 @@ export default function RevenueReconciliation({
               <b>{pending.length} inconsistência(s) para tratamento</b>
               <span>Registros conciliados não aparecem na lista.</span>
             </div>
-            <button className="export-revenue" onClick={exportAnalysis}>
-              <Download />
-              Exportar Excel
-            </button>
           </div>
           <div className="table-wrap revenue-table">
             <table>

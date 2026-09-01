@@ -384,6 +384,16 @@ test("mantém compactos os botões da conciliação de receita", () => {
   );
 });
 
+test("mantém somente o botão superior para exportar a conciliação", () => {
+  const panel = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(panel.match(/onClick=\{exportAnalysis\}/g)?.length, 1);
+  assert.doesNotMatch(panel, /Exportar Excel/);
+});
+
 test("isola a conciliação por empresa e competência", () => {
   assert.equal(
     revenueReconciliationCacheKey("5", "2026-07"),
