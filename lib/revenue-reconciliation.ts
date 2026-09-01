@@ -11,6 +11,7 @@ export const REVENUE_TOLERANCE = 0.01;
 export const REVENUE_ACCOUNT_PREFIX = "3.1.1.01.01";
 export const EXTENDED_HOURS_REVENUE_ACCOUNT = "3.1.1.01.02.03";
 export const OTHER_STUDENT_REVENUE_ACCOUNT = "3.1.1.01.02.06";
+export const DIDACTIC_MATERIAL_REVENUE_ACCOUNT = "3.1.1.01.03.14";
 export const EXTRA_REVENUE_ACCOUNTS = [
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   OTHER_STUDENT_REVENUE_ACCOUNT,
@@ -68,6 +69,7 @@ export function accountingRevenueQueryAccounts() {
   return [
     REVENUE_ACCOUNT_PREFIX,
     ...EXTRA_REVENUE_ACCOUNTS,
+    DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ] as const;
@@ -79,6 +81,13 @@ export function classifyAccountingRevenue(
 ): AccountingRevenueKind {
   const normalizedAccount = account.trim();
   const normalizedDescription = normalizeAccountingDescription(description);
+
+  if (
+    normalizedAccount === DIDACTIC_MATERIAL_REVENUE_ACCOUNT &&
+    normalizedDescription === normalizeAccountingDescription("Material Didático")
+  ) {
+    return "revenue";
+  }
 
   if (
     (normalizedAccount.startsWith(REVENUE_ACCOUNT_PREFIX) ||

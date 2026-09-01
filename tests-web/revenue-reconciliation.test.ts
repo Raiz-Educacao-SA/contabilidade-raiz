@@ -18,6 +18,7 @@ import {
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
+  DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
   EXTRA_REVENUE_ACCOUNTS,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
@@ -40,6 +41,7 @@ test("consulta receitas e todos os grupos contábeis de descontos", () => {
     REVENUE_ACCOUNT_PREFIX,
     EXTENDED_HOURS_REVENUE_ACCOUNT,
     OTHER_STUDENT_REVENUE_ACCOUNT,
+    DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ]);
@@ -74,6 +76,14 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
     ),
     "revenue",
   );
+  assert.equal(
+    classifyAccountingRevenue(
+      DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
+      "Material Didatico",
+    ),
+    "revenue",
+  );
+  assert.equal(isExtraRevenueAccount(DIDACTIC_MATERIAL_REVENUE_ACCOUNT), false);
 });
 
 test("classifica todas as bolsas e descontos previstos na diretriz funcional", () => {
