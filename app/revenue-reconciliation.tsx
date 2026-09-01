@@ -11,8 +11,10 @@ import {
 import * as XLSX from "xlsx-js-style";
 import { applyRevenueWorkbookStyle } from "@/lib/revenue-export-workbook";
 import {
+  classifyRevenueDivergence,
   classifyRevenueReconciliation,
   consolidateFiscalRevenueRows,
+  EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
   REVENUE_TOLERANCE,
   revenueReconciliationExportFileName,
@@ -277,6 +279,7 @@ export default function RevenueReconciliation({
       const a = fm.get(ra),
         b = cm.get(ra),
         accountingRevenue = b?.revenue || 0,
+        extraRevenue = b?.extraRevenue || 0,
         accountingDiscount = b?.discount || 0,
         fiscalRevenue = a?.rev || 0,
         fiscalDiscount = a?.disc || 0,
@@ -288,6 +291,12 @@ export default function RevenueReconciliation({
           fiscalDiscount,
           accountingDiscount,
         });
+      const classification = classifyRevenueDivergence({
+        status,
+        revenueDifference: dr,
+        discountDifference: dd,
+        extraRevenue,
+      });
       return {
         ra,
         competence: competenceLabel,
@@ -295,22 +304,25 @@ export default function RevenueReconciliation({
         fiscalStatus: a?.status || "",
         fiscalRevenue,
         accountingRevenue,
+        extraRevenue,
         revenueDifference: dr,
         fiscalDiscount,
         accountingDiscount,
         discountDifference: dd,
         impact: dr - dd,
         status,
+        classification,
         generationTypes: b?.generationTypes.join(" | ") || "",
         complements: b?.complements.join(" | ") || "",
         comment:
-          status !== "Divergente"
+          classification ||
+          (status !== "Divergente"
             ? status
             : Math.abs(dr) > tol && Math.abs(dd) > tol
               ? "Verificar receita e desconto"
               : Math.abs(dr) > tol
                 ? "Verificar diferença de receita"
-                : "Verificar diferença de desconto",
+                : "Verificar diferença de desconto"),
       };
     });
   }, [fiscalRows, accountingRows, competenceLabel]);
@@ -327,12 +339,14 @@ export default function RevenueReconciliation({
     });
     const mapRow = (x: (typeof rows)[number]) => ({
       Status: x.status,
+      Classificação: x.classification || "Não classificada",
       RA: x.ra,
       Competência: x.competence,
       Aluno: x.name,
       "Status fiscal": x.fiscalStatus,
       "Receita fiscal": x.fiscalRevenue,
       "Receita contábil": x.accountingRevenue,
+      "Receitas extras": x.extraRevenue,
       "Diferença receita": x.revenueDifference,
       "Desconto fiscal": x.fiscalDiscount,
       "Desconto contábil": x.accountingDiscount,
@@ -415,12 +429,12 @@ export default function RevenueReconciliation({
       const worksheet = XLSX.utils.json_to_sheet(data);
       worksheet["!cols"] = columns;
       const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
-      setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [4, 5, 6, 7, 8, 9, 10, 11], excelMoney);
+      setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13], excelMoney);
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     };
     const detailColumns = [
-      { wch: 16 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
-      { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 18 }, { wch: 58 },
+      { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
+      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 18 }, { wch: 58 },
     ];
     appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
     appendJsonSheet("Conciliados", rows.filter((x) => x.status === "Conciliado").map(mapRow), detailColumns);
@@ -488,7 +502,8 @@ export default function RevenueReconciliation({
       ["4", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
       ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["7", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
+      ["7", "Receitas extras", EXTENDED_HOURS_REVENUE_ACCOUNT, "Quando o valor da conta explica integralmente a diferença de receita e não há diferença de desconto, a divergência é pré-classificada como Receitas extras"],
+      ["8", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
@@ -713,12 +728,14 @@ export default function RevenueReconciliation({
               <thead>
                 <tr>
                   <th>Status</th>
+                  <th>Classificação</th>
                   <th>RA</th>
                   <th>Competência</th>
                   <th>Aluno</th>
                   <th>Status fiscal</th>
                   <th>Receita fiscal</th>
                   <th>Receita contábil</th>
+                  <th>Receitas extras</th>
                   <th>Δ Receita</th>
                   <th>Desconto fiscal</th>
                   <th>Desconto contábil</th>
@@ -735,6 +752,7 @@ export default function RevenueReconciliation({
                     <td>
                       <span className="revenue-badge">{x.status}</span>
                     </td>
+                    <td>{x.classification || "—"}</td>
                     <td>
                       <b>{x.ra}</b>
                     </td>
@@ -743,6 +761,7 @@ export default function RevenueReconciliation({
                     <td>{x.fiscalStatus || "—"}</td>
                     <td>{brl.format(x.fiscalRevenue)}</td>
                     <td>{brl.format(x.accountingRevenue)}</td>
+                    <td>{brl.format(x.extraRevenue)}</td>
                     <td
                       className={
                         Math.abs(x.revenueDifference) > tol ? "negative" : ""

@@ -1,4 +1,5 @@
 export type AccountingRevenueKind = "revenue" | "discount" | "other";
+export type RevenueDivergenceClassification = "Receitas extras" | "";
 export type RevenueReconciliationStatus =
   | "Sem Dados"
   | "Conciliado"
@@ -92,6 +93,10 @@ export function classifyAccountingRevenue(
   return "other";
 }
 
+export function isExtraRevenueAccount(account?: string) {
+  return account?.trim() === EXTENDED_HOURS_REVENUE_ACCOUNT;
+}
+
 export function isRevenueAppropriation(complement: string) {
   return normalizeAccountingDescription(complement) === "APROPRIACAO RECEITA";
 }
@@ -138,6 +143,7 @@ export type AccountingRevenueEntry = {
   kind: Exclude<AccountingRevenueKind, "other">;
   complement?: string;
   generationType?: string;
+  account?: string;
 };
 
 export type FiscalRevenueEntry = {
@@ -188,6 +194,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
     {
       name: string;
       revenue: number;
+      extraRevenue: number;
       discount: number;
       complements: string[];
       generationTypes: string[];
@@ -198,13 +205,18 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
     const current = summaries.get(entry.ra) || {
       name: entry.name,
       revenue: 0,
+      extraRevenue: 0,
       discount: 0,
       complements: [],
       generationTypes: [],
     };
 
-    if (entry.kind === "revenue") current.revenue += entry.value;
-    else current.discount += entry.value;
+    if (entry.kind === "revenue") {
+      current.revenue += entry.value;
+      if (isExtraRevenueAccount(entry.account)) {
+        current.extraRevenue += entry.value;
+      }
+    } else current.discount += entry.value;
 
     const complement = entry.complement?.trim();
     if (complement && !current.complements.includes(complement)) {
@@ -222,9 +234,40 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
 
   summaries.forEach((summary) => {
     summary.revenue = Math.abs(summary.revenue);
+    summary.extraRevenue = Math.abs(summary.extraRevenue);
   });
 
   return summaries;
+}
+
+export function classifyRevenueDivergence(values: {
+  status: RevenueReconciliationStatus;
+  revenueDifference: number;
+  discountDifference: number;
+  extraRevenue: number;
+}): RevenueDivergenceClassification {
+  const {
+    status,
+    revenueDifference,
+    discountDifference,
+    extraRevenue,
+  } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
+
+  if (
+    status !== "Divergente" ||
+    roundedAbsolute(extraRevenue) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
+  }
+
+  return Math.abs(
+    roundedAbsolute(revenueDifference) - roundedAbsolute(extraRevenue),
+  ) <= REVENUE_TOLERANCE
+    ? "Receitas extras"
+    : "";
 }
 
 export function classifyRevenueReconciliation(values: {

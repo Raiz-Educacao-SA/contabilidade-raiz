@@ -244,6 +244,6 @@ test("usa os códigos de filial confirmados para QI, QI Metropolitano e Global T
   assert.equal(globalTree.errors.length, 0);
   assert.deepEqual(globalTree.postings.map(({ branchCode, amount }) => ({ branchCode, amount })), [
     { branchCode: "1", amount: 498.53 },
-    { branchCode: "6", amount: 86.86 },
+    { branchCode: "5", amount: 86.86 },
   ]);
 });

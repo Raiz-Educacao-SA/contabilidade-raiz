@@ -11,6 +11,7 @@ import {
 import {
   accountingRevenueQueryAccounts,
   classifyAccountingRevenue,
+  classifyRevenueDivergence,
   classifyRevenueReconciliation,
   COMMERCIAL_DISCOUNT_ACCOUNT,
   consolidateFiscalRevenueRows,
@@ -19,6 +20,7 @@ import {
   DISCOUNT_ACCOUNT_PREFIX,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
+  isExtraRevenueAccount,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
   isValidRevenueRa,
@@ -160,16 +162,59 @@ test("não duplica o código da empresa no nome do arquivo exportado", () => {
 
 test("consolida receitas e descontos por RA", () => {
   const summaries = summarizeAccountingRevenue([
-    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue", generationType: "O" },
+    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue", generationType: "O", account: REVENUE_ACCOUNT_PREFIX },
     { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "AJUSTE", generationType: " O " },
+    { ra: "123", name: "Aluno", value: -50, kind: "revenue", account: EXTENDED_HOURS_REVENUE_ACCOUNT },
     { ra: "123", name: "Aluno", value: 200, kind: "discount", generationType: "O" },
     { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "AJUSTE" },
   ]);
 
-  assert.equal(summaries.get("123")?.revenue, 900);
+  assert.equal(summaries.get("123")?.revenue, 950);
+  assert.equal(summaries.get("123")?.extraRevenue, 50);
   assert.equal(summaries.get("123")?.discount, 180);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
+});
+
+test("classifica como Receitas extras somente quando a conta explica toda a divergência", () => {
+  assert.equal(isExtraRevenueAccount(EXTENDED_HOURS_REVENUE_ACCOUNT), true);
+  assert.equal(isExtraRevenueAccount(REVENUE_ACCOUNT_PREFIX), false);
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 806,
+      discountDifference: 0,
+      extraRevenue: 806,
+    }),
+    "Receitas extras",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: -806,
+      discountDifference: 0.01,
+      extraRevenue: 806,
+    }),
+    "Receitas extras",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 900,
+      discountDifference: 0,
+      extraRevenue: 806,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 806,
+      discountDifference: 10,
+      extraRevenue: 806,
+    }),
+    "",
+  );
 });
 
 test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {

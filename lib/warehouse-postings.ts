@@ -128,7 +128,7 @@ const sourceBranchRules: Record<string, Array<{ branch: string; aliases: string[
     { branch: "3", aliases: ["global tree barra golf"] },
     { branch: "4", aliases: ["global tree peninsula"] },
     { branch: "5", aliases: ["global tree marapendi"] },
-    { branch: "6", aliases: ["global tree abm"] },
+    { branch: "5", aliases: ["global tree abm"] },
   ],
   "10": [
     { branch: "1", aliases: ["qi recreio"] },
