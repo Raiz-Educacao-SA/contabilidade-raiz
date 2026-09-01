@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Download, FileSpreadsheet, RefreshCw, Upload } from "lucide-react";
+import { AlertTriangle, Download, ExternalLink, FileSpreadsheet, RefreshCw, Upload, X } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 
 type Props = {
@@ -95,10 +95,18 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
   const [periodStart, setPeriodStart] = useState(initialPeriod.start);
   const [periodEnd, setPeriodEnd] = useState(initialPeriod.end);
   const [error, setError] = useState("");
+  const [detail, setDetail] = useState<{ supplier: string; account: string; month: string } | null>(null);
   const targetMonth = periodEnd.slice(0, 7);
   const targetLabel = `${targetMonth.slice(5, 7)}/${targetMonth.slice(0, 4)}`;
   const divergences = useMemo(() => analysis?.rows.filter((row) => row.comment.includes("Divergência")).length ?? 0, [analysis]);
   const assets = useMemo(() => analysis?.rows.filter((row) => row.comment === "Ativo Imobilizado").length ?? 0, [analysis]);
+  const detailRecords = useMemo(() => {
+    if (!analysis || !detail) return [];
+    return analysis.records.filter((record) => {
+      const supplier = String(record.NOMEFANTASIA || record.NOME || "SEM FORNECEDOR").trim();
+      return supplier === detail.supplier && String(record.DEBITO ?? "").trim() === detail.account && isoDate(record.DATASAIDA).slice(0, 7) === detail.month;
+    }).sort((left, right) => isoDate(left.DATASAIDA).localeCompare(isoDate(right.DATASAIDA)));
+  }, [analysis, detail]);
 
   async function refreshPlanilhaNet() {
     if (!companyCode || !accessToken) return;
@@ -271,18 +279,18 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     styleRange(`A${totalRow}:${lastColumn}${totalRow}`, { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
     XLSX.utils.book_append_sheet(workbook, sheet, "Análise de Despesa");
 
-    const movementHeaders = ["IDMOV", "Data saída", "Fornecedor", "CNPJ/CPF", "Natureza", "Conta contábil", "Descrição", "Valor", "Coligada", "Filial", "Tipo movimento", "Número movimento", "Data emissão", "Usuário"];
+    const movementHeaders = ["IDMOV", "Data saída", "Fornecedor", "CNPJ/CPF", "Natureza", "Conta contábil", "Descrição", "Valor", "Coligada", "Filial", "Tipo movimento", "Número movimento", "Data emissão", "Usuário", "Ticket Zeev"];
     const movements = analysis.records.filter((record) => {
       const date = isoDate(record.DATASAIDA);
       const account = String(record.DEBITO ?? "").trim();
       return date >= periodStart && date <= periodEnd && account && normalized(account) !== "NENHUM REGISTRO ENCONTRADO.";
     }).map((record) => [
       record.IDMOV, isoDate(record.DATASAIDA), record.NOMEFANTASIA || record.NOME, record.CGCCFO, "DÉBITO", record.DEBITO, record.DESCRICAO, numberValue(record.VALOR),
-      record.CODCOLIGADA, record.CODFILIAL, record.CODTMV, record.NUMEROMOV, isoDate(record.DATAEMISSAO), record.CODUSUARIO,
+      record.CODCOLIGADA, record.CODFILIAL, record.CODTMV, record.NUMEROMOV, isoDate(record.DATAEMISSAO), record.CODUSUARIO, record.TICKET,
     ]);
     const movementSheet = XLSX.utils.aoa_to_sheet([movementHeaders, ...movements]);
-    movementSheet["!autofilter"] = { ref: `A1:N${Math.max(1, movements.length + 1)}` };
-    movementSheet["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 36 }, { wch: 16 }, { wch: 10 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 20 }];
+    movementSheet["!autofilter"] = { ref: `A1:O${Math.max(1, movements.length + 1)}` };
+    movementSheet["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 36 }, { wch: 16 }, { wch: 10 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 20 }, { wch: 16 }];
     for (let col = 0; col < movementHeaders.length; col += 1) movementSheet[XLSX.utils.encode_cell({ r: 0, c: col })].s = { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center" } };
     for (let row = 1; row <= movements.length; row += 1) for (let col = 0; col < movementHeaders.length; col += 1) {
       const cell = movementSheet[XLSX.utils.encode_cell({ r: row, c: col })];
@@ -302,6 +310,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
+      ["Tickets Zeev", "Clique no valor mensal para visualizar os movimentos e abrir a nota fiscal pelo ticket informado"],
       ["Fonte", "TOTVS RM — PlanilhaNet 08 / FORNECEDOR X MOVIMENTOS"],
       [null, null], [null, null],
       ["Controle", "Valor"],
@@ -348,7 +357,16 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         <article className={divergences ? "warning" : ""}><span>Divergências</span><b>{divergences}</b></article>
         <article className={assets ? "asset" : ""}><span>Ativos no mês</span><b>{assets}</b></article>
       </div>
-      <div className="expense-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Conta contábil</th><th>Descrição da conta</th>{analysis.months.map((month) => <th key={month} className={month === targetMonth ? "target-month" : ""}>{month}</th>)}<th>Total Geral</th><th>Comentários</th></tr></thead><tbody>{analysis.rows.map((row) => <tr key={`${row.supplier}-${row.account}`}><td>{row.supplier}</td><td>{row.account}</td><td>{row.description}</td>{analysis.months.map((month) => <td key={month} className={month === targetMonth ? "target-month" : ""}>{row.months[month] ? money.format(row.months[month]) : "—"}</td>)}<td><b>{money.format(row.total)}</b></td><td className={row.comment.includes("Divergência") ? "comment-warning" : row.comment ? "comment-asset" : ""}>{row.comment}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>TOTAL DÉBITO</td>{analysis.months.map((month) => <td key={month}>{money.format(analysis.rows.reduce((sum, row) => sum + row.months[month], 0))}</td>)}<td>{money.format(analysis.periodTotal)}</td><td /></tr></tfoot></table></div>
+      <div className="expense-table-wrap"><table><thead><tr><th>Fornecedor</th><th>Conta contábil</th><th>Descrição da conta</th>{analysis.months.map((month) => <th key={month} className={month === targetMonth ? "target-month" : ""}>{month}</th>)}<th>Total Geral</th><th>Comentários</th></tr></thead><tbody>{analysis.rows.map((row) => <tr key={`${row.supplier}-${row.account}`}><td>{row.supplier}</td><td>{row.account}</td><td>{row.description}</td>{analysis.months.map((month) => <td key={month} className={month === targetMonth ? "target-month" : ""}>{row.months[month] ? <button className="expense-movement-link" onClick={() => setDetail({ supplier: row.supplier, account: row.account, month })}>{money.format(row.months[month])}</button> : "—"}</td>)}<td><b>{money.format(row.total)}</b></td><td className={row.comment.includes("Divergência") ? "comment-warning" : row.comment ? "comment-asset" : ""}>{row.comment}</td></tr>)}</tbody><tfoot><tr><td colSpan={3}>TOTAL DÉBITO</td>{analysis.months.map((month) => <td key={month}>{money.format(analysis.rows.reduce((sum, row) => sum + row.months[month], 0))}</td>)}<td>{money.format(analysis.periodTotal)}</td><td /></tr></tfoot></table></div>
+      {detail && <section className="expense-movement-detail">
+        <header><div><span className="eyebrow">MOVIMENTOS · ${detail.month}</span><h3>{detail.supplier}</h3><small>Conta {detail.account} · {detailRecords.length} lançamento(s)</small></div><button className="icon-button" onClick={() => setDetail(null)} aria-label="Fechar movimentos"><X /></button></header>
+        <div className="expense-detail-table"><table><thead><tr><th>IDMOV</th><th>Data saída</th><th>Documento</th><th>Valor</th><th>Ticket Zeev</th><th>Nota fiscal</th></tr></thead><tbody>
+          {detailRecords.map((record, index) => {
+            const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
+            return <tr key={`${record.IDMOV || index}-${ticket}`}><td>{String(record.IDMOV || "—")}</td><td>{isoDate(record.DATASAIDA).split("-").reverse().join("/")}</td><td>{String(record.NUMEROMOV || "—")}</td><td>{money.format(numberValue(record.VALOR))}</td><td>{ticket || "Não informado"}</td><td>{ticket ? <a href={`https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(ticket)}`} target="_blank" rel="noreferrer"><ExternalLink />Abrir NF no Zeev</a> : "Ticket não localizado"}</td></tr>;
+          })}
+        </tbody></table></div>
+      </section>}
     </>}
   </section>;
 }
