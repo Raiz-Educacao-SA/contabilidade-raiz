@@ -85,6 +85,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       const response = await fetch(`/api/totvs/expenses?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
         headers: { authorization: `Bearer ${accessToken}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(120_000),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Não foi possível atualizar a PlanilhaNet 08.");
@@ -96,7 +97,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       await load(file);
     } catch (cause) {
       setAnalysis(null);
-      setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a PlanilhaNet 08.");
+      setError(cause instanceof DOMException && cause.name === "TimeoutError" ? "O TOTVS demorou mais de 2 minutos. Tente novamente ou use a importação manual." : cause instanceof Error ? cause.message : "Não foi possível atualizar a PlanilhaNet 08.");
       setBusy(false);
     }
   }
@@ -183,7 +184,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
 
   return <section className="expense-analysis">
     <div className="expense-upload">
-      <div><span className="eyebrow">PLANILHANET 08 · COMPRAS</span><h2>Análise de despesas</h2><p>Importe a base do TOTVS RM. O processamento ocorre somente neste navegador.</p></div>
+      <div><span className="eyebrow">PLANILHANET 08 · COMPRAS</span><h2>Análise de despesas</h2><p>Atualize diretamente pelo TOTVS RM ou importe o arquivo como alternativa.</p></div>
       <div className="expense-actions"><button className="primary" disabled={busy || !accessToken} onClick={() => void refreshPlanilhaNet()}><RefreshCw className={busy ? "spin" : ""} />{busy ? "Atualizando..." : "Atualizar PlanilhaNet 08"}</button><label className="expense-file secondary"><Upload />Importar arquivo<input type="file" accept=".xlsx,.xlsm,.xls" disabled={busy} onChange={(event) => void load(event.target.files?.[0])} /></label></div>
     </div>
     {error && <div className="notice error"><AlertTriangle />{error}</div>}
