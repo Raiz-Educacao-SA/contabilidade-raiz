@@ -44,6 +44,7 @@ import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import PendingAccountingLots from "@/app/pending-accounting-lots";
+import ExpenseAnalysis from "@/app/expense-analysis";
 import WarehousePostings from "@/app/warehouse-postings";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
@@ -1305,6 +1306,14 @@ export default function Home() {
             </a>
           </section>
         )}
+        {selectedModule === "contabil" && accountingTab === "despesas" && (
+          <ExpenseAnalysis
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={company?.empresas?.razao_social ?? ""}
+            competence={competence}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "receita-filial" && (
           <RevenueByBranch
             key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
@@ -1313,7 +1322,7 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "almoxarifado" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "almoxarifado" && accountingTab !== "arrendamentos" && accountingTab !== "despesas" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "irpj-csll" ? (
               <ReceiptText />
