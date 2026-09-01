@@ -260,32 +260,18 @@ export function classifyRevenueDivergence(values: {
   discountDifference: number;
   extraRevenue: number;
 }): RevenueDivergenceClassification {
-  return Math.abs(values.extraRevenue) > REVENUE_TOLERANCE
-    ? "Receitas extras"
-    : "";
-}
+  const { discountDifference, extraRevenue } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
 
-export function calculateUnexplainedRevenueDifference(
-  revenueDifference: number,
-  extraRevenue: number,
-) {
-  return Math.round((Math.abs(extraRevenue) - revenueDifference) * 100) / 100;
-}
-
-export function requiresRevenueTreatment(values: {
-  status: RevenueReconciliationStatus;
-  classification: RevenueDivergenceClassification;
-  unexplainedRevenueDifference: number;
-  discountDifference: number;
-}) {
-  if (!values.classification) {
-    return values.status !== "Conciliado";
+  if (
+    roundedAbsolute(extraRevenue) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
   }
 
-  return (
-    Math.abs(values.unexplainedRevenueDifference) > REVENUE_TOLERANCE ||
-    Math.abs(values.discountDifference) > REVENUE_TOLERANCE
-  );
+  return "Receitas extras";
 }
 
 export function classifyRevenueReconciliation(values: {

@@ -11,17 +11,12 @@ import {
 import * as XLSX from "xlsx-js-style";
 import { applyRevenueWorkbookStyle } from "@/lib/revenue-export-workbook";
 import {
-  accountingRevenueQueryAccounts,
-  calculateUnexplainedRevenueDifference,
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
   consolidateFiscalRevenueRows,
-  DISCOUNT_ACCOUNT_DESCRIPTIONS,
   EXTRA_REVENUE_ACCOUNTS,
   isExcludedRevenueGenerationType,
-  REVENUE_ACCOUNT_DESCRIPTIONS,
   REVENUE_TOLERANCE,
-  requiresRevenueTreatment,
   revenueReconciliationExportFileName,
   summarizeAccountingRevenue,
 } from "@/lib/revenue-reconciliation";
@@ -306,14 +301,6 @@ export default function RevenueReconciliation({
         discountDifference: dd,
         extraRevenue,
       });
-      const unexplainedRevenueDifference =
-        calculateUnexplainedRevenueDifference(dr, extraRevenue);
-      const requiresTreatment = requiresRevenueTreatment({
-        status,
-        classification,
-        unexplainedRevenueDifference,
-        discountDifference: dd,
-      });
       return {
         ra,
         competence: competenceLabel,
@@ -323,25 +310,17 @@ export default function RevenueReconciliation({
         accountingRevenue,
         extraRevenue,
         revenueDifference: dr,
-        unexplainedRevenueDifference,
         fiscalDiscount,
         accountingDiscount,
         discountDifference: dd,
         impact: dr - dd,
         status,
         classification,
-        requiresTreatment,
         extraRevenueAccounts: b?.extraRevenueAccounts.join(" | ") || "",
         generationTypes: b?.generationTypes.join(" | ") || "",
         complements: b?.complements.join(" | ") || "",
         comment:
-          classification && requiresTreatment
-            ? Math.abs(unexplainedRevenueDifference) > tol && Math.abs(dd) > tol
-              ? "Receitas extras isoladas; verificar diferença residual de receita e desconto"
-              : Math.abs(unexplainedRevenueDifference) > tol
-                ? "Receitas extras isoladas; verificar diferença de receita não explicada"
-                : "Receitas extras isoladas; verificar diferença de desconto"
-            : classification ||
+          classification ||
           (status !== "Divergente"
             ? status
             : Math.abs(dr) > tol && Math.abs(dd) > tol
@@ -355,14 +334,13 @@ export default function RevenueReconciliation({
   const extraRevenueRows = rows.filter(
       (row) => row.classification === "Receitas extras",
     ),
-    pending = rows.filter((row) => row.requiresTreatment),
-    resolvedExtraRevenueRows = extraRevenueRows.filter(
-      (row) => !row.requiresTreatment,
+    pending = rows.filter(
+      (row) => row.status !== "Conciliado" && !row.classification,
     ),
     reconciled = rows.filter(
       (row) => row.status === "Conciliado" && !row.classification,
     ).length,
-    treated = reconciled + resolvedExtraRevenueRows.length,
+    treated = reconciled + extraRevenueRows.length,
     reconciledPercentage = rows.length ? (treated / rows.length) * 100 : 0,
     fRev = fiscalRows.reduce((s, x) => s + x.originalValue, 0),
     cRev = rows.reduce((sum, row) => sum + row.accountingRevenue, 0),
@@ -370,7 +348,10 @@ export default function RevenueReconciliation({
       (sum, row) => sum + row.extraRevenue,
       0,
     ),
-    comparableAccountingRevenue = cRev - extraRevenueTotal,
+    comparableAccountingRevenue = cRev - extraRevenueRows.reduce(
+      (sum, row) => sum + row.revenueDifference,
+      0,
+    ),
     fDisc = fiscalRows.reduce((s, x) => s + x.discount, 0),
     cDisc = rows.reduce((sum, row) => sum + row.accountingDiscount, 0);
   function exportAnalysis() {
@@ -378,10 +359,7 @@ export default function RevenueReconciliation({
       timeZone: "America/Sao_Paulo",
     });
     const mapRow = (x: (typeof rows)[number]) => ({
-      Status:
-        x.classification && x.requiresTreatment
-          ? `Divergente + ${x.classification}`
-          : x.classification || x.status,
+      Status: x.classification || x.status,
       RA: x.ra,
       Competência: x.competence,
       Aluno: x.name,
@@ -391,7 +369,6 @@ export default function RevenueReconciliation({
       "Receitas extras": x.extraRevenue,
       "Contas de receitas extras": x.extraRevenueAccounts,
       "Diferença receita": x.revenueDifference,
-      "Diferença não explicada": x.unexplainedRevenueDifference,
       "Desconto fiscal": x.fiscalDiscount,
       "Desconto contábil": x.accountingDiscount,
       "Diferença desconto": x.discountDifference,
@@ -403,10 +380,10 @@ export default function RevenueReconciliation({
     const workbook = XLSX.utils.book_new();
     const statusCounts = [
       { status: "Conciliado", count: rows.filter((x) => x.status === "Conciliado" && !x.classification).length },
-      { status: "Receitas extras", count: resolvedExtraRevenueRows.length },
+      { status: "Receitas extras", count: extraRevenueRows.length },
       { status: "Divergente", count: pending.filter((x) => x.status === "Divergente").length },
-      { status: "Só no Fiscal", count: pending.filter((x) => x.status === "Só no Fiscal").length },
-      { status: "Só no Contábil", count: pending.filter((x) => x.status === "Só no Contábil").length },
+      { status: "Só no Fiscal", count: rows.filter((x) => x.status === "Só no Fiscal").length },
+      { status: "Só no Contábil", count: rows.filter((x) => x.status === "Só no Contábil").length },
     ];
     const netFiscal = fRev - fDisc;
     const netAccounting = comparableAccountingRevenue - cDisc;
@@ -474,12 +451,12 @@ export default function RevenueReconciliation({
       const worksheet = XLSX.utils.json_to_sheet(data);
       worksheet["!cols"] = columns;
       const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
-      setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [5, 6, 7, 9, 10, 11, 12, 13, 14], excelMoney);
+      setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13], excelMoney);
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     };
     const detailColumns = [
-      { wch: 25 }, { wch: 20 }, { wch: 14 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 }, { wch: 18 },
-      { wch: 25 }, { wch: 18 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 31 }, { wch: 18 }, { wch: 58 },
+      { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
+      { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
     ];
     appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
     appendJsonSheet(
@@ -545,32 +522,17 @@ export default function RevenueReconciliation({
     );
     const audit = XLSX.utils.aoa_to_sheet([
       ["AUDITORIA DA CONCILIAÇÃO", "", "", ""],
-      ["Etapa", "Processamento", "Regra aplicada", "Evidência / resultado"],
-      ["1", "Definir escopo", "Aplicar a empresa e a competência selecionadas na tela", `${companyCode} — ${companyName} | ${competenceLabel}`],
-      ["2", "Carregar base fiscal", "Ler a Planilha Net 53 da competência", `${f.length} registro(s) fiscal(is) recebido(s)`],
-      ["3", "Validar RA fiscal", "Desconsiderar linhas sem RA válido para o cruzamento", `${fiscalRows.length} RA fiscal(is) consolidado(s)`],
-      ["4", "Priorizar status fiscal", "Na receita, AUTORIZADA prevalece sobre NÃO ENVIADA; os descontos permanecem consolidados. Sem AUTORIZADA, mantêm-se os registros disponíveis", "Prioridade aplicada antes da soma por RA"],
-      ["5", "Carregar base contábil", "Ler os lançamentos da Planilha 18 para a empresa e competência", `${c.length} lançamento(s) recebido(s)`],
-      ["6", "Filtrar contas contábeis", "Considerar somente as contas previstas no escopo de receitas, descontos e receitas extras", accountingRevenueQueryAccounts().join(" | ")],
-      ["7", "Classificar receitas", "Identificar receita pela descrição padronizada da conta", REVENUE_ACCOUNT_DESCRIPTIONS.join(" | ")],
-      ["8", "Classificar descontos", "Identificar bolsas e descontos pela descrição padronizada da conta", DISCOUNT_ACCOUNT_DESCRIPTIONS.join(" | ")],
-      ["9", "Remover duplicidades", "Eliminar repetição técnica do mesmo lançamento contábil antes da consolidação", "Base contábil deduplicada"],
-      ["10", "Excluir apropriação", "Desconsiderar lançamentos cujo complemento identifique APROPRIAÇÃO RECEITA", "Apropriações não compõem a conciliação"],
-      ["11", "Extrair identificação", "Ler RA e nome do aluno no complemento contábil", "Identificação usada no cruzamento com o fiscal"],
-      ["12", "Segregar TIPOGERACAO", "TIPOGERACAO I e E ficam fora dos totais e das divergências; O ou vazio permanecem na análise", `${generationTypeRows.length} lançamento(s) I/E isolado(s)`],
-      ["13", "Consolidar bases", "Agrupar valores fiscal e contábil por RA + competência", `${rows.length} RA analisado(s)`],
-      ["14", "Calcular diferença de receita", "Receita contábil − Receita fiscal", "Campo Diferença receita"],
-      ["15", "Calcular diferença de desconto", "Desconto contábil − Desconto fiscal", "Campo Diferença desconto"],
-      ["16", "Isolar receitas extras", "Todo lançamento nas contas de receitas extras permanece na sheet Receitas Extras, independentemente da soma", `${EXTRA_REVENUE_ACCOUNTS.join(" | ")} | ${extraRevenueRows.length} RA isolado(s)`],
-      ["17", "Calcular diferença não explicada", "Receitas extras − Diferença de receita", "Campo Diferença não explicada"],
-      ["18", "Manter divergência residual", "Mesmo estando em Receitas Extras, o RA também permanece em Divergências quando a diferença não explicada ou a diferença de desconto superar R$ 0,01", `${extraRevenueRows.filter((row) => row.requiresTreatment).length} RA com receita extra e diferença residual`],
-      ["19", "Resolver por receita extra", "O RA sai das divergências somente quando a diferença não explicada e a diferença de desconto estiverem dentro da tolerância", `${resolvedExtraRevenueRows.length} RA explicado(s) exclusivamente por receitas extras`],
-      ["20", "Calcular base comparável", "Receita contábil total − total das receitas extras", `${brl.format(cRev)} − ${brl.format(extraRevenueTotal)} = ${brl.format(comparableAccountingRevenue)}`],
-      ["21", "Aplicar tolerância", "Diferenças absolutas de até R$ 0,01 são tratadas como zero", `${pending.length} inconsistência(s) para tratamento`],
-      ["22", "Gerar visões", "Separar Dashboard, Divergências, Receitas Extras, Conciliados, Resumo Geral, bases consideradas, isolados e Auditoria", "O mesmo RA pode aparecer em Receitas Extras e Divergências quando houver residual"],
-      ["23", "Formatar exportação", "Manter cor somente na primeira linha dos títulos das abas de detalhe e aplicar formatos numéricos", "Arquivo pronto para revisão e rastreabilidade"],
+      ["Etapa", "Regra", "Resultado", "Observação"],
+      ["1", "Atualizar base Fiscal", `${f.length} registro(s) carregado(s)`, "Planilha Net 53"],
+      ["2", "Prioridade do status fiscal", `${fiscalRows.length} RA fiscal(is) consolidado(s)`, "Na receita, AUTORIZADA prevalece sobre NÃO ENVIADA; os descontos permanecem consolidados. Sem AUTORIZADA, mantêm-se os registros disponíveis"],
+      ["3", "Atualizar base Contábil", `${c.length} lançamento(s) recebido(s)`, `${accountingRows.length} lançamento(s) considerado(s) após as segregações`],
+      ["4", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
+      ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
+      ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
+      ["7", "Receitas extras", EXTRA_REVENUE_ACCOUNTS.join(" | "), "Todo RA com lançamentos nessas contas e sem diferença de desconto sai das divergências e é isolado na sheet Receitas Extras, independentemente da soma"],
+      ["8", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
-    audit["!cols"] = [{ wch: 12 }, { wch: 32 }, { wch: 72 }, { wch: 90 }];
+    audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
     XLSX.utils.book_append_sheet(workbook, audit, "Auditoria");
     applyRevenueWorkbookStyle(workbook);
@@ -735,9 +697,8 @@ export default function RevenueReconciliation({
                 <b>{extraRevenueRows.length} receita(s) extra(s) isolada(s)</b>
                 <span>
                   Todos os lançamentos das contas {EXTRA_REVENUE_ACCOUNTS.join(" e ")}
-                  ficam segregados, independentemente da soma. Quando houver
-                  diferença não explicada, o mesmo RA também permanecerá nas
-                  divergências.
+                  ficam segregados, independentemente da soma. Estes valores não
+                  compõem as inconsistências.
                 </span>
               </div>
             </div>
@@ -754,7 +715,6 @@ export default function RevenueReconciliation({
                     <th>Receita fiscal</th>
                     <th>Receita contábil</th>
                     <th>Valor isolado</th>
-                    <th>Diferença não explicada</th>
                     <th>Complemento contábil</th>
                   </tr>
                 </thead>
@@ -774,15 +734,6 @@ export default function RevenueReconciliation({
                       <td>{brl.format(row.fiscalRevenue)}</td>
                       <td>{brl.format(row.accountingRevenue)}</td>
                       <td><b>{brl.format(row.extraRevenue)}</b></td>
-                      <td
-                        className={
-                          Math.abs(row.unexplainedRevenueDifference) > tol
-                            ? "negative"
-                            : ""
-                        }
-                      >
-                        {brl.format(row.unexplainedRevenueDifference)}
-                      </td>
                       <td className="revenue-complement">
                         {row.complements || "—"}
                       </td>
