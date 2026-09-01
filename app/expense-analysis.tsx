@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Download, FileSpreadsheet, RefreshCw, Upload } from "lucide-react";
-import * as XLSX from "xlsx";
-import * as XLSXStyle from "xlsx-js-style";
+import * as XLSX from "xlsx-js-style";
 
 type Props = {
   companyCode: string;
@@ -196,7 +195,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     const targetHeading = `DESPESAS ${monthNames[Number(targetMonth.slice(5, 7)) - 1]}/${targetMonth.slice(0, 4)}`;
     const headers = ["Fornecedor", "Natureza", "Conta contábil", "Descrição da conta", ...analysis.months, "Total Geral", "Comentários"];
     const columnCount = headers.length;
-    const lastColumn = XLSXStyle.utils.encode_col(columnCount - 1);
+    const lastColumn = XLSX.utils.encode_col(columnCount - 1);
     const body = analysis.rows.map((row) => [
       row.supplier, "DÉBITO", row.account, row.description,
       ...analysis.months.map((month) => row.months[month]),
@@ -215,21 +214,21 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ...body,
       ["TOTAL DÉBITO", null, null, null, ...monthlyTotals, analysis.periodTotal, null],
     ];
-    const workbook = XLSXStyle.utils.book_new();
-    const sheet = XLSXStyle.utils.aoa_to_sheet(summaryRows);
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet(summaryRows);
     const dataStart = 9;
     const dataEnd = dataStart + body.length - 1;
     const totalRow = dataEnd + 1;
     sheet["!merges"] = [
-      XLSXStyle.utils.decode_range(`A1:${lastColumn}1`),
-      XLSXStyle.utils.decode_range("B2:D2"),
-      XLSXStyle.utils.decode_range(`F2:${lastColumn}2`),
-      XLSXStyle.utils.decode_range(`A3:${lastColumn}3`),
-      XLSXStyle.utils.decode_range("A4:D4"), XLSXStyle.utils.decode_range("A5:D5"),
-      XLSXStyle.utils.decode_range("E4:H4"), XLSXStyle.utils.decode_range("E5:H5"),
-      XLSXStyle.utils.decode_range("I4:K4"), XLSXStyle.utils.decode_range("I5:K5"),
-      ...(columnCount >= 12 ? [XLSXStyle.utils.decode_range(`L4:${lastColumn}4`), XLSXStyle.utils.decode_range(`L5:${lastColumn}5`)] : []),
-      XLSXStyle.utils.decode_range("A" + totalRow + ":D" + totalRow),
+      XLSX.utils.decode_range(`A1:${lastColumn}1`),
+      XLSX.utils.decode_range("B2:D2"),
+      XLSX.utils.decode_range(`F2:${lastColumn}2`),
+      XLSX.utils.decode_range(`A3:${lastColumn}3`),
+      XLSX.utils.decode_range("A4:D4"), XLSX.utils.decode_range("A5:D5"),
+      XLSX.utils.decode_range("E4:H4"), XLSX.utils.decode_range("E5:H5"),
+      XLSX.utils.decode_range("I4:K4"), XLSX.utils.decode_range("I5:K5"),
+      ...(columnCount >= 12 ? [XLSX.utils.decode_range(`L4:${lastColumn}4`), XLSX.utils.decode_range(`L5:${lastColumn}5`)] : []),
+      XLSX.utils.decode_range("A" + totalRow + ":D" + totalRow),
     ];
     sheet["!autofilter"] = { ref: `A8:${lastColumn}${Math.max(8, dataEnd)}` };
     sheet["!cols"] = [
@@ -241,9 +240,9 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     const baseFont = { name: "Calibri", sz: 11, color: { rgb: "203864" } };
     const navy = "203864", light = "D9E2F3", orange = "F4B183", pale = "FFF2CC", blue = "EAF0F8";
     const styleRange = (range: string, style: Record<string, unknown>) => {
-      const decoded = XLSXStyle.utils.decode_range(range);
+      const decoded = XLSX.utils.decode_range(range);
       for (let row = decoded.s.r; row <= decoded.e.r; row += 1) for (let col = decoded.s.c; col <= decoded.e.c; col += 1) {
-        const address = XLSXStyle.utils.encode_cell({ r: row, c: col });
+        const address = XLSX.utils.encode_cell({ r: row, c: col });
         if (!sheet[address]) sheet[address] = { t: "s", v: "" };
         sheet[address].s = style;
       }
@@ -257,13 +256,13 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     for (const range of ["E5:H5", "I5:K5", ...(columnCount >= 12 ? [`L5:${lastColumn}5`] : [])]) styleRange(range, { fill: { fgColor: { rgb: blue } }, font: { ...baseFont, bold: true }, numFmt: '#,##0.00', alignment: { horizontal: "center" } });
     styleRange(`A8:${lastColumn}8`, { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center" } });
     const targetCol = 4 + analysis.months.indexOf(targetMonth);
-    if (targetCol >= 4) styleRange(`${XLSXStyle.utils.encode_col(targetCol)}8:${XLSXStyle.utils.encode_col(targetCol)}${totalRow}`, { fill: { fgColor: { rgb: "FCE4D6" } }, font: { ...baseFont, bold: true }, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
+    if (targetCol >= 4) styleRange(`${XLSX.utils.encode_col(targetCol)}8:${XLSX.utils.encode_col(targetCol)}${totalRow}`, { fill: { fgColor: { rgb: "FCE4D6" } }, font: { ...baseFont, bold: true }, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
     if (body.length) {
-      styleRange(`E${dataStart}:${XLSXStyle.utils.encode_col(columnCount - 2)}${dataEnd}`, { font: baseFont, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
+      styleRange(`E${dataStart}:${XLSX.utils.encode_col(columnCount - 2)}${dataEnd}`, { font: baseFont, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
       styleRange(`${lastColumn}${dataStart}:${lastColumn}${dataEnd}`, { font: { name: "Calibri", sz: 11, italic: true, color: { rgb: "1F4E78" } } });
     }
     styleRange(`A${totalRow}:${lastColumn}${totalRow}`, { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' });
-    XLSXStyle.utils.book_append_sheet(workbook, sheet, "Análise de Despesa");
+    XLSX.utils.book_append_sheet(workbook, sheet, "Análise de Despesa");
 
     const movementHeaders = ["IDMOV", "Data saída", "Fornecedor", "CNPJ/CPF", "Natureza", "Conta contábil", "Descrição", "Valor", "Coligada", "Filial", "Tipo movimento", "Número movimento", "Data emissão", "Usuário"];
     const movements = analysis.records.filter((record) => {
@@ -274,15 +273,15 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       record.IDMOV, isoDate(record.DATASAIDA), record.NOMEFANTASIA || record.NOME, record.CGCCFO, "DÉBITO", record.DEBITO, record.DESCRICAO, numberValue(record.VALOR),
       record.CODCOLIGADA, record.CODFILIAL, record.CODTMV, record.NUMEROMOV, isoDate(record.DATAEMISSAO), record.CODUSUARIO,
     ]);
-    const movementSheet = XLSXStyle.utils.aoa_to_sheet([movementHeaders, ...movements]);
+    const movementSheet = XLSX.utils.aoa_to_sheet([movementHeaders, ...movements]);
     movementSheet["!autofilter"] = { ref: `A1:N${Math.max(1, movements.length + 1)}` };
     movementSheet["!cols"] = [{ wch: 12 }, { wch: 13 }, { wch: 40 }, { wch: 20 }, { wch: 12 }, { wch: 20 }, { wch: 36 }, { wch: 16 }, { wch: 10 }, { wch: 9 }, { wch: 16 }, { wch: 18 }, { wch: 13 }, { wch: 20 }];
-    for (let col = 0; col < movementHeaders.length; col += 1) movementSheet[XLSXStyle.utils.encode_cell({ r: 0, c: col })].s = { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center" } };
+    for (let col = 0; col < movementHeaders.length; col += 1) movementSheet[XLSX.utils.encode_cell({ r: 0, c: col })].s = { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center" } };
     for (let row = 1; row <= movements.length; row += 1) for (let col = 0; col < movementHeaders.length; col += 1) {
-      const cell = movementSheet[XLSXStyle.utils.encode_cell({ r: row, c: col })];
+      const cell = movementSheet[XLSX.utils.encode_cell({ r: row, c: col })];
       if (cell) cell.s = { font: baseFont, ...(col === 7 ? { numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' } : {}) };
     }
-    XLSXStyle.utils.book_append_sheet(workbook, movementSheet, "Lançamentos Contábeis");
+    XLSX.utils.book_append_sheet(workbook, movementSheet, "Lançamentos Contábeis");
 
     const rules = [
       ["Regras e Controles", null],
@@ -302,23 +301,22 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Linhas contábeis a débito", movements.length],
       [`Ativos em ${targetLabel}`, assets],
     ];
-    const rulesSheet = XLSXStyle.utils.aoa_to_sheet(rules);
+    const rulesSheet = XLSX.utils.aoa_to_sheet(rules);
     rulesSheet["!cols"] = [{ wch: 28 }, { wch: 90 }];
-    rulesSheet["!merges"] = [XLSXStyle.utils.decode_range("A1:B1")];
+    rulesSheet["!merges"] = [XLSX.utils.decode_range("A1:B1")];
     for (const cell of Object.keys(rulesSheet).filter((key) => !key.startsWith("!"))) rulesSheet[cell].s = { font: baseFont, alignment: { vertical: "center", wrapText: true } };
-    for (const row of [1, 3, 14]) styleRange;
     for (const row of [1, 3, 14]) {
       const range = `A${row}:B${row}`;
-      const decoded = XLSXStyle.utils.decode_range(range);
+      const decoded = XLSX.utils.decode_range(range);
       for (let rr = decoded.s.r; rr <= decoded.e.r; rr += 1) for (let cc = decoded.s.c; cc <= decoded.e.c; cc += 1) {
-        const address = XLSXStyle.utils.encode_cell({ r: rr, c: cc });
+        const address = XLSX.utils.encode_cell({ r: rr, c: cc });
         if (!rulesSheet[address]) rulesSheet[address] = { t: "s", v: "" };
         rulesSheet[address].s = { fill: { fgColor: { rgb: navy } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFF" } } };
       }
     }
-    XLSXStyle.utils.book_append_sheet(workbook, rulesSheet, "Regras e Controles");
+    XLSX.utils.book_append_sheet(workbook, rulesSheet, "Regras e Controles");
     const fileName = `${companyCode}_${fileTitle(companyName)}_Analise_de_Despesa_${targetMonth.slice(5, 7)}_${targetMonth.slice(0, 4)}.xlsx`;
-    XLSXStyle.writeFile(workbook, fileName);
+    XLSX.writeFile(workbook, fileName);
   }
 
   return <section className="expense-analysis">
