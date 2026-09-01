@@ -34,15 +34,25 @@ export async function GET(request: NextRequest) {
     }
 
     const [year, month] = competence!.split("-").map(Number);
-    const periodStart = new Date(Date.UTC(year, month - 6, 1));
-    const firstDay = `${periodStart.getUTCFullYear()}-${String(periodStart.getUTCMonth() + 1).padStart(2, "0")}-01`;
-    const lastDay = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-    const records = await queryDataEngine({
+    const monthlyRanges = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(Date.UTC(year, month - 6 + index, 1));
+      const rangeYear = date.getUTCFullYear();
+      const rangeMonth = date.getUTCMonth() + 1;
+      const prefix = `${rangeYear}-${String(rangeMonth).padStart(2, "0")}`;
+      return {
+        firstDay: `${prefix}-01`,
+        lastDay: `${prefix}-${String(new Date(Date.UTC(rangeYear, rangeMonth, 0)).getUTCDate()).padStart(2, "0")}`,
+      };
+    });
+    const firstDay = monthlyRanges[0].firstDay;
+    const lastDay = monthlyRanges[monthlyRanges.length - 1].lastDay;
+    const batches = await Promise.all(monthlyRanges.map((range) => queryDataEngine({
       code: "PLAN.T.0003.001",
       system: "T",
-      parameters: `PLN_B1_D=${firstDay};PLN_B2_D=${lastDay}`,
-      errorMessage: "Falha ao atualizar a PlanilhaNet 08 do módulo de Compras.",
-    });
+      parameters: `PLN_B1_D=${range.firstDay};PLN_B2_D=${range.lastDay}`,
+      errorMessage: `Falha ao atualizar a PlanilhaNet 08 em ${range.firstDay.slice(0, 7)}.`,
+    })));
+    const records = batches.flat();
 
     const rows = records
       .filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company))
