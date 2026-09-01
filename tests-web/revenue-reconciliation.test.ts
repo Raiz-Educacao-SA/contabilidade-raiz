@@ -217,6 +217,22 @@ test("classifica como Receitas extras somente quando a conta explica toda a dive
   );
 });
 
+test("isola receitas extras da lista de divergências e da comparação exportada", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /activeView === "extraRevenue"/);
+  assert.match(component, /"Receitas Extras"/);
+  assert.match(
+    component,
+    /row\.status !== "Conciliado" && !row\.classification/,
+  );
+  assert.match(component, /comparableAccountingRevenue/);
+  assert.match(component, /Estes valores não compõem as inconsistências/);
+});
+
 test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {
   const rows = consolidateFiscalRevenueRows([
     {
