@@ -191,7 +191,7 @@ test("consolida receitas e descontos por RA", () => {
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
 });
 
-test("classifica como Receitas extras independentemente da soma da diferença", () => {
+test("classifica como Receitas extras somente quando a conta explica toda a divergência", () => {
   assert.equal(isExtraRevenueAccount(EXTENDED_HOURS_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(OTHER_STUDENT_REVENUE_ACCOUNT), true);
   assert.equal(isExtraRevenueAccount(REVENUE_ACCOUNT_PREFIX), false);
@@ -220,25 +220,7 @@ test("classifica como Receitas extras independentemente da soma da diferença", 
       discountDifference: 0,
       extraRevenue: 806,
     }),
-    "Receitas extras",
-  );
-  assert.equal(
-    classifyRevenueDivergence({
-      status: "Divergente",
-      revenueDifference: 806,
-      discountDifference: 0,
-      extraRevenue: 1_612,
-    }),
-    "Receitas extras",
-  );
-  assert.equal(
-    classifyRevenueDivergence({
-      status: "Conciliado",
-      revenueDifference: 0,
-      discountDifference: 0,
-      extraRevenue: 806,
-    }),
-    "Receitas extras",
+    "",
   );
   assert.equal(
     classifyRevenueDivergence({
@@ -264,8 +246,7 @@ test("isola receitas extras da lista de divergências e da comparação exportad
     /row\.status !== "Conciliado" && !row\.classification/,
   );
   assert.match(component, /comparableAccountingRevenue/);
-  assert.match(component, /independentemente da soma/);
-  assert.match(component, /Estes valores não\s+compõem as inconsistências/);
+  assert.match(component, /Estes valores não compõem as\s+inconsistências/);
 });
 
 test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {

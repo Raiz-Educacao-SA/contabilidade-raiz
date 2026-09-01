@@ -337,9 +337,7 @@ export default function RevenueReconciliation({
     pending = rows.filter(
       (row) => row.status !== "Conciliado" && !row.classification,
     ),
-    reconciled = rows.filter(
-      (row) => row.status === "Conciliado" && !row.classification,
-    ).length,
+    reconciled = rows.filter((row) => row.status === "Conciliado").length,
     treated = reconciled + extraRevenueRows.length,
     reconciledPercentage = rows.length ? (treated / rows.length) * 100 : 0,
     fRev = fiscalRows.reduce((s, x) => s + x.originalValue, 0),
@@ -379,7 +377,7 @@ export default function RevenueReconciliation({
     });
     const workbook = XLSX.utils.book_new();
     const statusCounts = [
-      { status: "Conciliado", count: rows.filter((x) => x.status === "Conciliado" && !x.classification).length },
+      { status: "Conciliado", count: rows.filter((x) => x.status === "Conciliado").length },
       { status: "Receitas extras", count: extraRevenueRows.length },
       { status: "Divergente", count: pending.filter((x) => x.status === "Divergente").length },
       { status: "Só no Fiscal", count: rows.filter((x) => x.status === "Só no Fiscal").length },
@@ -464,7 +462,7 @@ export default function RevenueReconciliation({
       extraRevenueRows.map(mapRow),
       detailColumns,
     );
-    appendJsonSheet("Conciliados", rows.filter((x) => x.status === "Conciliado" && !x.classification).map(mapRow), detailColumns);
+    appendJsonSheet("Conciliados", rows.filter((x) => x.status === "Conciliado").map(mapRow), detailColumns);
     appendJsonSheet("Resumo Geral", rows.map(mapRow), detailColumns);
     appendJsonSheet(
       "Receitas Contábil",
@@ -529,7 +527,7 @@ export default function RevenueReconciliation({
       ["4", "Tratamento de TIPOGERACAO", `${generationTypeRows.length} lançamento(s) com tipo I ou E isolado(s)`, "TIPOGERACAO I e E ficam fora dos totais e das divergências; O permanece na análise"],
       ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
-      ["7", "Receitas extras", EXTRA_REVENUE_ACCOUNTS.join(" | "), "Todo RA com lançamentos nessas contas e sem diferença de desconto sai das divergências e é isolado na sheet Receitas Extras, independentemente da soma"],
+      ["7", "Receitas extras", EXTRA_REVENUE_ACCOUNTS.join(" | "), "Quando o valor dessas contas explica integralmente a diferença de receita e não há diferença de desconto, o RA sai das divergências e é isolado na sheet Receitas Extras"],
       ["8", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
@@ -696,9 +694,9 @@ export default function RevenueReconciliation({
               <div>
                 <b>{extraRevenueRows.length} receita(s) extra(s) isolada(s)</b>
                 <span>
-                  Todos os lançamentos das contas {EXTRA_REVENUE_ACCOUNTS.join(" e ")}
-                  ficam segregados, independentemente da soma. Estes valores não
-                  compõem as inconsistências.
+                  As contas {EXTRA_REVENUE_ACCOUNTS.join(" e ")} explicam
+                  integralmente a diferença. Estes valores não compõem as
+                  inconsistências.
                 </span>
               </div>
             </div>

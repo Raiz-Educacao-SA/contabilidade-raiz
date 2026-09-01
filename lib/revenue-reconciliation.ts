@@ -260,18 +260,28 @@ export function classifyRevenueDivergence(values: {
   discountDifference: number;
   extraRevenue: number;
 }): RevenueDivergenceClassification {
-  const { discountDifference, extraRevenue } = values;
+  const {
+    status,
+    revenueDifference,
+    discountDifference,
+    extraRevenue,
+  } = values;
   const roundedAbsolute = (value: number) =>
     Math.abs(Math.round(value * 100) / 100);
 
   if (
+    status !== "Divergente" ||
     roundedAbsolute(extraRevenue) <= REVENUE_TOLERANCE ||
     roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
   ) {
     return "";
   }
 
-  return "Receitas extras";
+  return Math.abs(
+    roundedAbsolute(revenueDifference) - roundedAbsolute(extraRevenue),
+  ) <= REVENUE_TOLERANCE
+    ? "Receitas extras"
+    : "";
 }
 
 export function classifyRevenueReconciliation(values: {
