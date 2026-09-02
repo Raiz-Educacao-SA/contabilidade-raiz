@@ -85,6 +85,16 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
   assert.match(component, /A1:O/);
 });
 
+test("sinaliza qualquer empresa do Grupo Raiz cadastrada como fornecedora", () => {
+  assert.match(component, /groupCompanySupplierNames/);
+  assert.match(component, /RAIZ EDUCAÇÃO/);
+  assert.match(component, /COLÉGIO QI/);
+  assert.match(component, /CENTRO EDUCACIONAL ESPAÇO MÁGICO LTDA/);
+  assert.match(component, /COLÉGIO AMERICANO/);
+  assert.match(component, /SARAH DAWSEY TIJUCA/);
+  assert.match(component, /supplierName === value/);
+});
+
 test("sinaliza fornecedor cadastrado com o nome da própria empresa", () => {
   assert.match(component, /companySupplierAliases/);
   assert.match(component, /"12": \["COLEGIO LEONARDO DA VINCI"/);
