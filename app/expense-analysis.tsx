@@ -18,6 +18,7 @@ type ExpenseRow = {
   months: Record<string, number>;
   total: number;
   comment: string;
+  ownCompanySupplier: boolean;
 };
 
 type Analysis = {
@@ -35,17 +36,22 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const companySupplierAliases: Record<string, string[]> = {
   "12": ["COLEGIO LEONARDO DA VINCI", "COLÉGIO LEONARDO DA VINCI"],
 };
+const companySupplierTaxIds: Record<string, string[]> = {
+  "12": ["09262835000194", "09262835000275", "09262835000437", "09262835000356"],
+};
 
 function normalized(value: unknown) {
   return String(value ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-function isOwnCompanySupplier(code: string, name: string, supplier: string) {
+function isOwnCompanySupplier(code: string, name: string, supplier: string, taxId: unknown) {
   const supplierName = normalized(supplier);
   const companyNames = [name, ...(companySupplierAliases[code] || [])]
     .map(normalized)
     .filter((value) => value.length >= 6);
-  return companyNames.some((value) => supplierName.includes(value) || value.includes(supplierName));
+  const supplierTaxId = String(taxId ?? "").replace(/\D/g, "");
+  return (companySupplierTaxIds[code] || []).includes(supplierTaxId)
+    || companyNames.some((value) => supplierName.includes(value) || value.includes(supplierName));
 }
 
 function numberValue(value: unknown) {
@@ -176,10 +182,11 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const description = String(record.DESCRICAO || "SEM DESCRIÇÃO").trim();
         const value = numberValue(record.VALOR);
         const key = [supplier, account, description].join("\u001f");
-        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "" });
+        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false });
         const item = grouped.get(key)!;
         item.months[month] = Math.round((item.months[month] + value) * 100) / 100;
         item.total = Math.round((item.total + value) * 100) / 100;
+        item.ownCompanySupplier ||= isOwnCompanySupplier(companyCode, companyName, supplier, record.CGCCFO);
         suppliers.add(supplier);
         movementIds.add(String(record.IDMOV ?? ""));
       }
@@ -195,7 +202,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       rows.forEach((row) => {
         const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
         const target = row.months[targetMonth] ?? 0;
-        row.comment = isOwnCompanySupplier(companyCode, companyName, row.supplier)
+        row.comment = row.ownCompanySupplier
           ? "Cadastro de Fornecedor Incorreto"
           : row.account.startsWith("1.") && target > 0
             ? "Ativo Imobilizado"
@@ -349,7 +356,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Escopo contábil", "Somente conta DÉBITO + descrição DESCRICAO"],
       ["Divergência", "Conta utilizada no mês final sem movimento nos meses anteriores, quando o fornecedor possui mais de uma conta"],
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
-      ["Fornecedor igual à própria empresa", "Possível erro cadastral quando o fornecedor corresponde ao nome ou razão social da coligada; validar pelo Ticket Zeev antes da correção"],
+      ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde à coligada; validar pelo Ticket Zeev antes da correção"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
       ["Tickets Zeev", "No Excel, clique no valor mensal para acessar os lançamentos; depois clique no ticket para abrir a nota fiscal no Zeev"],
