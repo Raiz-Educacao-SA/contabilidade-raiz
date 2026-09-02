@@ -84,6 +84,13 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
   assert.match(component, /A1:O/);
 });
 
+test("sinaliza fornecedor cadastrado com o nome da própria empresa", () => {
+  assert.match(component, /companySupplierAliases/);
+  assert.match(component, /"12": \["COLEGIO LEONARDO DA VINCI"/);
+  assert.match(component, /isOwnCompanySupplier\(companyCode, companyName, row\.supplier\)/);
+  assert.match(component, /Possível erro de cadastro: fornecedor com o mesmo nome da empresa - validar Ticket Zeev/);
+});
+
 test("congela a primeira linha de Lançamentos Contábeis", () => {
   assert.match(component, /movementSheet\["!freeze"\] = \{ xSplit: 0, ySplit: 1 \}/);
 });
