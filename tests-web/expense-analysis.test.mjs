@@ -84,6 +84,13 @@ test("Reduzido fica imediatamente antes de Conta contábil nos lançamentos", ()
   assert.match(component, /A1:P/);
 });
 
+test("destaca a coluna Reduzido quando a PlanilhaNet 08 não fornece o campo", () => {
+  assert.match(component, /const reducedColumn = 6/);
+  assert.match(component, /reducedHeader\.s/);
+  assert.match(component, /PlanilhaNet 08 não fornece esse campo/);
+  assert.match(component, /fgColor: \{ rgb: pale \}/);
+});
+
 test("congela a primeira linha de Lançamentos Contábeis", () => {
   assert.match(component, /movementSheet\["!freeze"\] = \{ xSplit: 0, ySplit: 1 \}/);
 });
