@@ -51,6 +51,7 @@ test("conclui todos os módulos participantes quando suas tarefas foram finaliza
   const accountingTaskIds = ACCOUNTING_SCHEDULE_TASK_IDS as readonly string[];
   const payrollTaskIds = PAYROLL_SCHEDULE_TASK_IDS as readonly string[];
   const fiscalTaskIds = FISCAL_SCHEDULE_TASK_IDS as readonly string[];
+  assert.deepEqual(fiscalTaskIds, ["paa", "iss", "ecf"]);
   const bookTaskIds = BOOK_SCHEDULE_TASK_IDS as readonly string[];
   const records = [
     ...financialTaskIds.flatMap((task) =>

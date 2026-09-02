@@ -75,7 +75,7 @@ export function fiscalCompletionIdentity(taskId: string, companyCode: string, co
   const labels: Record<string, string> = {
     paa: "PAA",
     iss: "ISS",
-    ecd: "ECD",
+    ecf: "ECF",
   };
   return scopedCompletionIdentity("fiscal", "Fiscal", taskId, labels[taskId] || taskId, companyCode, companyName);
 }

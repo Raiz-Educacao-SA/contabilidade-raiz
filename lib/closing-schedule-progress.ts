@@ -17,7 +17,7 @@ export const PAYROLL_SCHEDULE_TASK_IDS = [
   "provisoes",
 ] as const;
 
-export const FISCAL_SCHEDULE_TASK_IDS = ["paa", "iss", "ecd"] as const;
+export const FISCAL_SCHEDULE_TASK_IDS = ["paa", "iss", "ecf"] as const;
 
 export const BOOK_SCHEDULE_TASK_IDS = ["balancete", "razao", "plano-contas"] as const;
 
