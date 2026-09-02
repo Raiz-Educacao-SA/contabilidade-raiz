@@ -21,7 +21,8 @@ test("conciliação de receita restaura o último resultado mesmo após reabrir"
   assert.match(revenue, /setIsFinalized\(finalized\)/);
   assert.match(revenue, /if \(snapshot\) \{/);
   assert.match(revenue, /finalizedAt,\s*finalizedBy,/);
-  assert.match(revenue, /disabled=\{isFinalized \|\| \(!fr && !cr\) \|\| loading !== null\}/);
+  assert.match(revenue, /const canClear = fr && cr && !isFinalized && loading === null;/);
+  assert.match(revenue, /disabled=\{!canClear\}/);
   assert.match(revenue, /Reabra a tarefa antes de limpar os dados/);
 });
 

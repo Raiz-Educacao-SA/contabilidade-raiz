@@ -13,11 +13,13 @@ import {
   accountingRevenueQueryAccounts,
   accountingRevenueQueryAccountsForCompany,
   classifyCompany18InternalMdDivergence,
+  classifyContinuingEducationDivergence,
   classifyAccountingRevenue,
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
   COMMERCIAL_DISCOUNT_ACCOUNT,
   COMPANY_18_INTERNAL_MD_ACCOUNT,
+  CONTINUING_EDUCATION_REVENUE_ACCOUNT,
   consolidateFiscalRevenueRows,
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
@@ -26,6 +28,7 @@ import {
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
   isCompany18InternalMdEntry,
+  isContinuingEducationRevenueAccount,
   isExtraRevenueAccount,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
@@ -274,6 +277,101 @@ test("mantém o MD interno separado da receita contábil comum", () => {
   assert.deepEqual(summary?.internalMdComplements, [
     "1822242596 - Aluno MD - Serviço: MD Interno",
   ]);
+});
+
+test("separa a mensalidade de educação continuada dentro da receita contábil", () => {
+  assert.equal(
+    isContinuingEducationRevenueAccount("3.1.1.01.01.05"),
+    true,
+  );
+  assert.equal(
+    isContinuingEducationRevenueAccount("3.1.1.01.01.04"),
+    false,
+  );
+
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "1842422246",
+      name: "RICHARDY BAREZE DE ASSIS",
+      value: -1_869.6,
+      kind: "revenue",
+      account: "3.1.1.01.01.04",
+    },
+    {
+      ra: "1842422246",
+      name: "RICHARDY BAREZE DE ASSIS",
+      value: -639.9,
+      kind: "revenue",
+      account: CONTINUING_EDUCATION_REVENUE_ACCOUNT,
+      complement: "1842422246 - RICHARDY - Serviço: CL",
+    },
+    {
+      ra: "1842422246",
+      name: "RICHARDY BAREZE DE ASSIS",
+      value: -360.34,
+      kind: "revenue",
+      account: CONTINUING_EDUCATION_REVENUE_ACCOUNT,
+      complement: "1842422246 - RICHARDY - Serviço: CL - Parcela adicional",
+    },
+  ]).get("1842422246");
+
+  assert.equal(summary?.revenue, 2_869.84);
+  assert.equal(summary?.continuingEducationRevenue, 1_000.24);
+  assert.deepEqual(summary?.continuingEducationAccounts, [
+    CONTINUING_EDUCATION_REVENUE_ACCOUNT,
+  ]);
+  assert.equal(summary?.continuingEducationComplements.length, 2);
+});
+
+test("isola mensalidade continuada somente quando explica toda a receita não emitida", () => {
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Divergente",
+      revenueDifference: 1_000.24,
+      discountDifference: 0,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "Mensalidade continuada",
+  );
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Só no Contábil",
+      revenueDifference: 1_000.24,
+      discountDifference: 0,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "Mensalidade continuada",
+  );
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Divergente",
+      revenueDifference: 900,
+      discountDifference: 0,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Divergente",
+      revenueDifference: 1_000.24,
+      discountDifference: 1,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "",
+  );
+});
+
+test("exibe e exporta mensalidade continuada em aba própria", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /activeView === "continuingEducation"/);
+  assert.match(component, /"Mensalidade continuada"/);
+  assert.match(component, /continuingEducationRows/);
+  assert.match(component, /receita não emitida e não compõe as\s+inconsistências/);
 });
 
 test("isola MD interno apenas quando explica integralmente a diferença da coligada 18", () => {
@@ -593,6 +691,22 @@ test("mantém somente o botão superior para exportar a conciliação", () => {
 
   assert.equal(panel.match(/onClick=\{exportAnalysis\}/g)?.length, 1);
   assert.doesNotMatch(panel, /Exportar Excel/);
+});
+
+test("libera Limpar após atualizar as duas bases e bloqueia durante a finalização", () => {
+  const panel = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    panel,
+    /const canClear = fr && cr && !isFinalized && loading === null;/,
+  );
+  assert.match(panel, /if \(!canClear\) return;/);
+  assert.match(panel, /disabled=\{!canClear\}/);
+  assert.match(panel, /Reabra a tarefa antes de limpar os dados\./);
+  assert.match(panel, /Atualize as duas bases antes de limpar a análise\./);
 });
 
 test("isola a conciliação por empresa e competência", () => {

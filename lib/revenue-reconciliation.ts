@@ -5,6 +5,7 @@ export type AccountingRevenueKind =
   | "other";
 export type RevenueDivergenceClassification =
   | "Receitas extras"
+  | "Mensalidade continuada"
   | "MD interno"
   | "";
 export type RevenueReconciliationStatus =
@@ -20,6 +21,7 @@ export const ADDITIONAL_TUITION_REVENUE_ACCOUNT = "3.1.1.01.01.11";
 export const EXTENDED_HOURS_REVENUE_ACCOUNT = "3.1.1.01.02.03";
 export const OTHER_STUDENT_REVENUE_ACCOUNT = "3.1.1.01.02.06";
 export const DIDACTIC_MATERIAL_REVENUE_ACCOUNT = "3.1.1.01.03.14";
+export const CONTINUING_EDUCATION_REVENUE_ACCOUNT = "3.1.1.01.01.05";
 export const COMPANY_18_INTERNAL_MD_ACCOUNT = "2.3.1.03.02.02";
 export const EXTRA_REVENUE_ACCOUNTS = [
   ADDITIONAL_TUITION_REVENUE_ACCOUNT,
@@ -144,6 +146,13 @@ export function isExtraRevenueAccount(account?: string) {
   );
 }
 
+export function isContinuingEducationRevenueAccount(account?: string) {
+  return (
+    account?.replace(/\D/g, "") ===
+    CONTINUING_EDUCATION_REVENUE_ACCOUNT.replace(/\D/g, "")
+  );
+}
+
 export function isRevenueAppropriation(complement: string) {
   return normalizeAccountingDescription(complement) === "APROPRIACAO RECEITA";
 }
@@ -246,6 +255,9 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       internalMd: number;
       internalMdAccounts: string[];
       internalMdComplements: string[];
+      continuingEducationRevenue: number;
+      continuingEducationAccounts: string[];
+      continuingEducationComplements: string[];
       revenueIndicators: string[];
       discount: number;
       complements: string[];
@@ -262,6 +274,9 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       internalMd: 0,
       internalMdAccounts: [],
       internalMdComplements: [],
+      continuingEducationRevenue: 0,
+      continuingEducationAccounts: [],
+      continuingEducationComplements: [],
       revenueIndicators: [],
       discount: 0,
       complements: [],
@@ -270,6 +285,20 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
 
     if (entry.kind === "revenue") {
       current.revenue += entry.value;
+      if (isContinuingEducationRevenueAccount(entry.account)) {
+        current.continuingEducationRevenue += entry.value;
+        const account = entry.account?.trim();
+        if (account && !current.continuingEducationAccounts.includes(account)) {
+          current.continuingEducationAccounts.push(account);
+        }
+        const complement = entry.complement?.trim();
+        if (
+          complement &&
+          !current.continuingEducationComplements.includes(complement)
+        ) {
+          current.continuingEducationComplements.push(complement);
+        }
+      }
       if (isExtraRevenueAccount(entry.account)) {
         current.extraRevenue += entry.value;
         const account = entry.account?.trim();
@@ -318,9 +347,44 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
     summary.revenue = Math.abs(summary.revenue);
     summary.extraRevenue = Math.abs(summary.extraRevenue);
     summary.internalMd = Math.abs(summary.internalMd);
+    summary.continuingEducationRevenue = Math.abs(
+      summary.continuingEducationRevenue,
+    );
   });
 
   return summaries;
+}
+
+export function classifyContinuingEducationDivergence(values: {
+  status: RevenueReconciliationStatus;
+  revenueDifference: number;
+  discountDifference: number;
+  continuingEducationRevenue: number;
+}): RevenueDivergenceClassification {
+  const {
+    status,
+    revenueDifference,
+    discountDifference,
+    continuingEducationRevenue,
+  } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
+
+  if (
+    ["Conciliado", "Sem Dados"].includes(status) ||
+    revenueDifference <= REVENUE_TOLERANCE ||
+    roundedAbsolute(continuingEducationRevenue) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
+  }
+
+  return Math.abs(
+    roundedAbsolute(revenueDifference) -
+      roundedAbsolute(continuingEducationRevenue),
+  ) <= REVENUE_TOLERANCE
+    ? "Mensalidade continuada"
+    : "";
 }
 
 export function classifyCompany18InternalMdDivergence(values: {
