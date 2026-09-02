@@ -21,6 +21,7 @@ type ExpenseRow = {
   ownCompanySupplier: boolean;
   incorrectValue: boolean;
   duplicateDocument: boolean;
+  duplicateComment: string;
 };
 
 type Analysis = {
@@ -235,7 +236,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         ["192402", 524.70],
         ["192406", 524.70],
       ]);
-      const zeevDocuments = new Map<string, { invoiceNumber: string; invoiceKey: string; supplierTaxId: string }>();
+      const zeevDocuments = new Map<string, { invoiceNumber: string; invoiceKey: string; supplierTaxId: string; cancelled: boolean }>();
       if (ticketIds.length && accessToken) {
         const ticketBatches: string[][] = [];
         for (let index = 0; index < ticketIds.length; index += 50) ticketBatches.push(ticketIds.slice(index, index + 50));
@@ -265,6 +266,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
                 invoiceNumber: String(validation.invoiceNumber || "").trim(),
                 invoiceKey: String(validation.invoiceKey || "").replace(/\D/g, ""),
                 supplierTaxId: String(validation.supplierTaxId || "").replace(/\D/g, ""),
+                cancelled: validation.cancelled === true,
               });
             }
           }
@@ -272,7 +274,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       }
       const months = monthsBetween(periodStart, periodEnd);
       if (!months.length) throw new Error("Informe um período válido de até 12 meses.");
-      const duplicateCandidates = new Map<string, { movementIds: Set<string>; movementNumbers: Set<string> }>();
+      const duplicateCandidates = new Map<string, { movementIds: Set<string>; movementNumbers: Set<string>; cancelledMovementIds: Set<string> }>();
       for (const record of records) {
         if (String(Math.trunc(numberValue(record.CODCOLIGADA))) !== String(Number(companyCode))) continue;
         const date = isoDate(record.DATASAIDA);
@@ -287,14 +289,20 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         if (!movementId || !movementNumber) continue;
         const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
         const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), numberValue(record.VALOR).toFixed(2)].join("\u001f");
-        const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<string>() };
+        const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<string>(), cancelledMovementIds: new Set<string>() };
         candidate.movementIds.add(movementId);
         candidate.movementNumbers.add(normalized(movementNumber));
+        if (document.cancelled) candidate.cancelledMovementIds.add(movementId);
         duplicateCandidates.set(duplicateKey, candidate);
       }
-      const duplicateMovementKeys = new Set([...duplicateCandidates.entries()]
+      const duplicateMovementComments = new Map([...duplicateCandidates.entries()]
         .filter(([, candidate]) => candidate.movementIds.size > 1 && candidate.movementNumbers.size > 1)
-        .map(([key]) => key));
+        .map(([key, candidate]) => {
+          const cancelledIds = [...candidate.cancelledMovementIds].sort();
+          return [key, cancelledIds.length
+            ? `Lançamento Duplicado - Documento fiscal já contabilizado; validar estorno do IDMOV ${cancelledIds.join(", ")}`
+            : "Possível Lançamento Duplicado - Verificar Fornecedor, Nota Fiscal e Valor"];
+        }));
       const grouped = new Map<string, ExpenseRow>();
       const movementIds = new Set<string>();
       const suppliers = new Set<string>();
@@ -310,7 +318,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const description = String(record.DESCRICAO || "SEM DESCRIÇÃO").trim();
         const value = numberValue(record.VALOR);
         const key = [supplier, account, description].join("\u001f");
-        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false, incorrectValue: false, duplicateDocument: false });
+        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false, incorrectValue: false, duplicateDocument: false, duplicateComment: "" });
         const item = grouped.get(key)!;
         item.months[month] = Math.round((item.months[month] + value) * 100) / 100;
         item.total = Math.round((item.total + value) * 100) / 100;
@@ -322,7 +330,10 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         if (document && (document.invoiceKey || document.invoiceNumber)) {
           const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
           const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), value.toFixed(2)].join("\u001f");
-          item.duplicateDocument ||= duplicateMovementKeys.has(duplicateKey);
+          const duplicateComment = duplicateMovementComments.get(duplicateKey);
+          item.duplicateDocument ||= Boolean(duplicateComment);
+          if (duplicateComment?.startsWith("Lançamento Duplicado")) item.duplicateComment = duplicateComment;
+          else if (duplicateComment && !item.duplicateComment) item.duplicateComment = duplicateComment;
         }
         suppliers.add(supplier);
         movementIds.add(String(record.IDMOV ?? ""));
@@ -346,7 +357,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
           : row.incorrectValue
             ? "Valores Incorretos"
             : row.duplicateDocument
-              ? "Possível Lançamento Duplicado - Verificar Fornecedor, Nota Fiscal e Valor"
+              ? row.duplicateComment
             : String(Number(companyCode)) === "1" && row.account.startsWith("4.1")
               ? "Custo Operacional Inadequado - Classificação Incorreta"
             : row.account.startsWith("1.") && target > 0
@@ -505,6 +516,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde a uma empresa do grupo; contas de rateio/intercompany são exceção legítima"],
       ["Valores incorretos", "Valor do movimento contábil divergente do valor total aprovado no Ticket Zeev; revisar o IDMOV antes da integração/fechamento"],
       ["Possível lançamento duplicado", "Após consulta obrigatória ao Zeev: mesmo fornecedor/CNPJ, chave de acesso (ou número da nota) e valor, com IDMOVs e NUMEROMOVs diferentes"],
+      ["Documento cancelado ainda contabilizado", "Quando um dos tickets duplicados está cancelado no Zeev, mas seu IDMOV permanece na PlanilhaNet 08, sinalizar Lançamento Duplicado e solicitar validação do estorno do movimento cancelado"],
       ["Custo operacional inadequado", "Somente na coligada 01 — Raiz Educação: conta iniciada por 4.1 indica classificação incorreta, pois a empresa não apresenta receita"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],

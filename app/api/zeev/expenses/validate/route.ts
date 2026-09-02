@@ -93,6 +93,8 @@ async function consultTicket(baseUrl: string, token: string, ticket: string) {
   if (!response.ok) return { ticket, found: confirmedValue !== undefined, value: confirmedValue || 0 };
   const instance = await response.json();
   const value = numeric(findFieldValue(instance, ["valorTotalDoPagamento", "valor"])) || confirmedValue || 0;
+  const status = String(instance.flowResult || instance.status || "").trim();
+  const cancelled = instance.active === false && normalized(status).includes("cancel");
   return {
     ticket,
     found: value > 0,
@@ -102,6 +104,8 @@ async function consultTicket(baseUrl: string, token: string, ticket: string) {
     invoiceKey: String(findFieldValue(instance, ["chaveDeAcesso"]) || ""),
     supplierTaxId: String(findFieldValue(instance, ["cPF"]) || ""),
     branch: String(findFieldValue(instance, ["unidadeFilial2", "unidadeFilial"]) || ""),
+    status,
+    cancelled,
   };
 }
 

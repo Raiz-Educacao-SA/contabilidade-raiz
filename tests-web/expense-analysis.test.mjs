@@ -158,9 +158,19 @@ test("piloto identifica duplicidade por fornecedor nota fiscal e valor", () => {
   assert.match(component, /candidate\.movementNumbers\.size > 1/);
   assert.match(component, /supplierTaxId/);
   assert.match(component, /duplicateCandidates/);
-  assert.match(component, /identities\.size > 1/);
+  assert.match(component, /candidate\.movementIds\.size > 1 && candidate\.movementNumbers\.size > 1/);
   assert.match(component, /Possível Lançamento Duplicado - Verificar Fornecedor, Nota Fiscal e Valor/);
   assert.match(component, /Após consulta obrigatória ao Zeev:[\s\S]*IDMOVs e NUMEROMOVs diferentes/);
+});
+
+test("identifica documento cancelado no Zeev que permanece na PlanilhaNet 08", () => {
+  assert.match(zeevValueRoute, /instance\.active === false/);
+  assert.match(zeevValueRoute, /normalized\(status\)\.includes\("cancel"\)/);
+  assert.match(zeevValueRoute, /cancelled/);
+  assert.match(component, /cancelledMovementIds/);
+  assert.match(component, /document\.cancelled/);
+  assert.match(component, /Lançamento Duplicado - Documento fiscal já contabilizado; validar estorno do IDMOV/);
+  assert.match(component, /Documento cancelado ainda contabilizado/);
 });
 
 test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
