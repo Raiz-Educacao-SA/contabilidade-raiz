@@ -1,0 +1,649 @@
+{
+  "version": "v51.1",
+  "status": "DRAFT_FOR_HOMOLOGATION",
+  "source_matrix": "Matriz_Fiscal_IRPJ_CSLL_v49_consolidacao_funcional.xlsx / Matriz Fiscal",
+  "principle": "No new tax conclusion is invented; L2 candidates reuse already-approved homogeneous classifications with explicit blockers.",
+  "l2_candidates": [
+    {
+      "rule_code": "BASIC_THIRD_PARTY_SERVICES",
+      "family": "Serviços de terceiros administrativos",
+      "prefixes": [
+        "4.2.1.02.01"
+      ],
+      "positive": [
+        "serviço",
+        "serviços",
+        "consultoria",
+        "assessoria",
+        "honorários",
+        "auditoria",
+        "contabilidade",
+        "cobrança",
+        "certificado digital",
+        "software",
+        "engenharia",
+        "manutenção",
+        "lavanderia",
+        "dedetização",
+        "serralheria",
+        "marcenaria"
+      ],
+      "negative": [
+        "brinde",
+        "patrocínio",
+        "doação",
+        "multa",
+        "penalidade",
+        "indenização",
+        "provisão",
+        "reversão",
+        "perda",
+        "baixa",
+        "sinistro"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "Prefixo atualmente homogêneo; ainda exigir termo compatível e ausência de termos sensíveis.",
+      "evidence_count": 39,
+      "evidence_sem_adjust": 39,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.2.1.02.01.01 — Serviço Prestado PF",
+        "4.2.1.02.01.02 — INSS s/ Autonomos",
+        "4.2.1.02.01.03 — Serviços Prestados PJ",
+        "4.2.1.02.01.04 — Consultoria / Assessoria",
+        "4.2.1.02.01.05 — Honorários  Advocatícios",
+        "4.2.1.02.01.06 — Serviço de Lavanderia"
+      ]
+    },
+    {
+      "rule_code": "BASIC_MAINTENANCE_SERVICES",
+      "family": "Manutenção e conservação",
+      "prefixes": [
+        "4.2.1.02.02"
+      ],
+      "positive": [
+        "manut",
+        "reforma",
+        "jardinagem",
+        "ar-condicionado",
+        "equipamento",
+        "edificação",
+        "móveis"
+      ],
+      "negative": [
+        "multa",
+        "penalidade",
+        "indenização",
+        "provisão",
+        "perda",
+        "baixa"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "Família totalmente SEM AJUSTE na matriz atual.",
+      "evidence_count": 7,
+      "evidence_sem_adjust": 7,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.2.1.02.02.01 — Manut Edificações Instal. e Laboratórios",
+        "4.2.1.02.02.02 — Manut Equip Informática",
+        "4.2.1.02.02.03 — Manutencao de Ar-condicionado",
+        "4.2.1.02.02.04 — Manut Equip Telefônico",
+        "4.2.1.02.02.05 — Manut Máq e Equipamentos",
+        "4.2.1.02.02.06 — Manut de Móveis e Reformas"
+      ]
+    },
+    {
+      "rule_code": "BASIC_UTILITIES_COMMUNICATION",
+      "family": "Utilidades, comunicação e serviços básicos",
+      "prefixes": [
+        "4.2.1.02.04"
+      ],
+      "positive": [
+        "energia",
+        "água",
+        "agua",
+        "esgoto",
+        "telefonia",
+        "telecom",
+        "internet",
+        "correio",
+        "malote",
+        "gás",
+        "gas",
+        "alvará",
+        "alvara",
+        "iptu",
+        "cartor",
+        "chaveiro"
+      ],
+      "negative": [
+        "multa",
+        "penalidade",
+        "juros",
+        "provisão",
+        "reversão"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "Exemplos incluem energia, água, telefonia, internet, Correio e Malote, IPTU. Provisões ficam fora do L2 por prudência.",
+      "evidence_count": 15,
+      "evidence_sem_adjust": 15,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.2.1.02.04.01 — Energia Elétrica",
+        "4.2.1.02.04.02 — Água e Esgoto",
+        "4.2.1.02.04.03 — Telefonia Fixa",
+        "4.2.1.02.04.04 — Telefonia Móvel",
+        "4.2.1.02.04.05 — Telecomunicação/Internet",
+        "4.2.1.02.04.06 — Correio e Malote"
+      ]
+    },
+    {
+      "rule_code": "BASIC_TRAVEL",
+      "family": "Viagens e deslocamentos",
+      "prefixes": [
+        "4.2.1.02.05",
+        "4.1.2.04.02"
+      ],
+      "positive": [
+        "hosped",
+        "hotel",
+        "passagem",
+        "refei",
+        "viagem",
+        "condução",
+        "conducao",
+        "transporte",
+        "seguro",
+        "telecom",
+        "lavanderia",
+        "diária",
+        "diaria"
+      ],
+      "negative": [
+        "multa",
+        "penalidade",
+        "indenização",
+        "brinde",
+        "patrocínio"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "Famílias de viagens existentes são homogêneas em SEM AJUSTE.",
+      "evidence_count": 15,
+      "evidence_sem_adjust": 15,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.1.2.04.02.01 — Passagens",
+        "4.1.2.04.02.02 — Passagem Rodoviaria",
+        "4.1.2.04.02.03 — Hospedagem / Estadias / Hoteis",
+        "4.1.2.04.02.04 — Refeicoes",
+        "4.1.2.04.02.05 — Outras Despesas com viagens",
+        "4.2.1.02.05.01 — Hospedagem / Estadias / Hoteis"
+      ]
+    },
+    {
+      "rule_code": "BASIC_VEHICLE_REGULAR",
+      "family": "Veículos e transportes regulares",
+      "prefixes": [
+        "4.2.1.02.06"
+      ],
+      "positive": [
+        "veículo",
+        "veiculo",
+        "aluguel",
+        "combust",
+        "lubrificante",
+        "peça",
+        "acessório",
+        "frete",
+        "carreto",
+        "garagem",
+        "estacionamento",
+        "pedágio",
+        "pedagio",
+        "seguro",
+        "quilometr",
+        "kilometr",
+        "condução",
+        "conducao"
+      ],
+      "negative": [
+        "multa",
+        "penalidade"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "Prefixo é misto apenas por multas de trânsito, já classificadas como ADIÇÃO; por isso multa/penalidade são bloqueadores explícitos.",
+      "evidence_count": 13,
+      "evidence_sem_adjust": 11,
+      "evidence_other": 2,
+      "consistency_pct": 84.6,
+      "examples": [
+        "4.2.1.02.06.01 — Veiculos",
+        "4.2.1.02.06.02 — Aluguel de Veiculo",
+        "4.2.1.02.06.03 — Combs/Lubrificantes",
+        "4.2.1.02.06.04 — Peças/Acessórios e Serviços",
+        "4.2.1.02.06.05 — IPVA/Seg Obrigatório",
+        "4.2.1.02.06.06 — Fretes e Carretos"
+      ]
+    },
+    {
+      "rule_code": "BASIC_MATERIAL_CONSUMPTION",
+      "family": "Materiais de consumo",
+      "prefixes": [
+        "4.2.1.03.01"
+      ],
+      "positive": [
+        "material",
+        "limpeza",
+        "higiene",
+        "copa",
+        "alimento",
+        "papelaria",
+        "informática",
+        "informatica",
+        "gráfico",
+        "grafico",
+        "audiovisual",
+        "uniforme",
+        "farmácia",
+        "farmacia",
+        "livro",
+        "revista",
+        "ferramenta",
+        "utensílio",
+        "utensilio"
+      ],
+      "negative": [
+        "brinde",
+        "doação",
+        "doacao",
+        "perda",
+        "obsoleto",
+        "inutilização",
+        "inutilizacao",
+        "furto",
+        "roubo",
+        "baixa",
+        "provisão",
+        "reversão"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "27 contas existentes, todas SEM AJUSTE. Eventos de perda/baixa ficam excluídos do auto-commit.",
+      "evidence_count": 27,
+      "evidence_sem_adjust": 27,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.2.1.03.01.01 — Copa e Alimentos",
+        "4.2.1.03.01.02 — Limpeza e Higiene",
+        "4.2.1.03.01.03 — Material de Escritorio",
+        "4.2.1.03.01.04 — Material Informática",
+        "4.2.1.03.01.05 — Material Gráfico / Audiovisual",
+        "4.2.1.03.01.06 — Vestuário / Confecções / Uniformes"
+      ]
+    },
+    {
+      "rule_code": "BASIC_PROPERTY_REGULAR",
+      "family": "Imóveis e ocupação",
+      "prefixes": [
+        "4.2.1.04.01",
+        "4.1.2.04.03"
+      ],
+      "positive": [
+        "aluguel",
+        "iptu",
+        "seguro predial",
+        "taxa de incêndio",
+        "taxa de incendio",
+        "licença",
+        "licenca",
+        "alvará",
+        "alvara",
+        "condomínio",
+        "condominio"
+      ],
+      "negative": [
+        "multa",
+        "penalidade",
+        "juros",
+        "provisão",
+        "reversão"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "IPTU e despesas de ocupação já estão SEM AJUSTE. Provisões e multas ficam fora do L2 por prudência.",
+      "evidence_count": 14,
+      "evidence_sem_adjust": 14,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.1.2.04.03.01 — Aluguel e Condominio",
+        "4.1.2.04.03.02 — Impostos e taxas - Imóveis",
+        "4.1.2.04.03.03 — Condominio",
+        "4.2.1.04.01.01 — Aluguéis - Imóveis",
+        "4.2.1.04.01.02 — IPTU",
+        "4.2.1.04.01.03 — Seguros Prediais"
+      ]
+    },
+    {
+      "rule_code": "BASIC_EDUCATIONAL_MATERIALS",
+      "family": "Materiais didáticos e produção editorial",
+      "prefixes": [
+        "4.1.2.02.01",
+        "4.1.2.02.02"
+      ],
+      "positive": [
+        "didático",
+        "didatico",
+        "direito autoral",
+        "diagrama",
+        "revisão de texto",
+        "revisao de texto",
+        "gráfico",
+        "grafico",
+        "capa",
+        "ilustração",
+        "ilustracao",
+        "prova",
+        "xeroc",
+        "agenda",
+        "carteirinha",
+        "armazenagem"
+      ],
+      "negative": [
+        "perda",
+        "obsoleto",
+        "inutilização",
+        "inutilizacao",
+        "furto",
+        "roubo",
+        "baixa",
+        "doação",
+        "doacao",
+        "brinde"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "Famílias de custo com materiais são homogêneas em SEM AJUSTE; perdas e baixas devem permanecer fora.",
+      "evidence_count": 15,
+      "evidence_sem_adjust": 15,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.1.2.02.01.01 — Direito Autoral",
+        "4.1.2.02.01.02 — Diagramacao",
+        "4.1.2.02.01.03 — Revisao de Texto",
+        "4.1.2.02.01.04 — Custo Grafico",
+        "4.1.2.02.01.05 — Capa / Ilustracao",
+        "4.1.2.02.01.06 — Custos com Material Didático"
+      ]
+    },
+    {
+      "rule_code": "BASIC_EDUCATIONAL_OUTSOURCED",
+      "family": "Serviços educacionais terceirizados",
+      "prefixes": [
+        "4.1.2.01.01",
+        "4.1.2.01.02"
+      ],
+      "positive": [
+        "aluno",
+        "atividade",
+        "excurs",
+        "viagem",
+        "alimentação",
+        "alimentacao",
+        "transporte",
+        "conteúdo educacional",
+        "conteudo educacional",
+        "salvaguarda",
+        "avaliação",
+        "avaliacao",
+        "serviço",
+        "servico",
+        "inss"
+      ],
+      "negative": [
+        "indenização",
+        "indenizacao",
+        "multa",
+        "penalidade",
+        "provisão",
+        "reversão",
+        "perda"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "14 contas existentes, todas SEM AJUSTE.",
+      "evidence_count": 14,
+      "evidence_sem_adjust": 14,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.1.2.01.01.01 — Assistencia Medica de Alunos",
+        "4.1.2.01.01.02 — Seguro de Alunos",
+        "4.1.2.01.01.03 — Uniforme de Alunos - Despesa",
+        "4.1.2.01.01.04 — Estendido",
+        "4.1.2.01.01.05 — Atividades Extras",
+        "4.1.2.01.01.06 — Excursoes/Viagens-Alunos"
+      ]
+    },
+    {
+      "rule_code": "BASIC_MARKETING_REGULAR",
+      "family": "Marketing operacional",
+      "prefixes": [
+        "4.2.1.05.01"
+      ],
+      "positive": [
+        "marketing",
+        "campanha",
+        "mídia",
+        "midia",
+        "assessoria de imprensa",
+        "captação",
+        "captacao",
+        "renovação",
+        "renovacao",
+        "agência",
+        "agencia",
+        "plataforma",
+        "parceria",
+        "sistemas e dados comerciais"
+      ],
+      "negative": [
+        "brinde",
+        "patrocínio",
+        "patrocinio",
+        "doação",
+        "doacao",
+        "multa",
+        "penalidade"
+      ],
+      "level": "L2",
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE",
+      "status": "CANDIDATA À HOMOLOGAÇÃO",
+      "notes": "17 contas existentes, todas SEM AJUSTE; brindes/patrocínios não devem herdar a regra.",
+      "evidence_count": 17,
+      "evidence_sem_adjust": 17,
+      "evidence_other": 0,
+      "consistency_pct": 100.0,
+      "examples": [
+        "4.2.1.05.01.01 — Assessoria de Imprensa",
+        "4.2.1.05.01.02 — Institucional",
+        "4.2.1.05.01.03 — Gestão de Reclamações",
+        "4.2.1.05.01.04 — Campanha captacao alunos",
+        "4.2.1.05.01.05 — Campanha Retenção/Renovação",
+        "4.2.1.05.01.06 — Campanha novo negocio"
+      ]
+    }
+  ],
+  "l3_l4_families": [
+    {
+      "rule_code": "TAX_EXPENSES_ASSISTED",
+      "family": "Despesas tributárias",
+      "prefix": "4.2.1.08.01",
+      "level": "L3",
+      "reason": "Há exceção já aprovada como ADIÇÃO (Contribuição Sindical Patronal). Não auto-commit por prefixo."
+    },
+    {
+      "rule_code": "EMPLOYEE_ADMIN_ASSISTED",
+      "family": "Pessoal administrativo",
+      "prefix": "4.2.1.01",
+      "level": "L3",
+      "reason": "Existem indenizações e previdência privada condicionais."
+    },
+    {
+      "rule_code": "TEACHERS_ASSISTED",
+      "family": "Professores/monitores",
+      "prefix": "4.1.1.01",
+      "level": "L3",
+      "reason": "Existem indenizações e previdência privada condicionais."
+    },
+    {
+      "rule_code": "EVENTS_ASSISTED",
+      "family": "Eventos/captação",
+      "prefix": "4.2.1.02.03",
+      "level": "L3",
+      "reason": "Há brindes classificados como ADIÇÃO."
+    },
+    {
+      "rule_code": "FINANCIAL_RESULT_ASSISTED",
+      "family": "Resultado financeiro",
+      "prefix": "4.2.1.10.01",
+      "level": "L3",
+      "reason": "Há contas de juros específicas com tratamento distinto."
+    },
+    {
+      "rule_code": "OTHER_EXPENSES_REVIEW",
+      "family": "Outras despesas",
+      "prefix": "4.2.1.07.01",
+      "level": "L4",
+      "reason": "Prefixo mistura SEM AJUSTE, ADIÇÃO e CONDICIONAL."
+    },
+    {
+      "rule_code": "OTHER_OPERATING_REVIEW",
+      "family": "Outras receitas/despesas operacionais",
+      "prefix": "4.2.1.12.01",
+      "level": "L4",
+      "reason": "Reversões e ajustes com tratamentos distintos."
+    },
+    {
+      "rule_code": "LOSSES_REVIEW",
+      "family": "Perdas/baixas",
+      "prefix": "4.2.1.13.01",
+      "level": "L4",
+      "reason": "Prefixo fiscalmente sensível e misto."
+    },
+    {
+      "rule_code": "EQUITY_REVIEW",
+      "family": "Participações societárias",
+      "prefix": "4.2.1.14.01",
+      "level": "L4",
+      "reason": "Tratamento depende de natureza/sinal e regra automática específica."
+    }
+  ],
+  "global_blockers": [
+    {
+      "term": "multa",
+      "reason": "Pode ter tratamento fiscal distinto conforme natureza.",
+      "destination": "L3/L4"
+    },
+    {
+      "term": "penalidade",
+      "reason": "Sensível por natureza.",
+      "destination": "L4"
+    },
+    {
+      "term": "indenização",
+      "reason": "Existem contas condicionais.",
+      "destination": "L4"
+    },
+    {
+      "term": "patrocínio",
+      "reason": "Conta já definida como condicional.",
+      "destination": "L4"
+    },
+    {
+      "term": "doação",
+      "reason": "Tratamento depende do caso.",
+      "destination": "L4"
+    },
+    {
+      "term": "brinde",
+      "reason": "Há contas já classificadas como ADIÇÃO.",
+      "destination": "L4"
+    },
+    {
+      "term": "perda",
+      "reason": "Há famílias condicionais/adições.",
+      "destination": "L4"
+    },
+    {
+      "term": "baixa",
+      "reason": "Pode envolver ativo/estoque/perda.",
+      "destination": "L4"
+    },
+    {
+      "term": "obsoleto / inutilização",
+      "reason": "Relaciona-se a perdas/baixas.",
+      "destination": "L4"
+    },
+    {
+      "term": "furto / roubo",
+      "reason": "Relaciona-se a perdas.",
+      "destination": "L4"
+    },
+    {
+      "term": "provisão",
+      "reason": "Há provisões com tratamentos distintos; evitar regra genérica.",
+      "destination": "L3/L4"
+    },
+    {
+      "term": "reversão",
+      "reason": "Tratamento depende da provisão de origem.",
+      "destination": "L4"
+    },
+    {
+      "term": "sinistro",
+      "reason": "Conta condicional existente.",
+      "destination": "L4"
+    },
+    {
+      "term": "participação societária",
+      "reason": "Há regra por sinal/natureza.",
+      "destination": "L4"
+    },
+    {
+      "term": "imposto de renda / csll",
+      "reason": "Tributo sobre lucro possui regra própria.",
+      "destination": "L4"
+    }
+  ]
+}

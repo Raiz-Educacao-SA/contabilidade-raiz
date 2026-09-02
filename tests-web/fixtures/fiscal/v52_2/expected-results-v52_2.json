@@ -1,0 +1,44 @@
+{
+  "fixture_version": "v52.2",
+  "auto_onboarding": {
+    "L1_EXACT": {
+      "block": false,
+      "auto_commit": true
+    },
+    "L2_RULE_BASED_SAFE": {
+      "block": false,
+      "auto_commit": true
+    },
+    "L3_SUGGESTED": {
+      "block": true,
+      "auto_commit": false
+    },
+    "L4_REVIEW_REQUIRED": {
+      "block": true,
+      "auto_commit": false
+    },
+    "NO_REVIEW_NO_MOVEMENT": {
+      "block": false,
+      "pending_created": false
+    }
+  },
+  "irrf": {
+    "separate_categories": true,
+    "monthly_cnpj_required": false,
+    "monthly_revenue_code_required": false,
+    "show_unused_balance_in_annual_table": false,
+    "show_irrf_subtotal_in_memory": false,
+    "december_sweeps_remaining_balance": true
+  },
+  "december": {
+    "positive_label": "IRPJ a recolher no ajuste anual",
+    "zero_label": "IRPJ a recolher no ajuste anual",
+    "negative_label": "Saldo negativo de IRPJ do exercício",
+    "negative_label_before_december": false
+  },
+  "ecf": {
+    "monthly_close_dependency": false,
+    "payment_mapping_is_annual_only": true,
+    "installment_individual_allocation_without_official_source": false
+  }
+}

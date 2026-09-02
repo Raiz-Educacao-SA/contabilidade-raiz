@@ -1,0 +1,734 @@
+{
+  "version": "v52.3",
+  "title": "Suite Executável de Homologação IRPJ/CSLL",
+  "canonical_ui_reference": "prototipo_irpj_csll_v51_10_TELA_COMPLETA.html",
+  "fixture_package": "Pacote_IRPJ_CSLL_v52_2_Fixtures_Atualizados.zip",
+  "rules": {
+    "all_blocking_cases_must_pass": true,
+    "H14_visual_non_blocking": true,
+    "monetary_format": "R$ #.##0,00",
+    "closed_versions_immutable": true,
+    "monthly_payment_mapping_required": false,
+    "ecf_payment_reconciliation_annual_only": true
+  },
+  "cases": [
+    {
+      "id": "H01",
+      "name": "Selecionar empresa e competência",
+      "blocking": true,
+      "layer": "INTEGRATION_UI",
+      "automation": "E2E",
+      "fixture_refs": [],
+      "preconditions": "Usuário autenticado com acesso ao módulo Contábil e a duas empresas.",
+      "steps": [
+        "Selecionar empresa A e competência 03/2026.",
+        "Trocar para empresa B mantendo 03/2026.",
+        "Trocar competência para 04/2026."
+      ],
+      "assertions": [
+        "O contexto global é a única fonte de Empresa/Competência.",
+        "A apuração recarrega para a combinação selecionada.",
+        "Não existe seletor duplicado interno no módulo."
+      ],
+      "expected_evidence": "Snapshot da UI + chamadas/estado de contexto.",
+      "functional_expected": "Empresa/competência usam contexto global e recarregam a apuração correta.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "REQUIRES_IMPLEMENTED_APP"
+    },
+    {
+      "id": "H02",
+      "name": "Carregar balancete acumulado",
+      "blocking": true,
+      "layer": "INTEGRATION",
+      "automation": "INTEGRATION",
+      "fixture_refs": [
+        "trial-balance-2026-03.json"
+      ],
+      "preconditions": "Fixture de balancete disponível.",
+      "steps": [
+        "Executar adapter de balancete para 03/2026."
+      ],
+      "assertions": [
+        "DATA_INICIAL = 01/01/2026.",
+        "DATA_FINAL = 31/03/2026.",
+        "Fechamento contábil excluído."
+      ],
+      "expected_evidence": "Parâmetros enviados ao TOTVS + snapshot materializado.",
+      "functional_expected": "Período inicia em 01/01 e termina na competência, sem fechamento contábil.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H03",
+      "name": "Aplicar Matriz Fiscal",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT_INTEGRATION",
+      "fixture_refs": [
+        "trial-balance-2026-03.json",
+        "expected-results.json"
+      ],
+      "preconditions": "Matriz fiscal seeded.",
+      "steps": [
+        "Aplicar Matriz ao balancete.",
+        "Agrupar ajustes por conta/regra."
+      ],
+      "assertions": [
+        "Conta conhecida recebe classificação da versão vigente.",
+        "Uma mesma origem não gera ajuste duplicado.",
+        "IRPJ e CSLL permanecem independentes."
+      ],
+      "expected_evidence": "Itens de apuração + matrix_version.",
+      "functional_expected": "Contas conhecidas recebem tratamento correto e não duplicam ajustes.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H04",
+      "name": "Nova conta L2",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "auto-onboarding-l1-l4.json",
+        "expected-results-v52_2.json"
+      ],
+      "preconditions": "Regra BASIC_OPERATING_POSTAL ativa/aprovada.",
+      "steps": [
+        "Processar conta L2 com movimento.",
+        "Reprocessar competência.",
+        "Abrir Pendências."
+      ],
+      "assertions": [
+        "Auto-commit = true.",
+        "Classificação = SEM_AJUSTE IRPJ/CSLL.",
+        "Conta aparece em classificadas automaticamente com status OK.",
+        "Não bloqueia fechamento."
+      ],
+      "expected_evidence": "Auto-classification log + nova matrix_version + UI.",
+      "functional_expected": "É classificada automaticamente, aparece para conferência e não bloqueia.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H05",
+      "name": "Nova conta L3/L4",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "auto-onboarding-l1-l4.json",
+        "expected-results-v52_2.json"
+      ],
+      "preconditions": "Contas L3 e L4 com movimento.",
+      "steps": [
+        "Processar contas novas.",
+        "Abrir Pendências."
+      ],
+      "assertions": [
+        "L3 mostra sugestão, sem auto-commit.",
+        "L4 não cria decisão automática.",
+        "Ambas bloqueiam fechamento."
+      ],
+      "expected_evidence": "Ocorrências NEW_ACCOUNT + status de fechamento.",
+      "functional_expected": "Vai para Pendências e bloqueia fechamento.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H06",
+      "name": "Classificar conta nova",
+      "blocking": true,
+      "layer": "INTEGRATION",
+      "automation": "INTEGRATION_E2E",
+      "fixture_refs": [
+        "auto-onboarding-l1-l4.json"
+      ],
+      "preconditions": "Pendência L3/L4 existente.",
+      "steps": [
+        "Selecionar IRPJ/CSLL.",
+        "Informar justificativa.",
+        "Confirmar Classificar conta e reprocessar."
+      ],
+      "assertions": [
+        "Nova versão da Matriz criada.",
+        "Auditoria registra antes/depois, usuário e justificativa.",
+        "Competência é reprocessada.",
+        "Pendência resolvida deixa de bloquear."
+      ],
+      "expected_evidence": "matrix_version + audit log + occurrence status + calculation version.",
+      "functional_expected": "Cria nova versão da Matriz, reprocessa e remove a pendência.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H07",
+      "name": "Lançamento condicional",
+      "blocking": true,
+      "layer": "UI_DOMAIN",
+      "automation": "E2E",
+      "fixture_refs": [
+        "entry-detail-cpc06-conditional.json",
+        "ledger-triggered-accounts-2026-03.json"
+      ],
+      "preconditions": "Lançamento condicional existente.",
+      "steps": [
+        "Abrir Pendências.",
+        "Selecionar lançamento condicional."
+      ],
+      "assertions": [
+        "Badge = ADIÇÃO / EXCLUSÃO CONDICIONAL.",
+        "Exibe IDLANCAMENTO, IDPARTIDA quando disponível, documento, histórico, conta alvo e contrapartidas."
+      ],
+      "expected_evidence": "Snapshot de detalhe + payload da ocorrência.",
+      "functional_expected": "Fila mostra ADIÇÃO / EXCLUSÃO CONDICIONAL e contexto completo.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H08",
+      "name": "Decidir condicional",
+      "blocking": true,
+      "layer": "INTEGRATION",
+      "automation": "INTEGRATION_E2E",
+      "fixture_refs": [
+        "entry-detail-cpc06-conditional.json"
+      ],
+      "preconditions": "Ocorrência condicional aberta.",
+      "steps": [
+        "Definir IRPJ e CSLL separadamente.",
+        "Informar justificativa.",
+        "Registrar decisão."
+      ],
+      "assertions": [
+        "Justificativa obrigatória.",
+        "Decisão de IRPJ não força decisão de CSLL.",
+        "Snapshot contábil da decisão é persistido."
+      ],
+      "expected_evidence": "irpj_csll_decisoes + occurrence resolved.",
+      "functional_expected": "IRPJ e CSLL podem ser decididos separadamente com justificativa.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H09",
+      "name": "CPC06 contraprestação",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT",
+      "fixture_refs": [
+        "entry-detail-cpc06-conditional.json"
+      ],
+      "preconditions": "Fixtures CPC06 disponíveis.",
+      "steps": [
+        "Resolver L1001, L1002 e combinações não qualificadas."
+      ],
+      "assertions": [
+        "Fluxus + banco qualificado => contraprestação/exclusão.",
+        "Saldus + fornecedor qualificado => contraprestação/exclusão.",
+        "Juros/amortização/transferência não viram contraprestação.",
+        "Combinação inédita => revisão."
+      ],
+      "expected_evidence": "Resolution code e adjustment items.",
+      "functional_expected": "Somente contraprestações qualificadas geram exclusão; juros/amortização seguem regras próprias.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H10",
+      "name": "Memória de cálculo",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "annual-monthly-chain-2026.json",
+        "trial-balance-2026-03.json"
+      ],
+      "preconditions": "Apuração calculada.",
+      "steps": [
+        "Abrir Memória de Cálculo."
+      ],
+      "assertions": [
+        "Adições e exclusões abertas integralmente.",
+        "IRPJ 15% e adicional 10% separados.",
+        "CSLL separada.",
+        "Todos valores monetários exibidos com 2 casas decimais."
+      ],
+      "expected_evidence": "Calculation items + UI snapshot.",
+      "functional_expected": "Componentes de adições/exclusões estão totalmente abertos e números conciliam.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H11",
+      "name": "Estimativas anteriores",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT",
+      "fixture_refs": [
+        "annual-monthly-chain-2026.json"
+      ],
+      "preconditions": "Jan/Fev CLOSED_CURRENT.",
+      "steps": [
+        "Calcular março."
+      ],
+      "assertions": [
+        "Estimativas anteriores IRPJ = imposto devido oficial Jan + Fev.",
+        "Estimativas anteriores CSLL = imposto devido oficial Jan + Fev.",
+        "Pagamento não participa da fórmula mensal."
+      ],
+      "expected_evidence": "Calculation dependency references.",
+      "functional_expected": "Usa estimativas devidas das versões oficiais anteriores, sem depender de pagamento.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H12",
+      "name": "IRRF – Serviços",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "irrf-segregated-2026.json",
+        "expected-results-v52_2.json"
+      ],
+      "preconditions": "Créditos de IRRF Serviços carregados.",
+      "steps": [
+        "Processar Jan-Mar.",
+        "Abrir Saldos e Créditos."
+      ],
+      "assertions": [
+        "Disponível - utilizado = saldo.",
+        "Sem dupla utilização.",
+        "CNPJ mensal não é obrigatório.",
+        "Linha = IRRF – Serviços."
+      ],
+      "expected_evidence": "Retention ledger + UI.",
+      "functional_expected": "Disponível/utilizado/saldo são controlados sem exigir CNPJ mensal.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H13",
+      "name": "IRRF – Aplicações Financeiras",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "irrf-segregated-2026.json",
+        "expected-results-v52_2.json"
+      ],
+      "preconditions": "Créditos de IRRF Aplicações carregados.",
+      "steps": [
+        "Processar Jan-Mar.",
+        "Abrir Saldos e Créditos."
+      ],
+      "assertions": [
+        "Disponível - utilizado = saldo.",
+        "Sem dupla utilização.",
+        "CNPJ mensal não é obrigatório.",
+        "Linha = IRRF – Aplicações Financeiras."
+      ],
+      "expected_evidence": "Retention ledger + UI.",
+      "functional_expected": "Disponível/utilizado/saldo são controlados sem exigir CNPJ mensal.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H14",
+      "name": "Composição das retenções",
+      "blocking": false,
+      "layer": "UI",
+      "automation": "VISUAL",
+      "fixture_refs": [],
+      "preconditions": "Drawer de composição disponível.",
+      "steps": [
+        "Abrir composição de IRRF Serviços.",
+        "Abrir composição de IRRF Aplicações."
+      ],
+      "assertions": [
+        "Origem/Documento alinhado à esquerda.",
+        "Período centralizado.",
+        "Cabeçalhos e valores monetários alinhados à direita sob as mesmas colunas.",
+        "Valores com 2 casas decimais."
+      ],
+      "expected_evidence": "Visual regression/screenshot.",
+      "functional_expected": "Textos, períodos e valores ficam corretamente alinhados sob suas colunas.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "REQUIRES_IMPLEMENTED_APP"
+    },
+    {
+      "id": "H15",
+      "name": "Fechamento com pendência",
+      "blocking": true,
+      "layer": "INTEGRATION_UI",
+      "automation": "INTEGRATION_E2E",
+      "fixture_refs": [
+        "auto-onboarding-l1-l4.json"
+      ],
+      "preconditions": "Pendência L3/L4 ou condicional aberta.",
+      "steps": [
+        "Tentar fechar apuração."
+      ],
+      "assertions": [
+        "Operação é bloqueada.",
+        "Mensagem identifica pendências bloqueantes.",
+        "Cronograma não é concluído."
+      ],
+      "expected_evidence": "API response + schedule state + UI.",
+      "functional_expected": "Fechar apuração permanece bloqueado.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H16",
+      "name": "Fechamento sem pendência",
+      "blocking": true,
+      "layer": "INTEGRATION",
+      "automation": "INTEGRATION",
+      "fixture_refs": [],
+      "preconditions": "Apuração sem pendências bloqueantes.",
+      "steps": [
+        "Fechar versão."
+      ],
+      "assertions": [
+        "Status final = CLOSED_CURRENT.",
+        "Snapshots/manifest congelados.",
+        "Cronograma contabil:irpj-csll:<empresa> concluído."
+      ],
+      "expected_evidence": "DB transaction + schedule completion.",
+      "functional_expected": "Versão passa a CLOSED_CURRENT e completa o cronograma.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "REQUIRES_IMPLEMENTED_APP"
+    },
+    {
+      "id": "H17",
+      "name": "Abrir V02",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT_INTEGRATION",
+      "fixture_refs": [
+        "retroactive-versioning.json"
+      ],
+      "preconditions": "V01 CLOSED_CURRENT.",
+      "steps": [
+        "Criar V02."
+      ],
+      "assertions": [
+        "V02 inicia draft/review.",
+        "V01 continua CLOSED_CURRENT."
+      ],
+      "expected_evidence": "Version records.",
+      "functional_expected": "V01 continua oficial enquanto V02 estiver em rascunho/revisão.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H18",
+      "name": "Fechar V02 retroativa",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT_INTEGRATION",
+      "fixture_refs": [
+        "retroactive-versioning.json"
+      ],
+      "preconditions": "V02 revisada e pronta.",
+      "steps": [
+        "Fechar V02 retroativa."
+      ],
+      "assertions": [
+        "V01 => CLOSED_SUPERSEDED.",
+        "V02 => CLOSED_CURRENT.",
+        "Meses posteriores dependentes => upstream_stale=true."
+      ],
+      "expected_evidence": "Version records after close.",
+      "functional_expected": "V01 vira superseded e meses posteriores dependentes ficam upstream_stale.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H19",
+      "name": "Apuração do Exercício",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "annual-monthly-chain-2026.json",
+        "retroactive-versioning.json"
+      ],
+      "preconditions": "Versões mensais oficiais existentes.",
+      "steps": [
+        "Montar Apuração do Exercício."
+      ],
+      "assertions": [
+        "Cada coluna deriva da CLOSED_CURRENT correspondente.",
+        "Draft/review não substitui mês oficial.",
+        "Meses futuros ficam vazios."
+      ],
+      "expected_evidence": "Annual month links + UI.",
+      "functional_expected": "Jan–Dez deriva somente das versões mensais oficiais.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H20",
+      "name": "IRRF Jan-Nov no anual",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "irrf-segregated-2026.json"
+      ],
+      "preconditions": "Jan-Nov com retenções.",
+      "steps": [
+        "Montar visão anual até novembro."
+      ],
+      "assertions": [
+        "Linha IRRF – Serviços mostra somente compensado por mês.",
+        "Linha IRRF – Aplicações Financeiras mostra somente compensado por mês.",
+        "Não exibe linha de IRRF não compensado na Apuração do Exercício."
+      ],
+      "expected_evidence": "Annual rows.",
+      "functional_expected": "Mostra apenas os valores compensados por natureza.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H21",
+      "name": "IRRF em dezembro",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT",
+      "fixture_refs": [
+        "december-irrf-annual-adjustment.json",
+        "irrf-segregated-2026.json"
+      ],
+      "preconditions": "Saldo remanescente de IRRF em 30/11.",
+      "steps": [
+        "Executar ajuste anual de dezembro."
+      ],
+      "assertions": [
+        "Todo saldo elegível de Serviços é levado a dezembro.",
+        "Todo saldo elegível de Aplicações é levado a dezembro.",
+        "Saldo continua controlado em Saldos e Créditos."
+      ],
+      "expected_evidence": "Annual adjustment breakdown.",
+      "functional_expected": "Todo saldo elegível ainda disponível é levado ao ajuste anual.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H22",
+      "name": "Resultado dezembro positivo",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "december-irrf-annual-adjustment.json"
+      ],
+      "preconditions": "Cenários dezembro positivo/zero.",
+      "steps": [
+        "Calcular cenários DEC_POSITIVE_AFTER_CREDITS e DEC_ZERO_AFTER_CREDITS."
+      ],
+      "assertions": [
+        "Resultado positivo => IRPJ a recolher no ajuste anual.",
+        "Resultado zero mantém nomenclatura a recolher no ajuste anual; não chama saldo negativo."
+      ],
+      "expected_evidence": "Result label + amount.",
+      "functional_expected": "Exibe IRPJ/CSLL a recolher no ajuste anual.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H23",
+      "name": "Resultado dezembro negativo",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "UNIT_E2E",
+      "fixture_refs": [
+        "december-irrf-annual-adjustment.json"
+      ],
+      "preconditions": "Cenários dezembro negativo e novembro negativo.",
+      "steps": [
+        "Calcular DEC_NEGATIVE_AFTER_CREDITS.",
+        "Calcular NOVEMBER_NEGATIVE_NUMERIC_RESULT."
+      ],
+      "assertions": [
+        "Dezembro final negativo => Saldo negativo de IRPJ do exercício.",
+        "Antes de dezembro nunca exibir nomenclatura saldo negativo."
+      ],
+      "expected_evidence": "Result label + competence.",
+      "functional_expected": "Exibe Saldo negativo apenas em dezembro e somente quando o valor final for negativo.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H24",
+      "name": "Conciliação ECF",
+      "blocking": true,
+      "layer": "DOMAIN_UI",
+      "automation": "INTEGRATION_E2E",
+      "fixture_refs": [
+        "ecf-annual-reconciliation.json"
+      ],
+      "preconditions": "Exercício disponível.",
+      "steps": [
+        "Fechar competências mensais sem iniciar ECF.",
+        "Abrir Apuração do Exercício.",
+        "Iniciar conciliação ECF."
+      ],
+      "assertions": [
+        "ECF não bloqueia fechamento mensal.",
+        "Status anual pode ser NÃO INICIADA.",
+        "Conciliação inicia somente por ação anual."
+      ],
+      "expected_evidence": "Monthly close result + annual ECF status.",
+      "functional_expected": "Não interfere no fechamento mensal e só é iniciada na preparação anual.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H25",
+      "name": "Parcelamento consolidado",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT",
+      "fixture_refs": [
+        "ecf-annual-reconciliation.json"
+      ],
+      "preconditions": "Estimativa incluída em parcelamento consolidado.",
+      "steps": [
+        "Processar evento INCLUDED_IN_INSTALLMENT.",
+        "Registrar pagamento posterior de parcela do contrato."
+      ],
+      "assertions": [
+        "Rastreio individual do débito original termina na inclusão.",
+        "Pagamento da parcela não é rateado automaticamente.",
+        "Fonte oficial é necessária para apropriação individual."
+      ],
+      "expected_evidence": "ECF reconciliation item + installment status.",
+      "functional_expected": "Rastreio individual termina em INCLUDED_IN_INSTALLMENT sem rateio presumido.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H26",
+      "name": "ECF - retenções",
+      "blocking": true,
+      "layer": "ANNUAL_INTEGRATION",
+      "automation": "INTEGRATION",
+      "fixture_refs": [
+        "ecf-annual-reconciliation.json"
+      ],
+      "preconditions": "Retenções mensais sem CNPJ/código de receita.",
+      "steps": [
+        "Iniciar preparação ECF.",
+        "Anexar/associar fonte documental anual."
+      ],
+      "assertions": [
+        "Mensal permanece válido sem CNPJ/código.",
+        "Na ECF, fonte/CNPJ/código podem ser enriquecidos.",
+        "Enriquecimento não reescreve apurações mensais fechadas."
+      ],
+      "expected_evidence": "Annual enrichment records + source document.",
+      "functional_expected": "CNPJ/código de receita podem ser enriquecidos anualmente por fonte documental.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H27",
+      "name": "Dossiê mensal",
+      "blocking": true,
+      "layer": "INTEGRATION",
+      "automation": "INTEGRATION",
+      "fixture_refs": [],
+      "preconditions": "Versão mensal pronta para fechar.",
+      "steps": [
+        "Fechar apuração.",
+        "Consultar dossiê."
+      ],
+      "assertions": [
+        "Balancete exato e suportes necessários são preservados.",
+        "Decisões, XLSX/PDF e manifest ficam versionados.",
+        "Hashes registrados.",
+        "Arquivos fechados não são sobrescritos."
+      ],
+      "expected_evidence": "Storage paths + manifest + hashes.",
+      "functional_expected": "Snapshots, decisões, apuração e manifest ficam versionados e imutáveis.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "REQUIRES_IMPLEMENTED_APP"
+    },
+    {
+      "id": "H28",
+      "name": "Exportação anual",
+      "blocking": true,
+      "layer": "INTEGRATION",
+      "automation": "INTEGRATION",
+      "fixture_refs": [
+        "annual-monthly-chain-2026.json"
+      ],
+      "preconditions": "Exercício completo e sem stale.",
+      "steps": [
+        "Gerar exportação anual oficial."
+      ],
+      "assertions": [
+        "Um XLSX consolidado contém IRPJ e CSLL Jan-Dez.",
+        "Um PDF consolidado contém IRPJ e CSLL Jan-Dez.",
+        "manifest_anual congela versões/hashes mensais usados.",
+        "Valores monetários têm 2 casas decimais."
+      ],
+      "expected_evidence": "Arquivos exportados + manifest anual.",
+      "functional_expected": "Um XLSX e um PDF consolidam IRPJ/CSLL Jan–Dez com manifest anual.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    },
+    {
+      "id": "H29",
+      "name": "Stale anual",
+      "blocking": true,
+      "layer": "DOMAIN",
+      "automation": "UNIT_INTEGRATION",
+      "fixture_refs": [
+        "retroactive-versioning.json"
+      ],
+      "preconditions": "Há meses upstream_stale ou mês obrigatório ausente.",
+      "steps": [
+        "Tentar exportar apuração anual oficial."
+      ],
+      "assertions": [
+        "Exportação oficial bloqueada.",
+        "Motivo identifica stale/missing months."
+      ],
+      "expected_evidence": "Annual export gate response.",
+      "functional_expected": "Exportação oficial é bloqueada quando há mês ausente ou upstream_stale.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "READY_FOR_TEST_IMPLEMENTATION"
+    },
+    {
+      "id": "H30",
+      "name": "Auditoria",
+      "blocking": true,
+      "layer": "AUDIT",
+      "automation": "INTEGRATION_E2E",
+      "fixture_refs": [
+        "auto-onboarding-l1-l4.json",
+        "entry-detail-cpc06-conditional.json",
+        "retroactive-versioning.json"
+      ],
+      "preconditions": "Apuração contém ajustes automáticos, decisões manuais e versões.",
+      "steps": [
+        "Abrir rastreabilidade de itens selecionados."
+      ],
+      "assertions": [
+        "Cada resultado identifica regra/decisão aplicável.",
+        "Usuário e timestamp aparecem em decisões humanas.",
+        "matrix_version e calculation_version identificáveis.",
+        "Fonte/snapshot/lançamento de origem recuperável."
+      ],
+      "expected_evidence": "Audit trail + source links.",
+      "functional_expected": "É possível identificar regra, decisão, usuário, versão e fonte usada em cada resultado.",
+      "missing_fixture_refs": [],
+      "pre_codex_readiness": "FIXTURE_READY_REQUIRES_APP"
+    }
+  ]
+}

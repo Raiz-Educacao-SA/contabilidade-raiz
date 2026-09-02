@@ -1,0 +1,1071 @@
+{
+  "generatedAt": "2026-08-31",
+  "project": "Automacao da Apuracao de IRPJ/CSLL",
+  "checkpoint": {
+    "branch": "feature/irpj-csll-core",
+    "commit": "6565f121f4260aaac5d9ef510dead1defb681b47",
+    "message": "feat(fiscal): establish IRPJ CSLL core foundation"
+  },
+  "searchedLocations": [
+    "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app",
+    "C:/Users/felipe.carlos/.codex/attachments",
+    "C:/Users/felipe.carlos/.codex/visualizations/2026/08",
+    "C:/Users/felipe.carlos/Desktop/plano de contas.xls",
+    "C:/Users/felipe.carlos/Desktop/12_CLV_Apuração_IRPJ_CSLL_12.2025.xlsx"
+  ],
+  "keyFindings": {
+    "physicalDatasetFound": {
+      "source": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/real-chart-of-accounts/real-chart-of-accounts-import-report.json",
+      "originalFile": "C:/Users/felipe.carlos/Desktop/plano de contas.xls",
+      "totalAccounts": 3005,
+      "uniqueAccounts": 3005,
+      "sourceAnalyticalAccounts": 2525,
+      "sourceSyntheticAccounts": 480,
+      "derivedAnalyticalAccounts": 2529,
+      "derivedSyntheticAccounts": 476,
+      "resultRootsTotal": 540,
+      "resultAnalyticalAccounts": 448,
+      "resultSyntheticAccounts": 92,
+      "resultAnalyticalByGroup": {
+        "3.1": 68,
+        "4.1": 89,
+        "4.2": 291
+      },
+      "classificationMismatches": [
+        {
+          "accountCode": "1.1.1.04.01",
+          "reducedCode": "88",
+          "name": "Banco Itaú - Viculada/Poupança",
+          "sourceClassification": "S",
+          "derivedClassification": "ANALYTICAL",
+          "sourceRow": 438
+        },
+        {
+          "accountCode": "1.2.3.02.13",
+          "reducedCode": "350",
+          "name": "Intangivel",
+          "sourceClassification": "S",
+          "derivedClassification": "ANALYTICAL",
+          "sourceRow": 1286
+        },
+        {
+          "accountCode": "2.4.1.03",
+          "reducedCode": "653",
+          "name": "(-) Capital a Integralizar de Domiciliad",
+          "sourceClassification": "S",
+          "derivedClassification": "ANALYTICAL",
+          "sourceRow": 3249
+        },
+        {
+          "accountCode": "2.4.1.04",
+          "reducedCode": "654",
+          "name": "Capital Subscrito de Domiciliados no Ext",
+          "sourceClassification": "S",
+          "derivedClassification": "ANALYTICAL",
+          "sourceRow": 3251
+        }
+      ]
+    },
+    "expectedCanonicalFromLatestHandoff": {
+      "source": "latest pasted request/handoff only; no located dataset file",
+      "totalAccounts": 3014,
+      "syntheticAccounts": 480,
+      "analyticalAccounts": 2534,
+      "resultAnalyticalAccounts": 454,
+      "differenceVsPhysical3005": {
+        "totalAccounts": 9,
+        "analyticalAccounts": 9,
+        "syntheticAccounts": 0,
+        "resultAnalyticalAccounts": 6
+      },
+      "status": "UNRECONCILED_UNTIL_SOURCE_FILE_OR_DIFF_IS_PROVIDED"
+    },
+    "officialApprovalsInHistoricalFiles": {
+      "approvedMappingCount": 0,
+      "source": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/assisted-classification/approved-tax-account-mappings.json",
+      "note": "Historical Etapa 9 kept all classifications as PENDING_REVIEW. The current Brindes golden case is approved in the new foundation, not in this historical approval file."
+    },
+    "assistedClassification448": {
+      "source": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/tax-account-review/tax-account-review-summary.json",
+      "summaryByIrpjSuggestion": {
+        "NO_ADJUSTMENT_CANDIDATE": 125,
+        "ADDITION_CANDIDATE": 17,
+        "EXCLUSION_CANDIDATE": 25,
+        "CONDITIONAL_CANDIDATE": 26,
+        "MANUAL_REVIEW": 32,
+        "UNKNOWN": 223
+      },
+      "summaryByCsllSuggestion": {
+        "NO_ADJUSTMENT_CANDIDATE": 125,
+        "ADDITION_CANDIDATE": 17,
+        "EXCLUSION_CANDIDATE": 25,
+        "CONDITIONAL_CANDIDATE": 26,
+        "MANUAL_REVIEW": 32,
+        "UNKNOWN": 223
+      },
+      "confidenceDistribution": {
+        "HIGH": 43,
+        "MEDIUM": 119,
+        "LOW": 63,
+        "UNKNOWN": 223
+      },
+      "approvedFiscalCoveragePercent": 0
+    },
+    "fiscalRuleCandidates68": {
+      "source": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/fiscal-rule-library/fiscal-rule-matches.json",
+      "totalCandidates": 68,
+      "rulesInLibrary": 13,
+      "rulesUsed": 12,
+      "byApplicationMethod": {
+        "CONDITIONAL": 58,
+        "FULL_AMOUNT": 2,
+        "MANUAL": 8
+      },
+      "byMatchStatus": {
+        "MATCHED_CONDITIONAL_RULE": 39,
+        "POSSIBLE_RULE_REQUIRES_REVIEW": 20,
+        "MATCHED_VERIFIED_RULE": 2,
+        "NO_RELIABLE_RULE_FOUND": 7
+      },
+      "byFiscalConfidence": {
+        "CONDITIONAL": 49,
+        "LOW": 10,
+        "HIGH": 2,
+        "UNKNOWN": 7
+      },
+      "byTheme": {
+        "PROVISOES": 10,
+        "RECEITA_BRUTA_DEDUCOES": 4,
+        "MULTAS_CONTRATUAIS": 9,
+        "BRINDES": 2,
+        "EQUIVALENCIA_PATRIMONIAL": 7,
+        "DOACOES_PATROCINIOS": 2,
+        "PERDAS_GERAIS": 4,
+        "MULTAS_FISCAIS": 2,
+        "ARRENDAMENTO_CPC06": 1,
+        "JUROS_DESPESAS_FINANCEIRAS": 1,
+        "RECEITAS_FINANCEIRAS": 1,
+        "NO_RELIABLE_RULE": 3,
+        "RECUPERACAO_GENERICA": 15,
+        "RECUPERACOES_REVERSOES": 2,
+        "PERDAS_CREDITOS_PCLD": 5
+      },
+      "bucketCounts": {
+        "FULL_ACCOUNT_CONFIRMED": 2,
+        "REQUIRES_TRANSACTION_FILTER": 33,
+        "REQUIRES_EXTERNAL_SOURCE": 10,
+        "MANUAL_OR_REVIEW": 16,
+        "UNDETERMINED": 7
+      }
+    },
+    "reconciliation2025": {
+      "source": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/reconciliation-2025.json",
+      "rows": 264,
+      "okRows": 264,
+      "nonZeroDiffRows": 0,
+      "sourceWorkbook": "C:/Users/felipe.carlos/Desktop/12_CLV_Apuração_IRPJ_CSLL_12.2025.xlsx",
+      "status": "GOLDEN_TEST_EVIDENCE_ONLY"
+    }
+  },
+  "natureCandidates": [
+    {
+      "proposedFiscalNature": "BRINDES",
+      "relatedAccountCount": 2,
+      "sampleAccounts": [
+        {
+          "accountCode": "4.2.1.02.03.11",
+          "reducedCode": "908",
+          "accountName": "Brindes e Cortesias"
+        },
+        {
+          "accountCode": "4.2.1.02.03.14",
+          "reducedCode": "2972",
+          "accountName": "Brindes - Escolas"
+        }
+      ],
+      "historicalIrpjTreatment": "ADDITION_CANDIDATE",
+      "historicalCsllTreatment": "ADDITION_CANDIDATE",
+      "likelyExecutionMethod": "FULL_ACCOUNT",
+      "automationLevel": "AUTOMATIC",
+      "evidence": "2 MATCHED_VERIFIED_RULE entries; current foundation approved only account 4.2.1.02.03.11 as golden case.",
+      "confidence": "HIGH_FOR_RULE_LOW_FOR_OFFICIAL_APPROVAL",
+      "migrationDecision": "PARTIAL_DIRECT_ONLY_FOR_4.2.1.02.03.11"
+    },
+    {
+      "proposedFiscalNature": "PROVISOES",
+      "relatedAccountCount": 10,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Conditional rule matches.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "MULTAS_CONTRATUAIS",
+      "relatedAccountCount": 9,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Low-confidence conditional matches.",
+      "confidence": "LOW",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "MULTAS_FISCAIS",
+      "relatedAccountCount": 2,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Conditional matches.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "PERDAS_CREDITOS_PCLD",
+      "relatedAccountCount": 5,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Depends on credit-loss conditions.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "RECUPERACOES_REVERSOES",
+      "relatedAccountCount": 2,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Depends on origin of recovery/reversal.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "RECUPERACAO_GENERICA",
+      "relatedAccountCount": 15,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "MANUAL_OR_REVIEW",
+      "automationLevel": "MANUAL",
+      "evidence": "Possible-rule review matches.",
+      "confidence": "LOW",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "RECEITA_BRUTA_DEDUCOES",
+      "relatedAccountCount": 4,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Possible-rule review matches.",
+      "confidence": "LOW",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "EQUIVALENCIA_PATRIMONIAL",
+      "relatedAccountCount": 7,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "EXTERNAL_SOURCE",
+      "automationLevel": "ASSISTED",
+      "evidence": "Needs investment/equity-method context.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "DOACOES_PATROCINIOS",
+      "relatedAccountCount": 2,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "EXTERNAL_SOURCE",
+      "automationLevel": "ASSISTED",
+      "evidence": "Needs beneficiary/program/documentation.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "ARRENDAMENTO_CPC06",
+      "relatedAccountCount": 1,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "EXTERNAL_SOURCE",
+      "automationLevel": "ASSISTED",
+      "evidence": "CPC 06 is out of current scope.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "JUROS_DESPESAS_FINANCEIRAS",
+      "relatedAccountCount": 1,
+      "historicalIrpjTreatment": "CONDITIONAL",
+      "historicalCsllTreatment": "CONDITIONAL",
+      "likelyExecutionMethod": "TRANSACTION_FILTER",
+      "automationLevel": "ASSISTED",
+      "evidence": "Conditional match.",
+      "confidence": "MEDIUM",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "RECEITAS_FINANCEIRAS",
+      "relatedAccountCount": 1,
+      "historicalIrpjTreatment": "NO_ADJUSTMENT_CANDIDATE",
+      "historicalCsllTreatment": "NO_ADJUSTMENT_CANDIDATE",
+      "likelyExecutionMethod": "MANUAL_OR_REVIEW",
+      "automationLevel": "MANUAL",
+      "evidence": "Possible-rule review match.",
+      "confidence": "LOW",
+      "migrationDecision": "REQUIRES_REVIEW"
+    },
+    {
+      "proposedFiscalNature": "PERDAS_GERAIS",
+      "relatedAccountCount": 4,
+      "historicalIrpjTreatment": "UNKNOWN",
+      "historicalCsllTreatment": "UNKNOWN",
+      "likelyExecutionMethod": "UNDETERMINED",
+      "automationLevel": "MANUAL",
+      "evidence": "No reliable rule matches.",
+      "confidence": "UNKNOWN",
+      "migrationDecision": "DO_NOT_MIGRATE_AS_RULE"
+    },
+    {
+      "proposedFiscalNature": "NO_RELIABLE_RULE",
+      "relatedAccountCount": 3,
+      "historicalIrpjTreatment": "UNKNOWN",
+      "historicalCsllTreatment": "UNKNOWN",
+      "likelyExecutionMethod": "UNDETERMINED",
+      "automationLevel": "MANUAL",
+      "evidence": "No reliable rule matches.",
+      "confidence": "UNKNOWN",
+      "migrationDecision": "DO_NOT_MIGRATE_AS_RULE"
+    }
+  ],
+  "fullAccountEligibility": {
+    "bucketCounts": {
+      "FULL_ACCOUNT_CONFIRMED": 2,
+      "REQUIRES_TRANSACTION_FILTER": 33,
+      "REQUIRES_EXTERNAL_SOURCE": 10,
+      "MANUAL_OR_REVIEW": 16,
+      "UNDETERMINED": 7
+    },
+    "confirmedFullAccountCandidates": [
+      {
+        "accountCode": "4.2.1.02.03.11",
+        "reducedCode": "908",
+        "accountName": "Brindes e Cortesias",
+        "proposedFiscalNature": "BRINDES",
+        "fiscalRuleCode": "BRINDES-001",
+        "historicalReviewStatus": "PENDING_REVIEW",
+        "currentFoundationStatus": "APPROVED_GOLDEN_CASE"
+      },
+      {
+        "accountCode": "4.2.1.02.03.14",
+        "reducedCode": "2972",
+        "accountName": "Brindes - Escolas",
+        "proposedFiscalNature": "BRINDES",
+        "fiscalRuleCode": "BRINDES-001",
+        "historicalReviewStatus": "PENDING_REVIEW",
+        "currentFoundationStatus": "REQUIRES_EXPLICIT_APPROVAL"
+      }
+    ],
+    "themeBuckets": {
+      "REQUIRES_TRANSACTION_FILTER": {
+        "PROVISOES": 10,
+        "MULTAS_CONTRATUAIS": 9,
+        "MULTAS_FISCAIS": 2,
+        "PERDAS_CREDITOS_PCLD": 5,
+        "RECUPERACOES_REVERSOES": 2,
+        "RECEITA_BRUTA_DEDUCOES": 4,
+        "JUROS_DESPESAS_FINANCEIRAS": 1
+      },
+      "REQUIRES_EXTERNAL_SOURCE": {
+        "EQUIVALENCIA_PATRIMONIAL": 7,
+        "DOACOES_PATROCINIOS": 2,
+        "ARRENDAMENTO_CPC06": 1
+      },
+      "MANUAL_OR_REVIEW": {
+        "RECUPERACAO_GENERICA": 15,
+        "RECEITAS_FINANCEIRAS": 1
+      },
+      "UNDETERMINED": {
+        "PERDAS_GERAIS": 4,
+        "NO_RELIABLE_RULE": 3
+      }
+    }
+  },
+  "legacyToNewArchitecture": [
+    {
+      "legacyConcept": "real chart account records",
+      "newModel": "ACCOUNTING_CHART + chart account dataset",
+      "migrationRule": "Create/select an ERP-agnostic chart; load accounts only after 3.005 vs 3.014 reconciliation."
+    },
+    {
+      "legacyConcept": "company using shared plan",
+      "newModel": "COMPANY_ACCOUNTING_CHART",
+      "migrationRule": "Link each company to the chart by fiscal year/date; do not duplicate accounts per company."
+    },
+    {
+      "legacyConcept": "account -> treatment",
+      "newModel": "ACCOUNT_FISCAL_MAPPING -> FISCAL_NATURE -> FISCAL_RULE",
+      "migrationRule": "Split economic/fiscal nature from tax treatment."
+    },
+    {
+      "legacyConcept": "company-specific account classification",
+      "newModel": "COMPANY_ACCOUNT_MAPPING_OVERRIDE",
+      "migrationRule": "Use only when the same chart account has a different fiscal nature for a company."
+    },
+    {
+      "legacyConcept": "company-specific fiscal treatment",
+      "newModel": "COMPANY_RULE_OVERRIDE",
+      "migrationRule": "Use only when nature is unchanged but treatment/execution differs for the company."
+    },
+    {
+      "legacyConcept": "2025 Excel reconciliation",
+      "newModel": "golden tests / evidence fixtures",
+      "migrationRule": "Use as regression evidence; not as source to classify the whole chart."
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "C:/Users/felipe.carlos/Desktop/plano de contas.xls",
+      "name": "plano de contas.xls",
+      "format": "xls",
+      "sizeBytes": 572416,
+      "lastModified": "2026-08-12T11:13:19",
+      "sha256": "a679e0d10e794c13f9e2260eead48486ec99bbf18b649cecc6fa58edb0c72f1d",
+      "apparentPurpose": "Primary plan-of-accounts export.",
+      "recordCount": null,
+      "mainFields": [
+        "binary Excel workbook"
+      ],
+      "sourceClass": "SOURCE",
+      "primaryOrDerived": "SOURCE",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "KEEP_AS_SOURCE_EVIDENCE; do not load until 3.005 vs 3.014 is reconciled."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/Desktop/12_CLV_Apuração_IRPJ_CSLL_12.2025.xlsx",
+      "name": "12_CLV_Apuração_IRPJ_CSLL_12.2025.xlsx",
+      "format": "xlsx",
+      "sizeBytes": 683839,
+      "lastModified": "2026-08-12T09:26:29",
+      "sha256": "2f0dd48453587a33e49fb05b7634236ac625ad3516db0276901357b3f5879b20",
+      "apparentPurpose": "Primary historical IRPJ/CSLL 2025 Excel evidence.",
+      "recordCount": 11,
+      "mainFields": [
+        "workbook sheets"
+      ],
+      "sourceClass": "SOURCE",
+      "primaryOrDerived": "SOURCE",
+      "relationToFiscalMatrix": "evidence/golden",
+      "confidence": "HIGH",
+      "shouldMigrate": "KEEP_AS_GOLDEN_EVIDENCE; not a classification source."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/source-derived/plano-de-contas-derived.xlsx",
+      "name": "plano-de-contas-derived.xlsx",
+      "format": "xlsx",
+      "sizeBytes": 111236,
+      "lastModified": "2026-08-12T11:21:51",
+      "sha256": "196f2493cb925c3c88926c04baada498ec60d664e67bebb06e988fc3c9d2c3e2",
+      "apparentPurpose": "Readable derived workbook from the primary chart export.",
+      "recordCount": 4158,
+      "mainFields": [
+        "rawText"
+      ],
+      "sourceClass": "SOURCE",
+      "primaryOrDerived": "SOURCE_DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "KEEP_AS_AUDIT_EVIDENCE_NOT_LOAD_DIRECTLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/source-derived/plano-de-contas-raw-rows.json",
+      "name": "plano-de-contas-raw-rows.json",
+      "format": "json",
+      "sizeBytes": 457014,
+      "lastModified": "2026-08-12T11:24:16",
+      "sha256": "75b8ba32a3605057bfc49cf0c52c011ed437f5cdf74bb5a337e8eb59e5eda4c2",
+      "apparentPurpose": "Raw extracted rows from the derived chart workbook.",
+      "recordCount": 4158,
+      "mainFields": [
+        "sourceWorkbook",
+        "sheets[].sheetName",
+        "sheets[].rows"
+      ],
+      "sourceClass": "SOURCE",
+      "primaryOrDerived": "SOURCE_DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "KEEP_AS_AUDIT_EVIDENCE_NOT_LOAD_DIRECTLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/normalized/real-chart-of-accounts-accounts.json",
+      "name": "real-chart-of-accounts-accounts.json",
+      "format": "json",
+      "sizeBytes": 2457517,
+      "lastModified": "2026-08-12T11:25:39",
+      "sha256": "9951f679840957822a2c4d6408ecabe8f1257708aa9ad052d6231ce6d0f82d9f",
+      "apparentPurpose": "Normalized chart of accounts with 3.005 records.",
+      "recordCount": 3005,
+      "mainFields": [
+        "id",
+        "accountCode",
+        "reducedCode",
+        "name",
+        "accountLevel",
+        "accountType",
+        "active",
+        "validFrom",
+        "sourceSystem",
+        "sourceClassification",
+        "derivedClassification",
+        "analytical",
+        "synthetic",
+        "accountingNature",
+        "source"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "MIGRATION_CANDIDATE_FOR_ACCOUNTING_CHART_AFTER_RECONCILIATION."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/normalized/real-chart-of-accounts-initial-pending-mappings.json",
+      "name": "real-chart-of-accounts-initial-pending-mappings.json",
+      "format": "json",
+      "sizeBytes": 1227968,
+      "lastModified": "2026-08-12T11:25:40",
+      "sha256": "6298f2635f1a81a04d0245f6d9dee5860575fba6d7bff4379323e981ca3cb878",
+      "apparentPurpose": "Initial pending mapping shell for all 3.005 accounts.",
+      "recordCount": 3005,
+      "mainFields": [
+        "id",
+        "accountCode",
+        "scope",
+        "irpjTreatment",
+        "csllTreatment",
+        "applicationMethod",
+        "validFrom",
+        "status",
+        "notes"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "DO_NOT_MIGRATE_AS_OFFICIAL_CLASSIFICATION."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/assisted-classification/approved-tax-account-mappings.json",
+      "name": "approved-tax-account-mappings.json",
+      "format": "json",
+      "sizeBytes": 418,
+      "lastModified": "2026-08-12T11:32:16",
+      "sha256": "797c15d8a09dd712da01bf1cbd06c5963e6be9c71498f9dda7197f3b47adb7b1",
+      "apparentPurpose": "Approval placeholder.",
+      "recordCount": 0,
+      "mainFields": [
+        "approvedMappings"
+      ],
+      "sourceClass": "REVIEW",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH_FOR_EMPTY_APPROVAL_STATUS",
+      "shouldMigrate": "NO_RECORDS_TO_MIGRATE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/data/fiscal-rule-library/fundamental-fiscal-rules.json",
+      "name": "fundamental-fiscal-rules.json",
+      "format": "json",
+      "sizeBytes": 14966,
+      "lastModified": "2026-08-12T11:39:37",
+      "sha256": "dac3985e9a743aa156a2751af4d1f37932983c7132460868c0471373a07d72ee",
+      "apparentPurpose": "Historical rule library for review.",
+      "recordCount": 13,
+      "mainFields": [
+        "id",
+        "code",
+        "name",
+        "theme",
+        "nature",
+        "taxes",
+        "applicationMethod",
+        "legalStatus",
+        "fiscalConfidence",
+        "legalBasis"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/real-chart-of-accounts/real-chart-of-accounts-import-report.json",
+      "name": "real-chart-of-accounts-import-report.json",
+      "format": "json",
+      "sizeBytes": 10404299,
+      "lastModified": "2026-08-12T11:25:40",
+      "sha256": "cd408e73ab6fa4d165bebde7f22be546665ceeaa2236b0fa7eadc9221f0af990",
+      "apparentPurpose": "Import and reconciliation report for the 3.005-account chart.",
+      "recordCount": 3005,
+      "mainFields": [
+        "source",
+        "structuralReport",
+        "reconciliation",
+        "accounts",
+        "initialPendingMappings",
+        "reviewRows",
+        "fiscalCoverage"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "USE_AS_AUDIT_EVIDENCE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/real-chart-of-accounts/real-chart-of-accounts-review.csv",
+      "name": "real-chart-of-accounts-review.csv",
+      "format": "csv",
+      "sizeBytes": 361831,
+      "lastModified": "2026-08-12T11:25:40",
+      "sha256": "b45e240649e95d3a2ba718a5239b3bccc00c4de8c576009438e3f7c5effffae7",
+      "apparentPurpose": "Review CSV for 3.005 chart records.",
+      "recordCount": 3005,
+      "mainFields": [
+        "accountCode",
+        "reducedCode",
+        "name",
+        "nature",
+        "level",
+        "classification",
+        "active",
+        "irpj",
+        "csll",
+        "status"
+      ],
+      "sourceClass": "REVIEW",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "HIGH",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/tax-account-review/tax-account-review-summary.json",
+      "name": "tax-account-review-summary.json",
+      "format": "json",
+      "sizeBytes": 5621,
+      "lastModified": "2026-08-12T11:32:16",
+      "sha256": "8c5dbd5fdc497cd08ba685c91df74500b4160a82ed2c63726c8dd29b7fee7b31",
+      "apparentPurpose": "Assisted semantic review summary.",
+      "recordCount": 448,
+      "mainFields": [
+        "totalAccounts",
+        "resultAccounts",
+        "resultAnalyticalAccounts",
+        "summaryByIrpjSuggestion",
+        "summaryByCsllSuggestion",
+        "confidenceDistribution"
+      ],
+      "sourceClass": "REVIEW",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/tax-account-review/tax-account-review-queue.json",
+      "name": "tax-account-review-queue.json",
+      "format": "json",
+      "sizeBytes": 651341,
+      "lastModified": "2026-08-12T11:32:16",
+      "sha256": "95e9683b1c2a4f5cdf86453c4470d05e02cc717ce296adabca6ffb3d64cbe6d5",
+      "apparentPurpose": "Assisted semantic review queue.",
+      "recordCount": 448,
+      "mainFields": [
+        "account",
+        "suggestedIrpjTreatment",
+        "suggestedCsllTreatment",
+        "suggestedApplicationMethod",
+        "confidence",
+        "reviewStatus"
+      ],
+      "sourceClass": "REVIEW",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/tax-account-review/tax-account-review-queue.csv",
+      "name": "tax-account-review-queue.csv",
+      "format": "csv",
+      "sizeBytes": 101635,
+      "lastModified": "2026-08-12T11:32:16",
+      "sha256": "49a4bde14210dc47f9aed1e461a8b08770920ee7e680297a37be0d1029b8ae34",
+      "apparentPurpose": "CSV version of assisted review queue.",
+      "recordCount": 448,
+      "mainFields": [
+        "accountCode",
+        "reducedCode",
+        "name",
+        "parentAccount",
+        "nature",
+        "irpj",
+        "csll",
+        "method",
+        "confidence",
+        "reason",
+        "reviewStatus",
+        "priority"
+      ],
+      "sourceClass": "REVIEW",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/fiscal-rule-library/fiscal-rule-library-summary.json",
+      "name": "fiscal-rule-library-summary.json",
+      "format": "json",
+      "sizeBytes": 1715,
+      "lastModified": "2026-08-12T11:39:37",
+      "sha256": "e4bb287f4784999af0d190a0fb10c8dedea486a9a522fbcc6f5289cb318abc8f",
+      "apparentPurpose": "Rule match summary.",
+      "recordCount": 68,
+      "mainFields": [
+        "totalCandidates",
+        "themeCount",
+        "themes",
+        "rulesInLibrary",
+        "rulesUsed",
+        "resultSummary",
+        "coverage"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/fiscal-rule-library/fiscal-rule-matches.json",
+      "name": "fiscal-rule-matches.json",
+      "format": "json",
+      "sizeBytes": 144067,
+      "lastModified": "2026-08-12T11:39:37",
+      "sha256": "c5eafbfe0fca95acf2dea0ec4dca931e895b7d04fe0d2bf1d98174986521d39f",
+      "apparentPurpose": "Detailed fiscal-rule matches for 68 candidates.",
+      "recordCount": 68,
+      "mainFields": [
+        "accountCode",
+        "accountName",
+        "reducedCode",
+        "identifiedTheme",
+        "fiscalRuleCode",
+        "suggestedIrpjTreatment",
+        "suggestedCsllTreatment",
+        "suggestedApplicationMethod",
+        "fiscalConfidence",
+        "matchStatus",
+        "reviewStatus"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/fiscal-rule-library/fiscal-rule-matches.csv",
+      "name": "fiscal-rule-matches.csv",
+      "format": "csv",
+      "sizeBytes": 34288,
+      "lastModified": "2026-08-12T11:39:37",
+      "sha256": "215c356e98e3a6bd1e84dad0e217f3f2e9134d255d3194e355a26612efaa6e62",
+      "apparentPurpose": "CSV version of fiscal-rule matches.",
+      "recordCount": 68,
+      "mainFields": [
+        "accountCode",
+        "reducedCode",
+        "accountName",
+        "identifiedTheme",
+        "suggestedIrpjTreatment",
+        "suggestedCsllTreatment",
+        "suggestedApplicationMethod",
+        "fiscalRuleCode",
+        "semanticConfidence",
+        "fiscalConfidence",
+        "legalStatus",
+        "matchStatus",
+        "reviewStatus"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/fiscal-rule-library/fiscal-rule-legal-basis.csv",
+      "name": "fiscal-rule-legal-basis.csv",
+      "format": "csv",
+      "sizeBytes": 2232,
+      "lastModified": "2026-08-12T11:39:37",
+      "sha256": "8726859d02ebe9b6a51003280946e30f110938c1f473b4a820f0b9789ee2c2ae",
+      "apparentPurpose": "Legal-basis index for historical rule suggestions.",
+      "recordCount": 11,
+      "mainFields": [
+        "ruleCode",
+        "theme",
+        "sourceTitle",
+        "normNumber",
+        "article",
+        "paragraph",
+        "item",
+        "officialSource",
+        "verificationDate",
+        "status",
+        "legalStatus"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "direct",
+      "confidence": "MEDIUM_REQUIRES_HUMAN_APPROVAL",
+      "shouldMigrate": "REVIEW_INPUT_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/reconciliation-2025.json",
+      "name": "reconciliation-2025.json",
+      "format": "json",
+      "sizeBytes": 390544,
+      "lastModified": "2026-08-12T11:40:34",
+      "sha256": "a05a56bd99bce2d19e1182acafd1b48b16fc1c1ea1b99d216d322f7003b4e30c",
+      "apparentPurpose": "Historical 2025 Excel reconciliation.",
+      "recordCount": 264,
+      "mainFields": [
+        "period",
+        "tax",
+        "line",
+        "excel",
+        "system",
+        "difference",
+        "status",
+        "classification",
+        "source",
+        "transformation"
+      ],
+      "sourceClass": "GOLDEN_TEST",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "evidence/golden",
+      "confidence": "HIGH",
+      "shouldMigrate": "MIGRATE_AS_GOLDEN_TEST_EVIDENCE_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/reports/reconciliation-2025.md",
+      "name": "reconciliation-2025.md",
+      "format": "md",
+      "sizeBytes": 4248,
+      "lastModified": "2026-08-12T11:40:34",
+      "sha256": "8be4e61a55aeb1bcbc22786181e0de6e0ebae9b5ce127e7844bb1c68ed32a7e8",
+      "apparentPurpose": "Human-readable 2025 reconciliation report.",
+      "recordCount": 62,
+      "mainFields": [
+        "markdown"
+      ],
+      "sourceClass": "GOLDEN_TEST",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "evidence/golden",
+      "confidence": "HIGH",
+      "shouldMigrate": "MIGRATE_AS_GOLDEN_TEST_EVIDENCE_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/test/fixtures/2025-reference/dataset.json",
+      "name": "dataset.json",
+      "format": "json",
+      "sizeBytes": 823808,
+      "lastModified": "2026-08-12T10:22:59",
+      "sha256": "87be47d80b75d0102b6787f14cee2e2f6a1ffa5fc8f85a6fa9544e9fd18e716a",
+      "apparentPurpose": "Normalized 2025 reference dataset from Excel.",
+      "recordCount": 12,
+      "mainFields": [
+        "period",
+        "monthCount",
+        "sourceColumn",
+        "csll",
+        "irpj"
+      ],
+      "sourceClass": "GOLDEN_TEST",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "evidence/golden",
+      "confidence": "MEDIUM",
+      "shouldMigrate": "MIGRATE_AS_GOLDEN_TEST_EVIDENCE_ONLY."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/test/fixtures/tax-account-matrix/matrix-fixture.json",
+      "name": "matrix-fixture.json",
+      "format": "json",
+      "sizeBytes": 9134,
+      "lastModified": "2026-08-12T11:04:11",
+      "sha256": "35809d462801c87ed51fa26e8ba94e411d74b942dbe40703965fc8a237c6c8f3",
+      "apparentPurpose": "Small legacy matrix fixture.",
+      "recordCount": 11,
+      "mainFields": [
+        "accounts",
+        "mappings",
+        "rules",
+        "movements",
+        "knownAccounts",
+        "receivedAccounts"
+      ],
+      "sourceClass": "GOLDEN_TEST",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "MEDIUM",
+      "shouldMigrate": "DO_NOT_MIGRATE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/test/fixtures/tax-adjustment-catalog/catalog-fixture.json",
+      "name": "catalog-fixture.json",
+      "format": "json",
+      "sizeBytes": 6452,
+      "lastModified": "2026-08-12T10:49:20",
+      "sha256": "e162d97812eec5def3a0ffa270bee5ed983621480555bbeb907320741795da29",
+      "apparentPurpose": "Small legacy adjustment-catalog fixture.",
+      "recordCount": 6,
+      "mainFields": [
+        "rules",
+        "mappings",
+        "ledgerEntries"
+      ],
+      "sourceClass": "GOLDEN_TEST",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "MEDIUM",
+      "shouldMigrate": "DO_NOT_MIGRATE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/public/data/ui-data.json",
+      "name": "ui-data.json",
+      "format": "json",
+      "sizeBytes": 3124154,
+      "lastModified": "2026-08-12T10:36:06",
+      "sha256": "2412c338cf57118f533d037af872e474689db73ab6d799a423b0ba96e53eeed0",
+      "apparentPurpose": "Legacy UI derived data.",
+      "recordCount": 12,
+      "mainFields": [
+        "periods",
+        "taxCreditTables",
+        "comparisonRows",
+        "suspensionRows",
+        "pendingRules"
+      ],
+      "sourceClass": "DERIVED",
+      "primaryOrDerived": "DERIVED",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "MEDIUM",
+      "shouldMigrate": "DO_NOT_MIGRATE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/src/domain/tax/account-matrix/tax-account-matrix.mjs",
+      "name": "tax-account-matrix.mjs",
+      "format": "mjs",
+      "sizeBytes": 9989,
+      "lastModified": "2026-08-12T11:24:11",
+      "sha256": "6d04cc733dd04128282acfcac781e7f4e7f8a0e8b42fb046a327d3e12cb4e6b0",
+      "apparentPurpose": "Legacy matrix implementation code.",
+      "recordCount": 221,
+      "mainFields": [
+        "legacy code"
+      ],
+      "sourceClass": "LEGACY_CODE",
+      "primaryOrDerived": "SUPPORTING",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "LOW_AS_MIGRATION_SOURCE",
+      "shouldMigrate": "DO_NOT_MIGRATE_CODE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/src/domain/tax/account-matrix/tax-account-matrix-types.ts",
+      "name": "tax-account-matrix-types.ts",
+      "format": "ts",
+      "sizeBytes": 2659,
+      "lastModified": "2026-08-12T11:02:25",
+      "sha256": "bd7705c1a15c00a82e702227d2fd96eb38a6f4c0501f4b15c32a3f3ddf658edd",
+      "apparentPurpose": "Legacy matrix type definitions.",
+      "recordCount": 102,
+      "mainFields": [
+        "legacy code"
+      ],
+      "sourceClass": "LEGACY_CODE",
+      "primaryOrDerived": "SUPPORTING",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "LOW_AS_MIGRATION_SOURCE",
+      "shouldMigrate": "DO_NOT_MIGRATE_CODE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/src/domain/tax/fiscal-rule-library/fiscal-rule-library.mjs",
+      "name": "fiscal-rule-library.mjs",
+      "format": "mjs",
+      "sizeBytes": 22418,
+      "lastModified": "2026-08-12T11:39:16",
+      "sha256": "be0ececb9d93d51f3aa75a3cf614c5cf0c6362545dfb40c5beaa439b7a7af0cb",
+      "apparentPurpose": "Legacy code that generated rule suggestions.",
+      "recordCount": 403,
+      "mainFields": [
+        "legacy code"
+      ],
+      "sourceClass": "LEGACY_CODE",
+      "primaryOrDerived": "SUPPORTING",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "LOW_AS_MIGRATION_SOURCE",
+      "shouldMigrate": "DO_NOT_MIGRATE_CODE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/src/domain/tax/adjustments/tax-adjustment-catalog.mjs",
+      "name": "tax-adjustment-catalog.mjs",
+      "format": "mjs",
+      "sizeBytes": 5967,
+      "lastModified": "2026-08-12T10:48:27",
+      "sha256": "a02e6bac195970944d9c80bc429a8fa69952dc70dc30f9ac44361380f2bc0870",
+      "apparentPurpose": "Legacy adjustment catalog implementation code.",
+      "recordCount": 135,
+      "mainFields": [
+        "legacy code"
+      ],
+      "sourceClass": "LEGACY_CODE",
+      "primaryOrDerived": "SUPPORTING",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "LOW_AS_MIGRATION_SOURCE",
+      "shouldMigrate": "DO_NOT_MIGRATE_CODE."
+    },
+    {
+      "path": "C:/Users/felipe.carlos/.codex/visualizations/2026/08/12/019ff5f0-78c7-7083-95db-5f304fe11e62/irpj-csll-app/src/domain/tax/account-review/tax-account-review.mjs",
+      "name": "tax-account-review.mjs",
+      "format": "mjs",
+      "sizeBytes": 11526,
+      "lastModified": "2026-08-12T11:32:16",
+      "sha256": "2a34987cb9f38994b717e0350998a1e6ebde2c13cabf15201995fc63ac20bb32",
+      "apparentPurpose": "Legacy assisted-review implementation code.",
+      "recordCount": 233,
+      "mainFields": [
+        "legacy code"
+      ],
+      "sourceClass": "LEGACY_CODE",
+      "primaryOrDerived": "SUPPORTING",
+      "relationToFiscalMatrix": "supporting",
+      "confidence": "LOW_AS_MIGRATION_SOURCE",
+      "shouldMigrate": "DO_NOT_MIGRATE_CODE."
+    }
+  ]
+}

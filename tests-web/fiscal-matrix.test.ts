@@ -14,6 +14,7 @@ import type {
 import type { JsonObject, SourceSnapshot, TaxPeriod } from "../lib/fiscal/types.ts";
 
 const moduleUrl = new URL("../lib/fiscal/fiscal-matrix.ts", import.meta.url);
+const seedModuleUrl = new URL("../lib/fiscal/matrix-seed.ts", import.meta.url);
 const CREATED_AT = "2026-08-31T12:00:00.000Z";
 const BRINDES_ACCOUNT = "4.2.1.02.03.11";
 
@@ -314,13 +315,15 @@ test("company rule override atua separadamente do override de mapeamento", async
 
 test("golden janeiro 2024 Brindes gera IRPJ e CSLL de 28800.00", async () => {
   const { executeFullAccount } = await import(moduleUrl.href);
+  const { buildRaizFiscalMatrixSeed } = await import(seedModuleUrl.href);
+  const seededMatrix = buildRaizFiscalMatrixSeed({ companyId: "company-a", validFrom: "2024-01-01" });
   const jan = period();
   const execution = executeFullAccount({
     companyId: "company-a",
     taxPeriod: jan,
     sourceSnapshot: snapshot(jan, [snapshotRecord({ debit: "28800.00", credit: "0.00", movement: "28800.00" })]),
     accountCode: BRINDES_ACCOUNT,
-    ...matrix(),
+    ...seededMatrix,
     createdAt: CREATED_AT,
   });
   const result = expectObject(execution.ruleExecutionResult);
@@ -339,6 +342,8 @@ test("golden janeiro 2024 Brindes gera IRPJ e CSLL de 28800.00", async () => {
 
 test("golden fevereiro 2024 Brindes usa acumulado de 43709.70", async () => {
   const { executeFullAccount } = await import(moduleUrl.href);
+  const { buildRaizFiscalMatrixSeed } = await import(seedModuleUrl.href);
+  const seededMatrix = buildRaizFiscalMatrixSeed({ companyId: "company-a", validFrom: "2024-01-01" });
   const feb = period({
     id: "period-2024-m02",
     periodCode: "2024-M02",
@@ -354,7 +359,7 @@ test("golden fevereiro 2024 Brindes usa acumulado de 43709.70", async () => {
       { totalDebit: "43709.70", hash: "b".repeat(64) },
     ),
     accountCode: BRINDES_ACCOUNT,
-    ...matrix(),
+    ...seededMatrix,
     createdAt: CREATED_AT,
   });
   const result = expectObject(execution.ruleExecutionResult);

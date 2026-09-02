@@ -12,7 +12,13 @@ import type {
 import { FISCAL_SOURCE_TYPES } from "./types.ts";
 import { assertValidVersion } from "./versioning.ts";
 
-export const FISCAL_TREATMENTS = ["NO_ADJUSTMENT", "ADDITION", "EXCLUSION"] as const;
+export const FISCAL_TREATMENTS = [
+  "NO_ADJUSTMENT",
+  "ADDITION",
+  "EXCLUSION",
+  "CONDITIONAL",
+  "AUTOMATIC_SPECIAL",
+] as const;
 export const FISCAL_RULE_EXECUTION_METHODS = [
   "FULL_ACCOUNT",
   "TRANSACTION_FILTER",
@@ -32,7 +38,11 @@ export const TAXES = ["IRPJ", "CSLL"] as const;
 export const TAX_ADJUSTMENT_TYPES = ["ADDITION", "EXCLUSION"] as const;
 export const TAX_ADJUSTMENT_ORIGINS = ["RULE_EXECUTION_RESULT"] as const;
 export const TAX_ADJUSTMENT_STATUSES = ["DRAFT", "READY", "SUPERSEDED"] as const;
-export const PENDING_ITEM_TYPES = ["NEW_ACCOUNT_UNMAPPED"] as const;
+export const PENDING_ITEM_TYPES = [
+  "NEW_ACCOUNT_UNMAPPED",
+  "NEW_ACCOUNT_AUTO_CLASSIFIED",
+  "CONDITIONAL_TAX_DECISION",
+] as const;
 export const PENDING_ITEM_STATUSES = ["OPEN", "RESOLVED", "DISMISSED"] as const;
 
 export type FiscalTreatment = (typeof FISCAL_TREATMENTS)[number];
@@ -77,6 +87,7 @@ export type FiscalNature = {
   readonly code: string;
   readonly name: string;
   readonly description: string;
+  readonly sourceMetadata?: JsonObject;
   readonly active: boolean;
   readonly createdAt?: string;
   readonly updatedAt?: string;
@@ -88,6 +99,7 @@ export type AccountFiscalMapping = {
   readonly accountCode: string;
   readonly reducedCode: string | null;
   readonly fiscalNatureId: string;
+  readonly sourceMetadata?: JsonObject;
   readonly validFrom: string;
   readonly validTo: string | null;
   readonly version: number;
@@ -120,6 +132,7 @@ export type FiscalRule = {
   readonly executionMethod: FiscalRuleExecutionMethod;
   readonly automationLevel: FiscalAutomationLevel;
   readonly criteria: JsonObject;
+  readonly sourceMetadata?: JsonObject;
   readonly validFrom: string;
   readonly validTo: string | null;
   readonly version: number;

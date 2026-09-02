@@ -1,0 +1,106 @@
+{
+  "fixture": "annual-monthly-chain-synthetic",
+  "synthetic": true,
+  "company": "99",
+  "year": 2026,
+  "months": [
+    {
+      "competence": "2026-01",
+      "version": 1,
+      "status": "CLOSED_CURRENT",
+      "irpj": {
+        "accounting_result": 300000,
+        "additions": 30000,
+        "exclusions": 10000,
+        "pre_compensation_base": 320000,
+        "compensation_used": 80000,
+        "taxable_base": 240000,
+        "normal_tax": 36000,
+        "additional_tax": 22000,
+        "tax_due_cumulative": 58000,
+        "prior_estimate_tax_due": 0,
+        "withholding_used": 3000,
+        "current_month_tax_payable": 55000
+      },
+      "csll": {
+        "pre_compensation_base": 320000,
+        "compensation_used": 50000,
+        "taxable_base": 270000,
+        "tax_due_cumulative": 24300,
+        "prior_estimate_tax_due": 0,
+        "withholding_used": 1000,
+        "current_month_tax_payable": 23300,
+        "accounting_result": 300000,
+        "additions": 30000,
+        "exclusions": 10000
+      }
+    },
+    {
+      "competence": "2026-02",
+      "version": 1,
+      "status": "CLOSED_CURRENT",
+      "irpj": {
+        "accounting_result": 650000,
+        "additions": 70000,
+        "exclusions": 30000,
+        "pre_compensation_base": 690000,
+        "compensation_used": 140000,
+        "taxable_base": 550000,
+        "normal_tax": 82500,
+        "additional_tax": 51000,
+        "tax_due_cumulative": 133500,
+        "prior_estimate_tax_due": 55000,
+        "withholding_used": 5000,
+        "current_month_tax_payable": 73500
+      },
+      "csll": {
+        "pre_compensation_base": 690000,
+        "compensation_used": 50000,
+        "taxable_base": 640000,
+        "tax_due_cumulative": 57600,
+        "prior_estimate_tax_due": 23300,
+        "withholding_used": 2000,
+        "current_month_tax_payable": 32300,
+        "accounting_result": 650000,
+        "additions": 70000,
+        "exclusions": 30000
+      }
+    },
+    {
+      "competence": "2026-03",
+      "version": 1,
+      "status": "CLOSED_CURRENT",
+      "irpj": {
+        "accounting_result": 1000000,
+        "additions": 100000,
+        "exclusions": 50000,
+        "pre_compensation_base": 1050000,
+        "compensation_used": 200000,
+        "taxable_base": 850000,
+        "normal_tax": 127500,
+        "additional_tax": 79000,
+        "tax_due_cumulative": 206500,
+        "prior_estimate_tax_due": 128500,
+        "withholding_used": 10000,
+        "current_month_tax_payable": 68000
+      },
+      "csll": {
+        "pre_compensation_base": 1050000,
+        "compensation_used": 100000,
+        "taxable_base": 950000,
+        "tax_due_cumulative": 85500,
+        "prior_estimate_tax_due": 55600,
+        "withholding_used": 4000,
+        "current_month_tax_payable": 25900,
+        "accounting_result": 1000000,
+        "additions": 100000,
+        "exclusions": 50000
+      }
+    }
+  ],
+  "assertions": [
+    "March IRPJ prior_estimate_tax_due = January payable 55,000 + February payable 73,500 = 128,500",
+    "Payment status is absent and does not participate in the calculation",
+    "March CSLL prior_estimate_tax_due = January payable 23,300 + February payable 32,300 = 55,600"
+  ]
+}

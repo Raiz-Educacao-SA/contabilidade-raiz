@@ -1,4 +1,4 @@
-﻿create extension if not exists "pgcrypto";
+create extension if not exists "pgcrypto";
 create extension if not exists "btree_gist";
 
 create table if not exists public.empresas (
@@ -185,6 +185,42 @@ with check (
 insert into storage.buckets (id, name, public)
 values ('extratos-bancarios', 'extratos-bancarios', false)
 on conflict (id) do nothing;
+insert into storage.buckets (id, name, public)
+values ('irpj-csll-dossiers', 'irpj-csll-dossiers', false)
+on conflict (id) do update set public = false;
+
+drop policy if exists "upload dossies irpj csll" on storage.objects;
+create policy "upload dossies irpj csll"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'irpj-csll-dossiers'
+  and (storage.foldername(name))[1] = 'IRPJ-CSLL'
+  and exists (
+    select 1
+    from public.usuarios_empresas ue
+    where ue.usuario_id = auth.uid()
+      and ue.empresa_id::text = (storage.foldername(name))[2]
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+  and public.usuario_tem_modulo('contabil', auth.uid())
+);
+
+drop policy if exists "leitura dossies irpj csll" on storage.objects;
+create policy "leitura dossies irpj csll"
+on storage.objects for select
+to authenticated
+using (
+  bucket_id = 'irpj-csll-dossiers'
+  and (storage.foldername(name))[1] = 'IRPJ-CSLL'
+  and exists (
+    select 1
+    from public.usuarios_empresas ue
+    where ue.usuario_id = auth.uid()
+      and ue.empresa_id::text = (storage.foldername(name))[2]
+  )
+  and public.usuario_tem_modulo('contabil', auth.uid())
+);
 
 drop policy if exists "upload extratos" on storage.objects;
 create policy "upload extratos"
@@ -245,6 +281,12 @@ create table if not exists public.tax_periods (
   data_final date not null,
   tipo_periodo text not null,
   status text not null default 'DRAFT',
+  upstream_stale boolean not null default false,
+  closed_manifest_id uuid,
+  closed_manifest jsonb not null default '{}'::jsonb,
+  fechado_em timestamptz,
+  fechado_por uuid references auth.users(id),
+  replaced_by_tax_period_id uuid references public.tax_periods(id),
   versao integer not null default 1,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
@@ -253,6 +295,7 @@ create table if not exists public.tax_periods (
   constraint tax_periods_tipo_valido check (tipo_periodo in ('MONTHLY_ESTIMATE', 'ANNUAL_ADJUSTMENT', 'QUARTERLY_REAL')),
   constraint tax_periods_status_valido check (status in ('DRAFT', 'CALCULATED', 'CALCULATED_WITH_PENDING_ITEMS', 'REVIEWED', 'CLOSED_CURRENT', 'CLOSED_SUPERSEDED')),
   constraint tax_periods_versao_valida check (versao >= 1),
+  constraint tax_periods_closed_manifest_objeto check (jsonb_typeof(closed_manifest) = 'object'),
   constraint tax_periods_profile_empresa_exercicio_fk foreign key (fiscal_year_profile_id, empresa_id, exercicio)
     references public.fiscal_year_profiles(id, empresa_id, exercicio) on delete restrict,
   constraint tax_periods_empresa_exercicio_codigo_versao_unico unique (empresa_id, exercicio, codigo_periodo, versao),
@@ -309,12 +352,14 @@ create table if not exists public.fiscal_natures (
   codigo text not null,
   nome text not null,
   descricao text not null default '',
+  metadados_origem jsonb not null default '{}'::jsonb,
   ativo boolean not null default true,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   constraint fiscal_natures_codigo_unico unique (codigo),
   constraint fiscal_natures_codigo_obrigatorio check (length(trim(codigo)) > 0),
-  constraint fiscal_natures_nome_obrigatorio check (length(trim(nome)) > 0)
+  constraint fiscal_natures_nome_obrigatorio check (length(trim(nome)) > 0),
+  constraint fiscal_natures_metadados_origem_objeto check (jsonb_typeof(metadados_origem) = 'object')
 );
 
 create table if not exists public.accounting_charts (
@@ -359,6 +404,7 @@ create table if not exists public.account_fiscal_mappings (
   codigo_conta text not null,
   codigo_reduzido text,
   fiscal_nature_id uuid not null references public.fiscal_natures(id) on delete restrict,
+  metadados_origem jsonb not null default '{}'::jsonb,
   vigencia_inicio date not null,
   vigencia_fim date,
   versao integer not null default 1,
@@ -368,6 +414,7 @@ create table if not exists public.account_fiscal_mappings (
   constraint account_fiscal_mappings_codigo_conta_obrigatorio check (length(trim(codigo_conta)) > 0),
   constraint account_fiscal_mappings_vigencia_valida check (vigencia_fim is null or vigencia_fim >= vigencia_inicio),
   constraint account_fiscal_mappings_versao_valida check (versao >= 1),
+  constraint account_fiscal_mappings_metadados_origem_objeto check (jsonb_typeof(metadados_origem) = 'object'),
   constraint account_fiscal_mappings_vigencia_sem_sobreposicao exclude using gist (
     accounting_chart_id with =,
     codigo_conta with =,
@@ -410,6 +457,7 @@ create table if not exists public.fiscal_rules (
   metodo_execucao text not null,
   nivel_automacao text not null,
   criterios jsonb not null default '{}'::jsonb,
+  metadados_origem jsonb not null default '{}'::jsonb,
   vigencia_inicio date not null,
   vigencia_fim date,
   versao integer not null default 1,
@@ -417,11 +465,12 @@ create table if not exists public.fiscal_rules (
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   constraint fiscal_rules_codigo_regra_obrigatorio check (length(trim(codigo_regra)) > 0),
-  constraint fiscal_rules_tratamento_irpj_valido check (tratamento_irpj in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION')),
-  constraint fiscal_rules_tratamento_csll_valido check (tratamento_csll in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION')),
+  constraint fiscal_rules_tratamento_irpj_valido check (tratamento_irpj in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION', 'CONDITIONAL', 'AUTOMATIC_SPECIAL')),
+  constraint fiscal_rules_tratamento_csll_valido check (tratamento_csll in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION', 'CONDITIONAL', 'AUTOMATIC_SPECIAL')),
   constraint fiscal_rules_metodo_execucao_valido check (metodo_execucao in ('FULL_ACCOUNT', 'TRANSACTION_FILTER', 'BALANCE_FORMULA', 'EXTERNAL_SOURCE', 'MANUAL_EXCEPTION')),
   constraint fiscal_rules_nivel_automacao_valido check (nivel_automacao in ('AUTOMATIC', 'SEMI_AUTOMATIC', 'MANUAL')),
   constraint fiscal_rules_status_valido check (status in ('DRAFT', 'ACTIVE', 'INACTIVE', 'SUPERSEDED')),
+  constraint fiscal_rules_metadados_origem_objeto check (jsonb_typeof(metadados_origem) = 'object'),
   constraint fiscal_rules_vigencia_valida check (vigencia_fim is null or vigencia_fim >= vigencia_inicio),
   constraint fiscal_rules_versao_valida check (versao >= 1),
   constraint fiscal_rules_vigencia_sem_sobreposicao exclude using gist (
@@ -445,8 +494,8 @@ create table if not exists public.company_rule_overrides (
   status text not null default 'DRAFT',
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
-  constraint company_rule_overrides_tratamento_irpj_valido check (tratamento_irpj is null or tratamento_irpj in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION')),
-  constraint company_rule_overrides_tratamento_csll_valido check (tratamento_csll is null or tratamento_csll in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION')),
+  constraint company_rule_overrides_tratamento_irpj_valido check (tratamento_irpj is null or tratamento_irpj in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION', 'CONDITIONAL', 'AUTOMATIC_SPECIAL')),
+  constraint company_rule_overrides_tratamento_csll_valido check (tratamento_csll is null or tratamento_csll in ('NO_ADJUSTMENT', 'ADDITION', 'EXCLUSION', 'CONDITIONAL', 'AUTOMATIC_SPECIAL')),
   constraint company_rule_overrides_metodo_execucao_valido check (metodo_execucao is null or metodo_execucao in ('FULL_ACCOUNT', 'TRANSACTION_FILTER', 'BALANCE_FORMULA', 'EXTERNAL_SOURCE', 'MANUAL_EXCEPTION')),
   constraint company_rule_overrides_nivel_automacao_valido check (nivel_automacao is null or nivel_automacao in ('AUTOMATIC', 'SEMI_AUTOMATIC', 'MANUAL')),
   constraint company_rule_overrides_status_valido check (status in ('DRAFT', 'ACTIVE', 'INACTIVE', 'SUPERSEDED')),
@@ -479,7 +528,7 @@ create table if not exists public.pending_items (
     references public.tax_periods(id, empresa_id) on delete restrict,
   constraint pending_items_snapshot_empresa_fk foreign key (source_snapshot_id, empresa_id)
     references public.source_snapshots(id, empresa_id) on delete restrict,
-  constraint pending_items_tipo_valido check (tipo in ('NEW_ACCOUNT_UNMAPPED')),
+  constraint pending_items_tipo_valido check (tipo in ('NEW_ACCOUNT_UNMAPPED', 'NEW_ACCOUNT_AUTO_CLASSIFIED', 'CONDITIONAL_TAX_DECISION')),
   constraint pending_items_status_valido check (status in ('OPEN', 'RESOLVED', 'DISMISSED')),
   constraint pending_items_chave_logica_unica unique (chave_logica),
   constraint pending_items_chave_logica_obrigatoria check (length(trim(chave_logica)) > 0),
@@ -572,6 +621,130 @@ create table if not exists public.tax_adjustments (
   constraint tax_adjustments_chave_logica_obrigatoria check (length(trim(chave_logica)) > 0)
 );
 
+
+create table if not exists public.tax_calculations (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete cascade,
+  tax_period_id uuid not null,
+  source_snapshot_id uuid not null,
+  source_snapshot_hash text not null,
+  fiscal_year_profile_id uuid not null references public.fiscal_year_profiles(id) on delete restrict,
+  motor text not null,
+  model_version integer not null,
+  calculation_version integer not null default 1,
+  version_status text not null default 'DRAFT',
+  status text not null,
+  periodo_identidade jsonb not null default '{}'::jsonb,
+  accounting_result_source jsonb not null default '{}'::jsonb,
+  matrix_version text not null,
+  rule_versions jsonb not null default '[]'::jsonb,
+  tax_adjustment_ids jsonb not null default '[]'::jsonb,
+  prior_calculation_ids jsonb not null default '[]'::jsonb,
+  fiscal_balance_usages jsonb not null default '[]'::jsonb,
+  credit_usages jsonb not null default '[]'::jsonb,
+  irpj jsonb not null default '{}'::jsonb,
+  csll jsonb not null default '{}'::jsonb,
+  validation_issues jsonb not null default '[]'::jsonb,
+  memoria jsonb not null default '{}'::jsonb,
+  chave_logica text not null,
+  criado_em timestamptz not null default now(),
+  constraint tax_calculations_periodo_empresa_fk foreign key (tax_period_id, empresa_id)
+    references public.tax_periods(id, empresa_id) on delete restrict,
+  constraint tax_calculations_snapshot_empresa_fk foreign key (source_snapshot_id, empresa_id)
+    references public.source_snapshots(id, empresa_id) on delete restrict,
+  constraint tax_calculations_id_empresa_unico unique (id, empresa_id),
+  constraint tax_calculations_chave_logica_unica unique (chave_logica),
+  constraint tax_calculations_motor_valido check (motor = 'ANNUAL_MONTHLY'),
+  constraint tax_calculations_model_version_valida check (model_version >= 1),
+  constraint tax_calculations_calculation_version_valida check (calculation_version >= 1),
+  constraint tax_calculations_version_status_valido check (version_status in ('DRAFT', 'REVIEW', 'CLOSED_CURRENT', 'CLOSED_SUPERSEDED')),
+  constraint tax_calculations_status_valido check (status in ('CALCULATED', 'CALCULATED_WITH_PENDING_ITEMS', 'VALIDATION_REQUIRED')),
+  constraint tax_calculations_hash_valido check (source_snapshot_hash ~ '^[a-f0-9]{64}$'),
+  constraint tax_calculations_matrix_version_obrigatoria check (length(trim(matrix_version)) > 0),
+  constraint tax_calculations_chave_logica_obrigatoria check (length(trim(chave_logica)) > 0),
+  constraint tax_calculations_periodo_identidade_objeto check (jsonb_typeof(periodo_identidade) = 'object'),
+  constraint tax_calculations_accounting_source_objeto check (jsonb_typeof(accounting_result_source) = 'object'),
+  constraint tax_calculations_rule_versions_array check (jsonb_typeof(rule_versions) = 'array'),
+  constraint tax_calculations_tax_adjustment_ids_array check (jsonb_typeof(tax_adjustment_ids) = 'array'),
+  constraint tax_calculations_prior_calculation_ids_array check (jsonb_typeof(prior_calculation_ids) = 'array'),
+  constraint tax_calculations_fiscal_balance_usages_array check (jsonb_typeof(fiscal_balance_usages) = 'array'),
+  constraint tax_calculations_credit_usages_array check (jsonb_typeof(credit_usages) = 'array'),
+  constraint tax_calculations_irpj_objeto check (jsonb_typeof(irpj) = 'object'),
+  constraint tax_calculations_csll_objeto check (jsonb_typeof(csll) = 'object'),
+  constraint tax_calculations_validation_issues_array check (jsonb_typeof(validation_issues) = 'array'),
+  constraint tax_calculations_memoria_objeto check (jsonb_typeof(memoria) = 'object')
+);
+
+create table if not exists public.tax_workflow_human_decisions (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete cascade,
+  tax_period_id uuid not null,
+  source_snapshot_id uuid not null,
+  pending_item_id uuid not null,
+  tipo_decisao text not null,
+  usuario_id uuid not null references auth.users(id),
+  usuario_email text,
+  justificativa text not null,
+  estado_anterior jsonb not null default '{}'::jsonb,
+  estado_posterior jsonb not null default '{}'::jsonb,
+  contexto_snapshot jsonb not null default '{}'::jsonb,
+  matrix_version_before integer not null,
+  matrix_version_after integer not null,
+  tax_adjustment_ids jsonb not null default '[]'::jsonb,
+  chave_logica text not null,
+  criado_em timestamptz not null default now(),
+  constraint tax_workflow_decisions_periodo_empresa_fk foreign key (tax_period_id, empresa_id)
+    references public.tax_periods(id, empresa_id) on delete restrict,
+  constraint tax_workflow_decisions_snapshot_empresa_fk foreign key (source_snapshot_id, empresa_id)
+    references public.source_snapshots(id, empresa_id) on delete restrict,
+  constraint tax_workflow_decisions_pending_empresa_fk foreign key (pending_item_id, empresa_id)
+    references public.pending_items(id, empresa_id) on delete restrict,
+  constraint tax_workflow_decisions_tipo_valido check (tipo_decisao in ('NEW_ACCOUNT_CLASSIFICATION', 'CONDITIONAL_OCCURRENCE')),
+  constraint tax_workflow_decisions_justificativa_obrigatoria check (length(trim(justificativa)) >= 8),
+  constraint tax_workflow_decisions_matrix_versao_valida check (matrix_version_before >= 1 and matrix_version_after >= matrix_version_before),
+  constraint tax_workflow_decisions_estado_anterior_objeto check (jsonb_typeof(estado_anterior) = 'object'),
+  constraint tax_workflow_decisions_estado_posterior_objeto check (jsonb_typeof(estado_posterior) = 'object'),
+  constraint tax_workflow_decisions_contexto_snapshot_objeto check (jsonb_typeof(contexto_snapshot) = 'object'),
+  constraint tax_workflow_decisions_adjustments_array check (jsonb_typeof(tax_adjustment_ids) = 'array'),
+  constraint tax_workflow_decisions_chave_logica_unica unique (chave_logica),
+  constraint tax_workflow_decisions_chave_logica_obrigatoria check (length(trim(chave_logica)) > 0)
+);
+
+create table if not exists public.tax_dossiers (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete cascade,
+  tax_period_id uuid not null,
+  tax_period_version integer not null,
+  status text not null default 'AVAILABLE',
+  storage_bucket text not null default 'irpj-csll-dossiers',
+  storage_prefix text not null,
+  manifest jsonb not null default '{}'::jsonb,
+  manifest_hash text not null,
+  generated_at timestamptz not null default now(),
+  generated_by uuid not null references auth.users(id),
+  artifact_metadata jsonb not null default '[]'::jsonb,
+  integrity_status text not null default 'OK',
+  failure_code text,
+  failure_message text,
+  comparison_source_versions jsonb not null default '[]'::jsonb,
+  chave_logica text not null,
+  criado_em timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  constraint tax_dossiers_periodo_empresa_fk foreign key (tax_period_id, empresa_id)
+    references public.tax_periods(id, empresa_id) on delete restrict,
+  constraint tax_dossiers_chave_logica_unica unique (chave_logica),
+  constraint tax_dossiers_periodo_unico unique (tax_period_id),
+  constraint tax_dossiers_version_valida check (tax_period_version >= 1),
+  constraint tax_dossiers_status_valido check (status in ('AVAILABLE', 'GENERATION_FAILED')),
+  constraint tax_dossiers_integrity_status_valido check (integrity_status in ('OK', 'FAILED')),
+  constraint tax_dossiers_bucket_privado check (storage_bucket = 'irpj-csll-dossiers'),
+  constraint tax_dossiers_storage_prefix_obrigatorio check (storage_prefix like 'IRPJ-CSLL/%'),
+  constraint tax_dossiers_manifest_objeto check (jsonb_typeof(manifest) = 'object'),
+  constraint tax_dossiers_artifact_metadata_array check (jsonb_typeof(artifact_metadata) = 'array'),
+  constraint tax_dossiers_comparison_versions_array check (jsonb_typeof(comparison_source_versions) = 'array'),
+  constraint tax_dossiers_manifest_hash_sha256 check (manifest_hash = '' or manifest_hash ~ '^[a-f0-9]{64}$'),
+  constraint tax_dossiers_chave_logica_obrigatoria check (length(trim(chave_logica)) > 0)
+);
 create index if not exists accounting_charts_codigo_idx
   on public.accounting_charts (codigo);
 
@@ -604,6 +777,12 @@ create index if not exists tax_adjustments_empresa_periodo_idx
 
 create index if not exists tax_adjustments_rule_execution_result_idx
   on public.tax_adjustments (rule_execution_result_id);
+
+create index if not exists tax_calculations_empresa_periodo_status_idx
+  on public.tax_calculations (empresa_id, tax_period_id, status, version_status);
+
+create index if not exists tax_calculations_snapshot_idx
+  on public.tax_calculations (source_snapshot_id);
 create index if not exists fiscal_year_profiles_empresa_exercicio_idx
   on public.fiscal_year_profiles (empresa_id, exercicio);
 
@@ -621,8 +800,17 @@ create unique index if not exists tax_periods_fechado_corrente_unico
   on public.tax_periods (empresa_id, exercicio, codigo_periodo)
   where status = 'CLOSED_CURRENT';
 
+create index if not exists tax_periods_upstream_stale_idx
+  on public.tax_periods (empresa_id, exercicio, upstream_stale)
+  where upstream_stale;
+
 create index if not exists source_snapshots_empresa_periodo_idx
   on public.source_snapshots (empresa_id, tax_period_id);
+create index if not exists tax_dossiers_empresa_periodo_idx
+  on public.tax_dossiers (empresa_id, tax_period_id, tax_period_version);
+
+create index if not exists tax_dossiers_manifest_hash_idx
+  on public.tax_dossiers (manifest_hash);
 
 alter table public.fiscal_year_profiles enable row level security;
 alter table public.tax_periods enable row level security;
@@ -637,6 +825,9 @@ alter table public.company_rule_overrides enable row level security;
 alter table public.pending_items enable row level security;
 alter table public.rule_execution_results enable row level security;
 alter table public.tax_adjustments enable row level security;
+alter table public.tax_calculations enable row level security;
+alter table public.tax_workflow_human_decisions enable row level security;
+alter table public.tax_dossiers enable row level security;
 
 drop policy if exists "leitura de perfis fiscais autorizados" on public.fiscal_year_profiles;
 drop policy if exists "alteracao de perfis fiscais autorizados" on public.fiscal_year_profiles;
@@ -1051,3 +1242,243 @@ with check (
       and lower(trim(ue.perfil)) <> 'consulta'
   )
 );
+drop policy if exists "leitura de calculos fiscais autorizados" on public.tax_calculations;
+drop policy if exists "alteracao de calculos fiscais autorizados" on public.tax_calculations;
+
+create policy "leitura de calculos fiscais autorizados"
+on public.tax_calculations for select
+to authenticated
+using (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_calculations.empresa_id
+      and ue.usuario_id = auth.uid()
+  )
+);
+
+create policy "alteracao de calculos fiscais autorizados"
+on public.tax_calculations for all
+to authenticated
+using (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_calculations.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+)
+with check (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_calculations.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+);
+drop policy if exists "leitura de decisoes humanas fiscais autorizadas" on public.tax_workflow_human_decisions;
+drop policy if exists "alteracao de decisoes humanas fiscais autorizadas" on public.tax_workflow_human_decisions;
+
+create policy "leitura de decisoes humanas fiscais autorizadas"
+on public.tax_workflow_human_decisions for select
+to authenticated
+using (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_workflow_human_decisions.empresa_id
+      and ue.usuario_id = auth.uid()
+  )
+);
+
+create policy "alteracao de decisoes humanas fiscais autorizadas"
+on public.tax_workflow_human_decisions for all
+to authenticated
+using (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and usuario_id = auth.uid()
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_workflow_human_decisions.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+)
+with check (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and usuario_id = auth.uid()
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_workflow_human_decisions.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+);
+
+
+drop policy if exists "leitura de dossies fiscais autorizados" on public.tax_dossiers;
+drop policy if exists "alteracao de dossies fiscais autorizados" on public.tax_dossiers;
+
+create policy "leitura de dossies fiscais autorizados"
+on public.tax_dossiers for select
+to authenticated
+using (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_dossiers.empresa_id
+      and ue.usuario_id = auth.uid()
+  )
+);
+
+create policy "alteracao de dossies fiscais autorizados"
+on public.tax_dossiers for all
+to authenticated
+using (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_dossiers.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+)
+with check (
+  public.usuario_tem_modulo('contabil', auth.uid())
+  and exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.empresa_id = tax_dossiers.empresa_id
+      and ue.usuario_id = auth.uid()
+      and lower(trim(ue.perfil)) <> 'consulta'
+  )
+);
+create or replace function public.close_irpj_csll_period(
+  p_empresa_id uuid,
+  p_tax_period_id uuid,
+  p_tax_calculation_id uuid,
+  p_closed_manifest_id uuid,
+  p_closed_manifest jsonb,
+  p_schedule_competencia text,
+  p_schedule_modulo text,
+  p_schedule_setor text,
+  p_usuario_id uuid,
+  p_usuario_email text,
+  p_fechado_em timestamptz,
+  p_superseded_tax_period_ids uuid[] default '{}'::uuid[],
+  p_stale_tax_period_ids uuid[] default '{}'::uuid[]
+)
+returns jsonb
+language plpgsql
+security invoker
+as $$
+declare
+  v_period public.tax_periods%rowtype;
+  v_current_count integer;
+begin
+  if p_usuario_id <> auth.uid() then
+    raise exception 'Usuário do fechamento diverge da sessão autenticada.';
+  end if;
+
+  if not public.usuario_tem_modulo('contabil', auth.uid()) then
+    raise exception 'Usuário sem acesso ao módulo contabil.';
+  end if;
+
+  if exists (
+    select 1 from public.usuarios_empresas ue
+    where ue.usuario_id = auth.uid()
+      and ue.empresa_id = p_empresa_id
+      and lower(trim(ue.perfil)) = 'consulta'
+  ) then
+    raise exception 'Perfil Consulta não pode fechar período fiscal.';
+  end if;
+
+  select * into v_period
+  from public.tax_periods
+  where id = p_tax_period_id
+    and empresa_id = p_empresa_id
+  for update;
+
+  if not found then
+    raise exception 'Período fiscal não encontrado para fechamento.';
+  end if;
+
+  update public.tax_periods
+  set status = 'CLOSED_SUPERSEDED',
+      replaced_by_tax_period_id = p_tax_period_id,
+      atualizado_em = p_fechado_em
+  where empresa_id = p_empresa_id
+    and id = any(coalesce(p_superseded_tax_period_ids, '{}'::uuid[]))
+    and id <> p_tax_period_id;
+
+  update public.tax_calculations
+  set version_status = 'CLOSED_SUPERSEDED'
+  where empresa_id = p_empresa_id
+    and tax_period_id = any(coalesce(p_superseded_tax_period_ids, '{}'::uuid[]))
+    and version_status = 'CLOSED_CURRENT';
+
+  update public.tax_periods
+  set upstream_stale = true,
+      atualizado_em = p_fechado_em
+  where empresa_id = p_empresa_id
+    and id = any(coalesce(p_stale_tax_period_ids, '{}'::uuid[]));
+
+  update public.tax_periods
+  set status = 'CLOSED_CURRENT',
+      upstream_stale = false,
+      closed_manifest_id = p_closed_manifest_id,
+      closed_manifest = p_closed_manifest,
+      fechado_por = p_usuario_id,
+      fechado_em = p_fechado_em,
+      atualizado_em = p_fechado_em
+  where id = p_tax_period_id
+    and empresa_id = p_empresa_id;
+
+  update public.tax_calculations
+  set version_status = 'CLOSED_CURRENT'
+  where id = p_tax_calculation_id
+    and empresa_id = p_empresa_id
+    and tax_period_id = p_tax_period_id;
+
+  if not found then
+    raise exception 'Cálculo fiscal não encontrado para fechamento.';
+  end if;
+
+  select count(*) into v_current_count
+  from public.tax_periods
+  where empresa_id = p_empresa_id
+    and exercicio = v_period.exercicio
+    and codigo_periodo = v_period.codigo_periodo
+    and status = 'CLOSED_CURRENT';
+
+  if v_current_count <> 1 then
+    raise exception 'Fechamento fiscal exige exatamente uma versão CLOSED_CURRENT.';
+  end if;
+
+  insert into public.cronograma_entregas (competencia, modulo, setor, status, confirmado_por, confirmado_email, confirmado_em)
+  values (p_schedule_competencia, p_schedule_modulo, p_schedule_setor, 'concluido', p_usuario_id, p_usuario_email, p_fechado_em)
+  on conflict (competencia, modulo)
+  do update set
+    setor = excluded.setor,
+    status = excluded.status,
+    confirmado_por = excluded.confirmado_por,
+    confirmado_email = excluded.confirmado_email,
+    confirmado_em = excluded.confirmado_em;
+
+  insert into public.cronograma_historico (competencia, modulo, setor, acao, usuario_id, usuario_email, criado_em)
+  values (p_schedule_competencia, p_schedule_modulo, p_schedule_setor, 'liberado', p_usuario_id, p_usuario_email, p_fechado_em);
+
+  return jsonb_build_object(
+    'closed', true,
+    'taxPeriodId', p_tax_period_id,
+    'taxCalculationId', p_tax_calculation_id,
+    'closedManifestId', p_closed_manifest_id,
+    'scheduleModule', p_schedule_modulo
+  );
+end;
+$$;
+
+grant execute on function public.close_irpj_csll_period(
+  uuid, uuid, uuid, uuid, jsonb, text, text, text, uuid, text, timestamptz, uuid[], uuid[]
+) to authenticated;

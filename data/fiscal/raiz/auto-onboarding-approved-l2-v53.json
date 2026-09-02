@@ -1,0 +1,29 @@
+{
+  "version": "v53",
+  "source": "Pacote_IRPJ_CSLL_v53_CANONICO / material v50.3",
+  "principle": "Only explicitly approved L2 rules can auto-commit. Candidate-only catalog entries remain non-automatic.",
+  "approved_rules": [
+    {
+      "rule_code": "BASIC_OPERATING_POSTAL",
+      "family": "Correio e serviços postais operacionais",
+      "auto_commit": true,
+      "canonical_evidence": "v53/v50.3 explicit auto_commit=true",
+      "prefixes": ["4.2.1.02.04", "4.2.1.05.03"],
+      "positive": ["correio", "correios", "postagem", "serviço postal", "sedex"],
+      "negative": ["multa", "penalidade", "indenização", "doação", "patrocínio", "provisão", "reversão"],
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE"
+    },
+    {
+      "rule_code": "BASIC_OPERATING_IPTU",
+      "family": "IPTU e tributos imobiliários municipais operacionais",
+      "auto_commit": true,
+      "canonical_evidence": "v53/v50.3 explicit auto_commit=true",
+      "prefixes": ["4.2.1.04.01", "4.1.2.04.03"],
+      "positive": ["iptu", "imposto predial", "tributo imobiliário municipal"],
+      "negative": ["multa", "juros", "penalidade", "parcelamento", "tributo sobre lucro"],
+      "irpj": "SEM AJUSTE",
+      "csll": "SEM AJUSTE"
+    }
+  ]
+}

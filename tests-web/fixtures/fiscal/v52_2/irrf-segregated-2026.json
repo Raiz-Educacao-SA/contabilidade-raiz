@@ -1,0 +1,161 @@
+{
+  "fixture_version": "v52.2",
+  "company": {
+    "code": "02",
+    "name": "EMPRESA SINTETICA"
+  },
+  "year": 2026,
+  "categories": [
+    {
+      "code": "IRRF_SERVICOS",
+      "label": "IRRF – Serviços",
+      "monthly": [
+        {
+          "competence": "2026-01",
+          "identified": "18000.00",
+          "compensated": "6000.00",
+          "ending_balance": "12000.00"
+        },
+        {
+          "competence": "2026-02",
+          "identified": "18000.00",
+          "compensated": "6000.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-03",
+          "identified": "20000.00",
+          "compensated": "12000.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-04",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-05",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-06",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-07",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-08",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-09",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-10",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        },
+        {
+          "competence": "2026-11",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "32000.00"
+        }
+      ],
+      "available_before_december": "32000.00"
+    },
+    {
+      "code": "IRRF_APLICACOES_FINANCEIRAS",
+      "label": "IRRF – Aplicações Financeiras",
+      "monthly": [
+        {
+          "competence": "2026-01",
+          "identified": "12000.00",
+          "compensated": "4000.00",
+          "ending_balance": "8000.00"
+        },
+        {
+          "competence": "2026-02",
+          "identified": "12000.00",
+          "compensated": "4000.00",
+          "ending_balance": "16000.00"
+        },
+        {
+          "competence": "2026-03",
+          "identified": "16000.00",
+          "compensated": "8000.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-04",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-05",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-06",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-07",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-08",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-09",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-10",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        },
+        {
+          "competence": "2026-11",
+          "identified": "0.00",
+          "compensated": "0.00",
+          "ending_balance": "24000.00"
+        }
+      ],
+      "available_before_december": "24000.00"
+    }
+  ],
+  "monthly_requirements": {
+    "source_cnpj_required": false,
+    "revenue_code_required": false,
+    "double_use_forbidden": true
+  }
+}

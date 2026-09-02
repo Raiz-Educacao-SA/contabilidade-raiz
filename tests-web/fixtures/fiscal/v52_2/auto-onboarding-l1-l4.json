@@ -1,0 +1,75 @@
+{
+  "fixture_version": "v52.2",
+  "company": {
+    "code": "02",
+    "name": "EMPRESA SINTETICA"
+  },
+  "competence": "2026-03",
+  "accounts": [
+    {
+      "account": "4.2.1.05.02.06",
+      "description": "Material de Escritório",
+      "parent": "4.2.1.05.02",
+      "movement": "27850.00",
+      "level": "L1_EXACT",
+      "expected_irpj": "SEM_AJUSTE",
+      "expected_csll": "SEM_AJUSTE",
+      "expected_blocking": false,
+      "expected_origin": "AUTOMATICA_L1",
+      "evidence": "exact approved matrix correspondence"
+    },
+    {
+      "account": "4.2.1.05.03.17",
+      "description": "Despesas com Correios e Postagens",
+      "parent": "4.2.1.05.03",
+      "movement": "12680.00",
+      "level": "L2_RULE_BASED_SAFE",
+      "rule_code": "BASIC_OPERATING_POSTAL",
+      "expected_irpj": "SEM_AJUSTE",
+      "expected_csll": "SEM_AJUSTE",
+      "expected_blocking": false,
+      "expected_origin": "AUTOMATICA_L2"
+    },
+    {
+      "account": "4.2.1.05.03.19",
+      "description": "Serviços de Comunicação e Postagens",
+      "parent": "4.2.1.05.03",
+      "movement": "18450.00",
+      "level": "L3_SUGGESTED",
+      "suggested_irpj": "SEM_AJUSTE",
+      "suggested_csll": "SEM_AJUSTE",
+      "expected_blocking": true,
+      "expected_origin_after_approval": "ASSISTIDA_L3"
+    },
+    {
+      "account": "4.2.1.08.01.09",
+      "description": "Tributos e Encargos Imobiliários",
+      "parent": "4.2.1.08.01",
+      "movement": "42700.00",
+      "level": "L4_REVIEW_REQUIRED",
+      "expected_suggestion": null,
+      "expected_blocking": true,
+      "expected_origin_after_decision": "MANUAL_L4",
+      "reason": "generic description may include tax, interest, fine or other components"
+    },
+    {
+      "account": "4.2.1.05.03.21",
+      "description": "Correios - Multas e Penalidades",
+      "parent": "4.2.1.05.03",
+      "movement": "1250.00",
+      "level": "L4_REVIEW_REQUIRED",
+      "expected_blocking": true,
+      "expected_suggestion": null,
+      "reason": "negative criteria multa/penalidade prevent L2 auto-commit"
+    },
+    {
+      "account": "4.2.1.05.03.22",
+      "description": "Nova conta sem movimento",
+      "parent": "4.2.1.05.03",
+      "movement": "0.00",
+      "level": "NO_REVIEW_NO_MOVEMENT",
+      "expected_blocking": false,
+      "expected_pending_created": false
+    }
+  ]
+}

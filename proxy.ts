@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAllowedCorporateEmail } from "@/lib/auth-domain";
 import { requiredModulesForApiPath, resolveAllowedModules } from "@/lib/access-control";
+import { isIrpjCsllHomologationToken } from "@/lib/fiscal/homologation-mode";
 
 export async function proxy(request: NextRequest) {
   if (
@@ -8,6 +9,11 @@ export async function proxy(request: NextRequest) {
     || request.nextUrl.pathname === "/api/access-requests"
   ) {
     return NextResponse.next();
+  }
+
+  if (request.nextUrl.pathname.startsWith("/api/irpj-csll")) {
+    const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    if (isIrpjCsllHomologationToken(token)) return NextResponse.next();
   }
 
   const authorization = request.headers.get("authorization");

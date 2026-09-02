@@ -37,6 +37,13 @@ import BookAccountingPanel from "@/app/book-accounting";
 import RevenueReconciliation from "@/app/revenue-reconciliation";
 import RevenueByBranch from "@/app/revenue-by-branch";
 import PisCofinsAssessment from "@/app/pis-cofins-assessment";
+import IrpjCsllAssessment from "@/app/irpj-csll-assessment";
+import {
+  IRPJ_CSLL_HOMOLOGATION_COMPANY,
+  IRPJ_CSLL_HOMOLOGATION_TOKEN,
+  IRPJ_CSLL_HOMOLOGATION_USER,
+  isIrpjCsllHomologationMode,
+} from "@/lib/fiscal/homologation-mode";
 import TrialBalanceAnalysis from "@/app/trial-balance-analysis";
 import LoanReconciliation from "@/app/loan-reconciliation";
 import CscAllocation from "@/app/csc-allocation";
@@ -287,6 +294,7 @@ function buildLeaseAppUrl(currentSession: Session | null) {
 }
 
 export default function Home() {
+  const homologationMode = isIrpjCsllHomologationMode();
   const [session, setSession] = useState<Session | null>(null);
   const sessionUserId = session?.user.id ?? "";
   const [loading, setLoading] = useState(true);
@@ -338,6 +346,7 @@ export default function Home() {
     if (!selectedModule || selectedModule === "cronograma") return null;
     if (selectedModule === "contabil") {
       if (accountingTab === "pis-cofins") return null;
+      if (accountingTab === "irpj-csll") return null;
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
     if (selectedModule === "bancaria") return null;
@@ -363,6 +372,13 @@ export default function Home() {
   })();
 
   useEffect(() => {
+    if (homologationMode) {
+      setYear(2026);
+      setMonth(3);
+      setClosingDate("2026-04-14");
+      setFilterStorageReady(true);
+      return;
+    }
     void Promise.resolve().then(() => {
       const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
       const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
@@ -372,7 +388,7 @@ export default function Home() {
       if (savedClosingDate && /^\d{4}-\d{2}-\d{2}$/.test(savedClosingDate)) setClosingDate(savedClosingDate);
       setFilterStorageReady(true);
     });
-  }, []);
+  }, [homologationMode]);
   useEffect(() => {
     if (!filterStorageReady) return;
     window.localStorage.setItem("contabilidade-raiz:year", String(year));
@@ -384,6 +400,7 @@ export default function Home() {
   }, [filterStorageReady, closingDate]);
 
   useEffect(() => {
+    if (homologationMode) return;
     if (!session || !filterStorageReady) return;
     let active = true;
     void supabase
@@ -396,11 +413,11 @@ export default function Home() {
         setClosingDate(data?.data_fechamento || formatDateInput(addBusinessDays(lastBusinessDay(year, month), 10)));
       });
     return () => { active = false; };
-  }, [session, filterStorageReady, competence, year, month]);
+  }, [homologationMode, session, filterStorageReady, competence, year, month]);
 
   async function updateClosingDate(value: string) {
     setClosingDate(value);
-    if (!session || !value) return;
+    if (homologationMode || !session || !value) return;
     const { error } = await supabase.from("cronograma_configuracoes").upsert({
       competencia: competence,
       data_fechamento: value,
@@ -423,6 +440,32 @@ export default function Home() {
       }
       setSession(current);
     };
+    if (homologationMode) {
+      applyAuthorizedSession({
+        access_token: IRPJ_CSLL_HOMOLOGATION_TOKEN,
+        refresh_token: "irpj-csll-homologation-refresh",
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: "bearer",
+        user: {
+          id: IRPJ_CSLL_HOMOLOGATION_USER.id,
+          aud: "authenticated",
+          role: "authenticated",
+          email: IRPJ_CSLL_HOMOLOGATION_USER.email,
+          email_confirmed_at: "2026-01-01T00:00:00.000Z",
+          phone: "",
+          confirmed_at: "2026-01-01T00:00:00.000Z",
+          last_sign_in_at: "2026-01-01T00:00:00.000Z",
+          app_metadata: { provider: "homologation", providers: ["homologation"] },
+          user_metadata: { name: IRPJ_CSLL_HOMOLOGATION_USER.name },
+          identities: [],
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z",
+        },
+      } as Session);
+      setLoading(false);
+      return () => { active = false; };
+    }
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const accessToken = hashParams.get("access_token");
     const refreshToken = hashParams.get("refresh_token");
@@ -462,6 +505,26 @@ export default function Home() {
     let active = true;
     void Promise.resolve().then(async () => {
       if (!active) return;
+      if (homologationMode) {
+        const homologationCompany: Company = {
+          empresa_id: IRPJ_CSLL_HOMOLOGATION_COMPANY.id,
+          perfil: IRPJ_CSLL_HOMOLOGATION_COMPANY.profile,
+          empresas: {
+            id: IRPJ_CSLL_HOMOLOGATION_COMPANY.id,
+            codcoligada: IRPJ_CSLL_HOMOLOGATION_COMPANY.code,
+            razao_social: IRPJ_CSLL_HOMOLOGATION_COMPANY.name,
+            cnpj: IRPJ_CSLL_HOMOLOGATION_COMPANY.cnpj,
+          },
+        };
+        setCompanies([homologationCompany]);
+        setModuleGrants(["contabil"]);
+        setCompanyId(homologationCompany.empresa_id);
+        setYear(2026);
+        setMonth(3);
+        setClosingDate("2026-04-14");
+        setCompaniesLoading(false);
+        return;
+      }
       setCompaniesLoading(true);
       setCompanies([]);
       setModuleGrants([]);
@@ -508,6 +571,11 @@ export default function Home() {
     window.localStorage.setItem("contabilidade-raiz:company-id", companyId);
   }, [companyId]);
   useEffect(() => {
+    if (homologationMode) {
+      setAccounts([]);
+      setSelectedAccount("");
+      return;
+    }
     if (!companyId) return;
     supabase
       .from("contas_bancarias")
@@ -521,7 +589,7 @@ export default function Home() {
           if (data?.[0]) setSelectedAccount(data[0].id);
         }
       });
-  }, [companyId]);
+  }, [companyId, homologationMode]);
 
   async function login(event: React.FormEvent) {
     event.preventDefault();
@@ -607,7 +675,7 @@ export default function Home() {
         </section>
       </main>
     );
-  if (!configured)
+  if (!configured && !homologationMode)
     return (
       <main className="center">
         <section className="login-card">
@@ -1162,6 +1230,19 @@ export default function Home() {
             userName={resolveUserDisplayName(session.user.user_metadata, session.user.email ?? "")}
           />
         )}
+        {selectedModule === "contabil" && accountingTab === "irpj-csll" && (
+          <IrpjCsllAssessment
+            key={`${companyId}-${competence}`}
+            companyId={companyId}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={`${company?.empresas?.codcoligada ?? ""} — ${company?.empresas?.razao_social ?? ""}`}
+            competence={competence}
+            accessToken={session.access_token}
+            canWrite={canWrite}
+            userId={session.user.id}
+            userEmail={session.user.email ?? ""}
+          />
+        )}
         {selectedModule === "emprestimos" && (
           <LoanReconciliation
             key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
@@ -1236,32 +1317,16 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "irpj-csll" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
-            {accountingTab === "irpj-csll" ? (
-              <ReceiptText />
-            ) : accountingTab === "provisoes" ? (
+            {accountingTab === "provisoes" ? (
               <Save />
-            ) : accountingTab === "despesas" ? (
-              <ReceiptText />
-            ) : accountingTab === "rateio-csc" ? (
-              <ArrowLeftRight />
             ) : (
-              <Building2 />
+              <ReceiptText />
             )}
             <span className="eyebrow">MÓDULO CONTÁBIL</span>
             <h2>
-              {accountingTab === "irpj-csll"
-                ? "IRPJ/CSLL"
-                : accountingTab === "provisoes"
-                  ? "Provisões"
-                : accountingTab === "despesas"
-                  ? "Despesas"
-                : accountingTab === "arrendamentos"
-                  ? "Arrendamentos"
-                : accountingTab === "rateio-csc"
-                  ? "Rateio CSC"
-                  : "Intercompany"}
+              {accountingTab === "provisoes" ? "Provisões" : "Despesas"}
             </h2>
             <p>
               Área preparada para receber as regras, bases e conferências desta rotina.
@@ -2316,3 +2381,9 @@ function BalancePanel({
     </section>
   );
 }
+
+
+
+
+
+

@@ -1,0 +1,81 @@
+{
+  "fixture": "trial-balance-2026-03",
+  "synthetic": true,
+  "company": "99",
+  "competence": "2026-03",
+  "period_start": "2026-01-01",
+  "period_end": "2026-03-31",
+  "source": "TOTVS RM — CUBO.CTB.002 (mock)",
+  "rows": [
+    {
+      "reduced": "9001",
+      "account": "3.9.9.01.01.01",
+      "description": "Resultado contábil sintético",
+      "openingBalance": 0,
+      "debit": 0,
+      "credit": 1000000,
+      "movement": -1000000,
+      "closingBalance": -1000000
+    },
+    {
+      "reduced": "9002",
+      "account": "4.9.9.01.01.01",
+      "description": "Adição determinística sintética",
+      "openingBalance": 0,
+      "debit": 100000,
+      "credit": 0,
+      "movement": 100000,
+      "closingBalance": 100000
+    },
+    {
+      "reduced": "9003",
+      "account": "4.9.9.01.01.02",
+      "description": "Exclusão determinística sintética",
+      "openingBalance": 0,
+      "debit": 0,
+      "credit": 50000,
+      "movement": -50000,
+      "closingBalance": -50000
+    },
+    {
+      "reduced": "2026",
+      "account": "2.1.7.01.01.53",
+      "description": "Arrendamentos a pagar",
+      "openingBalance": 0,
+      "debit": 120000,
+      "credit": 0,
+      "movement": 120000,
+      "closingBalance": 120000
+    },
+    {
+      "reduced": "1808",
+      "account": "4.2.1.10.01.08",
+      "description": "Juros de Arrendamento - sintético",
+      "openingBalance": 0,
+      "debit": 20000,
+      "credit": 0,
+      "movement": 20000,
+      "closingBalance": 20000
+    },
+    {
+      "reduced": "1809",
+      "account": "4.2.1.10.01.09",
+      "description": "Amortização Direito de Uso - sintético",
+      "openingBalance": 0,
+      "debit": 30000,
+      "credit": 0,
+      "movement": 30000,
+      "closingBalance": 30000
+    },
+    {
+      "reduced": "9999",
+      "account": "4.9.9.99.99.99",
+      "description": "Conta nova não mapeada",
+      "openingBalance": 0,
+      "debit": 5000,
+      "credit": 0,
+      "movement": 5000,
+      "closingBalance": 5000
+    }
+  ]
+}

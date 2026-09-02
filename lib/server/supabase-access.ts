@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
-import { isAllowedCorporateEmail } from "@/lib/auth-domain";
+import { isAllowedCorporateEmail } from "../auth-domain.ts";
 
 function publicConfiguration() {
   return {
