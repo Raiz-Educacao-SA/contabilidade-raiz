@@ -172,19 +172,30 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         ["192406", 524.70],
       ]);
       if (ticketIds.length && accessToken) {
-        try {
-          const zeevResponse = await fetch("/api/zeev/expenses/validate", {
-            method: "POST",
-            headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-            body: JSON.stringify({ tickets: ticketIds }),
-            cache: "no-store",
-            signal: AbortSignal.timeout(120_000),
-          });
-          if (zeevResponse.ok) {
+        const ticketBatches: string[][] = [];
+        for (let index = 0; index < ticketIds.length; index += 50) ticketBatches.push(ticketIds.slice(index, index + 50));
+        const validateBatch = async (tickets: string[]) => {
+          try {
+            const zeevResponse = await fetch("/api/zeev/expenses/validate", {
+              method: "POST",
+              headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+              body: JSON.stringify({ tickets }),
+              cache: "no-store",
+              signal: AbortSignal.timeout(120_000),
+            });
+            if (!zeevResponse.ok) return [];
             const zeevPayload = await zeevResponse.json();
-            for (const validation of zeevPayload.validations || []) if (validation.found && numberValue(validation.value) > 0) zeevValues.set(String(validation.ticket), numberValue(validation.value));
+            return Array.isArray(zeevPayload.validations) ? zeevPayload.validations : [];
+          } catch {
+            return [];
           }
-        } catch { /* A análise contábil continua quando o Zeev estiver indisponível. */ }
+        };
+        for (let index = 0; index < ticketBatches.length; index += 3) {
+          const validations = (await Promise.all(ticketBatches.slice(index, index + 3).map(validateBatch))).flat();
+          for (const validation of validations) {
+            if (validation.found && numberValue(validation.value) > 0) zeevValues.set(String(validation.ticket), numberValue(validation.value));
+          }
+        }
       }
       const months = monthsBetween(periodStart, periodEnd);
       if (!months.length) throw new Error("Informe um período válido de até 12 meses.");
