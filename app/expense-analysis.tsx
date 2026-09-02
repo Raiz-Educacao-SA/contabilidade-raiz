@@ -196,7 +196,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
         const target = row.months[targetMonth] ?? 0;
         row.comment = isOwnCompanySupplier(companyCode, companyName, row.supplier)
-          ? "Possível erro de cadastro: fornecedor com o mesmo nome da empresa - validar Ticket Zeev"
+          ? "Cadastro de Fornecedor Incorreto"
           : row.account.startsWith("1.") && target > 0
             ? "Ativo Imobilizado"
             : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
