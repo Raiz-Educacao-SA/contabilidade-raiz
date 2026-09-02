@@ -107,6 +107,8 @@ test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
   assert.match(zeevValueRoute, /idDoMovimento/);
   assert.match(zeevValueRoute, /"192402": 524\.70/);
   assert.match(zeevValueRoute, /"192406": 524\.70/);
+  assert.match(component, /\["192402", 524\.70\]/);
+  assert.match(component, /\["192406", 524\.70\]/);
   assert.match(component, /new Map<string, Set<string>>/);
   assert.match(component, /accounts\.add\(row\.account\)/);
 });
