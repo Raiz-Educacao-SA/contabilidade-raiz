@@ -88,7 +88,7 @@ test("sinaliza fornecedor cadastrado com o nome da própria empresa", () => {
   assert.match(component, /companySupplierAliases/);
   assert.match(component, /"12": \["COLEGIO LEONARDO DA VINCI"/);
   assert.match(component, /isOwnCompanySupplier\(companyCode, companyName, row\.supplier\)/);
-  assert.match(component, /Possível erro de cadastro: fornecedor com o mesmo nome da empresa - validar Ticket Zeev/);
+  assert.match(component, /Cadastro de Fornecedor Incorreto/);
 });
 
 test("congela a primeira linha de Lançamentos Contábeis", () => {
