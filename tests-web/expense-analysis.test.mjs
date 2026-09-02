@@ -85,6 +85,14 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
   assert.match(component, /A1:O/);
 });
 
+test("não sinaliza rateio intercompany como fornecedor incorreto", () => {
+  assert.match(component, /isIntercompanyAccount/);
+  assert.match(component, /2\.1\.7\.01\.02\.07/);
+  assert.match(component, /includes\("INTERCOMPANY"\)/);
+  assert.match(component, /!isIntercompanyAccount\(account, description\)/);
+  assert.match(component, /contas de rateio\/intercompany são exceção legítima/);
+});
+
 test("valida os CNPJs oficiais das empresas do Grupo Raiz", () => {
   assert.match(component, /groupCompanySupplierTaxIds = new Set/);
   assert.match(component, /21219576000114/);

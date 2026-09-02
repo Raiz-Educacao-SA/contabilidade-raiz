@@ -114,6 +114,10 @@ function isOwnCompanySupplier(code: string, name: string, supplier: string, taxI
     || companyNames.some((value) => supplierName === value || (value.length >= 6 && (supplierName.includes(value) || value.includes(supplierName))));
 }
 
+function isIntercompanyAccount(account: string, description: string) {
+  return account === "2.1.7.01.02.07" || normalized(description).includes("INTERCOMPANY");
+}
+
 function numberValue(value: unknown) {
   if (typeof value === "number") return value;
   const text = String(value ?? "").trim().replace(/R\$\s?/g, "").replace(/\./g, "").replace(",", ".");
@@ -277,7 +281,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const item = grouped.get(key)!;
         item.months[month] = Math.round((item.months[month] + value) * 100) / 100;
         item.total = Math.round((item.total + value) * 100) / 100;
-        item.ownCompanySupplier ||= isOwnCompanySupplier(companyCode, companyName, supplier, record.CGCCFO);
+        item.ownCompanySupplier ||= !isIntercompanyAccount(account, description) && isOwnCompanySupplier(companyCode, companyName, supplier, record.CGCCFO);
         const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
         const zeevValue = zeevValues.get(ticket);
         item.incorrectValue ||= zeevValue !== undefined && Math.abs(value - zeevValue) > 0.01;
@@ -454,7 +458,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Escopo contábil", "Somente conta DÉBITO + descrição DESCRICAO"],
       ["Divergência", "Conta utilizada no mês final sem movimento nos meses anteriores, quando o fornecedor possui mais de uma conta"],
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
-      ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde à coligada; validar pelo Ticket Zeev antes da correção"],
+      ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde a uma empresa do grupo; contas de rateio/intercompany são exceção legítima"],
       ["Valores incorretos", "Valor do movimento contábil divergente do valor total aprovado no Ticket Zeev; revisar o IDMOV antes da integração/fechamento"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
