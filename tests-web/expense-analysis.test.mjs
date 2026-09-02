@@ -6,6 +6,7 @@ const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"
 const component = fs.readFileSync(new URL("../app/expense-analysis.tsx", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../app/expense-analysis.css", import.meta.url), "utf8");
 const route = fs.readFileSync(new URL("../app/api/totvs/expenses/route.ts", import.meta.url), "utf8");
+const zeevValueRoute = fs.readFileSync(new URL("../app/api/zeev/expenses/validate/route.ts", import.meta.url), "utf8");
 
 test("Módulo Contábil renderiza a análise no item Despesas", () => {
   assert.match(page, /import ExpenseAnalysis/);
@@ -94,6 +95,16 @@ test("sinaliza fornecedor cadastrado com o nome da própria empresa", () => {
   assert.match(component, /09262835000356/);
   assert.match(component, /isOwnCompanySupplier\(companyCode, companyName, supplier, record\.CGCCFO\)/);
   assert.match(component, /Cadastro de Fornecedor Incorreto/);
+});
+
+test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
+  assert.match(component, /\/api\/zeev\/expenses\/validate/);
+  assert.match(component, /Math\.abs\(value - zeevValue\) > 0\.01/);
+  assert.match(component, /Valores Incorretos/);
+  assert.match(zeevValueRoute, /valorTotalDoPagamento/);
+  assert.match(zeevValueRoute, /numeroDaNF/);
+  assert.match(zeevValueRoute, /chaveDeAcesso/);
+  assert.match(zeevValueRoute, /idDoMovimento/);
 });
 
 test("congela a primeira linha de Lançamentos Contábeis", () => {
