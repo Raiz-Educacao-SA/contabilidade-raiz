@@ -40,6 +40,37 @@ const companySupplierAliases: Record<string, string[]> = {
 const companySupplierTaxIds: Record<string, string[]> = {
   "12": ["09262835000194", "09262835000275", "09262835000437", "09262835000356"],
 };
+const groupCompanySupplierNames = [
+  "RAIZ EDUCAÇÃO",
+  "COLÉGIO QI",
+  "RAIZ SUL",
+  "EDITORA RAIZ",
+  "AO CUBO",
+  "METROPOLITANO",
+  "MATRIZ EDUCAÇÃO",
+  "CRECHE IPÊ",
+  "ESCOLAS INTEGRADAS",
+  "GEU",
+  "CLV",
+  "SELVI",
+  "DIDACTA",
+  "CLV GAMA",
+  "BOM TEMPO",
+  "CENTRO EDUCACIONAL ESPAÇO MÁGICO LTDA",
+  "APOGEU UBÁ",
+  "APOGEU CIDADE ALTA",
+  "APOGEU DIVINÓPOLIS",
+  "APOGEU PARÁ DE MINAS",
+  "APOGEU POUSO ALEGRE",
+  "COLÉGIO SÃO TOMAS DE AQUINO",
+  "COLÉGIO SARAH DAWSEY",
+  "SUDESTE GESTÃO EDUCACIONAL LTDA",
+  "APOGEU DIVINOPOLIS LTDA",
+  "PRO RAIZ SISTEMAS DE ENSINO LTDA",
+  "COLÉGIO AMERICANO",
+  "COLÉGIO UNIÃO",
+  "SARAH DAWSEY TIJUCA",
+];
 
 function normalized(value: unknown) {
   return String(value ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -47,12 +78,12 @@ function normalized(value: unknown) {
 
 function isOwnCompanySupplier(code: string, name: string, supplier: string, taxId: unknown) {
   const supplierName = normalized(supplier);
-  const companyNames = [name, ...(companySupplierAliases[code] || [])]
+  const companyNames = [name, ...(companySupplierAliases[code] || []), ...groupCompanySupplierNames]
     .map(normalized)
-    .filter((value) => value.length >= 6);
+    .filter(Boolean);
   const supplierTaxId = String(taxId ?? "").replace(/\D/g, "");
   return (companySupplierTaxIds[code] || []).includes(supplierTaxId)
-    || companyNames.some((value) => supplierName.includes(value) || value.includes(supplierName));
+    || companyNames.some((value) => supplierName === value || (value.length >= 6 && (supplierName.includes(value) || value.includes(supplierName))));
 }
 
 function numberValue(value: unknown) {
