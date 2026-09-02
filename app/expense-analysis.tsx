@@ -306,6 +306,8 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
           ? "Cadastro de Fornecedor Incorreto"
           : row.incorrectValue
             ? "Valores Incorretos"
+            : String(Number(companyCode)) === "1" && row.account.startsWith("4.1")
+              ? "Custo Operacional Inadequado - Classificação Incorreta"
             : row.account.startsWith("1.") && target > 0
             ? "Ativo Imobilizado"
             : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
@@ -461,6 +463,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde a uma empresa do grupo; contas de rateio/intercompany são exceção legítima"],
       ["Valores incorretos", "Valor do movimento contábil divergente do valor total aprovado no Ticket Zeev; revisar o IDMOV antes da integração/fechamento"],
+      ["Custo operacional inadequado", "Somente na coligada 01 — Raiz Educação: conta iniciada por 4.1 indica classificação incorreta, pois a empresa não apresenta receita"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
       ["Tickets Zeev", "No Excel, clique no valor mensal para acessar os lançamentos; depois clique no ticket para abrir a nota fiscal no Zeev"],
