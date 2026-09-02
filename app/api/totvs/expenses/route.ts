@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
         DEBITO: tag(record, "DEBITO"),
         DESCRICAO: firstTag(record, ["DESCDEBITO", "DESCRICAO", "DESCCONTA"]),
         VALOR: numeric(tag(record, "VALOR")),
+        CODCCUSTO: tag(record, "CODCCUSTO"),
+        DESCRICAO2: tag(record, "DESCRICAO2"),
+        COMPLEMENTO: tag(record, "COMPLEMENTO"),
       }));
 
     return NextResponse.json({
