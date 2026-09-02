@@ -178,6 +178,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
   const [periodStart, setPeriodStart] = useState(initialPeriod.start);
   const [periodEnd, setPeriodEnd] = useState(initialPeriod.end);
   const [error, setError] = useState("");
+  const [zeevWarning, setZeevWarning] = useState("");
   const [detail, setDetail] = useState<{ supplier: string; account: string; month: string } | null>(null);
   const targetMonth = periodEnd.slice(0, 7);
   const targetLabel = `${targetMonth.slice(5, 7)}/${targetMonth.slice(0, 4)}`;
@@ -196,6 +197,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     if (!periodStart || !periodEnd || periodStart > periodEnd) return setError("Informe um período inicial e final válido.");
     setBusy(true);
     setError("");
+    setZeevWarning("");
     try {
       const response = await fetch(`/api/totvs/expenses?company=${encodeURIComponent(companyCode)}&start=${encodeURIComponent(periodStart)}&end=${encodeURIComponent(periodEnd)}`, {
         headers: { authorization: `Bearer ${accessToken}` },
@@ -237,6 +239,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         ["192406", 524.70],
       ]);
       const zeevDocuments = new Map<string, { invoiceNumber: string; invoiceKey: string; supplierTaxId: string; cancelled: boolean }>();
+      let failedZeevBatches = 0;
       if (ticketIds.length && accessToken) {
         const ticketBatches: string[][] = [];
         for (let index = 0; index < ticketIds.length; index += 50) ticketBatches.push(ticketIds.slice(index, index + 50));
@@ -249,28 +252,38 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
               cache: "no-store",
               signal: AbortSignal.timeout(120_000),
             });
-            if (!zeevResponse.ok) return [];
+            if (!zeevResponse.ok) {
+              failedZeevBatches += 1;
+              return [];
+            }
             const zeevPayload = await zeevResponse.json();
             return Array.isArray(zeevPayload.validations) ? zeevPayload.validations : [];
           } catch {
+            failedZeevBatches += 1;
             return [];
           }
         };
         for (let index = 0; index < ticketBatches.length; index += 3) {
           const validations = (await Promise.all(ticketBatches.slice(index, index + 3).map(validateBatch))).flat();
           for (const validation of validations) {
-            if (validation.found && numberValue(validation.value) > 0) {
+            if (validation.found) {
               const ticket = String(validation.ticket);
-              zeevValues.set(ticket, numberValue(validation.value));
-              zeevDocuments.set(ticket, {
-                invoiceNumber: String(validation.invoiceNumber || "").trim(),
-                invoiceKey: String(validation.invoiceKey || "").replace(/\D/g, ""),
-                supplierTaxId: String(validation.supplierTaxId || "").replace(/\D/g, ""),
-                cancelled: validation.cancelled === true,
-              });
+              const validatedValue = numberValue(validation.value);
+              if (validatedValue > 0) zeevValues.set(ticket, validatedValue);
+              const invoiceNumber = String(validation.invoiceNumber || "").trim();
+              const invoiceKey = String(validation.invoiceKey || "").replace(/\D/g, "");
+              if (invoiceNumber || invoiceKey) {
+                zeevDocuments.set(ticket, {
+                  invoiceNumber,
+                  invoiceKey,
+                  supplierTaxId: String(validation.supplierTaxId || "").replace(/\D/g, ""),
+                  cancelled: validation.cancelled === true,
+                });
+              }
             }
           }
         }
+        if (failedZeevBatches) setZeevWarning(`${failedZeevBatches} lote(s) de tickets não puderam ser validados no Zeev. A exportação foi bloqueada para evitar uma conclusão incompleta.`);
       }
       const months = monthsBetween(periodStart, periodEnd);
       if (!months.length) throw new Error("Informe um período válido de até 12 meses.");
@@ -554,9 +567,10 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     </div>
     <div className="expense-upload">
       <div><span className="eyebrow">PLANILHANET 08 · COMPRAS</span><h2>Análise de despesas</h2><p>Atualize diretamente pelo TOTVS RM ou importe o arquivo como alternativa.</p></div>
-      <div className="expense-actions"><button className="primary" disabled={busy || !accessToken} onClick={() => void refreshPlanilhaNet()}><RefreshCw className={busy ? "spin" : ""} />{busy ? "Atualizando..." : "Atualizar PlanilhaNet 08"}</button><button className="secondary" disabled={!analysis || busy} onClick={exportAnalysis}><Download />Exportar Excel</button><label className="expense-file secondary"><Upload />Importar arquivo<input type="file" accept=".xlsx,.xlsm,.xls" disabled={busy} onChange={(event) => void load(event.target.files?.[0])} /></label></div>
+      <div className="expense-actions"><button className="primary" disabled={busy || !accessToken} onClick={() => void refreshPlanilhaNet()}><RefreshCw className={busy ? "spin" : ""} />{busy ? "Atualizando..." : "Atualizar PlanilhaNet 08"}</button><button className="secondary" disabled={!analysis || busy || Boolean(zeevWarning)} onClick={exportAnalysis}><Download />Exportar Excel</button><label className="expense-file secondary"><Upload />Importar arquivo<input type="file" accept=".xlsx,.xlsm,.xls" disabled={busy} onChange={(event) => void load(event.target.files?.[0])} /></label></div>
     </div>
     {error && <div className="notice error"><AlertTriangle />{error}</div>}
+    {zeevWarning && <div className="notice error"><AlertTriangle />{zeevWarning}</div>}
     {!analysis ? <div className="expense-empty"><FileSpreadsheet /><b>Aguardando a PlanilhaNet 08</b><span>Coligada {companyCode} · período {periodStart.split("-").reverse().join("/")} a {periodEnd.split("-").reverse().join("/")} · somente contas a débito</span></div> : <>
       <div className="expense-source"><span>{analysis.fileName}</span><small>{companyCode} — {companyName}</small><button onClick={() => setAnalysis(null)}><RefreshCw />Trocar arquivo</button></div>
       <div className="expense-kpis">
