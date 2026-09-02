@@ -87,7 +87,12 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
 test("sinaliza fornecedor cadastrado com o nome da própria empresa", () => {
   assert.match(component, /companySupplierAliases/);
   assert.match(component, /"12": \["COLEGIO LEONARDO DA VINCI"/);
-  assert.match(component, /isOwnCompanySupplier\(companyCode, companyName, row\.supplier\)/);
+  assert.match(component, /companySupplierTaxIds/);
+  assert.match(component, /09262835000194/);
+  assert.match(component, /09262835000275/);
+  assert.match(component, /09262835000437/);
+  assert.match(component, /09262835000356/);
+  assert.match(component, /isOwnCompanySupplier\(companyCode, companyName, supplier, record\.CGCCFO\)/);
   assert.match(component, /Cadastro de Fornecedor Incorreto/);
 });
 
