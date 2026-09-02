@@ -82,7 +82,14 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
   assert.doesNotMatch(component, /"Reduzido"/);
   assert.match(component, /"Natureza", "Conta contábil", "Descrição"/);
   assert.doesNotMatch(route, /REDUZIDO:/);
-  assert.match(component, /A1:O/);
+  assert.match(component, /A1:Q/);
+});
+
+test("inclui centro de custo e complemento após valor nos lançamentos contábeis", () => {
+  assert.match(component, /"Valor", "Centro de custo", "Complemento", "Coligada"/);
+  assert.match(component, /record\.CODCCUSTO \|\| record\.CODCCUSTODEBITO \|\| record\.CCUSTO/);
+  assert.match(component, /record\.COMPLEMENTO \|\| record\.COMPLHISTORICO \|\| record\.HISTORICO/);
+  assert.match(component, /A1:Q/);
 });
 
 test("não sinaliza rateio intercompany como fornecedor incorreto", () => {
