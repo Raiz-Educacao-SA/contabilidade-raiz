@@ -299,6 +299,7 @@ export default function MonthlyReconciliationPanel({
   );
   const [actionsTarget, setActionsTarget] = useState<HTMLElement | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [taskFinalized, setTaskFinalized] = useState(true);
   const accountingRequestRef = useRef(0);
   const dataEngineRequestRef = useRef(0);
   const accountingAbortRef = useRef<AbortController | null>(null);
@@ -492,6 +493,7 @@ export default function MonthlyReconciliationPanel({
   }
 
   function clearHistory() {
+    if (taskFinalized) return;
     if (
       !window.confirm(
         "Deseja limpar o histórico da última conciliação desta empresa e competência?",
@@ -765,6 +767,7 @@ export default function MonthlyReconciliationPanel({
               userEmail={reconciledBy}
               disabled={!results.length}
               disabledReason="Execute a conciliação antes de finalizar a tarefa."
+              onStatusChange={setTaskFinalized}
             />
             <button
               className="secondary"
@@ -783,8 +786,9 @@ export default function MonthlyReconciliationPanel({
             </button>
             <button
               className="clear-history"
-              disabled={!results.length}
+              disabled={taskFinalized || !results.length}
               onClick={clearHistory}
+              title={taskFinalized ? "Reabra a tarefa antes de limpar o histórico." : undefined}
             >
               <Trash2 />
               Limpar histórico
@@ -875,7 +879,7 @@ export default function MonthlyReconciliationPanel({
             </div>
             <button
               className={`secondary workflow-action accounting-action ${accountingStepComplete ? "is-complete" : "is-available"}`}
-              disabled={accountingBusy || dataEngineBusy}
+              disabled={taskFinalized || accountingBusy || dataEngineBusy}
               onClick={refreshAccounting}
             >
               <RefreshCw className={accountingBusy ? "spinning" : ""} />
@@ -901,7 +905,7 @@ export default function MonthlyReconciliationPanel({
             </div>
             <button
               className={`secondary workflow-action statements-action ${statementsStepComplete ? "is-complete" : accountingFresh ? "is-available" : "is-locked"}`}
-              disabled={!accountingFresh || dataEngineBusy}
+              disabled={taskFinalized || !accountingFresh || dataEngineBusy}
               onClick={scanDataEngine}
             >
               <RefreshCw className={dataEngineBusy ? "spinning" : ""} />
@@ -925,7 +929,7 @@ export default function MonthlyReconciliationPanel({
             </div>
             <button
               className={`primary workflow-action reconciliation-action ${resultsCurrent ? "is-complete" : reconciliationReady ? "is-available" : "is-locked"}`}
-              disabled={!reconciliationReady}
+              disabled={taskFinalized || !reconciliationReady}
               onClick={runAll}
             >
               <ArrowLeftRight />

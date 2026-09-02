@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Download, RefreshCw, TrendingUp } from "lucide-react";
+import { Download, Eye, EyeOff, RefreshCw, TrendingUp } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
 
@@ -17,6 +17,12 @@ type RetrospectiveRow = {
   account: string;
   description: string;
   movements: number[];
+};
+
+type RetrospectiveColumn = {
+  id: string;
+  label: string;
+  minWidth?: number;
 };
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -45,6 +51,7 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
   const [periods, setPeriods] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
   async function update() {
     if (!companyCode || !competence || !accessToken) return;
@@ -99,6 +106,33 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
   const totals = useMemo(() => periods.map((_, index) => rows.reduce((sum, row) => sum + (row.movements[index] || 0), 0)), [periods, rows]);
   const branchTotals = useMemo(() => new Map(branches.map((branch) => [branch, periods.map((_, index) => rows.filter((row) => row.branch === branch).reduce((sum, row) => sum + (row.movements[index] || 0), 0))])), [branches, periods, rows]);
   const currentPeriodLabel = periods.at(-1) ? competenceLabel(periods.at(-1)!) : competenceLabel(competence);
+  const columns = useMemo<RetrospectiveColumn[]>(() => {
+    const next: RetrospectiveColumn[] = [
+      { id: "branch", label: "Filial" },
+      { id: "account", label: "Conta contábil" },
+      { id: "description", label: "Descrição", minWidth: 180 },
+    ];
+    periods.forEach((period, index) => {
+      next.push({ id: `movement:${period}`, label: shortCompetenceLabel(period) });
+      if (index > 0) {
+        next.push({ id: `variation:${period}`, label: `% vs ${shortCompetenceLabel(periods[index - 1])}` });
+      }
+    });
+    return next;
+  }, [periods]);
+  const visibleColumns = columns.filter((column) => !hiddenColumns.includes(column.id));
+  const currentHiddenColumns = columns.filter((column) => hiddenColumns.includes(column.id));
+  const visibleFixedColumnCount = ["branch", "account", "description"].filter((id) => !hiddenColumns.includes(id)).length;
+  const isColumnVisible = (id: string) => !hiddenColumns.includes(id);
+
+  function hideColumn(id: string) {
+    if (visibleColumns.length <= 1) return;
+    setHiddenColumns((current) => current.includes(id) ? current : [...current, id]);
+  }
+
+  function showColumn(id: string) {
+    setHiddenColumns((current) => current.filter((column) => column !== id));
+  }
 
   function exportRetrospective() {
     if (!rows.length) return;
@@ -139,11 +173,11 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
     XLSX.writeFile(workbook, `${String(companyCode).padStart(2, "0")}_Receita_por_Filial_${competence.slice(5)}_${competence.slice(0, 4)}.xlsx`);
   }
 
-  const totalColumns = 3 + periods.length + Math.max(0, periods.length - 1);
+  const totalColumns = visibleColumns.length;
 
   return <section className="panel trial-analysis revenue-branch-retrospective">
     <div className="trial-analysis-actions">
-      <div><h2>Retrospectiva · Receita por Filial</h2><p>Movimento mensal das contas iniciadas por 3, de janeiro até o mês filtrado, aberto por conta e filial, com variação mês a mês.</p></div>
+      <div><h2>Retrospectiva · Receita por Filial</h2><p>Movimento mensal das contas contábeis iniciadas por 3, de janeiro até o mês filtrado, aberto por conta e filial, com variação mês a mês.</p></div>
       <div className="trial-action-buttons">
         <button className={`secondary ${rows.length ? "source-loaded" : ""}`} onClick={() => void update()} disabled={loading}><RefreshCw className={loading ? "spin" : ""} />{loading ? "Atualizando..." : "Atualizar retrospectiva"}</button>
         <button className="secondary" onClick={exportRetrospective} disabled={!rows.length}><Download />Exportar</button>
@@ -157,17 +191,23 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
         <article><span>Contas consideradas</span><b>3...</b></article>
         <article><span>Base do valor</span><b>Movimento</b></article>
       </div>
+      <div className="revenue-column-visibility">
+        {currentHiddenColumns.length ? <>
+          <span>Colunas ocultas:</span>
+          {currentHiddenColumns.map((column) => <button key={column.id} type="button" onClick={() => showColumn(column.id)} title={`Exibir coluna ${column.label}`}><Eye />{column.label}</button>)}
+          <button type="button" className="show-all" onClick={() => setHiddenColumns([])}><Eye />Mostrar todas</button>
+        </> : <span>Use “Ocultar” acima do título para direcionar a visualização da retrospectiva.</span>}
+      </div>
       <div className="table-wrap trial-table revenue-year-table" style={{ overflowX: "auto" }}>
-        <table style={{ fontSize: "10px", lineHeight: 1.15, minWidth: `${Math.max(1120, totalColumns * 94)}px` }}>
+        <table style={{ fontSize: "10px", lineHeight: 1.15, minWidth: `${Math.max(520, totalColumns * 104)}px` }}>
           <thead>
             <tr>
-              <th style={{ whiteSpace: "nowrap" }}>Filial</th>
-              <th style={{ whiteSpace: "nowrap" }}>Conta contábil</th>
-              <th style={{ whiteSpace: "nowrap", minWidth: 180 }}>Descrição</th>
-              {periods.map((period, index) => <Fragment key={period}>
-                <th style={{ whiteSpace: "nowrap" }}>{shortCompetenceLabel(period)}</th>
-                {index > 0 && <th style={{ whiteSpace: "nowrap" }}>% vs {shortCompetenceLabel(periods[index - 1])}</th>}
-              </Fragment>)}
+              {visibleColumns.map((column) => <th key={column.id} style={{ whiteSpace: "nowrap", minWidth: column.minWidth }}>
+                <span className="revenue-column-header">
+                  <button type="button" className="revenue-column-hide" onClick={() => hideColumn(column.id)} disabled={visibleColumns.length <= 1} title={`Ocultar coluna ${column.label}`}><EyeOff />Ocultar</button>
+                  <span>{column.label}</span>
+                </span>
+              </th>)}
             </tr>
           </thead>
           <tbody>
@@ -177,19 +217,19 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
               return <Fragment key={branch}>
                 <tr className="branch-group-row"><td colSpan={totalColumns}><b>Filial {branch}</b></td></tr>
                 {branchRows.map((row) => <tr key={`${row.branch}-${row.account}`}>
-                  <td>{row.branch}</td>
-                  <td><b>{row.account}</b></td>
-                  <td>{row.description || "—"}</td>
+                  {isColumnVisible("branch") && <td>{row.branch}</td>}
+                  {isColumnVisible("account") && <td><b>{row.account}</b></td>}
+                  {isColumnVisible("description") && <td>{row.description || "—"}</td>}
                   {row.movements.map((movement, index) => <Fragment key={`${row.branch}-${row.account}-${periods[index]}`}>
-                    <td style={{ whiteSpace: "nowrap" }}><b>{money.format(movement)}</b></td>
-                    {index > 0 && <td style={{ whiteSpace: "nowrap" }}><b>{variationLabel(movement, row.movements[index - 1] || 0)}</b></td>}
+                    {isColumnVisible(`movement:${periods[index]}`) && <td style={{ whiteSpace: "nowrap" }}><b>{money.format(movement)}</b></td>}
+                    {index > 0 && isColumnVisible(`variation:${periods[index]}`) && <td style={{ whiteSpace: "nowrap" }}><b>{variationLabel(movement, row.movements[index - 1] || 0)}</b></td>}
                   </Fragment>)}
                 </tr>)}
                 <tr className="branch-subtotal-row">
-                  <td colSpan={3}><b>Total Filial {branch}</b></td>
+                  {visibleFixedColumnCount > 0 && <td colSpan={visibleFixedColumnCount}><b>Total Filial {branch}</b></td>}
                   {subtotals.map((total, index) => <Fragment key={`${branch}-subtotal-${periods[index]}`}>
-                    <td style={{ whiteSpace: "nowrap" }}><b>{money.format(total)}</b></td>
-                    {index > 0 && <td style={{ whiteSpace: "nowrap" }}><b>{variationLabel(total, subtotals[index - 1] || 0)}</b></td>}
+                    {isColumnVisible(`movement:${periods[index]}`) && <td style={{ whiteSpace: "nowrap" }}><b>{money.format(total)}</b></td>}
+                    {index > 0 && isColumnVisible(`variation:${periods[index]}`) && <td style={{ whiteSpace: "nowrap" }}><b>{variationLabel(total, subtotals[index - 1] || 0)}</b></td>}
                   </Fragment>)}
                 </tr>
               </Fragment>;
@@ -197,10 +237,10 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3}>TOTAL GERAL</td>
+              {visibleFixedColumnCount > 0 && <td colSpan={visibleFixedColumnCount}>TOTAL GERAL</td>}
               {totals.map((total, index) => <Fragment key={`total-${periods[index]}`}>
-                <td style={{ whiteSpace: "nowrap" }}><b>{money.format(total)}</b></td>
-                {index > 0 && <td style={{ whiteSpace: "nowrap" }}><b>{variationLabel(total, totals[index - 1] || 0)}</b></td>}
+                {isColumnVisible(`movement:${periods[index]}`) && <td style={{ whiteSpace: "nowrap" }}><b>{money.format(total)}</b></td>}
+                {index > 0 && isColumnVisible(`variation:${periods[index]}`) && <td style={{ whiteSpace: "nowrap" }}><b>{variationLabel(total, totals[index - 1] || 0)}</b></td>}
               </Fragment>)}
             </tr>
           </tfoot>

@@ -26,6 +26,11 @@ test("identifica Receita por Filial e Lotes a integrar no Cronograma", () => {
   assert.equal(accountingCompletionIdentity("lotes-integrar", "18", "Espaço Mágico").setor, "Contabilidade · Lotes a integrar · 18 — Espaço Mágico");
 });
 
+test("substitui ECD por ECF nas tarefas do módulo Fiscal", () => {
+  assert.equal(fiscalCompletionIdentity("ecf", "2", "02 — COLÉGIO QI").modulo, "fiscal:ecf:02");
+  assert.equal(fiscalCompletionIdentity("ecf", "2", "02 — COLÉGIO QI").setor, "Fiscal · ECF · 02 — COLÉGIO QI");
+});
+
 test("gera chaves detalhadas por empresa para Fiscal, Folha e Book", () => {
   assert.equal(fiscalCompletionIdentity("iss", "2", "02 — COLÉGIO QI").modulo, "fiscal:iss:02");
   assert.equal(payrollCompletionIdentity("fgts", "2", "02 — COLÉGIO QI").modulo, "folha:fgts:02");

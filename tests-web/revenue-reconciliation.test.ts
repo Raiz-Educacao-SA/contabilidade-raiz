@@ -9,20 +9,32 @@ import {
 } from "../lib/revenue-export-workbook.ts";
 
 import {
+  ADDITIONAL_TUITION_REVENUE_ACCOUNT,
   accountingRevenueQueryAccounts,
+  accountingRevenueQueryAccountsForCompany,
+  classifyCompany18InternalMdDivergence,
+  classifyContinuingEducationDivergence,
   classifyAccountingRevenue,
+  classifyRevenueDivergence,
   classifyRevenueReconciliation,
   COMMERCIAL_DISCOUNT_ACCOUNT,
+  COMPANY_18_INTERNAL_MD_ACCOUNT,
+  CONTINUING_EDUCATION_REVENUE_ACCOUNT,
   consolidateFiscalRevenueRows,
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
   DISCOUNT_ACCOUNT_PREFIX,
+  DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
+  isCompany18InternalMdEntry,
+  isContinuingEducationRevenueAccount,
+  isExtraRevenueAccount,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
   isValidRevenueRa,
   normalizeRevenueRa,
+  OTHER_STUDENT_REVENUE_ACCOUNT,
   PAA_DISCOUNT_ACCOUNT,
   REVENUE_ACCOUNT_DESCRIPTIONS,
   REVENUE_ACCOUNT_PREFIX,
@@ -34,12 +46,53 @@ import { revenueReconciliationCacheKey } from "../lib/revenue-reconciliation-cac
 test("consulta receitas e todos os grupos contábeis de descontos", () => {
   assert.deepEqual(accountingRevenueQueryAccounts(), [
     REVENUE_ACCOUNT_PREFIX,
+    ADDITIONAL_TUITION_REVENUE_ACCOUNT,
     EXTENDED_HOURS_REVENUE_ACCOUNT,
+    OTHER_STUDENT_REVENUE_ACCOUNT,
+    DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ]);
   assert.ok(INSTITUTIONAL_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
   assert.ok(PAA_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
+});
+
+test("consulta a conta de MD interno somente para a coligada 18", () => {
+  assert.deepEqual(
+    accountingRevenueQueryAccountsForCompany("18"),
+    [...accountingRevenueQueryAccounts(), COMPANY_18_INTERNAL_MD_ACCOUNT],
+  );
+  assert.deepEqual(
+    accountingRevenueQueryAccountsForCompany("02"),
+    [...accountingRevenueQueryAccounts()],
+  );
+});
+
+test("identifica MD interno pela coligada, conta e histórico", () => {
+  assert.equal(
+    isCompany18InternalMdEntry(
+      "18",
+      "2.3.1.03.02.02",
+      "1822242596 - ALUNO - Serviço: MD Interno - Ensino Médio",
+    ),
+    true,
+  );
+  assert.equal(
+    isCompany18InternalMdEntry(
+      "18",
+      "2.3.1.03.02.01",
+      "1822242596 - ALUNO - Serviço: MD Interno",
+    ),
+    false,
+  );
+  assert.equal(
+    isCompany18InternalMdEntry(
+      "09",
+      "2.3.1.03.02.02",
+      "1822242596 - ALUNO - Serviço: MD Interno",
+    ),
+    false,
+  );
 });
 
 test("classifica todas as receitas previstas na diretriz funcional", () => {
@@ -62,6 +115,29 @@ test("classifica todas as receitas previstas na diretriz funcional", () => {
       description,
     );
   });
+  assert.equal(
+    classifyAccountingRevenue(
+      ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+      "Mensalidades Extras",
+    ),
+    "revenue",
+  );
+  assert.equal(
+    classifyAccountingRevenue(
+      OTHER_STUDENT_REVENUE_ACCOUNT,
+      "Outras Receitas de Alunos",
+    ),
+    "revenue",
+  );
+  assert.equal(
+    classifyAccountingRevenue(
+      DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
+      "Material Didatico",
+    ),
+    "revenue",
+  );
+  assert.equal(isExtraRevenueAccount(DIDACTIC_MATERIAL_REVENUE_ACCOUNT), false);
+  assert.equal(isExtraRevenueAccount(ADDITIONAL_TUITION_REVENUE_ACCOUNT), true);
 });
 
 test("classifica todas as bolsas e descontos previstos na diretriz funcional", () => {
@@ -160,16 +236,316 @@ test("não duplica o código da empresa no nome do arquivo exportado", () => {
 
 test("consolida receitas e descontos por RA", () => {
   const summaries = summarizeAccountingRevenue([
-    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue", generationType: "O" },
+    { ra: "123", name: "Aluno", value: -1_000, kind: "revenue", generationType: "O", account: REVENUE_ACCOUNT_PREFIX },
     { ra: "123", name: "Aluno", value: 100, kind: "revenue", complement: "AJUSTE", generationType: " O " },
+    { ra: "123", name: "Aluno", value: -50, kind: "revenue", account: EXTENDED_HOURS_REVENUE_ACCOUNT },
+    { ra: "123", name: "Aluno", value: -25, kind: "revenue", account: OTHER_STUDENT_REVENUE_ACCOUNT },
+    { ra: "456", name: "Aluno MD", value: -300, kind: "revenue", account: DIDACTIC_MATERIAL_REVENUE_ACCOUNT },
     { ra: "123", name: "Aluno", value: 200, kind: "discount", generationType: "O" },
     { ra: "123", name: "Aluno", value: -20, kind: "discount", complement: "AJUSTE" },
   ]);
 
-  assert.equal(summaries.get("123")?.revenue, 900);
+  assert.equal(summaries.get("123")?.revenue, 975);
+  assert.equal(summaries.get("123")?.extraRevenue, 75);
+  assert.deepEqual(
+    summaries.get("123")?.extraRevenueAccounts,
+    [EXTENDED_HOURS_REVENUE_ACCOUNT, OTHER_STUDENT_REVENUE_ACCOUNT],
+  );
   assert.equal(summaries.get("123")?.discount, 180);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
+  assert.equal(summaries.get("456")?.revenue, 300);
+  assert.equal(summaries.get("456")?.extraRevenue, 0);
+  assert.deepEqual(summaries.get("456")?.revenueIndicators, ["Material didático"]);
+});
+
+test("mantém o MD interno separado da receita contábil comum", () => {
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "1822242596",
+      name: "Aluno MD",
+      value: -487.31,
+      kind: "internalMd",
+      account: COMPANY_18_INTERNAL_MD_ACCOUNT,
+      complement: "1822242596 - Aluno MD - Serviço: MD Interno",
+    },
+  ]).get("1822242596");
+
+  assert.equal(summary?.revenue, 0);
+  assert.equal(summary?.internalMd, 487.31);
+  assert.deepEqual(summary?.internalMdAccounts, [COMPANY_18_INTERNAL_MD_ACCOUNT]);
+  assert.deepEqual(summary?.internalMdComplements, [
+    "1822242596 - Aluno MD - Serviço: MD Interno",
+  ]);
+});
+
+test("separa a mensalidade de educação continuada dentro da receita contábil", () => {
+  assert.equal(
+    isContinuingEducationRevenueAccount("3.1.1.01.01.05"),
+    true,
+  );
+  assert.equal(
+    isContinuingEducationRevenueAccount("3.1.1.01.01.04"),
+    false,
+  );
+
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "1842422246",
+      name: "RICHARDY BAREZE DE ASSIS",
+      value: -1_869.6,
+      kind: "revenue",
+      account: "3.1.1.01.01.04",
+    },
+    {
+      ra: "1842422246",
+      name: "RICHARDY BAREZE DE ASSIS",
+      value: -639.9,
+      kind: "revenue",
+      account: CONTINUING_EDUCATION_REVENUE_ACCOUNT,
+      complement: "1842422246 - RICHARDY - Serviço: CL",
+    },
+    {
+      ra: "1842422246",
+      name: "RICHARDY BAREZE DE ASSIS",
+      value: -360.34,
+      kind: "revenue",
+      account: CONTINUING_EDUCATION_REVENUE_ACCOUNT,
+      complement: "1842422246 - RICHARDY - Serviço: CL - Parcela adicional",
+    },
+  ]).get("1842422246");
+
+  assert.equal(summary?.revenue, 2_869.84);
+  assert.equal(summary?.continuingEducationRevenue, 1_000.24);
+  assert.deepEqual(summary?.continuingEducationAccounts, [
+    CONTINUING_EDUCATION_REVENUE_ACCOUNT,
+  ]);
+  assert.equal(summary?.continuingEducationComplements.length, 2);
+});
+
+test("isola mensalidade continuada somente quando explica toda a receita não emitida", () => {
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Divergente",
+      revenueDifference: 1_000.24,
+      discountDifference: 0,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "Mensalidade continuada",
+  );
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Só no Contábil",
+      revenueDifference: 1_000.24,
+      discountDifference: 0,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "Mensalidade continuada",
+  );
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Divergente",
+      revenueDifference: 900,
+      discountDifference: 0,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyContinuingEducationDivergence({
+      status: "Divergente",
+      revenueDifference: 1_000.24,
+      discountDifference: 1,
+      continuingEducationRevenue: 1_000.24,
+    }),
+    "",
+  );
+});
+
+test("exibe e exporta mensalidade continuada em aba própria", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /activeView === "continuingEducation"/);
+  assert.match(component, /"Mensalidade continuada"/);
+  assert.match(component, /continuingEducationRows/);
+  assert.match(component, /receita não emitida e não compõe as\s+inconsistências/);
+});
+
+test("isola MD interno apenas quando explica integralmente a diferença da coligada 18", () => {
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Divergente",
+      revenueDifference: -487.31,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "MD interno",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Só no Fiscal",
+      revenueDifference: -487.31,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "MD interno",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Divergente",
+      revenueDifference: -500,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "09",
+      status: "Divergente",
+      revenueDifference: -487.31,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Divergente",
+      revenueDifference: -487.31,
+      discountDifference: 10,
+      internalMd: 487.31,
+    }),
+    "",
+  );
+});
+
+test("exibe e exporta o MD interno em aba própria", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+  const route = readFileSync(
+    new URL("../app/api/totvs/revenue-reconciliation/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(route, /accountingRevenueQueryAccountsForCompany\(company\)/);
+  assert.match(route, /isCompany18InternalMdEntry/);
+  assert.match(component, /activeView === "internalMd"/);
+  assert.match(component, /"MD interno"/);
+  assert.match(component, /não compõem as\s+inconsistências/);
+});
+
+test("sinaliza Material didático na coluna I das divergências exportadas", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /revenueIdentification: b\?\.revenueIndicators\.join\(" \| "\) \|\| ""/);
+  assert.match(component, /"Identificação da receita": x\.revenueIdentification/);
+});
+
+test("classifica como Receitas extras somente quando a conta explica toda a divergência", () => {
+  assert.equal(isExtraRevenueAccount(ADDITIONAL_TUITION_REVENUE_ACCOUNT), true);
+  assert.equal(isExtraRevenueAccount(EXTENDED_HOURS_REVENUE_ACCOUNT), true);
+  assert.equal(isExtraRevenueAccount(OTHER_STUDENT_REVENUE_ACCOUNT), true);
+  assert.equal(isExtraRevenueAccount(REVENUE_ACCOUNT_PREFIX), false);
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 806,
+      discountDifference: 0,
+      extraRevenue: 806,
+    }),
+    "Receitas extras",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: -806,
+      discountDifference: 0.01,
+      extraRevenue: 806,
+    }),
+    "Receitas extras",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 900,
+      discountDifference: 0,
+      extraRevenue: 806,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 806,
+      discountDifference: 10,
+      extraRevenue: 806,
+    }),
+    "",
+  );
+});
+
+test("isola Mensalidades Extras somente quando o valor nela explica a diferença", () => {
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "IP26013300",
+      name: "Aluno",
+      value: -47,
+      kind: "revenue",
+      account: ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+    },
+  ]).get("IP26013300");
+
+  assert.equal(summary?.extraRevenue, 47);
+  assert.deepEqual(summary?.extraRevenueAccounts, [
+    ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+  ]);
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 47,
+      discountDifference: 0,
+      extraRevenue: summary?.extraRevenue || 0,
+    }),
+    "Receitas extras",
+  );
+  assert.equal(
+    classifyRevenueDivergence({
+      status: "Divergente",
+      revenueDifference: 48,
+      discountDifference: 0,
+      extraRevenue: summary?.extraRevenue || 0,
+    }),
+    "",
+  );
+});
+
+test("isola receitas extras da lista de divergências e da comparação exportada", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /activeView === "extraRevenue"/);
+  assert.match(component, /"Receitas Extras"/);
+  assert.match(
+    component,
+    /row\.status !== "Conciliado" && !row\.classification/,
+  );
+  assert.match(component, /comparableAccountingRevenue/);
+  assert.match(component, /Estes valores não compõem as\s+inconsistências/);
 });
 
 test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {
@@ -305,6 +681,32 @@ test("mantém compactos os botões da conciliação de receita", () => {
     css,
     /\.revenue-content \.revenue-status \{[\s\S]*?grid-template-columns: minmax\(125px, 1fr\)[\s\S]*?minmax\(220px, 1\.35fr\)/,
   );
+});
+
+test("mantém somente o botão superior para exportar a conciliação", () => {
+  const panel = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(panel.match(/onClick=\{exportAnalysis\}/g)?.length, 1);
+  assert.doesNotMatch(panel, /Exportar Excel/);
+});
+
+test("libera Limpar após atualizar as duas bases e bloqueia durante a finalização", () => {
+  const panel = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    panel,
+    /const canClear = fr && cr && !isFinalized && loading === null;/,
+  );
+  assert.match(panel, /if \(!canClear\) return;/);
+  assert.match(panel, /disabled=\{!canClear\}/);
+  assert.match(panel, /Reabra a tarefa antes de limpar os dados\./);
+  assert.match(panel, /Atualize as duas bases antes de limpar a análise\./);
 });
 
 test("isola a conciliação por empresa e competência", () => {

@@ -47,6 +47,7 @@ export function accountingCompletionIdentity(taskId: string, companyCode: string
     "pis-cofins": "PIS e COFINS",
     "irpj-csll": "IRPJ/CSLL",
     "rateio-csc": "Rateio CSC",
+    almoxarifado: "Almoxarifado",
     intercompany: "Intercompany",
     provisoes: "Provisões",
     despesas: "Despesas",
@@ -74,7 +75,7 @@ export function fiscalCompletionIdentity(taskId: string, companyCode: string, co
   const labels: Record<string, string> = {
     paa: "PAA",
     iss: "ISS",
-    ecd: "ECD",
+    ecf: "ECF",
   };
   return scopedCompletionIdentity("fiscal", "Fiscal", taskId, labels[taskId] || taskId, companyCode, companyName);
 }

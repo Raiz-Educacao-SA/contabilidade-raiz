@@ -1,4 +1,13 @@
-export type AccountingRevenueKind = "revenue" | "discount" | "other";
+export type AccountingRevenueKind =
+  | "revenue"
+  | "discount"
+  | "internalMd"
+  | "other";
+export type RevenueDivergenceClassification =
+  | "Receitas extras"
+  | "Mensalidade continuada"
+  | "MD interno"
+  | "";
 export type RevenueReconciliationStatus =
   | "Sem Dados"
   | "Conciliado"
@@ -8,7 +17,17 @@ export type RevenueReconciliationStatus =
 
 export const REVENUE_TOLERANCE = 0.01;
 export const REVENUE_ACCOUNT_PREFIX = "3.1.1.01.01";
+export const ADDITIONAL_TUITION_REVENUE_ACCOUNT = "3.1.1.01.01.11";
 export const EXTENDED_HOURS_REVENUE_ACCOUNT = "3.1.1.01.02.03";
+export const OTHER_STUDENT_REVENUE_ACCOUNT = "3.1.1.01.02.06";
+export const DIDACTIC_MATERIAL_REVENUE_ACCOUNT = "3.1.1.01.03.14";
+export const CONTINUING_EDUCATION_REVENUE_ACCOUNT = "3.1.1.01.01.05";
+export const COMPANY_18_INTERNAL_MD_ACCOUNT = "2.3.1.03.02.02";
+export const EXTRA_REVENUE_ACCOUNTS = [
+  ADDITIONAL_TUITION_REVENUE_ACCOUNT,
+  EXTENDED_HOURS_REVENUE_ACCOUNT,
+  OTHER_STUDENT_REVENUE_ACCOUNT,
+] as const;
 export const COMMERCIAL_DISCOUNT_ACCOUNT = "3.1.2.02.01.01";
 export const DISCOUNT_ACCOUNT_PREFIX = "3.1.2.02.02";
 export const INSTITUTIONAL_DISCOUNT_ACCOUNT = "3.1.2.02.02.01";
@@ -30,6 +49,7 @@ export const REVENUE_ACCOUNT_DESCRIPTIONS = [
   "Horario Integral (Estentido)",
   "Horário Integral (Estendido)",
   "Horário Estendido",
+  "Outras Receitas de Alunos",
   "Mensalidade Curso Preparatório",
 ] as const;
 
@@ -60,10 +80,31 @@ const DISCOUNT_DESCRIPTIONS = new Set(
 export function accountingRevenueQueryAccounts() {
   return [
     REVENUE_ACCOUNT_PREFIX,
-    EXTENDED_HOURS_REVENUE_ACCOUNT,
+    ...EXTRA_REVENUE_ACCOUNTS,
+    DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ] as const;
+}
+
+export function accountingRevenueQueryAccountsForCompany(companyCode: string) {
+  const accounts: string[] = [...accountingRevenueQueryAccounts()];
+  if (Number(companyCode) === 18) {
+    accounts.push(COMPANY_18_INTERNAL_MD_ACCOUNT);
+  }
+  return accounts;
+}
+
+export function isCompany18InternalMdEntry(
+  companyCode: string,
+  account: string,
+  history: string,
+) {
+  return (
+    Number(companyCode) === 18 &&
+    account.replace(/\D/g, "") === COMPANY_18_INTERNAL_MD_ACCOUNT.replace(/\D/g, "") &&
+    /\bMD\s+INTERNO\b/.test(normalizeAccountingDescription(history))
+  );
 }
 
 export function classifyAccountingRevenue(
@@ -74,8 +115,15 @@ export function classifyAccountingRevenue(
   const normalizedDescription = normalizeAccountingDescription(description);
 
   if (
+    normalizedAccount === DIDACTIC_MATERIAL_REVENUE_ACCOUNT &&
+    normalizedDescription === normalizeAccountingDescription("Material Didático")
+  ) {
+    return "revenue";
+  }
+
+  if (
     (normalizedAccount.startsWith(REVENUE_ACCOUNT_PREFIX) ||
-      normalizedAccount === EXTENDED_HOURS_REVENUE_ACCOUNT) &&
+      isExtraRevenueAccount(normalizedAccount)) &&
     REVENUE_DESCRIPTIONS.has(normalizedDescription)
   ) {
     return "revenue";
@@ -90,6 +138,19 @@ export function classifyAccountingRevenue(
   }
 
   return "other";
+}
+
+export function isExtraRevenueAccount(account?: string) {
+  return EXTRA_REVENUE_ACCOUNTS.some(
+    (extraAccount) => extraAccount === account?.trim(),
+  );
+}
+
+export function isContinuingEducationRevenueAccount(account?: string) {
+  return (
+    account?.replace(/\D/g, "") ===
+    CONTINUING_EDUCATION_REVENUE_ACCOUNT.replace(/\D/g, "")
+  );
 }
 
 export function isRevenueAppropriation(complement: string) {
@@ -138,6 +199,7 @@ export type AccountingRevenueEntry = {
   kind: Exclude<AccountingRevenueKind, "other">;
   complement?: string;
   generationType?: string;
+  account?: string;
 };
 
 export type FiscalRevenueEntry = {
@@ -188,6 +250,15 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
     {
       name: string;
       revenue: number;
+      extraRevenue: number;
+      extraRevenueAccounts: string[];
+      internalMd: number;
+      internalMdAccounts: string[];
+      internalMdComplements: string[];
+      continuingEducationRevenue: number;
+      continuingEducationAccounts: string[];
+      continuingEducationComplements: string[];
+      revenueIndicators: string[];
       discount: number;
       complements: string[];
       generationTypes: string[];
@@ -198,13 +269,65 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
     const current = summaries.get(entry.ra) || {
       name: entry.name,
       revenue: 0,
+      extraRevenue: 0,
+      extraRevenueAccounts: [],
+      internalMd: 0,
+      internalMdAccounts: [],
+      internalMdComplements: [],
+      continuingEducationRevenue: 0,
+      continuingEducationAccounts: [],
+      continuingEducationComplements: [],
+      revenueIndicators: [],
       discount: 0,
       complements: [],
       generationTypes: [],
     };
 
-    if (entry.kind === "revenue") current.revenue += entry.value;
-    else current.discount += entry.value;
+    if (entry.kind === "revenue") {
+      current.revenue += entry.value;
+      if (isContinuingEducationRevenueAccount(entry.account)) {
+        current.continuingEducationRevenue += entry.value;
+        const account = entry.account?.trim();
+        if (account && !current.continuingEducationAccounts.includes(account)) {
+          current.continuingEducationAccounts.push(account);
+        }
+        const complement = entry.complement?.trim();
+        if (
+          complement &&
+          !current.continuingEducationComplements.includes(complement)
+        ) {
+          current.continuingEducationComplements.push(complement);
+        }
+      }
+      if (isExtraRevenueAccount(entry.account)) {
+        current.extraRevenue += entry.value;
+        const account = entry.account?.trim();
+        if (account && !current.extraRevenueAccounts.includes(account)) {
+          current.extraRevenueAccounts.push(account);
+        }
+        if (account && !current.revenueIndicators.includes(account)) {
+          current.revenueIndicators.push(account);
+        }
+      }
+      if (
+        entry.account?.trim() === DIDACTIC_MATERIAL_REVENUE_ACCOUNT &&
+        !current.revenueIndicators.includes("Material didático")
+      ) {
+        current.revenueIndicators.push("Material didático");
+      }
+    } else if (entry.kind === "discount") {
+      current.discount += entry.value;
+    } else {
+      current.internalMd += entry.value;
+      const account = entry.account?.trim();
+      if (account && !current.internalMdAccounts.includes(account)) {
+        current.internalMdAccounts.push(account);
+      }
+      const complement = entry.complement?.trim();
+      if (complement && !current.internalMdComplements.includes(complement)) {
+        current.internalMdComplements.push(complement);
+      }
+    }
 
     const complement = entry.complement?.trim();
     if (complement && !current.complements.includes(complement)) {
@@ -222,9 +345,110 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
 
   summaries.forEach((summary) => {
     summary.revenue = Math.abs(summary.revenue);
+    summary.extraRevenue = Math.abs(summary.extraRevenue);
+    summary.internalMd = Math.abs(summary.internalMd);
+    summary.continuingEducationRevenue = Math.abs(
+      summary.continuingEducationRevenue,
+    );
   });
 
   return summaries;
+}
+
+export function classifyContinuingEducationDivergence(values: {
+  status: RevenueReconciliationStatus;
+  revenueDifference: number;
+  discountDifference: number;
+  continuingEducationRevenue: number;
+}): RevenueDivergenceClassification {
+  const {
+    status,
+    revenueDifference,
+    discountDifference,
+    continuingEducationRevenue,
+  } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
+
+  if (
+    ["Conciliado", "Sem Dados"].includes(status) ||
+    revenueDifference <= REVENUE_TOLERANCE ||
+    roundedAbsolute(continuingEducationRevenue) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
+  }
+
+  return Math.abs(
+    roundedAbsolute(revenueDifference) -
+      roundedAbsolute(continuingEducationRevenue),
+  ) <= REVENUE_TOLERANCE
+    ? "Mensalidade continuada"
+    : "";
+}
+
+export function classifyCompany18InternalMdDivergence(values: {
+  companyCode: string;
+  status: RevenueReconciliationStatus;
+  revenueDifference: number;
+  discountDifference: number;
+  internalMd: number;
+}): RevenueDivergenceClassification {
+  const {
+    companyCode,
+    status,
+    revenueDifference,
+    discountDifference,
+    internalMd,
+  } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
+
+  if (
+    Number(companyCode) !== 18 ||
+    ["Conciliado", "Sem Dados"].includes(status) ||
+    revenueDifference >= -REVENUE_TOLERANCE ||
+    roundedAbsolute(internalMd) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
+  }
+
+  return Math.abs(
+    roundedAbsolute(revenueDifference) - roundedAbsolute(internalMd),
+  ) <= REVENUE_TOLERANCE
+    ? "MD interno"
+    : "";
+}
+
+export function classifyRevenueDivergence(values: {
+  status: RevenueReconciliationStatus;
+  revenueDifference: number;
+  discountDifference: number;
+  extraRevenue: number;
+}): RevenueDivergenceClassification {
+  const {
+    status,
+    revenueDifference,
+    discountDifference,
+    extraRevenue,
+  } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
+
+  if (
+    status !== "Divergente" ||
+    roundedAbsolute(extraRevenue) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
+  }
+
+  return Math.abs(
+    roundedAbsolute(revenueDifference) - roundedAbsolute(extraRevenue),
+  ) <= REVENUE_TOLERANCE
+    ? "Receitas extras"
+    : "";
 }
 
 export function classifyRevenueReconciliation(values: {

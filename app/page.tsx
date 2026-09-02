@@ -17,6 +17,7 @@ import {
   ListChecks,
   ListTree,
   LogOut,
+  PackageOpen,
   Plus,
   ReceiptText,
   RefreshCw,
@@ -50,6 +51,8 @@ import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
 import PendingAccountingLots from "@/app/pending-accounting-lots";
+import ExpenseAnalysis from "@/app/expense-analysis";
+import WarehousePostings from "@/app/warehouse-postings";
 import { getCompanyTaxRegime } from "@/lib/tax-regimes";
 import ModuleCompletionControl from "@/app/module-completion-control";
 import AccessManagement from "@/app/access-management";
@@ -94,8 +97,8 @@ type Account = {
   descricao: string;
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
-type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
-type FiscalTab = "paa" | "iss" | "ecd";
+type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "almoxarifado" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
+type FiscalTab = "paa" | "iss" | "ecf";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = AccessModule;
@@ -142,14 +145,15 @@ const scheduleSidebarModules = [
 ] as const;
 
 const accountingScheduleTasks: { id: AccountingTab; label: string; description: string }[] = [
-  { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
-  { id: "irpj-csll", label: "IRPJ/CSLL", description: "Apuração do imposto" },
-  { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
-  { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
-  { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
-  { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
-  { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
   { id: "receita-filial", label: "Receita por Filial", description: "Receita detalhada por unidade" },
+  { id: "arrendamentos", label: "Arrendamentos", description: "Rotina integrada" },
+  { id: "despesas", label: "Despesas", description: "Conferência das despesas" },
+  { id: "provisoes", label: "Provisões", description: "Provisões contábeis" },
+  { id: "pis-cofins", label: "PIS e COFINS", description: "Apuração por empresa" },
+  { id: "rateio-csc", label: "Rateio CSC", description: "Memória e rateio de custos" },
+  { id: "almoxarifado", label: "Almoxarifado", description: "Importação do controle e geração dos lançamentos" },
+  { id: "intercompany", label: "Intercompany", description: "Cruzamentos entre empresas" },
+  { id: "irpj-csll", label: "IRPJ/CSLL", description: "Apuração do imposto" },
   { id: "lotes-integrar", label: "Lotes a integrar", description: "Pendências de integração contábil" },
   { id: "analise-balancete", label: "Análise Balancete", description: "Crítica do balancete" },
 ];
@@ -176,7 +180,7 @@ type FiscalScheduleTaskId = (typeof FISCAL_SCHEDULE_TASK_IDS)[number];
 const fiscalScheduleTasks: { id: FiscalScheduleTaskId; label: string; description: string }[] = [
   { id: "paa", label: "PAA", description: "Conferência da apuração PAA" },
   { id: "iss", label: "ISS", description: "Conferência da apuração de ISS" },
-  { id: "ecd", label: "ECD", description: "Conferência da escrituração contábil digital" },
+  { id: "ecf", label: "ECF", description: "Conferência da escrituração contábil fiscal" },
 ];
 
 type BookScheduleTaskId = (typeof BOOK_SCHEDULE_TASK_IDS)[number];
@@ -314,16 +318,18 @@ export default function Home() {
   const [fiscalTab, setFiscalTab] = useState<FiscalTab>("paa");
   const [pendingLotsAllCompanies, setPendingLotsAllCompanies] = useState(false);
   const [pendingLotsUpdating, setPendingLotsUpdating] = useState(false);
+  const [warehouseFinalized, setWarehouseFinalized] = useState(false);
+  const [warehouseReady, setWarehouseReady] = useState(false);
   const [bookReport, setBookReport] = useState<BookReport>("balancete");
   const [scheduleView, setScheduleView] = useState<ScheduleView>("acompanhamento");
   const [selectedScheduleModule, setSelectedScheduleModule] = useState<ScheduleModuleKey>("contabil");
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [managingAccess, setManagingAccess] = useState(false);
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth() + 1);
-  const [closingDate, setClosingDate] = useState(defaultClosingDateValue);
-  const [filterStorageReady, setFilterStorageReady] = useState(false);
+  const [year, setYear] = useState(homologationMode ? 2026 : today.getFullYear());
+  const [month, setMonth] = useState(homologationMode ? 3 : today.getMonth() + 1);
+  const [closingDate, setClosingDate] = useState(homologationMode ? "2026-04-14" : defaultClosingDateValue);
+  const [filterStorageReady, setFilterStorageReady] = useState(homologationMode);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [busy, setBusy] = useState(false);
   const [newAccount, setNewAccount] = useState({
@@ -347,6 +353,18 @@ export default function Home() {
     if (selectedModule === "contabil") {
       if (accountingTab === "pis-cofins") return null;
       if (accountingTab === "irpj-csll") return null;
+      if (accountingTab === "almoxarifado") {
+        const uniqueCompanies = [...new Map(companies.flatMap((item) => item.empresas ? [[
+          String(Number(item.empresas.codcoligada)),
+          { code: item.empresas.codcoligada, name: item.empresas.razao_social },
+        ] as const] : [])).values()];
+        const warehouseItems = uniqueCompanies.map((item) =>
+          accountingCompletionIdentity("almoxarifado", item.code, item.name),
+        );
+        return warehouseItems.length
+          ? { ...warehouseItems[0], additionalItems: warehouseItems.slice(1) }
+          : null;
+      }
       return accountingCompletionIdentity(accountingTab, selectedCompanyCode, selectedCompanyName);
     }
     if (selectedModule === "bancaria") return null;
@@ -372,20 +390,38 @@ export default function Home() {
   })();
 
   useEffect(() => {
-    if (homologationMode) {
-      setYear(2026);
-      setMonth(3);
-      setClosingDate("2026-04-14");
-      setFilterStorageReady(true);
-      return;
-    }
+    if (homologationMode) return;
     void Promise.resolve().then(() => {
       const savedYear = Number(window.localStorage.getItem("contabilidade-raiz:year"));
       const savedMonth = Number(window.localStorage.getItem("contabilidade-raiz:month"));
       const savedClosingDate = window.localStorage.getItem("contabilidade-raiz:closing-date");
+      const savedPosition = window.localStorage.getItem("contabilidade-raiz:last-position");
       if (savedYear >= 2000 && savedYear <= 2100) setYear(savedYear);
       if (savedMonth >= 1 && savedMonth <= 12) setMonth(savedMonth);
       if (savedClosingDate && /^\d{4}-\d{2}-\d{2}$/.test(savedClosingDate)) setClosingDate(savedClosingDate);
+      if (savedPosition) {
+        try {
+          const position = JSON.parse(savedPosition) as Record<string, string>;
+          const validModules = new Set(Object.keys(modules));
+          const validAreas = new Set(Object.keys(areas));
+          const validTabs = new Set(["conciliacao", "contas", "extratos", "saldos"]);
+          const validAccountingTabs = new Set(accountingScheduleTasks.map((item) => item.id));
+          const validFiscalTabs = new Set(fiscalScheduleTasks.map((item) => item.id));
+          const validBookReports = new Set(bookScheduleTasks.map((item) => item.id));
+          const validScheduleViews = new Set(["acompanhamento", "historico"]);
+          const validScheduleModules = new Set<string>(CLOSING_SCHEDULE_MODULES);
+          if (validModules.has(position.selectedModule)) setSelectedModule(position.selectedModule as Module);
+          if (validAreas.has(position.selectedArea)) setSelectedArea(position.selectedArea as Area);
+          if (validTabs.has(position.tab)) setTab(position.tab as Tab);
+          if (validAccountingTabs.has(position.accountingTab as AccountingTab)) setAccountingTab(position.accountingTab as AccountingTab);
+          if (validFiscalTabs.has(position.fiscalTab as FiscalTab)) setFiscalTab(position.fiscalTab as FiscalTab);
+          if (validBookReports.has(position.bookReport as BookReport)) setBookReport(position.bookReport as BookReport);
+          if (validScheduleViews.has(position.scheduleView)) setScheduleView(position.scheduleView as ScheduleView);
+          if (validScheduleModules.has(position.selectedScheduleModule)) setSelectedScheduleModule(position.selectedScheduleModule as ScheduleModuleKey);
+        } catch {
+          // Um marcador inválido não impede o carregamento normal da aplicação.
+        }
+      }
       setFilterStorageReady(true);
     });
   }, [homologationMode]);
@@ -398,6 +434,27 @@ export default function Home() {
     if (!filterStorageReady) return;
     window.localStorage.setItem("contabilidade-raiz:closing-date", closingDate);
   }, [filterStorageReady, closingDate]);
+  useEffect(() => {
+    if (!filterStorageReady) return;
+    const previous = (() => {
+      try {
+        return JSON.parse(window.localStorage.getItem("contabilidade-raiz:last-position") || "{}") as Record<string, string>;
+      } catch {
+        return {};
+      }
+    })();
+    window.localStorage.setItem("contabilidade-raiz:last-position", JSON.stringify({
+      ...previous,
+      ...(selectedModule ? { selectedModule } : {}),
+      ...(selectedArea ? { selectedArea } : {}),
+      tab,
+      accountingTab,
+      fiscalTab,
+      bookReport,
+      scheduleView,
+      selectedScheduleModule,
+    }));
+  }, [accountingTab, bookReport, filterStorageReady, fiscalTab, scheduleView, selectedArea, selectedModule, selectedScheduleModule, tab]);
 
   useEffect(() => {
     if (homologationMode) return;
@@ -441,30 +498,32 @@ export default function Home() {
       setSession(current);
     };
     if (homologationMode) {
-      applyAuthorizedSession({
-        access_token: IRPJ_CSLL_HOMOLOGATION_TOKEN,
-        refresh_token: "irpj-csll-homologation-refresh",
-        expires_in: 3600,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        token_type: "bearer",
-        user: {
-          id: IRPJ_CSLL_HOMOLOGATION_USER.id,
-          aud: "authenticated",
-          role: "authenticated",
-          email: IRPJ_CSLL_HOMOLOGATION_USER.email,
-          email_confirmed_at: "2026-01-01T00:00:00.000Z",
-          phone: "",
-          confirmed_at: "2026-01-01T00:00:00.000Z",
-          last_sign_in_at: "2026-01-01T00:00:00.000Z",
-          app_metadata: { provider: "homologation", providers: ["homologation"] },
-          user_metadata: { name: IRPJ_CSLL_HOMOLOGATION_USER.name },
-          identities: [],
-          created_at: "2026-01-01T00:00:00.000Z",
-          updated_at: "2026-01-01T00:00:00.000Z",
-        },
-      } as Session);
-      setLoading(false);
-      return () => { active = false; };
+      const timer = window.setTimeout(() => {
+        applyAuthorizedSession({
+          access_token: IRPJ_CSLL_HOMOLOGATION_TOKEN,
+          refresh_token: "irpj-csll-homologation-refresh",
+          expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          token_type: "bearer",
+          user: {
+            id: IRPJ_CSLL_HOMOLOGATION_USER.id,
+            aud: "authenticated",
+            role: "authenticated",
+            email: IRPJ_CSLL_HOMOLOGATION_USER.email,
+            email_confirmed_at: "2026-01-01T00:00:00.000Z",
+            phone: "",
+            confirmed_at: "2026-01-01T00:00:00.000Z",
+            last_sign_in_at: "2026-01-01T00:00:00.000Z",
+            app_metadata: { provider: "homologation", providers: ["homologation"] },
+            user_metadata: { name: IRPJ_CSLL_HOMOLOGATION_USER.name },
+            identities: [],
+            created_at: "2026-01-01T00:00:00.000Z",
+            updated_at: "2026-01-01T00:00:00.000Z",
+          },
+        } as Session);
+        setLoading(false);
+      }, 0);
+      return () => { active = false; window.clearTimeout(timer); };
     }
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const accessToken = hashParams.get("access_token");
@@ -572,9 +631,11 @@ export default function Home() {
   }, [companyId]);
   useEffect(() => {
     if (homologationMode) {
-      setAccounts([]);
-      setSelectedAccount("");
-      return;
+      const timer = window.setTimeout(() => {
+        setAccounts([]);
+        setSelectedAccount("");
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
     if (!companyId) return;
     supabase
@@ -870,7 +931,7 @@ export default function Home() {
             {([
               { id: "paa", label: "PAA", icon: ListChecks },
               { id: "iss", label: "ISS", icon: ReceiptText },
-              { id: "ecd", label: "ECD", icon: BookOpenCheck },
+              { id: "ecf", label: "ECF", icon: BookOpenCheck },
             ] as const).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -887,14 +948,15 @@ export default function Home() {
           <nav className="accounting-nav">
             {(
               [
-                { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
-                { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
-                { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
-                { id: "intercompany", label: "Intercompany", icon: Building2 },
-                { id: "provisoes", label: "Provisões", icon: Save },
-                { id: "despesas", label: "Despesas", icon: ReceiptText },
-                { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
                 { id: "receita-filial", label: "Receita por Filial", icon: TrendingUp },
+                { id: "arrendamentos", label: "Arrendamentos", icon: HandCoins },
+                { id: "despesas", label: "Despesas", icon: ReceiptText },
+                { id: "provisoes", label: "Provisões", icon: Save },
+                { id: "pis-cofins", label: "PIS e COFINS", icon: FileSpreadsheet },
+                { id: "rateio-csc", label: "Rateio CSC", icon: ArrowLeftRight },
+                { id: "almoxarifado", label: "Almoxarifado", icon: PackageOpen },
+                { id: "intercompany", label: "Intercompany", icon: Building2 },
+                { id: "irpj-csll", label: "IRPJ/CSLL", icon: ReceiptText },
                 { id: "lotes-integrar", label: "Lotes a integrar", icon: ListChecks },
                 { id: "analise-balancete", label: "Análise Balancete", icon: BarChart3 },
               ] as const
@@ -959,7 +1021,7 @@ export default function Home() {
         </button>
       </aside>
       <main
-        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : accountingTab === "lotes-integrar" ? "pending-lots-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
+        className={`content ${selectedModule === "book" ? "book-content" : selectedModule === "receita" ? "revenue-content" : selectedModule === "emprestimos" ? "trial-content loan-content" : selectedModule === "contabil" ? `tax-content ${accountingTab === "analise-balancete" ? "trial-content" : accountingTab === "lotes-integrar" ? "pending-lots-content" : accountingTab === "intercompany" ? "intercompany-content" : ""}` : selectedModule === "cronograma" ? "schedule-content" : selectedModule === "bancaria" ? "bank-content" : selectedModule === "folha" ? "payroll-content" : ""}`}
       >
         <header>
           <div>
@@ -970,7 +1032,7 @@ export default function Home() {
                   ? "PAA"
                   : fiscalTab === "iss"
                     ? "ISS"
-                    : "ECD"
+                    : "ECF"
                 : selectedModule === "contabil"
                 ? accountingTab === "pis-cofins"
                   ? "PIS e COFINS"
@@ -982,6 +1044,8 @@ export default function Home() {
                     ? "IRPJ/CSLL"
                     : accountingTab === "rateio-csc"
                       ? "Rateio CSC"
+                    : accountingTab === "almoxarifado"
+                      ? "Almoxarifado"
                       : accountingTab === "provisoes"
                           ? "Provisões"
                         : accountingTab === "despesas"
@@ -1008,7 +1072,7 @@ export default function Home() {
             </span>
             <div>
               <b>
-                {selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc")
+                {selectedModule === "cronograma" || (selectedModule === "contabil" && (accountingTab === "rateio-csc" || accountingTab === "almoxarifado"))
                   ? selectedModule === "cronograma"
                     ? "Cronograma Fechamento"
                     : "Período"
@@ -1016,11 +1080,11 @@ export default function Home() {
                   ? "Filtros"
                   : "Filtros da análise"}
               </b>
-              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && accountingTab === "rateio-csc") ? "Selecione o ano e o mês" : selectedModule === "folha" ? "Selecione a coligada e a competência da folha" : "Selecione a empresa e a competência"}</small>
+              <small>{selectedModule === "cronograma" || (selectedModule === "contabil" && (accountingTab === "rateio-csc" || accountingTab === "almoxarifado")) ? "Selecione o ano e o mês" : selectedModule === "folha" ? "Selecione a coligada e a competência da folha" : "Selecione a empresa e a competência"}</small>
             </div>
           </div>
           <div className="filter-fields">
-            {selectedModule !== "cronograma" && !(selectedModule === "contabil" && accountingTab === "rateio-csc") && <label className="company-control">
+            {selectedModule !== "cronograma" && !(selectedModule === "contabil" && (accountingTab === "rateio-csc" || accountingTab === "almoxarifado")) && <label className="company-control">
               <span>{selectedModule === "folha" ? "Qual a coligada analisar?" : "Empresa"}</span>
               <div className="company-select-stack">
                 <select
@@ -1036,40 +1100,42 @@ export default function Home() {
                 <small>Regime tributário: {companyTaxRegime}</small>
               </div>
             </label>}
-            <div className="competence-control">
-              <label>
-                <span>Mês</span>
-                <select
-                  value={month}
-                  aria-label="Mês selecionado"
-                  title={`Mês selecionado: ${months[month - 1]}`}
-                  onChange={(e) => setMonth(Number(e.target.value))}
-                >
-                  {months.map((name, index) => (
-                    <option key={name} value={index + 1}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Ano</span>
-                <input
-                  type="number"
-                  value={year}
-                  aria-label="Ano selecionado"
-                  title={`Ano selecionado: ${year}`}
-                  onChange={(e) => setYear(Number(e.target.value))}
-                />
-              </label>
-            </div>
+            {!(selectedModule === "contabil" && accountingTab === "despesas") && (
+              <div className="competence-control">
+                <label>
+                  <span>Mês</span>
+                  <select
+                    value={month}
+                    aria-label="Mês selecionado"
+                    title={`Mês selecionado: ${months[month - 1]}`}
+                    onChange={(e) => setMonth(Number(e.target.value))}
+                  >
+                    {months.map((name, index) => (
+                      <option key={name} value={index + 1}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Ano</span>
+                  <input
+                    type="number"
+                    value={year}
+                    aria-label="Ano selecionado"
+                    title={`Ano selecionado: ${year}`}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                  />
+                </label>
+              </div>
+            )}
             {selectedModule === "cronograma" && (
               <div className="schedule-window-inline">
                 <span>Janela projetada</span>
                 <b>
                   {formatShortDate(new Date(year, month, 1))} a {formatShortDate(addBusinessDays(new Date(year, month, 1), 10))}
                 </b>
-                <small>Financeiro D+3 · Folha D+5 · Fiscal D+6 · Contabilidade na data definida</small>
+                <small>Financeiro D+3 · Folha D+5 · Fiscal sem tarefas · Contabilidade na data definida</small>
               </div>
             )}
           </div>
@@ -1110,6 +1176,9 @@ export default function Home() {
               additionalItems={moduleCompletionIdentity.additionalItems}
               userId={session.user.id}
               userEmail={session.user.email ?? ""}
+              disabled={selectedModule === "contabil" && accountingTab === "almoxarifado" && !warehouseReady}
+              disabledReason="Importe e valide o controle do Almoxarifado antes de finalizar."
+              onStatusChange={selectedModule === "contabil" && accountingTab === "almoxarifado" ? setWarehouseFinalized : undefined}
             />
           )}
         </section>
@@ -1289,6 +1358,15 @@ export default function Home() {
         {selectedModule === "contabil" && accountingTab === "rateio-csc" && (
           <CscAllocation key={competence} companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])} competence={competence} accessToken={session.access_token} />
         )}
+        {selectedModule === "contabil" && accountingTab === "almoxarifado" && (
+          <WarehousePostings
+            key={competence}
+            companies={companies.flatMap((item) => item.empresas ? [{ code: item.empresas.codcoligada, name: item.empresas.razao_social }] : [])}
+            competence={competence}
+            isFinalized={warehouseFinalized}
+            onReadyChange={setWarehouseReady}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "arrendamentos" && (
           <section className="panel module-workspace accounting-workspace lease-bridge">
             <HandCoins />
@@ -1309,6 +1387,15 @@ export default function Home() {
             </a>
           </section>
         )}
+        {selectedModule === "contabil" && accountingTab === "despesas" && (
+          <ExpenseAnalysis
+            key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={company?.empresas?.razao_social ?? ""}
+            competence={competence}
+            accessToken={session.access_token}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "receita-filial" && (
           <RevenueByBranch
             key={`${company?.empresas?.codcoligada ?? ""}-${competence}`}
@@ -1317,7 +1404,7 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
-        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "irpj-csll" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "arrendamentos" && accountingTab !== "lotes-integrar" && (
+        {selectedModule === "contabil" && accountingTab !== "pis-cofins" && accountingTab !== "irpj-csll" && accountingTab !== "receita-filial" && accountingTab !== "analise-balancete" && accountingTab !== "intercompany" && accountingTab !== "rateio-csc" && accountingTab !== "almoxarifado" && accountingTab !== "arrendamentos" && accountingTab !== "despesas" && accountingTab !== "lotes-integrar" && (
           <section className="panel module-workspace accounting-workspace">
             {accountingTab === "provisoes" ? (
               <Save />
@@ -1343,7 +1430,7 @@ export default function Home() {
               <BookOpenCheck />
             )}
             <span className="eyebrow">MÓDULO FISCAL</span>
-            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECD"}</h2>
+            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECF"}</h2>
             <p>Área preparada para receber as regras, bases, documentos e conferências desta rotina fiscal.</p>
           </section>
         )}
@@ -1593,14 +1680,11 @@ function AreaHub({
             >
               <span className="module-card-top">
                 <span className="module-icon"><BookIcon /></span>
-                <span className="module-status">{scheduleProgress.modulePercent.book}%</span>
+                <span className="module-status module-status-soon">Sem tarefas</span>
               </span>
               <span className="module-copy">
                 <b>Book Contábil</b>
                 <small>Consolida os resultados dos módulos e entrega a visão final do fechamento.</small>
-              </span>
-              <span className="module-progress" aria-label="Status do Book Contábil">
-                <i style={{ width: `${scheduleProgress.modulePercent.book}%` }} />
               </span>
               <span className="module-enter">Acessar Book <ArrowLeftRight /></span>
             </button>
@@ -1844,7 +1928,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
   const stages = [
     { key: "financeiro", name: "Módulo Financeiro", sector: "Financeiro", detail: "Concluir conciliações e pendências financeiras", deadline: addBusinessDays(monthEnd, 3), milestone: "D+3", icon: WalletCards },
     { key: "folha", name: "Módulo Folha de Pagamento", sector: "Folha de Pagamento", detail: "Conferir folha, provisões e encargos", deadline: addBusinessDays(monthEnd, 5), milestone: "D+5", icon: UsersRound },
-    { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Concluir apurações e obrigações fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "D+6", icon: FileSpreadsheet },
+    { key: "fiscal", name: "Módulo Fiscal", sector: "Fiscal", detail: "Aguardando inclusão das tarefas fiscais", deadline: addBusinessDays(monthEnd, 6), milestone: "Sem tarefas", icon: FileSpreadsheet },
     { key: "contabil", name: "Módulo Contábil", sector: "Contabilidade", detail: "Consolidar análises e concluir o fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookText },
     { key: "book", name: "Book Contábil", sector: "Contabilidade", detail: "Conferir os relatórios base do fechamento", deadline: closingDate ? new Date(`${closingDate}T12:00:00`) : addBusinessDays(monthEnd, 10), milestone: "Data definida", icon: BookOpenCheck },
   ];
@@ -1881,21 +1965,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     0,
   );
   const payrollTotalCount = payrollScheduleTasks.length * companies.length;
-  const fiscalDoneCount = fiscalScheduleTasks.reduce(
-    (total, task) => total + companies.filter((company) => isDone(`fiscal:${task.id}:${scheduleCompanyCode(company)}`)).length,
-    0,
-  );
-  const fiscalTotalCount = fiscalScheduleTasks.length * companies.length;
-  const bookDoneCount = bookScheduleTasks.reduce(
-    (total, task) => total + companies.filter((company) => isDone(`book:${task.id}:${scheduleCompanyCode(company)}`)).length,
-    0,
-  );
-  const bookTotalCount = bookScheduleTasks.length * companies.length;
   const accountingPercent = accountingTotalCount ? Math.round((accountingDoneCount / accountingTotalCount) * 100) : 0;
   const financialPercent = financialTotalCount ? Math.round((financialDoneCount / financialTotalCount) * 100) : 0;
   const payrollPercent = payrollTotalCount ? Math.round((payrollDoneCount / payrollTotalCount) * 100) : 0;
-  const fiscalPercent = fiscalTotalCount ? Math.round((fiscalDoneCount / fiscalTotalCount) * 100) : 0;
-  const bookPercent = bookTotalCount ? Math.round((bookDoneCount / bookTotalCount) * 100) : 0;
   const overallProgress = calculateClosingScheduleProgress(
     confirmations,
     companies.map((company) => company.code),
@@ -1930,14 +2002,17 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
     setConfirmingModule(item.key);
     setScheduleError("");
     const confirmedAt = new Date().toISOString();
+    const previous = confirmations.find((confirmation) => confirmation.modulo === item.key);
+    const recordedEmail = checked ? userEmail : previous?.confirmado_email || userEmail;
+    const recordedAt = checked ? confirmedAt : previous?.confirmado_em || confirmedAt;
     const { error } = await supabase.from("cronograma_entregas").upsert({
       competencia: scheduleCompetence,
       modulo: item.key,
       setor: item.sector,
       status: checked ? "concluido" : "pendente",
       confirmado_por: userId,
-      confirmado_email: userEmail,
-      confirmado_em: confirmedAt,
+      confirmado_email: recordedEmail,
+      confirmado_em: recordedAt,
     }, { onConflict: "competencia,modulo" });
     if (error) {
       setScheduleError("O OK não pôde ser registrado. Tente novamente.");
@@ -1953,7 +2028,7 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
       if (historyError) setScheduleError("O OK foi atualizado, mas o histórico não pôde ser registrado.");
       setConfirmations((current) => [
         ...current.filter((currentItem) => currentItem.modulo !== item.key),
-        { modulo: item.key, setor: item.sector, status: checked ? "concluido" : "pendente", confirmado_email: userEmail, confirmado_em: confirmedAt },
+        { modulo: item.key, setor: item.sector, status: checked ? "concluido" : "pendente", confirmado_email: recordedEmail, confirmado_em: recordedAt },
       ]);
     }
     setConfirmingModule("");
@@ -2050,30 +2125,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     />
                   </div>
                 ) : selectedStage.key === "fiscal" ? (
-                  <div className="schedule-accounting-checklist">
-                    <header>
-                      <div>
-                        <span>MÓDULO FISCAL</span>
-                        <b>Módulo Fiscal - {months[month - 1]} de {year}</b>
-                      </div>
-                      <small>{fiscalPercent}% · {fiscalDoneCount}/{fiscalTotalCount || 0} finalizada(s)</small>
-                    </header>
-                    <ScheduleCompanyMatrix
-                      prefix="fiscal"
-                      tasks={fiscalScheduleTasks}
-                      companies={companies}
-                      confirmations={confirmations}
-                      loading={scheduleLoading}
-                      confirmingModule={confirmingGroup || confirmingModule}
-                      canEdit={canConfirmSector("Fiscal")}
-                      companyCode={scheduleCompanyCode}
-                      companyLabel={companyLabel}
-                      isDone={isDone}
-                      confirmationDetail={getConfirmationDetail}
-                      onToggle={(task, company, checked) => toggleScheduleTask("fiscal", "Fiscal", task, company, checked)}
-                      onToggleAll={(task, checked) => toggleScheduleTaskAll("fiscal", "Fiscal", task, checked)}
-                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("fiscal", "Fiscal", fiscalScheduleTasks, company, checked)}
-                    />
+                  <div className="schedule-selected-module-card">
+                    <b>Sem tarefas cadastradas</b>
+                    <p>O Módulo Fiscal ainda não participa do cálculo do cronograma. O progresso será habilitado quando as tarefas fiscais forem incluídas.</p>
                   </div>
                 ) : selectedStage.key === "contabil" ? (
                   <div className="schedule-accounting-checklist">
@@ -2102,30 +2156,9 @@ function ClosingSchedule({ year, month, closingDate, userId, userEmail, userProf
                     />
                   </div>
                 ) : selectedStage.key === "book" ? (
-                  <div className="schedule-accounting-checklist">
-                    <header>
-                      <div>
-                        <span>BOOK CONTÁBIL</span>
-                        <b>Book Contábil - {months[month - 1]} de {year}</b>
-                      </div>
-                      <small>{bookPercent}% · {bookDoneCount}/{bookTotalCount || 0} finalizada(s)</small>
-                    </header>
-                    <ScheduleCompanyMatrix
-                      prefix="book"
-                      tasks={bookScheduleTasks}
-                      companies={companies}
-                      confirmations={confirmations}
-                      loading={scheduleLoading}
-                      confirmingModule={confirmingGroup || confirmingModule}
-                      canEdit={canConfirmSector("Contabilidade")}
-                      companyCode={scheduleCompanyCode}
-                      companyLabel={companyLabel}
-                      isDone={isDone}
-                      confirmationDetail={getConfirmationDetail}
-                      onToggle={(task, company, checked) => toggleScheduleTask("book", "Book Contábil", task, company, checked)}
-                      onToggleAll={(task, checked) => toggleScheduleTaskAll("book", "Book Contábil", task, checked)}
-                      onToggleCompanyAll={(company, checked) => toggleScheduleCompanyAll("book", "Book Contábil", bookScheduleTasks, company, checked)}
-                    />
+                  <div className="schedule-selected-module-card">
+                    <b>Sem tarefas cadastradas</b>
+                    <p>O Book Contábil ainda não participa do cálculo do cronograma. O progresso será habilitado quando as tarefas do módulo forem incluídas.</p>
                   </div>
                 ) : (
                   <div className="schedule-selected-module-card">

@@ -7,13 +7,24 @@ import type {
   AccountingTrialBalanceInputRecord,
 } from "../lib/fiscal/accounting-source.ts";
 import type { TaxPeriod } from "../lib/fiscal/types.ts";
+import type { DataEngineQuery } from "../lib/totvs-dataengine.ts";
 
 const accountingSourceUrl = new URL("../lib/fiscal/accounting-source.ts", import.meta.url);
 const accountingSnapshotUrl = new URL("../lib/fiscal/accounting-snapshot.ts", import.meta.url);
 const periodsUrl = new URL("../lib/fiscal/periods.ts", import.meta.url);
 const totvsSourceUrl = new URL("../lib/fiscal/totvs-accounting-source.ts", import.meta.url);
 
-type SnapshotInsertRow = Record<string, any>;
+type SnapshotInsertRow = Record<string, unknown>;
+
+type FakeSnapshotClient = {
+  from(table: string): {
+    insert(row: SnapshotInsertRow): {
+      select(): {
+        single(): Promise<{ data: SnapshotInsertRow & { id: string; criado_em: string }; error: null }>;
+      };
+    };
+  };
+};
 
 function taxPeriod(overrides: Partial<TaxPeriod> = {}): TaxPeriod {
   return {
@@ -64,7 +75,7 @@ function totvsRecordXml(overrides: Partial<AccountingTrialBalanceInputRecord> = 
 function fakeSnapshotClient(
   events: string[] = [],
   onInsert: (row: SnapshotInsertRow) => void = () => undefined,
-): any {
+): FakeSnapshotClient {
   return {
     from(table: string) {
       assert.equal(table, "source_snapshots");
@@ -260,8 +271,11 @@ test("captura de snapshot MONTHLY_ESTIMATE usa intervalo acumulado", async () =>
   assert.equal(requests[0].includeClosingEntries, false);
   assert.equal(snapshot.taxPeriod.startDate, "2026-01-01");
   assert.equal(snapshot.taxPeriod.endDate, "2026-05-31");
-  assert.equal(insertedRows[0].periodo_identidade.startDate, "2026-01-01");
-  assert.equal(insertedRows[0].periodo_identidade.endDate, "2026-05-31");
+  const periodIdentity = insertedRows[0].periodo_identidade;
+  assert.equal(typeof periodIdentity, "object");
+  assert.notEqual(periodIdentity, null);
+  assert.equal((periodIdentity as Record<string, unknown>).startDate, "2026-01-01");
+  assert.equal((periodIdentity as Record<string, unknown>).endDate, "2026-05-31");
 });
 
 test("período trimestral vira start/end explícitos para a fonte contábil", async () => {
@@ -321,7 +335,7 @@ test("adapter TOTVS recebe datas explícitas do contrato fiscal", async () => {
     TOTVS_TRIAL_BALANCE_SYSTEM,
   } = await import(totvsSourceUrl.href);
   const calls: Array<{ readonly code: string; readonly system: string; readonly parameters: string }> = [];
-  const source = createTotvsRmTrialBalanceAccountingSource(async (query: any) => {
+  const source = createTotvsRmTrialBalanceAccountingSource(async (query: DataEngineQuery) => {
     calls.push(query);
     return [totvsRecordXml()];
   });
@@ -346,7 +360,7 @@ test("adapter TOTVS recebe datas explícitas do contrato fiscal", async () => {
 test("includeClosingEntries é traduzido para CONSIDERAFECHAMENTO apenas pelo adapter TOTVS", async () => {
   const { createTotvsRmTrialBalanceAccountingSource } = await import(totvsSourceUrl.href);
   const calls: string[] = [];
-  const source = createTotvsRmTrialBalanceAccountingSource(async (query: any) => {
+  const source = createTotvsRmTrialBalanceAccountingSource(async (query: DataEngineQuery) => {
     calls.push(query.parameters);
     return [totvsRecordXml()];
   });

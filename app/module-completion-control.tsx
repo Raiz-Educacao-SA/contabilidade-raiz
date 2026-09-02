@@ -10,7 +10,7 @@ import {
   type ScheduleCompletionIdentity,
 } from "@/lib/schedule-completion";
 
-export default function ModuleCompletionControl({ competence, modulo, setor, additionalItems = [], userId, userEmail, disabled = false, disabledReason = "" }: {
+export default function ModuleCompletionControl({ competence, modulo, setor, additionalItems = [], userId, userEmail, disabled = false, disabledReason = "", onStatusChange }: {
   competence: string;
   modulo: string;
   setor: string;
@@ -19,6 +19,7 @@ export default function ModuleCompletionControl({ competence, modulo, setor, add
   userEmail: string;
   disabled?: boolean;
   disabledReason?: string;
+  onStatusChange?: (done: boolean) => void;
 }) {
   const [completions, setCompletions] = useState<ScheduleCompletion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,15 @@ export default function ModuleCompletionControl({ competence, modulo, setor, add
         .eq("competencia", competence)
         .in("modulo", expectedModuleKeys);
       if (!active) return;
-      setCompletions(loadError ? [] : data as ScheduleCompletion[]);
+      const loadedCompletions = loadError ? [] : data as ScheduleCompletion[];
+      setCompletions(loadedCompletions);
+      if (!loadError) {
+        onStatusChange?.(
+          expectedModuleKeys.length > 0 && expectedModuleKeys.every((key) =>
+            loadedCompletions.some((completion) => completion.modulo === key && completion.status === "concluido"),
+          ),
+        );
+      }
       setError(loadError ? "Não foi possível consultar o status compartilhado." : "");
       setLoading(false);
     };
@@ -50,19 +59,24 @@ export default function ModuleCompletionControl({ competence, modulo, setor, add
       .on("postgres_changes", { event: "*", schema: "public", table: "cronograma_entregas", filter: `competencia=eq.${competence}` }, () => void load())
       .subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
-  }, [competence, modulo, moduleKeysKey]);
+  }, [competence, modulo, moduleKeysKey, onStatusChange]);
 
   async function save(done: boolean) {
     setSaving(true);
     setError("");
     const confirmedAt = new Date().toISOString();
-    const completionRows = items.map((item) => ({
-      competencia: competence,
-      modulo: item.modulo,
-      setor: item.setor,
-      status: done ? "concluido" : "pendente",
-      confirmado_por: userId, confirmado_email: userEmail, confirmado_em: confirmedAt,
-    }));
+    const completionRows = items.map((item) => {
+      const previous = completions.find((completion) => completion.modulo === item.modulo);
+      return {
+        competencia: competence,
+        modulo: item.modulo,
+        setor: item.setor,
+        status: done ? "concluido" : "pendente",
+        confirmado_por: userId,
+        confirmado_email: done ? userEmail : previous?.confirmado_email || userEmail,
+        confirmado_em: done ? confirmedAt : previous?.confirmado_em || confirmedAt,
+      };
+    });
     const { error: saveError } = await supabase
       .from("cronograma_entregas")
       .upsert(completionRows, { onConflict: "competencia,modulo" });
@@ -83,22 +97,28 @@ export default function ModuleCompletionControl({ competence, modulo, setor, add
       .from("cronograma_historico")
       .insert(historyRows);
     if (historyError) setError("A tarefa foi atualizada, mas o histórico não pôde ser registrado.");
-    setCompletions(items.map((item) => ({
-      ...item,
-      status: done ? "concluido" : "pendente",
-      confirmado_email: userEmail,
-      confirmado_em: confirmedAt,
-    })));
+    const nextCompletions = completionRows.map((row) => ({
+      modulo: row.modulo,
+      setor: row.setor,
+      status: row.status as ScheduleCompletion["status"],
+      confirmado_email: row.confirmado_email,
+      confirmado_em: row.confirmado_em,
+    }));
+    setCompletions(nextCompletions);
+    const latestRecordedCompletion = nextCompletions
+      .filter((completion) => completion.confirmado_em)
+      .sort((left, right) => String(right.confirmado_em || "").localeCompare(String(left.confirmado_em || "")))[0];
     const completionChange: ModuleCompletionChangeDetail = {
       competence,
       moduleKeys,
       status: done ? "concluido" : "pendente",
-      confirmedAt,
-      userEmail,
+      confirmedAt: latestRecordedCompletion?.confirmado_em || confirmedAt,
+      userEmail: latestRecordedCompletion?.confirmado_email || userEmail,
     };
     window.dispatchEvent(new CustomEvent(MODULE_COMPLETION_CHANGED_EVENT, {
       detail: completionChange,
     }));
+    onStatusChange?.(done);
     setSaving(false);
   }
 
@@ -106,13 +126,13 @@ export default function ModuleCompletionControl({ competence, modulo, setor, add
     completions.some((completion) => completion.modulo === key && completion.status === "concluido"),
   );
   const latestCompletion = completions
-    .filter((completion) => completion.status === "concluido")
+    .filter((completion) => completion.confirmado_em)
     .sort((left, right) => String(right.confirmado_em || "").localeCompare(String(left.confirmado_em || "")))[0];
   const completedAt = latestCompletion?.confirmado_em
     ? new Date(latestCompletion.confirmado_em).toLocaleString("pt-BR")
     : "";
   return <div className="module-completion-control">
-    {done && <small>Finalizado por {latestCompletion?.confirmado_email || "usuário"}{completedAt ? ` em ${completedAt}` : ""}</small>}
+    {latestCompletion && <small>{done ? "Finalizado" : "Última finalização"} por {latestCompletion.confirmado_email || "usuário"}{completedAt ? ` em ${completedAt}` : ""}</small>}
     <button type="button" className={done ? "is-finalized" : ""} disabled={loading || saving || (!done && disabled)} onClick={() => void save(!done)} title={!done && disabled ? disabledReason : undefined}>
       {done ? <RotateCcw /> : <CheckCircle2 />}{saving ? "Salvando..." : done ? "Reabrir tarefa" : "Finalizar tarefa"}
     </button>

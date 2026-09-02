@@ -23,3 +23,13 @@ test("página renderiza a retrospectiva no item Receita por Filial", () => {
   assert.match(page, /import RevenueByBranch/);
   assert.match(page, /accountingTab === "receita-filial"[\s\S]*?<RevenueByBranch/);
 });
+
+test("permite ocultar e restaurar individualmente as colunas da retrospectiva", () => {
+  assert.match(component, /className="revenue-column-hide"/);
+  assert.match(component, /<EyeOff \/>Ocultar<\/button>/);
+  assert.match(component, /setHiddenColumns/);
+  assert.match(component, /showColumn/);
+  assert.match(component, /Mostrar todas/);
+  assert.match(component, /isColumnVisible\(`movement:/);
+  assert.match(component, /isColumnVisible\(`variation:/);
+});

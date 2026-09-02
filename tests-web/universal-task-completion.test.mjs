@@ -14,12 +14,24 @@ test("todas as telas com tarefas usam uma identidade detalhada por empresa", () 
   assert.match(page, /purchasesCompletionIdentity\(selectedCompanyCode, selectedCompanyName\)/);
 });
 
+test("módulo Fiscal oferece ECF no lugar de ECD", () => {
+  assert.match(page, /\{ id: "ecf", label: "ECF", icon: BookOpenCheck \}/);
+  assert.doesNotMatch(page, /\{ id: "ecd", label: "ECD"/);
+});
+
 test("finalizar e reabrir registram cronograma e histórico pelo e-mail", () => {
   assert.match(control, /upsert\(completionRows, \{ onConflict: "competencia,modulo" \}\)/);
   assert.match(control, /usuario_email: userEmail/);
-  assert.match(control, /confirmado_email: userEmail/);
+  assert.match(control, /confirmado_email: done \? userEmail : previous\?\.confirmado_email \|\| userEmail/);
   assert.match(control, /done \? "Reabrir tarefa" : "Finalizar tarefa"/);
   assert.match(control, /A tarefa foi atualizada, mas o histórico não pôde ser registrado/);
+});
+
+test("reabrir preserva a identificação da última conclusão", () => {
+  assert.match(control, /confirmado_em: done \? confirmedAt : previous\?\.confirmado_em \|\| confirmedAt/);
+  assert.match(control, /done \? "Finalizado" : "Última finalização"/);
+  assert.match(page, /const recordedEmail = checked \? userEmail : previous\?\.confirmado_email \|\| userEmail/);
+  assert.match(page, /const recordedAt = checked \? confirmedAt : previous\?\.confirmado_em \|\| confirmedAt/);
 });
 
 test("as políticas reconhecem as chaves detalhadas dos módulos", () => {

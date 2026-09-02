@@ -872,7 +872,10 @@ export default function IrpjCsllAssessment({
   }, [accessToken, companyId, query]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   const runCommand = useCallback(async (path: string, payload: Record<string, unknown> = {}, successMessage: string) => {
@@ -1110,13 +1113,16 @@ export default function IrpjCsllAssessment({
   const selectedBalance = selectedBalanceId ? balanceCompositionItems.find((item) => item.id === selectedBalanceId) ?? null : null;
   const selectedAutoCorrection = selectedAutoCorrectionId ? autoPending.find((item) => item.id === selectedAutoCorrectionId) ?? null : null;
   useEffect(() => {
-    if (!blockingPending.length && selectedPendingId) {
-      setSelectedPendingId(null);
-      return;
-    }
-    if (blockingPending.length && (!selectedPendingId || !blockingPending.some((item) => item.id === selectedPendingId))) {
-      setSelectedPendingId(blockingPending[0].id);
-    }
+    const timer = window.setTimeout(() => {
+      if (!blockingPending.length && selectedPendingId) {
+        setSelectedPendingId(null);
+        return;
+      }
+      if (blockingPending.length && (!selectedPendingId || !blockingPending.some((item) => item.id === selectedPendingId))) {
+        setSelectedPendingId(blockingPending[0].id);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [blockingPending, selectedPendingId]);
 
   function ruleResultForAdjustment(adjustment: TaxAdjustment) {

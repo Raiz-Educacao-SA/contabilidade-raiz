@@ -1,7 +1,10 @@
 export const CLOSING_SCHEDULE_MODULES = ["financeiro", "fiscal", "folha", "contabil", "book"] as const;
-export const CLOSING_SCHEDULE_MODULES_WITH_TASKS = [...CLOSING_SCHEDULE_MODULES] as const;
-
 export type ClosingScheduleModule = (typeof CLOSING_SCHEDULE_MODULES)[number];
+export const CLOSING_SCHEDULE_MODULES_WITH_TASKS: readonly ClosingScheduleModule[] = [
+  "financeiro",
+  "folha",
+  "contabil",
+];
 
 export const FINANCIAL_SCHEDULE_TASK_IDS = ["bancaria", "receita", "emprestimos", "parcelamentos"] as const;
 
@@ -14,19 +17,20 @@ export const PAYROLL_SCHEDULE_TASK_IDS = [
   "provisoes",
 ] as const;
 
-export const FISCAL_SCHEDULE_TASK_IDS = ["paa", "iss", "ecd"] as const;
+export const FISCAL_SCHEDULE_TASK_IDS = ["paa", "iss", "ecf"] as const;
 
 export const BOOK_SCHEDULE_TASK_IDS = ["balancete", "razao", "plano-contas"] as const;
 
 export const ACCOUNTING_SCHEDULE_TASK_IDS = [
-  "pis-cofins",
-  "irpj-csll",
-  "rateio-csc",
-  "intercompany",
-  "provisoes",
-  "despesas",
-  "arrendamentos",
   "receita-filial",
+  "arrendamentos",
+  "despesas",
+  "provisoes",
+  "pis-cofins",
+  "rateio-csc",
+  "almoxarifado",
+  "intercompany",
+  "irpj-csll",
   "lotes-integrar",
   "analise-balancete",
 ] as const;
@@ -98,10 +102,10 @@ export function calculateClosingScheduleProgress(
 
   const modulePercent: Record<ClosingScheduleModule, number> = {
     financeiro: detailedModulePercent(completed, "financeiro", FINANCIAL_SCHEDULE_TASK_IDS, companyCodes),
-    fiscal: detailedModulePercent(completed, "fiscal", FISCAL_SCHEDULE_TASK_IDS, companyCodes),
+    fiscal: 0,
     folha: detailedModulePercent(completed, "folha", PAYROLL_SCHEDULE_TASK_IDS, companyCodes),
     contabil: detailedModulePercent(completed, "contabil", ACCOUNTING_SCHEDULE_TASK_IDS, companyCodes),
-    book: detailedModulePercent(completed, "book", BOOK_SCHEDULE_TASK_IDS, companyCodes),
+    book: 0,
   };
   const includedModules = [...CLOSING_SCHEDULE_MODULES_WITH_TASKS];
   const completedModules = includedModules.filter((module) => modulePercent[module] === 100);

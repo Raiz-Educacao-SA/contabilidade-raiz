@@ -511,7 +511,7 @@ export default function PisCofinsAssessment({
   }, [storageReady, restoredStorageKey, storageKey, rows, cancelledRows, loaded, classified, ignoredCancelled, otherRevenueRows, otherRevenueLoaded, annualFeeRows, annualFeeLoaded, cancelledLoaded, detailsOpen, monthlyVisible, otherRevenueVisible, annualFeeVisible, cancelledVisible, creditsVisible, creditsCategory, energyRows, energyConsumptions, energyLoaded, leaseRows, leaseLoaded, zeevMessage, monthlyBranches, otherRevenueBranches, annualFeeBranches, cancelledBranches, requestedBranches, finalizedSnapshot]);
 
   function clearAssessment() {
-    const snapshotToClear = isFinalized;
+    if (isFinalized) return;
     setRows([]);
     setCancelledRows([]);
     setLoaded(false);
@@ -532,7 +532,7 @@ export default function PisCofinsAssessment({
     setMonthlyBranches([]); setOtherRevenueBranches([]); setAnnualFeeBranches([]); setCancelledBranches([]);
     setRequestedBranches([]);
     setFinalizedSnapshot(null);
-    setSharedCompletion(snapshotToClear ? { ...scheduleIdentity, status: "pendente", confirmado_email: userEmail, confirmado_em: new Date().toISOString() } : null);
+    setSharedCompletion(null);
     setDetailsOpen(false);
     setOtherRevenueError("");
     setAnnualFeeError("");
@@ -543,26 +543,6 @@ export default function PisCofinsAssessment({
     setError("");
     window.localStorage.removeItem(storageKey);
     void deleteAssessmentCache(storageKey);
-    if (snapshotToClear) {
-      const { modulo, setor } = scheduleIdentity;
-      void supabase.from("cronograma_entregas").upsert({
-        competencia: competence,
-        modulo,
-        setor,
-        status: "pendente",
-        confirmado_por: userId,
-        confirmado_email: userEmail,
-        confirmado_em: new Date().toISOString(),
-      }, { onConflict: "competencia,modulo" });
-      void supabase.from("cronograma_historico").insert({
-        competencia: competence,
-        modulo,
-        setor,
-        acao: "reaberto",
-        usuario_id: userId,
-        usuario_email: userEmail,
-      });
-    }
   }
 
   async function update() {
@@ -973,6 +953,8 @@ export default function PisCofinsAssessment({
     if (!isFinalized) return;
     const reopenedAt = new Date().toISOString();
     const { modulo, setor } = scheduleIdentity;
+    const recordedEmail = sharedCompletion?.confirmado_email || finalizedSnapshot?.finalizedBy || userEmail;
+    const recordedAt = sharedCompletion?.confirmado_em || finalizedSnapshot?.finalizedAt || reopenedAt;
     setError("");
     const { error: scheduleError } = await supabase.from("cronograma_entregas").upsert({
       competencia: competence,
@@ -980,15 +962,15 @@ export default function PisCofinsAssessment({
       setor,
       status: "pendente",
       confirmado_por: userId,
-      confirmado_email: userEmail,
-      confirmado_em: reopenedAt,
+      confirmado_email: recordedEmail,
+      confirmado_em: recordedAt,
     }, { onConflict: "competencia,modulo" });
     if (scheduleError) {
       setError("A tarefa não foi reaberta porque o Cronograma não pôde ser atualizado.");
       return;
     }
     setFinalizedSnapshot(null);
-    setSharedCompletion({ modulo, setor, status: "pendente", confirmado_email: userEmail, confirmado_em: reopenedAt });
+    setSharedCompletion({ modulo, setor, status: "pendente", confirmado_email: recordedEmail, confirmado_em: recordedAt });
     await supabase.from("cronograma_historico").insert({
       competencia: competence,
       modulo,
@@ -2000,7 +1982,7 @@ export default function PisCofinsAssessment({
             >
               {isFinalized ? <RotateCcw /> : <CheckCircle2 />} {isFinalized ? "Reabrir tarefa" : "Finalizar tarefa"}
             </button>
-            <button className="tax-clear-action" disabled={!hasAssessment} onClick={clearAssessment} title="Apagar a apuração salva desta empresa e competência">
+            <button className="tax-clear-action" disabled={isFinalized || !hasAssessment} onClick={clearAssessment} title={isFinalized ? "Reabra a tarefa antes de limpar os dados." : "Apagar a apuração salva desta empresa e competência"}>
               <Trash2 /> Limpar
             </button>
           </div>,
