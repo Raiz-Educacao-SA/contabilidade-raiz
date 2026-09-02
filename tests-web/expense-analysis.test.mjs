@@ -85,6 +85,16 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
   assert.match(component, /A1:O/);
 });
 
+test("valida os CNPJs oficiais das empresas do Grupo Raiz", () => {
+  assert.match(component, /groupCompanySupplierTaxIds = new Set/);
+  assert.match(component, /21219576000114/);
+  assert.match(component, /86704160000137/);
+  assert.match(component, /09262835000194/);
+  assert.match(component, /58232918000146/);
+  assert.match(component, /58241128000127/);
+  assert.match(component, /groupCompanySupplierTaxIds\.has\(supplierTaxId\)/);
+});
+
 test("sinaliza qualquer empresa do Grupo Raiz cadastrada como fornecedora", () => {
   assert.match(component, /groupCompanySupplierNames/);
   assert.match(component, /RAIZ EDUCAÇÃO/);

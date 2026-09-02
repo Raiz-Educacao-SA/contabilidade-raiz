@@ -40,6 +40,33 @@ const companySupplierAliases: Record<string, string[]> = {
 const companySupplierTaxIds: Record<string, string[]> = {
   "12": ["09262835000194", "09262835000275", "09262835000437", "09262835000356"],
 };
+const groupCompanySupplierTaxIds = new Set([
+  "21219576000114",
+  "86704160000137",
+  "21669216000114",
+  "14642152000100",
+  "23075186000143",
+  "33590308000193",
+  "28336302000154",
+  "28734505000107",
+  "07499961000131",
+  "89409825000178",
+  "09262835000194",
+  "92845437000144",
+  "87188959000180",
+  "38376734000142",
+  "20647702000179",
+  "25788092000147",
+  "66448143000179",
+  "42722698000107",
+  "32555626000150",
+  "49218279000173",
+  "58232918000146",
+  "58241128000127",
+  "09262835000275",
+  "09262835000437",
+  "09262835000356",
+]);
 const groupCompanySupplierNames = [
   "RAIZ EDUCAÇÃO",
   "COLÉGIO QI",
@@ -82,7 +109,8 @@ function isOwnCompanySupplier(code: string, name: string, supplier: string, taxI
     .map(normalized)
     .filter(Boolean);
   const supplierTaxId = String(taxId ?? "").replace(/\D/g, "");
-  return (companySupplierTaxIds[code] || []).includes(supplierTaxId)
+  return groupCompanySupplierTaxIds.has(supplierTaxId)
+    || (companySupplierTaxIds[code] || []).includes(supplierTaxId)
     || companyNames.some((value) => supplierName === value || (value.length >= 6 && (supplierName.includes(value) || value.includes(supplierName))));
 }
 
