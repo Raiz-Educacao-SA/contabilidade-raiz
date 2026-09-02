@@ -19,6 +19,7 @@ type ExpenseRow = {
   total: number;
   comment: string;
   ownCompanySupplier: boolean;
+  incorrectValue: boolean;
 };
 
 type Analysis = {
@@ -165,6 +166,23 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       if (headerIndex < 0) throw new Error("Cabeçalho da PlanilhaNet 08 não localizado.");
       const headers = matrix[headerIndex].map(normalized);
       const records = matrix.slice(headerIndex + 1).map((row) => Object.fromEntries(headers.map((name, index) => [name, row[index]])));
+      const ticketIds = [...new Set(records.map((record) => String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim()).filter(Boolean))];
+      const zeevValues = new Map<string, number>();
+      if (ticketIds.length && accessToken) {
+        try {
+          const zeevResponse = await fetch("/api/zeev/expenses/validate", {
+            method: "POST",
+            headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+            body: JSON.stringify({ tickets: ticketIds }),
+            cache: "no-store",
+            signal: AbortSignal.timeout(120_000),
+          });
+          if (zeevResponse.ok) {
+            const zeevPayload = await zeevResponse.json();
+            for (const validation of zeevPayload.validations || []) if (validation.found && numberValue(validation.value) > 0) zeevValues.set(String(validation.ticket), numberValue(validation.value));
+          }
+        } catch { /* A análise contábil continua quando o Zeev estiver indisponível. */ }
+      }
       const months = monthsBetween(periodStart, periodEnd);
       if (!months.length) throw new Error("Informe um período válido de até 12 meses.");
       const grouped = new Map<string, ExpenseRow>();
@@ -182,11 +200,14 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const description = String(record.DESCRICAO || "SEM DESCRIÇÃO").trim();
         const value = numberValue(record.VALOR);
         const key = [supplier, account, description].join("\u001f");
-        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false });
+        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false, incorrectValue: false });
         const item = grouped.get(key)!;
         item.months[month] = Math.round((item.months[month] + value) * 100) / 100;
         item.total = Math.round((item.total + value) * 100) / 100;
         item.ownCompanySupplier ||= isOwnCompanySupplier(companyCode, companyName, supplier, record.CGCCFO);
+        const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
+        const zeevValue = zeevValues.get(ticket);
+        item.incorrectValue ||= zeevValue !== undefined && Math.abs(value - zeevValue) > 0.01;
         suppliers.add(supplier);
         movementIds.add(String(record.IDMOV ?? ""));
       }
@@ -204,7 +225,9 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const target = row.months[targetMonth] ?? 0;
         row.comment = row.ownCompanySupplier
           ? "Cadastro de Fornecedor Incorreto"
-          : row.account.startsWith("1.") && target > 0
+          : row.incorrectValue
+            ? "Valores Incorretos"
+            : row.account.startsWith("1.") && target > 0
             ? "Ativo Imobilizado"
             : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
               ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
@@ -357,6 +380,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Divergência", "Conta utilizada no mês final sem movimento nos meses anteriores, quando o fornecedor possui mais de uma conta"],
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde à coligada; validar pelo Ticket Zeev antes da correção"],
+      ["Valores incorretos", "Valor do movimento contábil divergente do valor total aprovado no Ticket Zeev; revisar o IDMOV antes da integração/fechamento"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
       ["Tickets Zeev", "No Excel, clique no valor mensal para acessar os lançamentos; depois clique no ticket para abrir a nota fiscal no Zeev"],
