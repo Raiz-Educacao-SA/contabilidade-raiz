@@ -217,7 +217,6 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       extraRevenueAccounts: string[];
       revenueIndicators: string[];
       discount: number;
-      commercialDiscountDebits: number[];
       complements: string[];
       generationTypes: string[];
     }
@@ -231,7 +230,6 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       extraRevenueAccounts: [],
       revenueIndicators: [],
       discount: 0,
-      commercialDiscountDebits: [],
       complements: [],
       generationTypes: [],
     };
@@ -254,15 +252,7 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       ) {
         current.revenueIndicators.push("Material didático");
       }
-    } else {
-      current.discount += entry.value;
-      if (
-        entry.account?.trim() === COMMERCIAL_DISCOUNT_ACCOUNT &&
-        entry.value > REVENUE_TOLERANCE
-      ) {
-        current.commercialDiscountDebits.push(entry.value);
-      }
-    }
+    } else current.discount += entry.value;
 
     const complement = entry.complement?.trim();
     if (complement && !current.complements.includes(complement)) {
@@ -284,55 +274,6 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
   });
 
   return summaries;
-}
-
-function toCents(value: number) {
-  return Math.round(value * 100);
-}
-
-function hasExactDebitCombination(values: number[], target: number) {
-  const targetCents = toCents(target);
-  if (targetCents <= 0) return false;
-
-  const debitCents = values
-    .map(toCents)
-    .filter((value) => value > 0 && value <= targetCents);
-  const reachable = new Set([0]);
-
-  for (const debit of debitCents) {
-    const currentSums = [...reachable];
-    for (const sum of currentSums) {
-      const next = sum + debit;
-      if (next === targetCents) return true;
-      if (next < targetCents) reachable.add(next);
-    }
-  }
-
-  return false;
-}
-
-export function commercialDiscountRevenueDeduction(values: {
-  revenueDifference: number;
-  extraRevenue: number;
-  commercialDiscountDebits: number[];
-}) {
-  const revenueDifference = Math.round(values.revenueDifference * 100) / 100;
-  const extraRevenue = Math.abs(Math.round(values.extraRevenue * 100) / 100);
-  const targets = [
-    Math.round((revenueDifference - extraRevenue) * 100) / 100,
-    revenueDifference,
-  ];
-
-  for (const target of targets) {
-    if (
-      target > REVENUE_TOLERANCE &&
-      hasExactDebitCombination(values.commercialDiscountDebits, target)
-    ) {
-      return target;
-    }
-  }
-
-  return 0;
 }
 
 export function classifyRevenueDivergence(values: {

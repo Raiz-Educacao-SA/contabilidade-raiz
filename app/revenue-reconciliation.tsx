@@ -13,7 +13,6 @@ import { applyRevenueWorkbookStyle } from "@/lib/revenue-export-workbook";
 import {
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
-  commercialDiscountRevenueDeduction,
   consolidateFiscalRevenueRows,
   EXTRA_REVENUE_ACCOUNTS,
   isExcludedRevenueGenerationType,
@@ -283,18 +282,11 @@ export default function RevenueReconciliation({
     return [...new Set([...fm.keys(), ...cm.keys()])].map((ra) => {
       const a = fm.get(ra),
         b = cm.get(ra),
-        grossAccountingRevenue = b?.revenue || 0,
+        accountingRevenue = b?.revenue || 0,
         extraRevenue = b?.extraRevenue || 0,
         accountingDiscount = b?.discount || 0,
         fiscalRevenue = a?.rev || 0,
         fiscalDiscount = a?.disc || 0,
-        commercialDiscountDeduction = commercialDiscountRevenueDeduction({
-          revenueDifference: grossAccountingRevenue - fiscalRevenue,
-          extraRevenue,
-          commercialDiscountDebits: b?.commercialDiscountDebits || [],
-        }),
-        accountingRevenue =
-          grossAccountingRevenue - commercialDiscountDeduction,
         dr = accountingRevenue - fiscalRevenue,
         dd = accountingDiscount - fiscalDiscount,
         status = classifyRevenueReconciliation({
