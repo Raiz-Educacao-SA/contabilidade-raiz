@@ -282,8 +282,10 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const document = zeevDocuments.get(ticket);
         if (!document || (!document.invoiceKey && !document.invoiceNumber)) continue;
         const supplier = String(record.NOMEFANTASIA || record.NOME || "SEM FORNECEDOR").trim();
+        const movementNumber = String(record.NUMEROMOV || "").trim();
+        if (!movementNumber) continue;
         const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
-        const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), numberValue(record.VALOR).toFixed(2)].join("\u001f");
+        const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), numberValue(record.VALOR).toFixed(2), normalized(movementNumber)].join("\u001f");
         const movementIdentity = String(record.IDMOV || ticket).trim();
         const identities = duplicateCandidates.get(duplicateKey) || new Set<string>();
         identities.add(movementIdentity);
@@ -315,9 +317,10 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         item.incorrectValue ||= zeevValue !== undefined && Math.abs(value - zeevValue) > 0.01;
         const document = zeevDocuments.get(ticket);
         if (document && (document.invoiceKey || document.invoiceNumber)) {
+          const movementNumber = String(record.NUMEROMOV || "").trim();
           const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
-          const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), value.toFixed(2)].join("\u001f");
-          item.duplicateDocument ||= duplicateMovementKeys.has(duplicateKey);
+          const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), value.toFixed(2), normalized(movementNumber)].join("\u001f");
+          item.duplicateDocument ||= Boolean(movementNumber) && duplicateMovementKeys.has(duplicateKey);
         }
         suppliers.add(supplier);
         movementIds.add(String(record.IDMOV ?? ""));
@@ -499,7 +502,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde a uma empresa do grupo; contas de rateio/intercompany são exceção legítima"],
       ["Valores incorretos", "Valor do movimento contábil divergente do valor total aprovado no Ticket Zeev; revisar o IDMOV antes da integração/fechamento"],
-      ["Possível lançamento duplicado", "Mesmo fornecedor/CNPJ, chave de acesso (ou número da nota quando a chave não estiver disponível) e valor contábil em mais de um movimento distinto"],
+      ["Possível lançamento duplicado", "Mesmo fornecedor/CNPJ, chave de acesso (ou número da nota), valor contábil e NUMEROMOV em IDMOVs distintos"],
       ["Custo operacional inadequado", "Somente na coligada 01 — Raiz Educação: conta iniciada por 4.1 indica classificação incorreta, pois a empresa não apresenta receita"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
