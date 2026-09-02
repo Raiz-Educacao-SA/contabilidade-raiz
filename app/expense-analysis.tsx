@@ -213,10 +213,12 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       }
 
       const rows = [...grouped.values()];
-      const accountCount = new Map<string, number>();
+      const supplierAccounts = new Map<string, Set<string>>();
       const supplierPriorTotal = new Map<string, number>();
       rows.forEach((row) => {
-        accountCount.set(row.supplier, (accountCount.get(row.supplier) ?? 0) + 1);
+        const accounts = supplierAccounts.get(row.supplier) || new Set<string>();
+        accounts.add(row.account);
+        supplierAccounts.set(row.supplier, accounts);
         const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
         supplierPriorTotal.set(row.supplier, (supplierPriorTotal.get(row.supplier) ?? 0) + prior);
       });
@@ -231,7 +233,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
             ? "Ativo Imobilizado"
             : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
               ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
-              : accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
+              : (supplierAccounts.get(row.supplier)?.size ?? 0) > 1 && target > 0 && prior === 0
                 ? "Divergência em comparação a meses anteriores"
                 : "";
       });
