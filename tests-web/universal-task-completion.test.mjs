@@ -14,6 +14,11 @@ test("todas as telas com tarefas usam uma identidade detalhada por empresa", () 
   assert.match(page, /purchasesCompletionIdentity\(selectedCompanyCode, selectedCompanyName\)/);
 });
 
+test("módulo Fiscal oferece ECF no lugar de ECD", () => {
+  assert.match(page, /\{ id: "ecf", label: "ECF", icon: BookOpenCheck \}/);
+  assert.doesNotMatch(page, /\{ id: "ecd", label: "ECD"/);
+});
+
 test("finalizar e reabrir registram cronograma e histórico pelo e-mail", () => {
   assert.match(control, /upsert\(completionRows, \{ onConflict: "competencia,modulo" \}\)/);
   assert.match(control, /usuario_email: userEmail/);

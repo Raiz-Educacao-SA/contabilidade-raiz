@@ -91,7 +91,7 @@ type Account = {
 };
 type Tab = "conciliacao" | "contas" | "extratos" | "saldos";
 type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "almoxarifado" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";
-type FiscalTab = "paa" | "iss" | "ecd";
+type FiscalTab = "paa" | "iss" | "ecf";
 type BookReport = "balancete" | "razao" | "plano-contas";
 type ScheduleView = "acompanhamento" | "historico";
 type Area = AccessModule;
@@ -173,7 +173,7 @@ type FiscalScheduleTaskId = (typeof FISCAL_SCHEDULE_TASK_IDS)[number];
 const fiscalScheduleTasks: { id: FiscalScheduleTaskId; label: string; description: string }[] = [
   { id: "paa", label: "PAA", description: "Conferência da apuração PAA" },
   { id: "iss", label: "ISS", description: "Conferência da apuração de ISS" },
-  { id: "ecd", label: "ECD", description: "Conferência da escrituração contábil digital" },
+  { id: "ecf", label: "ECF", description: "Conferência da escrituração contábil fiscal" },
 ];
 
 type BookScheduleTaskId = (typeof BOOK_SCHEDULE_TASK_IDS)[number];
@@ -865,7 +865,7 @@ export default function Home() {
             {([
               { id: "paa", label: "PAA", icon: ListChecks },
               { id: "iss", label: "ISS", icon: ReceiptText },
-              { id: "ecd", label: "ECD", icon: BookOpenCheck },
+              { id: "ecf", label: "ECF", icon: BookOpenCheck },
             ] as const).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -966,7 +966,7 @@ export default function Home() {
                   ? "PAA"
                   : fiscalTab === "iss"
                     ? "ISS"
-                    : "ECD"
+                    : "ECF"
                 : selectedModule === "contabil"
                 ? accountingTab === "pis-cofins"
                   ? "PIS e COFINS"
@@ -1367,7 +1367,7 @@ export default function Home() {
               <BookOpenCheck />
             )}
             <span className="eyebrow">MÓDULO FISCAL</span>
-            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECD"}</h2>
+            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECF"}</h2>
             <p>Área preparada para receber as regras, bases, documentos e conferências desta rotina fiscal.</p>
           </section>
         )}

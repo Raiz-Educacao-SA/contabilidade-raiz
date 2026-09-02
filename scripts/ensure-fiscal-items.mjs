@@ -4,7 +4,7 @@ const path = new URL("../app/page.tsx", import.meta.url);
 let source = readFileSync(path, "utf8");
 
 const fiscalModuleAlreadyConfigured = [
-  'type FiscalTab = "paa" | "iss" | "ecd";',
+  'type FiscalTab = "paa" | "iss" | "ecf";',
   'useState<FiscalTab>("paa")',
   'className="accounting-nav fiscal-nav"',
   'selectedModule === "fiscal"',
@@ -13,7 +13,7 @@ const fiscalModuleAlreadyConfigured = [
 ].every((marker) => source.includes(marker));
 
 if (fiscalModuleAlreadyConfigured) {
-  console.log("Módulo Fiscal: PAA, ISS e ECD já estão configurados em app/page.tsx.");
+  console.log("Módulo Fiscal: PAA, ISS e ECF já estão configurados em app/page.tsx.");
   process.exit(0);
 }
 
@@ -37,7 +37,7 @@ function replaceOnce(search, replacement, label) {
 
 replaceOnce(
   'type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";\n',
-  'type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";\ntype FiscalTab = "paa" | "iss" | "ecd";\n',
+  'type AccountingTab = "pis-cofins" | "receita-filial" | "analise-balancete" | "irpj-csll" | "rateio-csc" | "intercompany" | "provisoes" | "despesas" | "arrendamentos" | "lotes-integrar";\ntype FiscalTab = "paa" | "iss" | "ecf";\n',
   "tipo FiscalTab",
 );
 
@@ -49,19 +49,19 @@ replaceOnce(
 
 replaceOnce(
   '        {selectedModule === "contabil" && (\n          <nav className="accounting-nav">',
-  `        {selectedModule === "fiscal" && (\n          <nav className="accounting-nav fiscal-nav">\n            {([\n              { id: "paa", label: "PAA", icon: ListChecks },\n              { id: "iss", label: "ISS", icon: ReceiptText },\n              { id: "ecd", label: "ECD", icon: BookOpenCheck },\n            ] as const).map(({ id, label, icon: Icon }) => (\n              <button\n                key={id}\n                className={fiscalTab === id ? "active" : ""}\n                onClick={() => setFiscalTab(id)}\n              >\n                <Icon />\n                {label}\n              </button>\n            ))}\n          </nav>\n        )}\n        {selectedModule === "contabil" && (\n          <nav className="accounting-nav">`,
+  `        {selectedModule === "fiscal" && (\n          <nav className="accounting-nav fiscal-nav">\n            {([\n              { id: "paa", label: "PAA", icon: ListChecks },\n              { id: "iss", label: "ISS", icon: ReceiptText },\n              { id: "ecf", label: "ECF", icon: BookOpenCheck },\n            ] as const).map(({ id, label, icon: Icon }) => (\n              <button\n                key={id}\n                className={fiscalTab === id ? "active" : ""}\n                onClick={() => setFiscalTab(id)}\n              >\n                <Icon />\n                {label}\n              </button>\n            ))}\n          </nav>\n        )}\n        {selectedModule === "contabil" && (\n          <nav className="accounting-nav">`,
   "menu lateral fiscal",
 );
 
 replaceOnce(
   '              {selectedModule === "contabil"\n                ? accountingTab === "pis-cofins"',
-  '              {selectedModule === "fiscal"\n                ? fiscalTab === "paa"\n                  ? "PAA"\n                  : fiscalTab === "iss"\n                    ? "ISS"\n                    : "ECD"\n                : selectedModule === "contabil"\n                ? accountingTab === "pis-cofins"',
+  '              {selectedModule === "fiscal"\n                ? fiscalTab === "paa"\n                  ? "PAA"\n                  : fiscalTab === "iss"\n                    ? "ISS"\n                    : "ECF"\n                : selectedModule === "contabil"\n                ? accountingTab === "pis-cofins"',
   "título da rotina fiscal",
 );
 
 replaceOnce(
   '        {selectedModule === "cronograma" && scheduleView === "acompanhamento" && (',
-  `        {selectedModule === "fiscal" && (\n          <section className="panel module-workspace accounting-workspace fiscal-workspace">\n            {fiscalTab === "paa" ? (\n              <ListChecks />\n            ) : fiscalTab === "iss" ? (\n              <ReceiptText />\n            ) : (\n              <BookOpenCheck />\n            )}\n            <span className="eyebrow">MÓDULO FISCAL</span>\n            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECD"}</h2>\n            <p>Área preparada para receber as regras, bases, documentos e conferências desta rotina fiscal.</p>\n          </section>\n        )}\n        {selectedModule === "cronograma" && scheduleView === "acompanhamento" && (`,
+  `        {selectedModule === "fiscal" && (\n          <section className="panel module-workspace accounting-workspace fiscal-workspace">\n            {fiscalTab === "paa" ? (\n              <ListChecks />\n            ) : fiscalTab === "iss" ? (\n              <ReceiptText />\n            ) : (\n              <BookOpenCheck />\n            )}\n            <span className="eyebrow">MÓDULO FISCAL</span>\n            <h2>{fiscalTab === "paa" ? "PAA" : fiscalTab === "iss" ? "ISS" : "ECF"}</h2>\n            <p>Área preparada para receber as regras, bases, documentos e conferências desta rotina fiscal.</p>\n          </section>\n        )}\n        {selectedModule === "cronograma" && scheduleView === "acompanhamento" && (`,
   "área de trabalho fiscal",
 );
 
@@ -72,4 +72,4 @@ replaceOnce(
 );
 
 writeFileSync(path, source);
-console.log("Módulo Fiscal: PAA, ISS e ECD garantidos em app/page.tsx.");
+console.log("Módulo Fiscal: PAA, ISS e ECF garantidos em app/page.tsx.");
