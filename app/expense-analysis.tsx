@@ -217,14 +217,6 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       return String(Math.trunc(numberValue(record.CODCOLIGADA))) === String(Number(companyCode)) && date >= periodStart && date <= periodEnd && account && normalized(account) !== "NENHUM REGISTRO ENCONTRADO.";
     });
     const movementRowByGroup = new Map<string, number>();
-    const reducedColumn = 6;
-    const reducedHeader = movementSheet[XLSX.utils.encode_cell({ r: 0, c: reducedColumn })];
-    reducedHeader.s = { fill: { fgColor: { rgb: orange } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: navy } }, alignment: { horizontal: "center" } };
-    for (let row = 1; row <= movements.length; row += 1) {
-      const address = XLSX.utils.encode_cell({ r: row, c: reducedColumn });
-      if (!movementSheet[address]) movementSheet[address] = { t: "s", v: "" };
-      movementSheet[address].s = { fill: { fgColor: { rgb: pale } }, font: baseFont, border: { left: { style: "thin", color: { rgb: orange } }, right: { style: "thin", color: { rgb: orange } } } };
-    }
     movementRecords.forEach((record, index) => {
       const supplier = String(record.NOMEFANTASIA || record.NOME || "SEM FORNECEDOR").trim();
       const key = [normalized(supplier), String(record.DEBITO ?? "").trim(), isoDate(record.DATASAIDA).slice(0, 7)].join("\u001f");
@@ -322,6 +314,14 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     for (let row = 1; row <= movements.length; row += 1) for (let col = 0; col < movementHeaders.length; col += 1) {
       const cell = movementSheet[XLSX.utils.encode_cell({ r: row, c: col })];
       if (cell) cell.s = { font: baseFont, ...(col === 9 ? { numFmt: '"R$" #,##0.00;[Red]("R$" #,##0.00);-' } : {}) };
+    }
+    const reducedColumn = 6;
+    const reducedHeader = movementSheet[XLSX.utils.encode_cell({ r: 0, c: reducedColumn })]!;
+    reducedHeader.s = { fill: { fgColor: { rgb: orange } }, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: navy } }, alignment: { horizontal: "center" } };
+    for (let row = 1; row <= movements.length; row += 1) {
+      const address = XLSX.utils.encode_cell({ r: row, c: reducedColumn });
+      if (!movementSheet[address]) movementSheet[address] = { t: "s", v: "" };
+      movementSheet[address].s = { fill: { fgColor: { rgb: pale } }, font: baseFont, border: { left: { style: "thin", color: { rgb: orange } }, right: { style: "thin", color: { rgb: orange } } } };
     }
     movementRecords.forEach((record, index) => {
       const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
