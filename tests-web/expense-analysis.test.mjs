@@ -77,18 +77,11 @@ test("Ticket Zeev ocupa a coluna B após IDMOV no Excel", () => {
   assert.match(component, /\{ r: index \+ 1, c: 1 \}/);
 });
 
-test("Reduzido fica imediatamente antes de Conta contábil nos lançamentos", () => {
-  assert.match(route, /REDUZIDO: firstTag/);
-  assert.match(component, /"Natureza", "Reduzido", "Conta contábil"/);
-  assert.match(component, /record\.REDUZIDO, record\.DEBITO/);
-  assert.match(component, /A1:P/);
-});
-
-test("destaca a coluna Reduzido quando a PlanilhaNet 08 não fornece o campo", () => {
-  assert.match(component, /const reducedColumn = 6/);
-  assert.match(component, /reducedHeader\.s/);
-  assert.match(component, /PlanilhaNet 08 não fornece esse campo/);
-  assert.match(component, /fgColor: \{ rgb: pale \}/);
+test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
+  assert.doesNotMatch(component, /"Reduzido"/);
+  assert.match(component, /"Natureza", "Conta contábil", "Descrição"/);
+  assert.doesNotMatch(route, /REDUZIDO:/);
+  assert.match(component, /A1:O/);
 });
 
 test("congela a primeira linha de Lançamentos Contábeis", () => {
