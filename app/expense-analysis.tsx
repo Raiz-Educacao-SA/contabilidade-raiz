@@ -32,9 +32,20 @@ type Analysis = {
 };
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const companySupplierAliases: Record<string, string[]> = {
+  "12": ["COLEGIO LEONARDO DA VINCI", "COLÉGIO LEONARDO DA VINCI"],
+};
 
 function normalized(value: unknown) {
   return String(value ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function isOwnCompanySupplier(code: string, name: string, supplier: string) {
+  const supplierName = normalized(supplier);
+  const companyNames = [name, ...(companySupplierAliases[code] || [])]
+    .map(normalized)
+    .filter((value) => value.length >= 6);
+  return companyNames.some((value) => supplierName.includes(value) || value.includes(supplierName));
 }
 
 function numberValue(value: unknown) {
@@ -184,13 +195,15 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       rows.forEach((row) => {
         const prior = months.slice(0, -1).reduce((sum, month) => sum + row.months[month], 0);
         const target = row.months[targetMonth] ?? 0;
-        row.comment = row.account.startsWith("1.") && target > 0
-          ? "Ativo Imobilizado"
-          : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
-            ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
-            : accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
-              ? "Divergência em comparação a meses anteriores"
-              : "";
+        row.comment = isOwnCompanySupplier(companyCode, companyName, row.supplier)
+          ? "Possível erro de cadastro: fornecedor com o mesmo nome da empresa - validar Ticket Zeev"
+          : row.account.startsWith("1.") && target > 0
+            ? "Ativo Imobilizado"
+            : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
+              ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
+              : accountCount.get(row.supplier)! > 1 && target > 0 && prior === 0
+                ? "Divergência em comparação a meses anteriores"
+                : "";
       });
       rows.sort((a, b) => a.supplier.localeCompare(b.supplier, "pt-BR") || a.account.localeCompare(b.account));
       const periodTotal = rows.reduce((sum, row) => sum + row.total, 0);
@@ -336,6 +349,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Escopo contábil", "Somente conta DÉBITO + descrição DESCRICAO"],
       ["Divergência", "Conta utilizada no mês final sem movimento nos meses anteriores, quando o fornecedor possui mais de uma conta"],
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
+      ["Fornecedor igual à própria empresa", "Possível erro cadastral quando o fornecedor corresponde ao nome ou razão social da coligada; validar pelo Ticket Zeev antes da correção"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
       ["Tickets Zeev", "No Excel, clique no valor mensal para acessar os lançamentos; depois clique no ticket para abrir a nota fiscal no Zeev"],
