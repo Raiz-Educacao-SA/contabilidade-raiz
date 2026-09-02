@@ -94,6 +94,12 @@ test("transporta as três colunas azuis da PlanilhaNet 08 para os lançamentos c
   assert.match(component, /A1:R/);
 });
 
+test("sinaliza contas 4.1 como custo operacional inadequado somente na coligada 01", () => {
+  assert.match(component, /String\(Number\(companyCode\)\) === "1" && row\.account\.startsWith\("4\.1"\)/);
+  assert.match(component, /Custo Operacional Inadequado - Classificação Incorreta/);
+  assert.match(component, /Somente na coligada 01 — Raiz Educação/);
+});
+
 test("não sinaliza rateio intercompany como fornecedor incorreto", () => {
   assert.match(component, /isIntercompanyAccount/);
   assert.match(component, /2\.1\.7\.01\.02\.07/);
