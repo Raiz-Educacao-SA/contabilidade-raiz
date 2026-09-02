@@ -82,14 +82,16 @@ test("Lançamentos Contábeis não exporta a coluna Reduzido", () => {
   assert.doesNotMatch(component, /"Reduzido"/);
   assert.match(component, /"Natureza", "Conta contábil", "Descrição"/);
   assert.doesNotMatch(route, /REDUZIDO:/);
-  assert.match(component, /A1:Q/);
+  assert.match(component, /A1:R/);
 });
 
-test("inclui centro de custo e complemento após valor nos lançamentos contábeis", () => {
-  assert.match(component, /"Valor", "Centro de custo", "Complemento", "Coligada"/);
-  assert.match(component, /record\.CODCCUSTO \|\| record\.CODCCUSTODEBITO \|\| record\.CCUSTO/);
-  assert.match(component, /record\.COMPLEMENTO \|\| record\.COMPLHISTORICO \|\| record\.HISTORICO/);
-  assert.match(component, /A1:Q/);
+test("transporta as três colunas azuis da PlanilhaNet 08 para os lançamentos contábeis", () => {
+  assert.match(route, /CODCCUSTO: tag\(record, "CODCCUSTO"\)/);
+  assert.match(route, /DESCRICAO2: tag\(record, "DESCRICAO2"\)/);
+  assert.match(route, /COMPLEMENTO: tag\(record, "COMPLEMENTO"\)/);
+  assert.match(component, /"Valor", "CODCCUSTO", "DESCRICAO2", "COMPLEMENTO", "Coligada"/);
+  assert.match(component, /record\.CODCCUSTO, record\.DESCRICAO2, record\.COMPLEMENTO/);
+  assert.match(component, /A1:R/);
 });
 
 test("não sinaliza rateio intercompany como fornecedor incorreto", () => {
