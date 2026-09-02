@@ -20,6 +20,7 @@ type ExpenseRow = {
   comment: string;
   ownCompanySupplier: boolean;
   incorrectValue: boolean;
+  duplicateDocument: boolean;
 };
 
 type Analysis = {
@@ -234,6 +235,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         ["192402", 524.70],
         ["192406", 524.70],
       ]);
+      const zeevDocuments = new Map<string, { invoiceNumber: string; supplierTaxId: string }>();
       if (ticketIds.length && accessToken) {
         const ticketBatches: string[][] = [];
         for (let index = 0; index < ticketIds.length; index += 50) ticketBatches.push(ticketIds.slice(index, index + 50));
@@ -256,12 +258,37 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         for (let index = 0; index < ticketBatches.length; index += 3) {
           const validations = (await Promise.all(ticketBatches.slice(index, index + 3).map(validateBatch))).flat();
           for (const validation of validations) {
-            if (validation.found && numberValue(validation.value) > 0) zeevValues.set(String(validation.ticket), numberValue(validation.value));
+            if (validation.found && numberValue(validation.value) > 0) {
+              const ticket = String(validation.ticket);
+              zeevValues.set(ticket, numberValue(validation.value));
+              zeevDocuments.set(ticket, {
+                invoiceNumber: String(validation.invoiceNumber || "").trim(),
+                supplierTaxId: String(validation.supplierTaxId || "").replace(/\D/g, ""),
+              });
+            }
           }
         }
       }
       const months = monthsBetween(periodStart, periodEnd);
       if (!months.length) throw new Error("Informe um período válido de até 12 meses.");
+      const duplicateCandidates = new Map<string, Set<string>>();
+      for (const record of records) {
+        if (String(Math.trunc(numberValue(record.CODCOLIGADA))) !== String(Number(companyCode))) continue;
+        const date = isoDate(record.DATASAIDA);
+        const account = String(record.DEBITO ?? "").trim();
+        if (!date || date < periodStart || date > periodEnd || !months.includes(date.slice(0, 7)) || !account || normalized(account) === "NENHUM REGISTRO ENCONTRADO.") continue;
+        const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
+        const document = zeevDocuments.get(ticket);
+        if (!document?.invoiceNumber) continue;
+        const supplier = String(record.NOMEFANTASIA || record.NOME || "SEM FORNECEDOR").trim();
+        const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
+        const duplicateKey = [supplierIdentity, normalized(document.invoiceNumber), numberValue(record.VALOR).toFixed(2)].join("\u001f");
+        const movementIdentity = String(record.IDMOV || ticket).trim();
+        const identities = duplicateCandidates.get(duplicateKey) || new Set<string>();
+        identities.add(movementIdentity);
+        duplicateCandidates.set(duplicateKey, identities);
+      }
+      const duplicateMovementKeys = new Set([...duplicateCandidates.entries()].filter(([, identities]) => identities.size > 1).map(([key]) => key));
       const grouped = new Map<string, ExpenseRow>();
       const movementIds = new Set<string>();
       const suppliers = new Set<string>();
@@ -277,7 +304,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const description = String(record.DESCRICAO || "SEM DESCRIÇÃO").trim();
         const value = numberValue(record.VALOR);
         const key = [supplier, account, description].join("\u001f");
-        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false, incorrectValue: false });
+        if (!grouped.has(key)) grouped.set(key, { supplier, account, description, months: Object.fromEntries(months.map((item) => [item, 0])), total: 0, comment: "", ownCompanySupplier: false, incorrectValue: false, duplicateDocument: false });
         const item = grouped.get(key)!;
         item.months[month] = Math.round((item.months[month] + value) * 100) / 100;
         item.total = Math.round((item.total + value) * 100) / 100;
@@ -285,6 +312,12 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         const ticket = String(record.TICKET || record.CODTICKET || record.NUMEROTICKET || "").trim();
         const zeevValue = zeevValues.get(ticket);
         item.incorrectValue ||= zeevValue !== undefined && Math.abs(value - zeevValue) > 0.01;
+        const document = zeevDocuments.get(ticket);
+        if (document?.invoiceNumber) {
+          const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
+          const duplicateKey = [supplierIdentity, normalized(document.invoiceNumber), value.toFixed(2)].join("\u001f");
+          item.duplicateDocument ||= duplicateMovementKeys.has(duplicateKey);
+        }
         suppliers.add(supplier);
         movementIds.add(String(record.IDMOV ?? ""));
       }
@@ -306,6 +339,8 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
           ? "Cadastro de Fornecedor Incorreto"
           : row.incorrectValue
             ? "Valores Incorretos"
+            : row.duplicateDocument
+              ? "Possível Lançamento Duplicado - Verificar Fornecedor, Nota Fiscal e Valor"
             : String(Number(companyCode)) === "1" && row.account.startsWith("4.1")
               ? "Custo Operacional Inadequado - Classificação Incorreta"
             : row.account.startsWith("1.") && target > 0
@@ -463,6 +498,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Nova Operação Compra/Serviço", "Fornecedor com movimento no mês final e sem qualquer lançamento nos meses anteriores; definir a conta contábil"],
       ["Fornecedor igual à própria empresa", "Possível erro cadastral quando nome, razão social ou CNPJ do fornecedor corresponde a uma empresa do grupo; contas de rateio/intercompany são exceção legítima"],
       ["Valores incorretos", "Valor do movimento contábil divergente do valor total aprovado no Ticket Zeev; revisar o IDMOV antes da integração/fechamento"],
+      ["Possível lançamento duplicado", "Mesmo fornecedor/CNPJ, número da nota fiscal no Zeev e valor contábil em mais de um movimento distinto"],
       ["Custo operacional inadequado", "Somente na coligada 01 — Raiz Educação: conta iniciada por 4.1 indica classificação incorreta, pois a empresa não apresenta receita"],
       ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
       ["Sublocação", "Não considerada"],
