@@ -77,6 +77,13 @@ test("Ticket Zeev ocupa a coluna B após IDMOV no Excel", () => {
   assert.match(component, /\{ r: index \+ 1, c: 1 \}/);
 });
 
+test("Reduzido fica imediatamente antes de Conta contábil nos lançamentos", () => {
+  assert.match(route, /REDUZIDO: firstTag/);
+  assert.match(component, /"Natureza", "Reduzido", "Conta contábil"/);
+  assert.match(component, /record\.REDUZIDO, record\.DEBITO/);
+  assert.match(component, /A1:P/);
+});
+
 test("congela a primeira linha de Lançamentos Contábeis", () => {
   assert.match(component, /movementSheet\["!freeze"\] = \{ xSplit: 0, ySplit: 1 \}/);
 });
