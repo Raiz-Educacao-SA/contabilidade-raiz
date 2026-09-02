@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Download, Eye, EyeOff, RefreshCw, TrendingUp } from "lucide-react";
 import * as XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "@/lib/export-workbook-style";
@@ -52,8 +52,6 @@ export default function RevenueByBranch({ companyCode, competence, accessToken }
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
-
-  useEffect(() => setHiddenColumns([]), [companyCode, competence]);
 
   async function update() {
     if (!companyCode || !competence || !accessToken) return;
