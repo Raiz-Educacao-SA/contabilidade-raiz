@@ -11,8 +11,10 @@ import {
 import * as XLSX from "xlsx-js-style";
 import { applyRevenueWorkbookStyle } from "@/lib/revenue-export-workbook";
 import {
+  classifyCompany18InternalMdDivergence,
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
+  COMPANY_18_INTERNAL_MD_ACCOUNT,
   consolidateFiscalRevenueRows,
   EXTRA_REVENUE_ACCOUNTS,
   isExcludedRevenueGenerationType,
@@ -46,13 +48,19 @@ type C = {
   ra: string;
   name: string;
   value: number;
-  kind: "revenue" | "discount";
+  kind: "revenue" | "discount" | "internalMd";
   complement: string;
   generationType?: string;
   account?: string;
   description?: string;
+  branch?: string;
+  date?: string;
 };
-type RevenueView = "divergences" | "generationTypes" | "extraRevenue";
+type RevenueView =
+  | "divergences"
+  | "generationTypes"
+  | "extraRevenue"
+  | "internalMd";
 type RevenueCacheSnapshot = {
   fiscalRows: F[];
   accountingRows: C[];
@@ -109,6 +117,7 @@ export default function RevenueReconciliation({
     [finalizedBy, setFinalizedBy] = useState(""),
     [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
+  const isCompany18 = Number(companyCode) === 18;
   const cacheKey = revenueReconciliationCacheKey(companyCode, competence);
   const scheduleIdentity = useMemo(
     () => financialCompletionIdentity("receita", companyCode, companyName),
@@ -147,7 +156,8 @@ export default function RevenueReconciliation({
         setCr(Boolean(snapshot.accountingLoaded));
         setActiveView(
           snapshot.activeView === "generationTypes" ||
-            snapshot.activeView === "extraRevenue"
+            snapshot.activeView === "extraRevenue" ||
+            (snapshot.activeView === "internalMd" && isCompany18)
             ? snapshot.activeView
             : "divergences",
         );
@@ -173,7 +183,7 @@ export default function RevenueReconciliation({
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [cacheKey, companyCode, competence, scheduleIdentity.modulo]);
+  }, [cacheKey, companyCode, competence, isCompany18, scheduleIdentity.modulo]);
 
   useEffect(() => {
     if (!cacheReady || restoredCacheKey !== cacheKey || (!fr && !cr)) return;
@@ -284,6 +294,7 @@ export default function RevenueReconciliation({
         b = cm.get(ra),
         accountingRevenue = b?.revenue || 0,
         extraRevenue = b?.extraRevenue || 0,
+        internalMd = b?.internalMd || 0,
         accountingDiscount = b?.discount || 0,
         fiscalRevenue = a?.rev || 0,
         fiscalDiscount = a?.disc || 0,
@@ -295,12 +306,20 @@ export default function RevenueReconciliation({
           fiscalDiscount,
           accountingDiscount,
         });
-      const classification = classifyRevenueDivergence({
-        status,
-        revenueDifference: dr,
-        discountDifference: dd,
-        extraRevenue,
-      });
+      const classification =
+        classifyCompany18InternalMdDivergence({
+          companyCode,
+          status,
+          revenueDifference: dr,
+          discountDifference: dd,
+          internalMd,
+        }) ||
+        classifyRevenueDivergence({
+          status,
+          revenueDifference: dr,
+          discountDifference: dd,
+          extraRevenue,
+        });
       return {
         ra,
         competence: competenceLabel,
@@ -309,6 +328,7 @@ export default function RevenueReconciliation({
         fiscalRevenue,
         accountingRevenue,
         extraRevenue,
+        internalMd,
         revenueDifference: dr,
         fiscalDiscount,
         accountingDiscount,
@@ -317,6 +337,8 @@ export default function RevenueReconciliation({
         status,
         classification,
         extraRevenueAccounts: b?.extraRevenueAccounts.join(" | ") || "",
+        internalMdAccounts: b?.internalMdAccounts.join(" | ") || "",
+        internalMdComplements: b?.internalMdComplements.join(" | ") || "",
         revenueIdentification: b?.revenueIndicators.join(" | ") || "",
         generationTypes: b?.generationTypes.join(" | ") || "",
         complements: b?.complements.join(" | ") || "",
@@ -331,15 +353,18 @@ export default function RevenueReconciliation({
                 : "Verificar diferença de desconto"),
       };
     });
-  }, [fiscalRows, accountingRows, competenceLabel]);
+  }, [fiscalRows, accountingRows, companyCode, competenceLabel]);
   const extraRevenueRows = rows.filter(
       (row) => row.classification === "Receitas extras",
+    ),
+    internalMdRows = rows.filter(
+      (row) => row.classification === "MD interno",
     ),
     pending = rows.filter(
       (row) => row.status !== "Conciliado" && !row.classification,
     ),
     reconciled = rows.filter((row) => row.status === "Conciliado").length,
-    treated = reconciled + extraRevenueRows.length,
+    treated = reconciled + extraRevenueRows.length + internalMdRows.length,
     reconciledPercentage = rows.length ? (treated / rows.length) * 100 : 0,
     fRev = fiscalRows.reduce((s, x) => s + x.originalValue, 0),
     cRev = rows.reduce((sum, row) => sum + row.accountingRevenue, 0),
@@ -347,10 +372,14 @@ export default function RevenueReconciliation({
       (sum, row) => sum + row.extraRevenue,
       0,
     ),
-    comparableAccountingRevenue = cRev - extraRevenueRows.reduce(
-      (sum, row) => sum + row.revenueDifference,
+    internalMdTotal = internalMdRows.reduce(
+      (sum, row) => sum + row.internalMd,
       0,
     ),
+    comparableAccountingRevenue = cRev - [
+      ...extraRevenueRows,
+      ...internalMdRows,
+    ].reduce((sum, row) => sum + row.revenueDifference, 0),
     fDisc = fiscalRows.reduce((s, x) => s + x.discount, 0),
     cDisc = rows.reduce((sum, row) => sum + row.accountingDiscount, 0);
   function exportAnalysis() {
@@ -366,6 +395,7 @@ export default function RevenueReconciliation({
       "Receita fiscal": x.fiscalRevenue,
       "Receita contábil": x.accountingRevenue,
       "Receitas extras": x.extraRevenue,
+      "MD interno": x.internalMd,
       "Identificação da receita": x.revenueIdentification,
       "Diferença receita": x.revenueDifference,
       "Desconto fiscal": x.fiscalDiscount,
@@ -380,9 +410,10 @@ export default function RevenueReconciliation({
     const statusCounts = [
       { status: "Conciliado", count: rows.filter((x) => x.status === "Conciliado").length },
       { status: "Receitas extras", count: extraRevenueRows.length },
+      { status: "MD interno", count: internalMdRows.length },
       { status: "Divergente", count: pending.filter((x) => x.status === "Divergente").length },
-      { status: "Só no Fiscal", count: rows.filter((x) => x.status === "Só no Fiscal").length },
-      { status: "Só no Contábil", count: rows.filter((x) => x.status === "Só no Contábil").length },
+      { status: "Só no Fiscal", count: pending.filter((x) => x.status === "Só no Fiscal").length },
+      { status: "Só no Contábil", count: pending.filter((x) => x.status === "Só no Contábil").length },
     ];
     const netFiscal = fRev - fDisc;
     const netAccounting = comparableAccountingRevenue - cDisc;
@@ -432,14 +463,14 @@ export default function RevenueReconciliation({
       { s: { r: 3, c: 0 }, e: { r: 3, c: 7 } },
       { s: { r: 6, c: 0 }, e: { r: 6, c: 7 } },
       { s: { r: 12, c: 0 }, e: { r: 12, c: 7 } },
-      { s: { r: 20, c: 0 }, e: { r: 20, c: 7 } },
+      { s: { r: 21, c: 0 }, e: { r: 21, c: 7 } },
     ];
     setNumberFormat(dashboard, 4, 4, [1, 3, 5], excelInteger);
     setNumberFormat(dashboard, 4, 4, [7], excelPercent);
     setNumberFormat(dashboard, 8, 10, [1, 2, 3], excelMoney);
-    setNumberFormat(dashboard, 14, 18, [1], excelInteger);
-    setNumberFormat(dashboard, 14, 18, [2], excelPercent);
-    setNumberFormat(dashboard, 21, 22, [1, 3, 5, 7], excelInteger);
+    setNumberFormat(dashboard, 14, 19, [1], excelInteger);
+    setNumberFormat(dashboard, 14, 19, [2], excelPercent);
+    setNumberFormat(dashboard, 22, 23, [1, 3, 5, 7], excelInteger);
     XLSX.utils.book_append_sheet(workbook, dashboard, "Dashboard");
 
     const appendJsonSheet = (
@@ -450,17 +481,28 @@ export default function RevenueReconciliation({
       const worksheet = XLSX.utils.json_to_sheet(data);
       worksheet["!cols"] = columns;
       const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:A1");
-      setNumberFormat(worksheet, 1, Math.max(range.e.r, 1), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13], excelMoney);
+      setNumberFormat(
+        worksheet,
+        1,
+        Math.max(range.e.r, 1),
+        [5, 6, 7, 8, 10, 11, 12, 13, 14],
+        excelMoney,
+      );
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     };
     const detailColumns = [
       { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
-      { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
+      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
     ];
     appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
     appendJsonSheet(
       "Receitas Extras",
       extraRevenueRows.map(mapRow),
+      detailColumns,
+    );
+    appendJsonSheet(
+      "MD interno",
+      internalMdRows.map(mapRow),
       detailColumns,
     );
     appendJsonSheet("Conciliados", rows.filter((x) => x.status === "Conciliado").map(mapRow), detailColumns);
@@ -471,7 +513,12 @@ export default function RevenueReconciliation({
         RA: x.ra,
         Competência: competenceLabel,
         Aluno: x.name,
-        Tipo: x.kind === "revenue" ? "Receita" : "Desconto",
+        Tipo:
+          x.kind === "revenue"
+            ? "Receita"
+            : x.kind === "discount"
+              ? "Desconto"
+              : "MD interno",
         Valor: x.value,
         "Tipo de geração": x.generationType || "Não informado",
         Complemento: x.complement,
@@ -486,7 +533,12 @@ export default function RevenueReconciliation({
         Aluno: x.name,
         Conta: x.account || "",
         Descrição: x.description || "",
-        Tipo: x.kind === "revenue" ? "Receita" : "Desconto",
+        Tipo:
+          x.kind === "revenue"
+            ? "Receita"
+            : x.kind === "discount"
+              ? "Desconto"
+              : "MD interno",
         Valor: x.value,
         "Tipo de geração": x.generationType || "",
         Complemento: x.complement,
@@ -529,7 +581,8 @@ export default function RevenueReconciliation({
       ["5", "Cruzamento", "RA + competência", "Registros conciliados não aparecem na lista principal da tela"],
       ["6", "Tolerância", "R$ 0,01", "Diferenças acima da tolerância entram em tratamento"],
       ["7", "Receitas extras", EXTRA_REVENUE_ACCOUNTS.join(" | "), "Quando o valor dessas contas explica integralmente a diferença de receita e não há diferença de desconto, o RA sai das divergências e é isolado na sheet Receitas Extras"],
-      ["8", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
+      ["8", "MD interno — coligada 18", COMPANY_18_INTERNAL_MD_ACCOUNT, `${internalMdRows.length} RA isolado(s). A conta é consultada somente na competência filtrada; o RA sai das divergências apenas quando o lançamento com histórico MD Interno explica integralmente a diferença de receita e não existe diferença de desconto`],
+      ["9", "Exportação", "Dashboard + detalhes", "Somente a primeira linha de cada aba possui cor; as demais ficam sem preenchimento"],
     ]);
     audit["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 32 }, { wch: 55 }];
     audit["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
@@ -601,8 +654,17 @@ export default function RevenueReconciliation({
         <article>
           <span>Receita contábil</span>
           <b>{cr ? brl.format(cRev) : "Aguardando"}</b>
-          {fr && cr && extraRevenueRows.length > 0 && (
-            <small>{brl.format(extraRevenueTotal)} em receitas extras</small>
+          {fr && cr && (extraRevenueRows.length > 0 || internalMdRows.length > 0) && (
+            <small>
+              {[
+                extraRevenueRows.length > 0
+                  ? `${brl.format(extraRevenueTotal)} em receitas extras`
+                  : "",
+                internalMdRows.length > 0
+                  ? `${brl.format(internalMdTotal)} em MD interno`
+                  : "",
+              ].filter(Boolean).join(" · ")}
+            </small>
           )}
         </article>
         <article>
@@ -669,6 +731,17 @@ export default function RevenueReconciliation({
             <FileCheck2 /> Receitas extras isoladas{" "}
             <span>{extraRevenueRows.length}</span>
           </button>
+          {isCompany18 && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === "internalMd"}
+              className={activeView === "internalMd" ? "active" : ""}
+              onClick={() => setActiveView("internalMd")}
+            >
+              <FileCheck2 /> MD interno <span>{internalMdRows.length}</span>
+            </button>
+          )}
           <button
             type="button"
             role="tab"
@@ -749,6 +822,72 @@ export default function RevenueReconciliation({
             <span>Não há valores dessa conta para isolar nesta competência.</span>
           </div>
         )
+      ) : activeView === "internalMd" ? (
+        internalMdRows.length ? (
+          <>
+            <div className="revenue-warning is-generation">
+              <FileCheck2 />
+              <div>
+                <b>{internalMdRows.length} lançamento(s) de MD interno isolado(s)</b>
+                <span>
+                  Na coligada 18, a conta {COMPANY_18_INTERNAL_MD_ACCOUNT} foi
+                  conferida por RA na competência {competenceLabel}. Estes
+                  valores explicam integralmente a diferença e não compõem as
+                  inconsistências.
+                </span>
+              </div>
+            </div>
+            <div className="table-wrap revenue-table revenue-generation-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>RA</th>
+                    <th>Competência</th>
+                    <th>Aluno</th>
+                    <th>Status fiscal</th>
+                    <th>Conta</th>
+                    <th>Receita fiscal</th>
+                    <th>Receita contábil</th>
+                    <th>Valor MD interno</th>
+                    <th>Complemento contábil</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {internalMdRows.map((row) => (
+                    <tr key={row.ra}>
+                      <td>
+                        <span className="revenue-badge generation">
+                          MD interno
+                        </span>
+                      </td>
+                      <td><b>{row.ra}</b></td>
+                      <td>{row.competence}</td>
+                      <td>{row.name || "—"}</td>
+                      <td>{row.fiscalStatus || "—"}</td>
+                      <td>{row.internalMdAccounts || COMPANY_18_INTERNAL_MD_ACCOUNT}</td>
+                      <td>{brl.format(row.fiscalRevenue)}</td>
+                      <td>{brl.format(row.accountingRevenue)}</td>
+                      <td><b>{brl.format(row.internalMd)}</b></td>
+                      <td className="revenue-complement">
+                        {row.internalMdComplements || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="revenue-empty success">
+            <FileCheck2 />
+            <b>Nenhum MD interno identificado</b>
+            <span>
+              Nenhum lançamento da conta {COMPANY_18_INTERNAL_MD_ACCOUNT}
+              explicou integralmente uma diferença nesta competência.
+            </span>
+          </div>
+        )
       ) : activeView === "generationTypes" ? (
         generationTypeRows.length ? (
           <>
@@ -794,7 +933,13 @@ export default function RevenueReconciliation({
                       <td>{entry.name || "—"}</td>
                       <td>{entry.account || "—"}</td>
                       <td>{entry.description || "—"}</td>
-                      <td>{entry.kind === "revenue" ? "Receita" : "Desconto"}</td>
+                      <td>
+                        {entry.kind === "revenue"
+                          ? "Receita"
+                          : entry.kind === "discount"
+                            ? "Desconto"
+                            : "MD interno"}
+                      </td>
                       <td><b>{entry.generationType}</b></td>
                       <td>{brl.format(entry.value)}</td>
                       <td className="revenue-complement">{entry.complement}</td>

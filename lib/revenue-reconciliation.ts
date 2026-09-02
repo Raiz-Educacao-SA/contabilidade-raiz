@@ -1,5 +1,12 @@
-export type AccountingRevenueKind = "revenue" | "discount" | "other";
-export type RevenueDivergenceClassification = "Receitas extras" | "";
+export type AccountingRevenueKind =
+  | "revenue"
+  | "discount"
+  | "internalMd"
+  | "other";
+export type RevenueDivergenceClassification =
+  | "Receitas extras"
+  | "MD interno"
+  | "";
 export type RevenueReconciliationStatus =
   | "Sem Dados"
   | "Conciliado"
@@ -13,6 +20,7 @@ export const ADDITIONAL_TUITION_REVENUE_ACCOUNT = "3.1.1.01.01.11";
 export const EXTENDED_HOURS_REVENUE_ACCOUNT = "3.1.1.01.02.03";
 export const OTHER_STUDENT_REVENUE_ACCOUNT = "3.1.1.01.02.06";
 export const DIDACTIC_MATERIAL_REVENUE_ACCOUNT = "3.1.1.01.03.14";
+export const COMPANY_18_INTERNAL_MD_ACCOUNT = "2.3.1.03.02.02";
 export const EXTRA_REVENUE_ACCOUNTS = [
   ADDITIONAL_TUITION_REVENUE_ACCOUNT,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
@@ -75,6 +83,26 @@ export function accountingRevenueQueryAccounts() {
     COMMERCIAL_DISCOUNT_ACCOUNT,
     DISCOUNT_ACCOUNT_PREFIX,
   ] as const;
+}
+
+export function accountingRevenueQueryAccountsForCompany(companyCode: string) {
+  const accounts: string[] = [...accountingRevenueQueryAccounts()];
+  if (Number(companyCode) === 18) {
+    accounts.push(COMPANY_18_INTERNAL_MD_ACCOUNT);
+  }
+  return accounts;
+}
+
+export function isCompany18InternalMdEntry(
+  companyCode: string,
+  account: string,
+  history: string,
+) {
+  return (
+    Number(companyCode) === 18 &&
+    account.replace(/\D/g, "") === COMPANY_18_INTERNAL_MD_ACCOUNT.replace(/\D/g, "") &&
+    /\bMD\s+INTERNO\b/.test(normalizeAccountingDescription(history))
+  );
 }
 
 export function classifyAccountingRevenue(
@@ -215,6 +243,9 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       revenue: number;
       extraRevenue: number;
       extraRevenueAccounts: string[];
+      internalMd: number;
+      internalMdAccounts: string[];
+      internalMdComplements: string[];
       revenueIndicators: string[];
       discount: number;
       complements: string[];
@@ -228,6 +259,9 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       revenue: 0,
       extraRevenue: 0,
       extraRevenueAccounts: [],
+      internalMd: 0,
+      internalMdAccounts: [],
+      internalMdComplements: [],
       revenueIndicators: [],
       discount: 0,
       complements: [],
@@ -252,7 +286,19 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
       ) {
         current.revenueIndicators.push("Material didático");
       }
-    } else current.discount += entry.value;
+    } else if (entry.kind === "discount") {
+      current.discount += entry.value;
+    } else {
+      current.internalMd += entry.value;
+      const account = entry.account?.trim();
+      if (account && !current.internalMdAccounts.includes(account)) {
+        current.internalMdAccounts.push(account);
+      }
+      const complement = entry.complement?.trim();
+      if (complement && !current.internalMdComplements.includes(complement)) {
+        current.internalMdComplements.push(complement);
+      }
+    }
 
     const complement = entry.complement?.trim();
     if (complement && !current.complements.includes(complement)) {
@@ -271,9 +317,44 @@ export function summarizeAccountingRevenue(entries: AccountingRevenueEntry[]) {
   summaries.forEach((summary) => {
     summary.revenue = Math.abs(summary.revenue);
     summary.extraRevenue = Math.abs(summary.extraRevenue);
+    summary.internalMd = Math.abs(summary.internalMd);
   });
 
   return summaries;
+}
+
+export function classifyCompany18InternalMdDivergence(values: {
+  companyCode: string;
+  status: RevenueReconciliationStatus;
+  revenueDifference: number;
+  discountDifference: number;
+  internalMd: number;
+}): RevenueDivergenceClassification {
+  const {
+    companyCode,
+    status,
+    revenueDifference,
+    discountDifference,
+    internalMd,
+  } = values;
+  const roundedAbsolute = (value: number) =>
+    Math.abs(Math.round(value * 100) / 100);
+
+  if (
+    Number(companyCode) !== 18 ||
+    ["Conciliado", "Sem Dados"].includes(status) ||
+    revenueDifference >= -REVENUE_TOLERANCE ||
+    roundedAbsolute(internalMd) <= REVENUE_TOLERANCE ||
+    roundedAbsolute(discountDifference) > REVENUE_TOLERANCE
+  ) {
+    return "";
+  }
+
+  return Math.abs(
+    roundedAbsolute(revenueDifference) - roundedAbsolute(internalMd),
+  ) <= REVENUE_TOLERANCE
+    ? "MD interno"
+    : "";
 }
 
 export function classifyRevenueDivergence(values: {

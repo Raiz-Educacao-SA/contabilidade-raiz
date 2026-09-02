@@ -11,10 +11,13 @@ import {
 import {
   ADDITIONAL_TUITION_REVENUE_ACCOUNT,
   accountingRevenueQueryAccounts,
+  accountingRevenueQueryAccountsForCompany,
+  classifyCompany18InternalMdDivergence,
   classifyAccountingRevenue,
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
   COMMERCIAL_DISCOUNT_ACCOUNT,
+  COMPANY_18_INTERNAL_MD_ACCOUNT,
   consolidateFiscalRevenueRows,
   deduplicateAccountingRecords,
   DISCOUNT_ACCOUNT_DESCRIPTIONS,
@@ -22,6 +25,7 @@ import {
   DIDACTIC_MATERIAL_REVENUE_ACCOUNT,
   EXTENDED_HOURS_REVENUE_ACCOUNT,
   isExcludedRevenueGenerationType,
+  isCompany18InternalMdEntry,
   isExtraRevenueAccount,
   INSTITUTIONAL_DISCOUNT_ACCOUNT,
   isRevenueAppropriation,
@@ -48,6 +52,44 @@ test("consulta receitas e todos os grupos contábeis de descontos", () => {
   ]);
   assert.ok(INSTITUTIONAL_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
   assert.ok(PAA_DISCOUNT_ACCOUNT.startsWith(DISCOUNT_ACCOUNT_PREFIX));
+});
+
+test("consulta a conta de MD interno somente para a coligada 18", () => {
+  assert.deepEqual(
+    accountingRevenueQueryAccountsForCompany("18"),
+    [...accountingRevenueQueryAccounts(), COMPANY_18_INTERNAL_MD_ACCOUNT],
+  );
+  assert.deepEqual(
+    accountingRevenueQueryAccountsForCompany("02"),
+    [...accountingRevenueQueryAccounts()],
+  );
+});
+
+test("identifica MD interno pela coligada, conta e histórico", () => {
+  assert.equal(
+    isCompany18InternalMdEntry(
+      "18",
+      "2.3.1.03.02.02",
+      "1822242596 - ALUNO - Serviço: MD Interno - Ensino Médio",
+    ),
+    true,
+  );
+  assert.equal(
+    isCompany18InternalMdEntry(
+      "18",
+      "2.3.1.03.02.01",
+      "1822242596 - ALUNO - Serviço: MD Interno",
+    ),
+    false,
+  );
+  assert.equal(
+    isCompany18InternalMdEntry(
+      "09",
+      "2.3.1.03.02.02",
+      "1822242596 - ALUNO - Serviço: MD Interno",
+    ),
+    false,
+  );
 });
 
 test("classifica todas as receitas previstas na diretriz funcional", () => {
@@ -212,6 +254,96 @@ test("consolida receitas e descontos por RA", () => {
   assert.equal(summaries.get("456")?.revenue, 300);
   assert.equal(summaries.get("456")?.extraRevenue, 0);
   assert.deepEqual(summaries.get("456")?.revenueIndicators, ["Material didático"]);
+});
+
+test("mantém o MD interno separado da receita contábil comum", () => {
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "1822242596",
+      name: "Aluno MD",
+      value: -487.31,
+      kind: "internalMd",
+      account: COMPANY_18_INTERNAL_MD_ACCOUNT,
+      complement: "1822242596 - Aluno MD - Serviço: MD Interno",
+    },
+  ]).get("1822242596");
+
+  assert.equal(summary?.revenue, 0);
+  assert.equal(summary?.internalMd, 487.31);
+  assert.deepEqual(summary?.internalMdAccounts, [COMPANY_18_INTERNAL_MD_ACCOUNT]);
+  assert.deepEqual(summary?.internalMdComplements, [
+    "1822242596 - Aluno MD - Serviço: MD Interno",
+  ]);
+});
+
+test("isola MD interno apenas quando explica integralmente a diferença da coligada 18", () => {
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Divergente",
+      revenueDifference: -487.31,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "MD interno",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Só no Fiscal",
+      revenueDifference: -487.31,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "MD interno",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Divergente",
+      revenueDifference: -500,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "09",
+      status: "Divergente",
+      revenueDifference: -487.31,
+      discountDifference: 0,
+      internalMd: 487.31,
+    }),
+    "",
+  );
+  assert.equal(
+    classifyCompany18InternalMdDivergence({
+      companyCode: "18",
+      status: "Divergente",
+      revenueDifference: -487.31,
+      discountDifference: 10,
+      internalMd: 487.31,
+    }),
+    "",
+  );
+});
+
+test("exibe e exporta o MD interno em aba própria", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+  const route = readFileSync(
+    new URL("../app/api/totvs/revenue-reconciliation/route.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(route, /accountingRevenueQueryAccountsForCompany\(company\)/);
+  assert.match(route, /isCompany18InternalMdEntry/);
+  assert.match(component, /activeView === "internalMd"/);
+  assert.match(component, /"MD interno"/);
+  assert.match(component, /não compõem as\s+inconsistências/);
 });
 
 test("sinaliza Material didático na coluna I das divergências exportadas", () => {
