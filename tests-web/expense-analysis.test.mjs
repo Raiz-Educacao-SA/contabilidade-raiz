@@ -97,6 +97,14 @@ test("sinaliza fornecedor cadastrado com o nome da própria empresa", () => {
   assert.match(component, /Cadastro de Fornecedor Incorreto/);
 });
 
+test("valida todos os tickets Zeev em lotes controlados", () => {
+  assert.match(component, /ticketBatches/);
+  assert.match(component, /index \+= 50/);
+  assert.match(component, /ticketBatches\.slice\(index, index \+ 3\)/);
+  assert.match(component, /Promise\.all/);
+  assert.match(component, /\.flat\(\)/);
+});
+
 test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
   assert.match(component, /\/api\/zeev\/expenses\/validate/);
   assert.match(component, /Math\.abs\(value - zeevValue\) > 0\.01/);
