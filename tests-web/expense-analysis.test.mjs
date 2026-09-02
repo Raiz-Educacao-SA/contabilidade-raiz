@@ -148,6 +148,21 @@ test("valida todos os tickets Zeev em lotes controlados", () => {
   assert.match(component, /\.flat\(\)/);
 });
 
+test("piloto identifica duplicidade por fornecedor nota fiscal e valor", () => {
+  assert.match(component, /zeevDocuments/);
+  assert.match(component, /invoiceNumber/);
+  assert.match(component, /invoiceKey/);
+  assert.match(component, /document\.invoiceKey \|\| document\.invoiceNumber/);
+  assert.match(component, /record\.NUMEROMOV/);
+  assert.match(component, /normalized\(movementNumber\)/);
+  assert.match(component, /Boolean\(movementNumber\)/);
+  assert.match(component, /supplierTaxId/);
+  assert.match(component, /duplicateCandidates/);
+  assert.match(component, /identities\.size > 1/);
+  assert.match(component, /Possível Lançamento Duplicado - Verificar Fornecedor, Nota Fiscal e Valor/);
+  assert.match(component, /Mesmo fornecedor\/CNPJ, chave de acesso \(ou número da nota\), valor contábil e NUMEROMOV/);
+});
+
 test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
   assert.match(component, /\/api\/zeev\/expenses\/validate/);
   assert.match(component, /Math\.abs\(value - zeevValue\) > 0\.01/);
@@ -155,6 +170,7 @@ test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
   assert.match(zeevValueRoute, /valorTotalDoPagamento/);
   assert.match(zeevValueRoute, /numeroDaNF/);
   assert.match(zeevValueRoute, /chaveDeAcesso/);
+  assert.match(zeevValueRoute, /invoiceKey/);
   assert.match(zeevValueRoute, /idDoMovimento/);
   assert.match(zeevValueRoute, /"192402": 524\.70/);
   assert.match(zeevValueRoute, /"192406": 524\.70/);
