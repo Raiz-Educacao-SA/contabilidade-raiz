@@ -14,6 +14,7 @@ import {
   classifyAccountingRevenue,
   classifyRevenueDivergence,
   classifyRevenueReconciliation,
+  commercialDiscountRevenueDeduction,
   COMMERCIAL_DISCOUNT_ACCOUNT,
   consolidateFiscalRevenueRows,
   deduplicateAccountingRecords,
@@ -207,11 +208,76 @@ test("consolida receitas e descontos por RA", () => {
     [EXTENDED_HOURS_REVENUE_ACCOUNT, OTHER_STUDENT_REVENUE_ACCOUNT],
   );
   assert.equal(summaries.get("123")?.discount, 180);
+  assert.deepEqual(summaries.get("123")?.commercialDiscountDebits, []);
   assert.deepEqual(summaries.get("123")?.complements, ["AJUSTE"]);
   assert.deepEqual(summaries.get("123")?.generationTypes, ["O"]);
   assert.equal(summaries.get("456")?.revenue, 300);
   assert.equal(summaries.get("456")?.extraRevenue, 0);
   assert.deepEqual(summaries.get("456")?.revenueIndicators, ["Material didático"]);
+});
+
+test("abate da receita contábil o débito comercial que explica a diferença", () => {
+  const summary = summarizeAccountingRevenue([
+    {
+      ra: "1822421937",
+      name: "Aluno",
+      value: -360.34,
+      kind: "revenue",
+      account: REVENUE_ACCOUNT_PREFIX,
+    },
+    {
+      ra: "1822421937",
+      name: "Aluno",
+      value: -1_869.6,
+      kind: "revenue",
+      account: REVENUE_ACCOUNT_PREFIX,
+    },
+    {
+      ra: "1822421937",
+      name: "Aluno",
+      value: 180.17,
+      kind: "discount",
+      account: COMMERCIAL_DISCOUNT_ACCOUNT,
+    },
+    {
+      ra: "1822421937",
+      name: "Aluno",
+      value: 1_869.6,
+      kind: "discount",
+      account: COMMERCIAL_DISCOUNT_ACCOUNT,
+    },
+  ]).get("1822421937");
+
+  assert.equal(summary?.revenue, 2_229.94);
+  assert.equal(summary?.discount, 2_049.77);
+  assert.deepEqual(summary?.commercialDiscountDebits, [180.17, 1_869.6]);
+  const deduction = commercialDiscountRevenueDeduction({
+    revenueDifference: (summary?.revenue || 0) - 360.34,
+    extraRevenue: summary?.extraRevenue || 0,
+    commercialDiscountDebits: summary?.commercialDiscountDebits || [],
+  });
+
+  assert.equal(deduction, 1_869.6);
+  assert.equal(
+    classifyRevenueReconciliation({
+      fiscalRevenue: 360.34,
+      accountingRevenue: (summary?.revenue || 0) - deduction,
+      fiscalDiscount: 2_049.77,
+      accountingDiscount: summary?.discount || 0,
+    }),
+    "Conciliado",
+  );
+});
+
+test("não abate desconto comercial que não explica exatamente a diferença", () => {
+  assert.equal(
+    commercialDiscountRevenueDeduction({
+      revenueDifference: 1_869.61,
+      extraRevenue: 0,
+      commercialDiscountDebits: [180.17, 1_869.6],
+    }),
+    0,
+  );
 });
 
 test("sinaliza Material didático na coluna I das divergências exportadas", () => {
