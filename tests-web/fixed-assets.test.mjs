@@ -12,6 +12,11 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(page, /allowedAreas\.includes\("ativo-fixo"\)/);
   assert.doesNotMatch(page, /Ativo Fixo, em breve/);
   assert.match(panel, /data-testid="fixed-assets-module"/);
+  assert.match(panel, /Resumo individual/);
+  assert.match(panel, /Cadastro de bens/);
+  assert.match(panel, /Nota explicativa/);
+  assert.match(panel, /Preparar carga inicial/);
+  assert.match(panel, /Abrir fila de validação/);
   assert.match(panel, /Controle x razão x balancete/);
   assert.match(panel, /Compras/);
   assert.match(panel, /Zeev/);

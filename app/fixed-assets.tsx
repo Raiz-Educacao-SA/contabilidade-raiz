@@ -7,6 +7,7 @@ import {
   Boxes,
   Calculator,
   ClipboardCheck,
+  FileBarChart,
   FileSearch,
   Landmark,
   PackageCheck,
@@ -22,7 +23,7 @@ type FixedAssetsProps = {
   canWrite: boolean;
 };
 
-type View = "visao" | "aquisicoes" | "bens" | "calculo" | "conciliacao";
+type View = "resumo" | "cadastro" | "nota-explicativa" | "calculo" | "conciliacao";
 
 const julyBase = {
   reference: "31/07/2026",
@@ -42,7 +43,7 @@ export default function FixedAssetsPanel({
   competence,
   canWrite,
 }: FixedAssetsProps) {
-  const [view, setView] = useState<View>("visao");
+  const [view, setView] = useState<View>("resumo");
   const competenceLabel = useMemo(() => {
     const [year, month] = competence.split("-").map(Number);
     return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" })
@@ -50,9 +51,9 @@ export default function FixedAssetsPanel({
   }, [competence]);
 
   const navigation = [
-    { id: "visao", label: "Visão geral", icon: Boxes },
-    { id: "aquisicoes", label: "Aquisições", icon: ReceiptText },
-    { id: "bens", label: "Bens", icon: PackageCheck },
+    { id: "resumo", label: "Resumo individual", icon: Boxes },
+    { id: "cadastro", label: "Cadastro de bens", icon: PackageCheck },
+    { id: "nota-explicativa", label: "Nota explicativa", icon: FileBarChart },
     { id: "calculo", label: "Cálculo mensal", icon: Calculator },
     { id: "conciliacao", label: "Conciliação", icon: Scale },
   ] as const;
@@ -67,7 +68,7 @@ export default function FixedAssetsPanel({
         ))}
       </nav>
 
-      {view === "visao" && (
+      {view === "resumo" && (
         <>
           <div className={styles.statusBar}>
             <div><BadgeCheck /><span><b>Base de origem analisada</b><small>Posição patrimonial em {julyBase.reference}</small></span></div>
@@ -81,7 +82,7 @@ export default function FixedAssetsPanel({
           </div>
           <div className={styles.grid}>
             <article className={styles.card}>
-              <header><div><span>CARGA INICIAL</span><h2>Posição até julho/2026</h2></div><FileSearch /></header>
+              <header><div><span>RESUMO INDIVIDUAL</span><h2>Posição até julho/2026</h2></div><FileSearch /></header>
               <ol className={styles.steps}>
                 <li className={styles.done}><b>Planilha de origem analisada</b><small>Cadastro, fórmulas e tabelas auxiliares mapeados.</small></li>
                 <li><b>Validar dados e exceções</b><small>Duplicidades, baixas, vida útil e saldos inconsistentes.</small></li>
@@ -102,8 +103,21 @@ export default function FixedAssetsPanel({
         </>
       )}
 
-      {view === "aquisicoes" && <EmptyView icon={ReceiptText} title="Aquisições a validar" description="A fila receberá as compras candidatas ao imobilizado e abrirá a respectiva nota fiscal no Zeev para validação." action="Conectar módulo Compras e Zeev" canWrite={canWrite} />}
-      {view === "bens" && <EmptyView icon={PackageCheck} title="Cadastro patrimonial" description={`Os ${julyBase.assets} bens da carga inicial serão disponibilizados aqui após a homologação da empresa ${companyCode}.`} action="Preparar carga inicial" canWrite={canWrite} />}
+      {view === "cadastro" && (
+        <div className={styles.grid}>
+          <article className={styles.card}>
+            <header><div><span>BASE HISTÓRICA</span><h2>Carga inicial de bens</h2></div><PackageCheck /></header>
+            <p className={styles.description}>Importação e validação dos {julyBase.assets} bens existentes até 31/07/2026, com rastreabilidade da linha de origem.</p>
+            <button className={styles.action} disabled={!canWrite}>Preparar carga inicial</button>
+          </article>
+          <article className={styles.card}>
+            <header><div><span>NOVAS AQUISIÇÕES</span><h2>Validar novos bens</h2></div><ReceiptText /></header>
+            <p className={styles.description}>Fila de compras candidatas ao imobilizado, com abertura da nota fiscal no Zeev, classificação e aprovação.</p>
+            <button className={styles.action} disabled={!canWrite}>Abrir fila de validação</button>
+          </article>
+        </div>
+      )}
+      {view === "nota-explicativa" && <EmptyView icon={FileBarChart} title="Quadro para nota explicativa" description="Movimentação por grupo patrimonial: saldo inicial, adições, baixas, transferências, depreciação, ajustes e saldo final." action="Gerar quadro da competência" canWrite={canWrite} />}
       {view === "calculo" && <EmptyView icon={Calculator} title="Cálculo mensal" description="O fechamento calculará depreciação linear por bem, baixas, transferências e ajustes com memória de cálculo versionada." action="Abrir prévia do cálculo" canWrite={canWrite} />}
       {view === "conciliacao" && <EmptyView icon={BookOpenCheck} title="Controle x razão x balancete" description="O quadro exibirá saldo inicial, adições, baixas, depreciação, ajustes, saldo final e diferenças por conta e filial." action="Consultar relatórios contábeis" canWrite={canWrite} />}
 

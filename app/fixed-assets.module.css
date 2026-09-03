@@ -18,6 +18,9 @@
 .card header { display: flex; justify-content: space-between; align-items: flex-start; }
 .card header span, .empty > span { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
 .card h2 { margin: 5px 0 0; }
+.description { margin: 20px 0 0; color: var(--muted); line-height: 1.6; }
+.action { margin-top: 22px; padding: 11px 15px; border: 0; border-radius: 10px; color: #fff; background: #0f766e; font-weight: 800; }
+.action:disabled { opacity: .45; cursor: not-allowed; }
 .card header > svg { width: 34px; height: 34px; padding: 7px; border-radius: 10px; color: #fff; background: #0f766e; }
 .steps { margin: 22px 0 0; padding: 0; list-style: none; display: grid; gap: 15px; counter-reset: step; }
 .steps li { position: relative; padding-left: 36px; display: flex; flex-direction: column; counter-increment: step; }
