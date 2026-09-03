@@ -82,5 +82,14 @@ export async function GET(request: Request) {
     { assets: 0, fullyDepreciated: 0, cost: 0, accumulatedDepreciation: 0, bookValue: 0 },
   );
 
-  return NextResponse.json({ company: companyResult.data, importBatch: importResult.data, assets, summary });
+  const noteResult = await admin
+    .from("ativo_fixo_nota_explicativa")
+    .select("id,secao,ordem,codigo_ne,descricao,taxa_anual,saldo_inicial,adicoes,transferencias,afac,baixas,depreciacao,saldo_final,saldo_balancete,diferenca,origem")
+    .eq("empresa_id", companyResult.data.id)
+    .eq("competencia", importResult.data.competencia)
+    .order("secao", { ascending: true })
+    .order("ordem", { ascending: true });
+  if (noteResult.error) return NextResponse.json({ error: "Não foi possível consultar o quadro da nota explicativa." }, { status: 500 });
+
+  return NextResponse.json({ company: companyResult.data, importBatch: importResult.data, assets, summary, noteDisclosure: noteResult.data ?? [] });
 }

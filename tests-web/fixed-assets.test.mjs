@@ -18,6 +18,8 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /Nota explicativa/);
   assert.match(panel, /Buscar bem, conta, filial ou NF/);
   assert.match(panel, /Depreciação acumulada/);
+  assert.match(panel, /QUADRO DE MOVIMENTAÇÕES/);
+  assert.match(panel, /Saldo final = saldo inicial/);
   assert.match(panel, /Controle x razão x balancete/);
   assert.match(panel, /Compras/);
   assert.match(panel, /Zeev/);
@@ -32,6 +34,7 @@ test("Ativo Fixo consulta a carga real com autenticação e segregação por emp
   assert.match(route, /ativo_fixo_importacoes/);
   assert.match(route, /ativo_fixo_bens/);
   assert.match(route, /ativo_fixo_calculos/);
+  assert.match(route, /ativo_fixo_nota_explicativa/);
 });
 
 test("migração do Ativo Fixo usa tabelas próprias, segregação por empresa e RLS", () => {

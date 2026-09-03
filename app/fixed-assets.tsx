@@ -37,9 +37,18 @@ type FixedAssetsData = {
   importBatch: { competencia: string; status: string; nome_arquivo: string; quantidade_registros: number } | null;
   assets: Asset[];
   summary: { assets: number; fullyDepreciated: number; cost: number; accumulatedDepreciation: number; bookValue: number } | null;
+  noteDisclosure: NoteDisclosureRow[];
+};
+
+type NoteDisclosureRow = {
+  id: string; secao: "IMOBILIZADO" | "INTANGIVEL"; ordem: number; codigo_ne: string;
+  descricao: string; taxa_anual: number; saldo_inicial: number; adicoes: number;
+  transferencias: number; afac: number; baixas: number; depreciacao: number;
+  saldo_final: number; saldo_balancete: number; diferenca: number;
 };
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const wholeCurrency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 export default function FixedAssetsPanel({
   companyCode,
@@ -147,7 +156,20 @@ export default function FixedAssetsPanel({
           {!loading && !filteredAssets.length && <p className={styles.noResults}>Nenhum bem encontrado.</p>}
         </div>
       )}
-      {view === "nota-explicativa" && <EmptyView icon={FileBarChart} title="Quadro para nota explicativa" description="Movimentação por grupo patrimonial: saldo inicial, adições, baixas, transferências, depreciação, ajustes e saldo final." action="Gerar quadro da competência" canWrite={canWrite} />}
+      {view === "nota-explicativa" && (
+        <div className={styles.noteArea}>
+          <div className={styles.noteHeader}><div><span>QUADRO DE MOVIMENTAÇÕES</span><h2>Nota explicativa · {reference}</h2><small>Valores em reais, seguindo as amarrações da planilha de origem.</small></div><span className={styles.sourceBadge}>Carga inicial</span></div>
+          {(["IMOBILIZADO", "INTANGIVEL"] as const).map((section) => {
+            const rows = (data?.noteDisclosure ?? []).filter((row) => row.secao === section);
+            const totals = rows.reduce((sum, row) => ({ saldo_inicial: sum.saldo_inicial + Number(row.saldo_inicial), adicoes: sum.adicoes + Number(row.adicoes), transferencias: sum.transferencias + Number(row.transferencias), afac: sum.afac + Number(row.afac), baixas: sum.baixas + Number(row.baixas), depreciacao: sum.depreciacao + Number(row.depreciacao), saldo_final: sum.saldo_final + Number(row.saldo_final), saldo_balancete: sum.saldo_balancete + Number(row.saldo_balancete), diferenca: sum.diferenca + Number(row.diferenca) }), { saldo_inicial: 0, adicoes: 0, transferencias: 0, afac: 0, baixas: 0, depreciacao: 0, saldo_final: 0, saldo_balancete: 0, diferenca: 0 });
+            return <section className={styles.noteSection} key={section}><h3>{section === "INTANGIVEL" ? "Intangível" : "Imobilizado"}</h3><div className={styles.tableWrap}><table className={styles.noteTable}><thead><tr><th>Grupo patrimonial</th><th>NE</th><th className={styles.numeric}>Taxa</th><th className={styles.numeric}>Saldo inicial</th><th className={styles.numeric}>Adições</th><th className={styles.numeric}>Transferências</th><th className={styles.numeric}>AFAC</th><th className={styles.numeric}>Baixas</th><th className={styles.numeric}>Depreciação</th><th className={styles.numeric}>Saldo final</th><th className={styles.numeric}>Balancete</th><th className={styles.numeric}>Check</th></tr></thead><tbody>
+              {rows.map((row) => <tr key={row.id}><td><b>{row.descricao}</b></td><td>{row.codigo_ne}</td><td className={styles.numeric}>{(Number(row.taxa_anual) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.saldo_inicial))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.adicoes))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.transferencias))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.afac))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.baixas))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.depreciacao))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.saldo_final))}</td><td className={styles.numeric}>{wholeCurrency.format(Number(row.saldo_balancete))}</td><td className={styles.numeric}><span className={Math.abs(Math.round(Number(row.diferenca))) <= 1 ? styles.checkOk : styles.checkError}>{Math.round(Number(row.diferenca)).toLocaleString("pt-BR")}</span></td></tr>)}
+            </tbody><tfoot><tr><td colSpan={3}>Total {section === "INTANGIVEL" ? "do intangível" : "do imobilizado"}</td><td className={styles.numeric}>{wholeCurrency.format(totals.saldo_inicial)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.adicoes)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.transferencias)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.afac)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.baixas)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.depreciacao)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.saldo_final)}</td><td className={styles.numeric}>{wholeCurrency.format(totals.saldo_balancete)}</td><td className={styles.numeric}>{Math.round(totals.diferenca).toLocaleString("pt-BR")}</td></tr></tfoot></table></div></section>;
+          })}
+          {!loading && !(data?.noteDisclosure?.length) && <p className={styles.noResults}>O quadro ainda não foi carregado para esta competência.</p>}
+          <div className={styles.noteLegend}><span><i className={styles.legendOk} /> Diferença de arredondamento dentro da tolerância da planilha</span><span>Saldo final = saldo inicial + adições + transferências + AFAC + baixas + depreciação</span></div>
+        </div>
+      )}
       {view === "calculo" && <EmptyView icon={Calculator} title="Cálculo mensal" description="O fechamento calculará depreciação linear por bem, baixas, transferências e ajustes com memória de cálculo versionada." action="Abrir prévia do cálculo" canWrite={canWrite} />}
       {view === "conciliacao" && <EmptyView icon={BookOpenCheck} title="Controle x razão x balancete" description="O quadro exibirá saldo inicial, adições, baixas, depreciação, ajustes, saldo final e diferenças por conta e filial." action="Consultar relatórios contábeis" canWrite={canWrite} />}
 

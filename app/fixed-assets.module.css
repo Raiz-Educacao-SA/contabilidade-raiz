@@ -57,5 +57,23 @@
 .numeric { text-align: right !important; white-space: nowrap; }
 .assetStatus { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: #eaf7f4; color: #0f766e; font-size: 10px; font-weight: 800; }
 .noResults { padding: 28px; color: var(--muted); text-align: center; }
+.noteArea { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.noteHeader { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.noteHeader > div > span { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.noteHeader h2 { margin: 5px 0 3px; }
+.noteHeader small { color: var(--muted); }
+.sourceBadge { padding: 6px 9px; border-radius: 999px; color: #126783; background: #e8f3f7; font-size: 11px; font-weight: 800; }
+.noteSection { padding: 18px 22px 4px; }
+.noteSection + .noteSection { margin-top: 10px; border-top: 1px solid var(--line); }
+.noteSection h3 { margin: 0 0 12px; font-size: 15px; }
+.noteTable { min-width: 1320px; }
+.noteTable th:first-child { min-width: 230px; }
+.noteTable tfoot td { padding: 12px; border-top: 2px solid #cfd8e3; background: #f7f9fb; font-weight: 800; }
+.checkOk, .checkError { display: inline-flex; min-width: 28px; justify-content: center; padding: 3px 6px; border-radius: 999px; font-weight: 800; }
+.checkOk { color: #0f766e; background: #eaf7f4; }
+.checkError { color: #b42318; background: #feeceb; }
+.noteLegend { display: flex; justify-content: space-between; gap: 16px; padding: 14px 22px 18px; color: var(--muted); font-size: 11px; }
+.noteLegend span { display: flex; align-items: center; gap: 6px; }
+.legendOk { width: 8px; height: 8px; border-radius: 50%; background: #0f766e; }
 @media (max-width: 1050px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: 1fr; } }
-@media (max-width: 680px) { .statusBar, .assetsHeader { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } }
+@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } }
