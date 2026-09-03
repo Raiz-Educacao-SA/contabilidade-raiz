@@ -548,13 +548,13 @@ test("isola receitas extras da lista de divergências e da comparação exportad
   assert.match(component, /Estes valores não compõem as\s+inconsistências/);
 });
 
-test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {
+test("considera toda a receita fiscal independentemente do status da NF", () => {
   const rows = consolidateFiscalRevenueRows([
     {
       id: "1",
       ra: "2012558363",
       name: "Aluno",
-      status: "NÃO ENVIADA",
+      status: "PENDENTE",
       originalValue: 511.06,
       discount: 100,
     },
@@ -569,8 +569,8 @@ test("prioriza receita AUTORIZADA e mantém todos os descontos fiscais", () => {
   ]);
 
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].status, "AUTORIZADA");
-  assert.equal(rows[0].originalValue, 2164.3);
+  assert.equal(rows[0].status, "PENDENTE | AUTORIZADA");
+  assert.equal(rows[0].originalValue, 2675.36);
   assert.equal(rows[0].discount, 432.86);
 });
 

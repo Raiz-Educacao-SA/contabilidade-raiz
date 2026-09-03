@@ -226,16 +226,16 @@ export function consolidateFiscalRevenueRows<T extends FiscalRevenueEntry>(
     const authorizedRows = rows.filter(
       (row) => normalizeAccountingDescription(row.status) === "AUTORIZADA",
     );
-    const revenueRows = authorizedRows.length > 0 ? authorizedRows : rows;
     const representative = authorizedRows[0] || rows[0];
+    const statuses = [
+      ...new Set(rows.map((row) => row.status.trim()).filter(Boolean)),
+    ];
 
     return {
       ...representative,
       id: rows.map((row) => row.id).join("|"),
-      status: authorizedRows.length > 0
-        ? "AUTORIZADA"
-        : [...new Set(rows.map((row) => row.status.trim()).filter(Boolean))].join(" | "),
-      originalValue: revenueRows.reduce(
+      status: statuses.join(" | "),
+      originalValue: rows.reduce(
         (sum, row) => sum + row.originalValue,
         0,
       ),
