@@ -4,6 +4,7 @@ import {
   Calculator,
   Download,
   FileCheck2,
+  Mail,
   RefreshCw,
   Trash2,
   TriangleAlert,
@@ -64,6 +65,22 @@ type RevenueView =
   | "extraRevenue"
   | "continuingEducation"
   | "internalMd";
+type RevenueTreatment = {
+  justification: string;
+  action: string;
+  responsible: string;
+};
+type RevenueEmailRow = {
+  ra: string;
+  name: string;
+  fiscalStatus: string;
+  fiscalRevenue: number;
+  accountingRevenue: number;
+  revenueDifference: number;
+  fiscalDiscount: number;
+  accountingDiscount: number;
+  discountDifference: number;
+};
 type RevenueCacheSnapshot = {
   fiscalRows: F[];
   accountingRows: C[];
@@ -73,6 +90,7 @@ type RevenueCacheSnapshot = {
   updatedAt: string;
   finalizedAt: string;
   finalizedBy: string;
+  treatments?: Record<string, RevenueTreatment>;
 };
 const brl = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -118,6 +136,7 @@ export default function RevenueReconciliation({
     [isFinalized, setIsFinalized] = useState(false),
     [finalizedAt, setFinalizedAt] = useState(""),
     [finalizedBy, setFinalizedBy] = useState(""),
+    [treatments, setTreatments] = useState<Record<string, RevenueTreatment>>({}),
     [error, setError] = useState("");
   const competenceLabel = competence.split("-").reverse().join("/");
   const isCompany18 = Number(companyCode) === 18;
@@ -157,6 +176,7 @@ export default function RevenueReconciliation({
         setC(Array.isArray(snapshot.accountingRows) ? snapshot.accountingRows : []);
         setFr(Boolean(snapshot.fiscalLoaded));
         setCr(Boolean(snapshot.accountingLoaded));
+        setTreatments(snapshot.treatments || {});
         setActiveView(
           snapshot.activeView === "generationTypes" ||
             snapshot.activeView === "extraRevenue" ||
@@ -200,11 +220,12 @@ export default function RevenueReconciliation({
       updatedAt: new Date().toISOString(),
       finalizedAt,
       finalizedBy,
+      treatments,
     };
     void writeRevenueReconciliationCache(cacheKey, snapshot).catch(() => {
       console.warn("Não foi possível salvar a última conciliação de Receita no cache local.");
     });
-  }, [activeView, c, cacheKey, cacheReady, f, finalizedAt, finalizedBy, fr, cr, isFinalized, restoredCacheKey]);
+  }, [activeView, c, cacheKey, cacheReady, f, finalizedAt, finalizedBy, fr, cr, isFinalized, restoredCacheKey, treatments]);
 
   useEffect(() => {
     const handleCompletionChange = (event: Event) => {
@@ -259,6 +280,7 @@ export default function RevenueReconciliation({
     setC([]);
     setFr(false);
     setCr(false);
+    setTreatments({});
     setActiveView("divergences");
     setError("");
     void deleteRevenueReconciliationCache(cacheKey);
@@ -270,6 +292,55 @@ export default function RevenueReconciliation({
       ),
     [c],
   );
+  function updateTreatment(
+    ra: string,
+    field: keyof RevenueTreatment,
+    value: string,
+  ) {
+    setTreatments((current) => ({
+      ...current,
+      [ra]: {
+        justification: current[ra]?.justification || "",
+        action: current[ra]?.action || "",
+        responsible: current[ra]?.responsible || "",
+        [field]: value,
+      },
+    }));
+  }
+
+  function prepareEmail(row: RevenueEmailRow) {
+    const treatment = treatments[row.ra] || {
+      justification: "",
+      action: "",
+      responsible: "",
+    };
+    const recipient = treatment.responsible.includes("@")
+      ? treatment.responsible.trim()
+      : "";
+    const subject = `Conciliação de receita | Coligada ${String(companyCode).padStart(2, "0")} | ${competenceLabel} | RA ${row.ra}`;
+    const body = [
+      "Olá,",
+      "",
+      `Identificamos uma divergência na conciliação de receita da coligada ${String(companyCode).padStart(2, "0")}, competência ${competenceLabel}.`,
+      "",
+      `RA: ${row.ra}`,
+      `Aluno: ${row.name || "Não informado"}`,
+      `Status fiscal: ${row.fiscalStatus || "Não informado"}`,
+      `Receita fiscal: ${brl.format(row.fiscalRevenue)}`,
+      `Receita contábil: ${brl.format(row.accountingRevenue)}`,
+      `Diferença de receita: ${brl.format(row.revenueDifference)}`,
+      `Desconto fiscal: ${brl.format(row.fiscalDiscount)}`,
+      `Desconto contábil: ${brl.format(row.accountingDiscount)}`,
+      `Diferença de desconto: ${brl.format(row.discountDifference)}`,
+      "",
+      `Justificativa: ${treatment.justification || "Pendente de preenchimento"}`,
+      `Ação/Tratativa: ${treatment.action || "Pendente de definição"}`,
+      `Responsável: ${treatment.responsible || "Pendente de definição"}`,
+      "",
+      "Por favor, valide o cenário e retorne com a tratativa aplicável.",
+    ].join("\n");
+    window.location.href = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
   const generationTypeRows = useMemo(
     () =>
       c.filter((entry) =>
@@ -436,6 +507,9 @@ export default function RevenueReconciliation({
       Orientação: x.comment,
       "Tipo de geração": x.generationTypes,
       "Complemento contábil": x.complements,
+      Justificativa: treatments[x.ra]?.justification || "",
+      "Ação/Tratativa": treatments[x.ra]?.action || "",
+      Responsável: treatments[x.ra]?.responsible || "",
     });
     const workbook = XLSX.utils.book_new();
     const statusCounts = [
@@ -525,6 +599,7 @@ export default function RevenueReconciliation({
     const detailColumns = [
       { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 13 }, { wch: 34 }, { wch: 16 }, { wch: 17 }, { wch: 18 },
       { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 31 }, { wch: 58 },
+      { wch: 38 }, { wch: 38 }, { wch: 28 },
     ];
     appendJsonSheet("Divergências", pending.map(mapRow), detailColumns);
     appendJsonSheet(
@@ -1121,6 +1196,9 @@ export default function RevenueReconciliation({
                   <th>Orientação</th>
                   <th>Tipo de geração</th>
                   <th>Complemento contábil</th>
+                  <th>Justificativa</th>
+                  <th>Ação/Tratativa</th>
+                  <th>Responsável</th>
                 </tr>
               </thead>
               <tbody>
@@ -1160,6 +1238,46 @@ export default function RevenueReconciliation({
                     <td>{x.generationTypes || "Não informado"}</td>
                     <td className="revenue-complement">
                       {x.complements || "—"}
+                    </td>
+                    <td className="revenue-treatment-cell">
+                      <textarea
+                        aria-label={`Justificativa do RA ${x.ra}`}
+                        value={treatments[x.ra]?.justification || ""}
+                        onChange={(event) =>
+                          updateTreatment(x.ra, "justification", event.target.value)
+                        }
+                        placeholder="Explique a divergência"
+                        disabled={isFinalized}
+                      />
+                    </td>
+                    <td className="revenue-treatment-cell">
+                      <textarea
+                        aria-label={`Ação ou tratativa do RA ${x.ra}`}
+                        value={treatments[x.ra]?.action || ""}
+                        onChange={(event) =>
+                          updateTreatment(x.ra, "action", event.target.value)
+                        }
+                        placeholder="Defina a tratativa"
+                        disabled={isFinalized}
+                      />
+                    </td>
+                    <td className="revenue-treatment-cell revenue-responsible-cell">
+                      <input
+                        aria-label={`Responsável pelo RA ${x.ra}`}
+                        value={treatments[x.ra]?.responsible || ""}
+                        onChange={(event) =>
+                          updateTreatment(x.ra, "responsible", event.target.value)
+                        }
+                        placeholder="Nome ou e-mail"
+                        disabled={isFinalized}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => prepareEmail(x)}
+                        title="Preparar rascunho de e-mail"
+                      >
+                        <Mail /> Preparar e-mail
+                      </button>
                     </td>
                   </tr>
                 ))}

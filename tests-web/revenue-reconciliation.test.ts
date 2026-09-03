@@ -607,6 +607,20 @@ test("mantém os registros fiscais disponíveis quando não há AUTORIZADA", () 
   assert.equal(rows.find((row) => row.ra === "9GT24004401")?.discount, 250);
 });
 
+test("registra justificativa, ação, responsável e prepara o e-mail da divergência", () => {
+  const component = readFileSync(
+    new URL("../app/revenue-reconciliation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(component, /Justificativa: treatments\[x\.ra\]/);
+  assert.match(component, /"Ação\/Tratativa": treatments\[x\.ra\]/);
+  assert.match(component, /Responsável: treatments\[x\.ra\]/);
+  assert.match(component, /Preparar e-mail/);
+  assert.match(component, /mailto:/);
+  assert.match(component, /treatments\?: Record<string, RevenueTreatment>/);
+});
+
 test("aplica a classificação e a tolerância da diretriz", () => {
   assert.equal(
     classifyRevenueReconciliation({

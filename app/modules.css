@@ -2273,7 +2273,7 @@
   max-height: 650px;
 }
 .revenue-content .revenue-table table {
-  min-width: 1900px;
+  min-width: 2650px;
   font-size: 9px;
 }
 .revenue-content .revenue-table th {
@@ -2288,6 +2288,50 @@
   max-width: 520px;
   white-space: normal;
   line-height: 1.25;
+}
+.revenue-treatment-cell {
+  min-width: 220px;
+  vertical-align: top;
+}
+.revenue-treatment-cell textarea,
+.revenue-treatment-cell input {
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 7px;
+  border: 1px solid #cfd8e5;
+  border-radius: 7px;
+  background: #fff;
+  color: #15233d;
+  font: inherit;
+  resize: vertical;
+}
+.revenue-treatment-cell input {
+  min-height: 30px;
+  resize: none;
+}
+.revenue-treatment-cell textarea:disabled,
+.revenue-treatment-cell input:disabled {
+  background: #f3f5f8;
+  color: #65708a;
+}
+.revenue-responsible-cell button {
+  width: 100%;
+  margin-top: 5px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: #e8f3fb;
+  color: #173d68;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 800;
+}
+.revenue-responsible-cell button svg {
+  width: 13px;
+  height: 13px;
 }
 .export-revenue {
   margin-left: auto;
