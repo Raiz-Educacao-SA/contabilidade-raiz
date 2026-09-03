@@ -1302,6 +1302,7 @@ export default function Home() {
             companyName={company?.empresas?.razao_social ?? ""}
             competence={competence}
             canWrite={canWrite}
+            accessToken={session.access_token}
           />
         )}
         {selectedModule === "contabil" && accountingTab === "pis-cofins" && (

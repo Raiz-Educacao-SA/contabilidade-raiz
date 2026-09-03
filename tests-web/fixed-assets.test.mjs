@@ -6,6 +6,7 @@ import { calculateStraightLineDepreciation, reconcileFixedAssetBalances } from "
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/fixed-assets.tsx", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../Supabase/20260903_ativo_fixo.sql", import.meta.url), "utf8");
+const route = readFileSync(new URL("../app/api/fixed-assets/route.ts", import.meta.url), "utf8");
 
 test("Ativo Fixo fica isolado em componente próprio e acessível pela navegação", () => {
   assert.match(page, /FixedAssetsPanel/);
@@ -15,11 +16,22 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /Resumo individual/);
   assert.match(panel, /Cadastro de bens/);
   assert.match(panel, /Nota explicativa/);
-  assert.match(panel, /Preparar carga inicial/);
-  assert.match(panel, /Abrir fila de validação/);
+  assert.match(panel, /Buscar bem, conta, filial ou NF/);
+  assert.match(panel, /Depreciação acumulada/);
   assert.match(panel, /Controle x razão x balancete/);
   assert.match(panel, /Compras/);
   assert.match(panel, /Zeev/);
+});
+
+test("Ativo Fixo consulta a carga real com autenticação e segregação por empresa", () => {
+  assert.match(page, /accessToken={session\.access_token}/);
+  assert.match(panel, /\/api\/fixed-assets/);
+  assert.match(panel, /Cadastro de bens/);
+  assert.match(route, /authenticatedCorporateUser/);
+  assert.match(route, /usuarios_empresas/);
+  assert.match(route, /ativo_fixo_importacoes/);
+  assert.match(route, /ativo_fixo_bens/);
+  assert.match(route, /ativo_fixo_calculos/);
 });
 
 test("migração do Ativo Fixo usa tabelas próprias, segregação por empresa e RLS", () => {

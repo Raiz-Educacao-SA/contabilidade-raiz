@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   BookOpenCheck,
@@ -21,18 +21,22 @@ type FixedAssetsProps = {
   companyName: string;
   competence: string;
   canWrite: boolean;
+  accessToken: string;
 };
 
 type View = "resumo" | "cadastro" | "nota-explicativa" | "calculo" | "conciliacao";
 
-const julyBase = {
-  reference: "31/07/2026",
-  assets: 584,
-  fullyDepreciated: 163,
-  cost: 10_309_045.9,
-  accumulatedDepreciation: 4_129_935.2,
-  bookValue: 6_175_129.57,
-  estimatedAnnualDepreciation: 415_000,
+type Asset = {
+  id: string; codigo_patrimonial: string; codfilial: string; descricao: string;
+  numero_nf: string | null; unidade: string | null; valor_custo: number; status: string;
+  accumulatedDepreciation: number; bookValue: number;
+  grupo: { codigo: string; descricao: string; depreciavel: boolean } | null;
+};
+
+type FixedAssetsData = {
+  importBatch: { competencia: string; status: string; nome_arquivo: string; quantidade_registros: number } | null;
+  assets: Asset[];
+  summary: { assets: number; fullyDepreciated: number; cost: number; accumulatedDepreciation: number; bookValue: number } | null;
 };
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -42,8 +46,35 @@ export default function FixedAssetsPanel({
   companyName,
   competence,
   canWrite,
+  accessToken,
 }: FixedAssetsProps) {
   const [view, setView] = useState<View>("resumo");
+  const [data, setData] = useState<FixedAssetsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setError("");
+    fetch(`/api/fixed-assets?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
+      headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal: controller.signal,
+    }).then(async (response) => {
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar o Ativo Fixo.");
+      setData(payload);
+    }).catch((reason) => { if (reason.name !== "AbortError") setError(reason.message); })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [accessToken, companyCode, competence]);
+
+  const summary = data?.summary;
+  const reference = data?.importBatch?.competencia ?? competence;
+  const filteredAssets = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    if (!term) return data?.assets ?? [];
+    return (data?.assets ?? []).filter((asset) => [asset.codigo_patrimonial, asset.descricao, asset.codfilial, asset.numero_nf, asset.unidade, asset.grupo?.codigo]
+      .some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(term)));
+  }, [data?.assets, search]);
   const competenceLabel = useMemo(() => {
     const [year, month] = competence.split("-").map(Number);
     return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" })
@@ -70,15 +101,19 @@ export default function FixedAssetsPanel({
 
       {view === "resumo" && (
         <>
+          {loading && <div className={styles.notice}>Carregando a posição patrimonial…</div>}
+          {error && <div className={styles.error}>{error}</div>}
+          {!loading && !error && !summary && <div className={styles.notice}>Ainda não existe carga de Ativo Fixo para esta empresa.</div>}
+          {summary && <>
           <div className={styles.statusBar}>
-            <div><BadgeCheck /><span><b>Base de origem analisada</b><small>Posição patrimonial em {julyBase.reference}</small></span></div>
-            <span className={styles.pending}>Carga pendente de homologação</span>
+            <div><BadgeCheck /><span><b>Base de origem carregada</b><small>Posição patrimonial em {reference.split("-").reverse().join("/")}</small></span></div>
+            <span className={styles.pending}>{data?.importBatch?.status === "RASCUNHO" ? "Carga pendente de homologação" : data?.importBatch?.status}</span>
           </div>
           <div className={styles.kpis}>
-            <article><span>Bens cadastrados</span><b>{julyBase.assets.toLocaleString("pt-BR")}</b><small>{julyBase.fullyDepreciated} totalmente depreciados</small></article>
-            <article><span>Valor de custo</span><b>{currency.format(julyBase.cost)}</b><small>Base da planilha de julho</small></article>
-            <article><span>Depreciação acumulada</span><b>{currency.format(julyBase.accumulatedDepreciation)}</b><small>Valor armazenado por bem</small></article>
-            <article><span>Saldo contábil</span><b>{currency.format(julyBase.bookValue)}</b><small>Dashboard da planilha</small></article>
+            <article><span>Bens cadastrados</span><b>{summary.assets.toLocaleString("pt-BR")}</b><small>{summary.fullyDepreciated} totalmente depreciados</small></article>
+            <article><span>Valor de custo</span><b>{currency.format(summary.cost)}</b><small>Base carregada do Supabase</small></article>
+            <article><span>Depreciação acumulada</span><b>{currency.format(summary.accumulatedDepreciation)}</b><small>Valor armazenado por bem</small></article>
+            <article><span>Saldo contábil</span><b>{currency.format(summary.bookValue)}</b><small>Posição contábil carregada</small></article>
           </div>
           <div className={styles.grid}>
             <article className={styles.card}>
@@ -100,21 +135,16 @@ export default function FixedAssetsPanel({
               </div>
             </article>
           </div>
+          </>}
         </>
       )}
 
       {view === "cadastro" && (
-        <div className={styles.grid}>
-          <article className={styles.card}>
-            <header><div><span>BASE HISTÓRICA</span><h2>Carga inicial de bens</h2></div><PackageCheck /></header>
-            <p className={styles.description}>Importação e validação dos {julyBase.assets} bens existentes até 31/07/2026, com rastreabilidade da linha de origem.</p>
-            <button className={styles.action} disabled={!canWrite}>Preparar carga inicial</button>
-          </article>
-          <article className={styles.card}>
-            <header><div><span>NOVAS AQUISIÇÕES</span><h2>Validar novos bens</h2></div><ReceiptText /></header>
-            <p className={styles.description}>Fila de compras candidatas ao imobilizado, com abertura da nota fiscal no Zeev, classificação e aprovação.</p>
-            <button className={styles.action} disabled={!canWrite}>Abrir fila de validação</button>
-          </article>
+        <div className={styles.assetsArea}>
+          <div className={styles.assetsHeader}><div><span>BASE HISTÓRICA</span><h2>Cadastro de bens</h2><small>{data?.assets.length ?? 0} bens carregados · competência {reference}</small></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar bem, conta, filial ou NF" /></div>
+          <div className={styles.tableWrap}><table><thead><tr><th>Código</th><th>Filial</th><th>Descrição</th><th>Conta</th><th className={styles.numeric}>Custo</th><th className={styles.numeric}>Depreciação acumulada</th><th className={styles.numeric}>Saldo contábil</th><th>Status</th></tr></thead>
+            <tbody>{filteredAssets.map((asset) => <tr key={asset.id}><td>{asset.codigo_patrimonial}</td><td>{asset.codfilial}</td><td><b>{asset.descricao}</b><small>{asset.unidade || asset.numero_nf ? `${asset.unidade ?? ""}${asset.numero_nf ? ` · NF ${asset.numero_nf}` : ""}` : ""}</small></td><td>{asset.grupo?.codigo ?? "—"}</td><td className={styles.numeric}>{currency.format(Number(asset.valor_custo))}</td><td className={styles.numeric}>{currency.format(asset.accumulatedDepreciation)}</td><td className={styles.numeric}>{currency.format(asset.bookValue)}</td><td><span className={styles.assetStatus}>{asset.status}</span></td></tr>)}</tbody></table></div>
+          {!loading && !filteredAssets.length && <p className={styles.noResults}>Nenhum bem encontrado.</p>}
         </div>
       )}
       {view === "nota-explicativa" && <EmptyView icon={FileBarChart} title="Quadro para nota explicativa" description="Movimentação por grupo patrimonial: saldo inicial, adições, baixas, transferências, depreciação, ajustes e saldo final." action="Gerar quadro da competência" canWrite={canWrite} />}
