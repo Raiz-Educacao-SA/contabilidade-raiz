@@ -3,6 +3,31 @@ import { authenticatedCorporateUser, createAdminServerSupabase } from "@/lib/ser
 
 const normalizeCompany = (value: string) => value.replace(/\D/g, "").padStart(2, "0");
 
+const summaryTemplate = [
+  ["1.2.3.01.01", "Imobilizado em Andamento", 0, 0, "2018", "Imobilizado", "7006", "Imobilizado em Andamento", 0],
+  ["1.2.3.02.01", "Benfeitorias em Imóveis de Terceiros", 5, 5, "2018", "Imobilizado", "7008", "Benfeitorias em Imóveis de Terceiros", .20],
+  ["1.2.3.02.02", "Imóveis/Instalações", 10, 10, "2018", "Imobilizado", "7011", "Imóveis/Instalações", .10],
+  ["1.2.3.02.03", "Máquinas e Equipamentos", 10, 10, "2018", "Imobilizado", "7003", "Máquinas e Equipamentos", .10],
+  ["1.2.3.02.04", "Veículos", 5, 5, "2018", "Imobilizado", "7013", "Veículos", .20],
+  ["1.2.3.02.05", "Móveis e Utensílios", 10, 10, "2018", "Imobilizado", "7004", "Móveis e Utensílios", .10],
+  ["1.2.3.02.06", "Ferramentas", null, null, "2018", "Imobilizado", null, "Ferramentas", 0],
+  ["1.2.3.02.07", "Equipamentos de Comunicação", 5, 5, "2018", "Imobilizado", "7099", "Equipamentos de Comunicação", .20],
+  ["1.2.3.02.08", "Computadores e Periféricos", 5, 5, "2018", "Imobilizado", "7005", "Computadores e Periféricos", .20],
+  ["1.2.3.02.09", "Acervo Educacional", null, null, "2018", "Imobilizado", "7012", "Acervo Educacional", 0],
+  ["1.2.3.02.10", "Outras Imobilizações", null, null, "2018", "Imobilizado", "7099", "Outras Imobilizações", 0],
+  ["1.2.3.02.12", "Biblioteca", null, null, "2018", "Imobilizado", "7099", "Biblioteca", 0],
+  ["1.2.3.02.14", "Software", 5, 5, "2019", "Intangível", "7100", "Software", .20],
+  ["1.2.3.02.15", "Despesas Pré-Operacionais", null, null, "2019", "Intangível", null, "Despesas Pré-Operacionais", 0],
+  ["1.2.3.02.16", "Software e Licenças de Uso", 1, 1, "2019", "Intangível", "7101", "Software e Licenças de Uso", 1],
+  ["1.2.3.02.17", "Marcas e Patentes", null, null, "2019", "Intangível", "7099", "Marcas e Patentes", 0],
+  ["1.2.3.02.18", "Benfeitorias em Bens de Terceiros", null, null, "2018", "Imobilizado", "7008", "Benfeitorias em Bens de Terceiros", 0],
+  ["1.2.3.02.19", "(-) Amortizações Acumuladas", 0, 0, "2018", "Imobilizado", "7008", "Benfeitorias em Bens de Terceiros", 0],
+  ["1.2.3.02.20", "Fundo de Comércio", 10, 10, "2019", "Intangível", "7104", "Fundo de Comércio", .10],
+  ["1.2.3.02.21", "Imóveis", null, null, "2018", "Imobilizado", "7014", "Imóveis", 0],
+  ["1.2.3.02.22", "Autoria de Livros", null, null, "2019", "Imobilizado", "7199", "Autoria de Livros", 0],
+  ["1.2.3.02.23", "Terrenos", 0, 0, "2018", "Imobilizado", "7010", "Terrenos", 0],
+] as const;
+
 export async function GET(request: Request) {
   const user = await authenticatedCorporateUser(request);
   const admin = createAdminServerSupabase();
@@ -48,7 +73,7 @@ export async function GET(request: Request) {
 
   const assetsResult = await admin
     .from("ativo_fixo_bens")
-    .select("id,codigo_patrimonial,codfilial,descricao,numero_nf,unidade,centro_custo,fornecedor,data_aquisicao,data_baixa,quantidade,valor_custo,status,linha_origem,grupo:ativo_fixo_grupos(codigo,descricao,depreciavel)")
+    .select("id,codigo_patrimonial,codfilial,descricao,numero_nf,unidade,centro_custo,fornecedor,data_aquisicao,data_baixa,quantidade,valor_custo,valor_residual,status,linha_origem,grupo:ativo_fixo_grupos(codigo,descricao,depreciavel,nota_explicativa_codigo)")
     .eq("empresa_id", companyResult.data.id)
     .eq("importacao_id", importResult.data.id)
     .order("linha_origem", { ascending: true });
@@ -56,7 +81,7 @@ export async function GET(request: Request) {
 
   const calculationsResult = await admin
     .from("ativo_fixo_calculos")
-    .select("bem_id,depreciacao_acumulada_contabil,saldo_contabil")
+    .select("bem_id,base_depreciavel,quota_mensal_contabil,depreciacao_acumulada_contabil,saldo_contabil")
     .eq("empresa_id", companyResult.data.id)
     .eq("competencia", importResult.data.competencia)
     .eq("versao", 1);
@@ -65,8 +90,12 @@ export async function GET(request: Request) {
   const calculations = new Map((calculationsResult.data ?? []).map((item) => [item.bem_id, item]));
   const assets = (assetsResult.data ?? []).map((asset) => {
     const calculation = calculations.get(asset.id);
+    const group = Array.isArray(asset.grupo) ? asset.grupo[0] ?? null : asset.grupo;
     return {
       ...asset,
+      grupo: group,
+      depreciableBase: Number(calculation?.base_depreciavel ?? 0),
+      monthlyQuota: Number(calculation?.quota_mensal_contabil ?? 0),
       accumulatedDepreciation: Number(calculation?.depreciacao_acumulada_contabil ?? 0),
       bookValue: Number(calculation?.saldo_contabil ?? 0),
     };
@@ -91,5 +120,27 @@ export async function GET(request: Request) {
     .order("ordem", { ascending: true });
   if (noteResult.error) return NextResponse.json({ error: "Não foi possível consultar o quadro da nota explicativa." }, { status: 500 });
 
-  return NextResponse.json({ company: companyResult.data, importBatch: importResult.data, assets, summary, noteDisclosure: noteResult.data ?? [] });
+  const accountTotals = new Map<string, { items: number; cost: number; residual: number; depreciable: number; quota: number; accumulated: number; book: number }>();
+  for (const asset of assets) {
+    const code = asset.grupo?.codigo;
+    if (!code) continue;
+    const total = accountTotals.get(code) ?? { items: 0, cost: 0, residual: 0, depreciable: 0, quota: 0, accumulated: 0, book: 0 };
+    total.items += 1;
+    total.cost += Number(asset.valor_custo ?? 0);
+    total.residual += Number(asset.valor_residual ?? 0);
+    total.depreciable += asset.depreciableBase;
+    total.quota += asset.monthlyQuota;
+    total.accumulated += asset.accumulatedDepreciation;
+    total.book += asset.bookValue;
+    accountTotals.set(code, total);
+  }
+  const noteBalances = new Map((noteResult.data ?? []).map((row) => [String(row.codigo_ne), Number(row.saldo_balancete ?? 0)]));
+  const summaryRows = summaryTemplate.map(([accountCode, accountDescription, fiscalLife, accountingLife, bpDre, bpDreDescription, noteCode, nature, rate]) => {
+    const total = accountTotals.get(accountCode) ?? { items: 0, cost: 0, residual: 0, depreciable: 0, quota: 0, accumulated: 0, book: 0 };
+    const trialBalance = total.items > 0 && noteCode ? noteBalances.get(noteCode) ?? total.book : 0;
+    const check = Math.round(trialBalance - total.book);
+    return { accountCode, accountDescription, fiscalLife, accountingLife, bpDre, bpDreDescription, noteCode, nature, rate, ...total, trialBalance, check, status: Math.abs(check) <= 1 ? "Ok" : "Divergente" };
+  });
+
+  return NextResponse.json({ company: companyResult.data, importBatch: importResult.data, assets, summary, summaryRows, noteDisclosure: noteResult.data ?? [] });
 }

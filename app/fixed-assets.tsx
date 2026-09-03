@@ -6,12 +6,8 @@ import {
   BookOpenCheck,
   Boxes,
   Calculator,
-  ClipboardCheck,
   FileBarChart,
-  FileSearch,
-  Landmark,
   PackageCheck,
-  ReceiptText,
   Scale,
 } from "lucide-react";
 import styles from "./fixed-assets.module.css";
@@ -37,7 +33,16 @@ type FixedAssetsData = {
   importBatch: { competencia: string; status: string; nome_arquivo: string; quantidade_registros: number } | null;
   assets: Asset[];
   summary: { assets: number; fullyDepreciated: number; cost: number; accumulatedDepreciation: number; bookValue: number } | null;
+  summaryRows: SummaryRow[];
   noteDisclosure: NoteDisclosureRow[];
+};
+
+type SummaryRow = {
+  accountCode: string; accountDescription: string; fiscalLife: number | null;
+  accountingLife: number | null; bpDre: string; bpDreDescription: string;
+  noteCode: string | null; nature: string; rate: number; items: number; cost: number;
+  residual: number; depreciable: number; quota: number; accumulated: number;
+  book: number; trialBalance: number; check: number; status: string;
 };
 
 type NoteDisclosureRow = {
@@ -49,6 +54,8 @@ type NoteDisclosureRow = {
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const wholeCurrency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const decimal = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const amount = (value: number) => Math.abs(value) < .005 ? "—" : decimal.format(value);
 
 export default function FixedAssetsPanel({
   companyCode,
@@ -84,12 +91,6 @@ export default function FixedAssetsPanel({
     return (data?.assets ?? []).filter((asset) => [asset.codigo_patrimonial, asset.descricao, asset.codfilial, asset.numero_nf, asset.unidade, asset.grupo?.codigo]
       .some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(term)));
   }, [data?.assets, search]);
-  const competenceLabel = useMemo(() => {
-    const [year, month] = competence.split("-").map(Number);
-    return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" })
-      .format(new Date(Date.UTC(year, month - 1, 1)));
-  }, [competence]);
-
   const navigation = [
     { id: "resumo", label: "Resumo individual", icon: Boxes },
     { id: "cadastro", label: "Cadastro de bens", icon: PackageCheck },
@@ -124,25 +125,12 @@ export default function FixedAssetsPanel({
             <article><span>Depreciação acumulada</span><b>{currency.format(summary.accumulatedDepreciation)}</b><small>Valor armazenado por bem</small></article>
             <article><span>Saldo contábil</span><b>{currency.format(summary.bookValue)}</b><small>Posição contábil carregada</small></article>
           </div>
-          <div className={styles.grid}>
-            <article className={styles.card}>
-              <header><div><span>RESUMO INDIVIDUAL</span><h2>Posição até julho/2026</h2></div><FileSearch /></header>
-              <ol className={styles.steps}>
-                <li className={styles.done}><b>Planilha de origem analisada</b><small>Cadastro, fórmulas e tabelas auxiliares mapeados.</small></li>
-                <li><b>Validar dados e exceções</b><small>Duplicidades, baixas, vida útil e saldos inconsistentes.</small></li>
-                <li><b>Conciliar com razão e balancete</b><small>Por conta, filial e posição em 31/07/2026.</small></li>
-                <li><b>Homologar saldo inicial</b><small>Bloqueio da posição inicial antes da abertura de agosto.</small></li>
-              </ol>
-            </article>
-            <article className={styles.card}>
-              <header><div><span>OPERAÇÃO MENSAL</span><h2>{competenceLabel}</h2></div><ClipboardCheck /></header>
-              <div className={styles.flow}>
-                <div><ReceiptText /><span><b>Compras</b><small>Aquisições candidatas</small></span></div>
-                <div><FileSearch /><span><b>Zeev</b><small>Abertura e validação da NF</small></span></div>
-                <div><Calculator /><span><b>Ativo Fixo</b><small>Classificação e cálculo</small></span></div>
-                <div><Landmark /><span><b>Contabilidade</b><small>Lançamentos e conciliação</small></span></div>
-              </div>
-            </article>
+          <div className={styles.summaryArea}>
+            <div className={styles.summaryHeader}><div><span>RESUMO INDIVIDUAL</span><h2>Posição patrimonial por conta</h2><small>Modelo e amarrações da planilha · competência {reference}</small></div><span className={styles.sourceBadge}>22 contas</span></div>
+            <div className={styles.tableWrap}><table className={styles.summaryTable}><thead><tr><th>Cód. conta</th><th>Descrição conta</th><th className={styles.numeric}>Vida útil fiscal</th><th className={styles.numeric}>Vida útil contábil</th><th>BP/DRE</th><th>Descrição BP/DRE</th><th>NE</th><th>Grupo natureza</th><th className={styles.numeric}>Taxa</th><th className={styles.numeric}>Qtde.</th><th className={styles.numeric}>Custo aquisição</th><th className={styles.numeric}>Vlr. residual</th><th className={styles.numeric}>Valor depreciável</th><th className={styles.numeric}>Quota mensal</th><th className={styles.numeric}>Depreciação acumulada</th><th className={styles.numeric}>Valor contábil</th><th>Status</th><th className={styles.numeric}>Saldo balancete</th><th className={styles.numeric}>Check</th></tr></thead>
+              <tbody>{(data?.summaryRows ?? []).map((row) => <tr key={row.accountCode}><td>{row.accountCode}</td><td><b>{row.accountDescription}</b></td><td className={styles.numeric}>{row.fiscalLife ?? "—"}</td><td className={styles.numeric}>{row.accountingLife ?? "—"}</td><td>{row.bpDre}</td><td>{row.bpDreDescription}</td><td>{row.noteCode ?? "—"}</td><td>{row.nature}</td><td className={styles.numeric}>{(row.rate * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</td><td className={styles.numeric}>{row.items || "—"}</td><td className={styles.numeric}>{amount(row.cost)}</td><td className={styles.numeric}>{amount(row.residual)}</td><td className={styles.numeric}>{amount(row.depreciable)}</td><td className={styles.numeric}>{amount(row.quota)}</td><td className={styles.numeric}>{amount(row.accumulated)}</td><td className={styles.numeric}>{amount(row.book)}</td><td><span className={row.status === "Ok" ? styles.checkOk : styles.checkError}>{row.status}</span></td><td className={styles.numeric}>{amount(row.trialBalance)}</td><td className={styles.numeric}>{row.check.toLocaleString("pt-BR")}</td></tr>)}</tbody>
+              <tfoot><tr><td colSpan={9}>Total</td><td className={styles.numeric}>{summary.assets}</td><td className={styles.numeric}>{amount(summary.cost)}</td><td className={styles.numeric}>{amount((data?.summaryRows ?? []).reduce((sum, row) => sum + row.residual, 0))}</td><td className={styles.numeric}>{amount((data?.summaryRows ?? []).reduce((sum, row) => sum + row.depreciable, 0))}</td><td className={styles.numeric}>{amount((data?.summaryRows ?? []).reduce((sum, row) => sum + row.quota, 0))}</td><td className={styles.numeric}>{amount(summary.accumulatedDepreciation)}</td><td className={styles.numeric}>{amount(summary.bookValue)}</td><td>Ok</td><td className={styles.numeric}>{amount((data?.summaryRows ?? []).reduce((sum, row) => sum + row.trialBalance, 0))}</td><td className={styles.numeric}>{(data?.summaryRows ?? []).reduce((sum, row) => sum + row.check, 0)}</td></tr></tfoot>
+            </table></div>
           </div>
           </>}
         </>

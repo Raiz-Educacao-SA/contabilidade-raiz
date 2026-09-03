@@ -57,6 +57,18 @@
 .numeric { text-align: right !important; white-space: nowrap; }
 .assetStatus { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: #eaf7f4; color: #0f766e; font-size: 10px; font-weight: 800; }
 .noResults { padding: 28px; color: var(--muted); text-align: center; }
+.summaryArea { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.summaryHeader { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.summaryHeader > div > span { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.summaryHeader h2 { margin: 4px 0 2px; font-size: 18px; }
+.summaryHeader small { color: var(--muted); }
+.summaryTable { min-width: 2200px; font-size: 11px !important; }
+.summaryTable th { white-space: normal; line-height: 1.25; }
+.summaryTable th:nth-child(1) { min-width: 108px; }
+.summaryTable th:nth-child(2), .summaryTable th:nth-child(8) { min-width: 210px; }
+.summaryTable td { white-space: nowrap; }
+.summaryTable tbody tr:nth-child(even) { background: #f8fafb; }
+.summaryTable tfoot td { padding: 11px 12px; border-top: 2px solid #cfd8e3; background: #eaf0f5; font-weight: 800; }
 .noteArea { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
 .noteHeader { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
 .noteHeader > div > span { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
@@ -76,4 +88,4 @@
 .noteLegend span { display: flex; align-items: center; gap: 6px; }
 .legendOk { width: 8px; height: 8px; border-radius: 50%; background: #0f766e; }
 @media (max-width: 1050px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: 1fr; } }
-@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } }
+@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend, .summaryHeader { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } }
