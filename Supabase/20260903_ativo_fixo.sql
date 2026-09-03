@@ -1,4 +1,34 @@
 -- Estrutura isolada do módulo Ativo Fixo. Execute somente após homologação.
+begin;
+
+create table if not exists public.ativo_fixo_importacoes (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete cascade,
+  competencia text not null check (competencia ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  nome_arquivo text not null,
+  hash_arquivo text not null,
+  quantidade_registros integer not null default 0,
+  status text not null default 'RASCUNHO' check (status in ('RASCUNHO','VALIDADO','HOMOLOGADO','CANCELADO')),
+  importado_por uuid references auth.users(id),
+  importado_em timestamptz not null default now(),
+  homologado_por uuid references auth.users(id),
+  homologado_em timestamptz,
+  unique (empresa_id, hash_arquivo)
+);
+
+create table if not exists public.ativo_fixo_responsaveis (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete cascade,
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  principal boolean not null default true,
+  substituto_de uuid references auth.users(id),
+  substituicao_inicio date,
+  substituicao_fim date,
+  ativo boolean not null default true,
+  criado_em timestamptz not null default now(),
+  check ((substituicao_inicio is null and substituicao_fim is null) or (substituicao_inicio is not null and substituicao_fim is not null and substituicao_fim >= substituicao_inicio)),
+  unique (empresa_id, usuario_id)
+);
 create table if not exists public.ativo_fixo_grupos (
   id uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references public.empresas(id) on delete cascade,
@@ -95,6 +125,8 @@ create table if not exists public.ativo_fixo_conciliacoes (
 );
 
 alter table public.ativo_fixo_grupos enable row level security;
+alter table public.ativo_fixo_importacoes enable row level security;
+alter table public.ativo_fixo_responsaveis enable row level security;
 alter table public.ativo_fixo_bens enable row level security;
 alter table public.ativo_fixo_movimentacoes enable row level security;
 alter table public.ativo_fixo_calculos enable row level security;
@@ -103,9 +135,13 @@ alter table public.ativo_fixo_conciliacoes enable row level security;
 do $$
 declare tabela text;
 begin
-  foreach tabela in array array['ativo_fixo_grupos','ativo_fixo_bens','ativo_fixo_movimentacoes','ativo_fixo_calculos','ativo_fixo_conciliacoes']
+  foreach tabela in array array['ativo_fixo_importacoes','ativo_fixo_responsaveis','ativo_fixo_grupos','ativo_fixo_bens','ativo_fixo_movimentacoes','ativo_fixo_calculos','ativo_fixo_conciliacoes']
   loop
+    execute format('drop policy if exists %I on public.%I', 'leitura_' || tabela, tabela);
+    execute format('drop policy if exists %I on public.%I', 'alteracao_' || tabela, tabela);
     execute format('create policy %I on public.%I for select using (exists (select 1 from public.usuarios_empresas ue where ue.empresa_id = %I.empresa_id and ue.usuario_id = auth.uid()))', 'leitura_' || tabela, tabela, tabela);
     execute format('create policy %I on public.%I for all using (exists (select 1 from public.usuarios_empresas ue where ue.empresa_id = %I.empresa_id and ue.usuario_id = auth.uid() and lower(ue.perfil) <> ''consulta'')) with check (exists (select 1 from public.usuarios_empresas ue where ue.empresa_id = %I.empresa_id and ue.usuario_id = auth.uid() and lower(ue.perfil) <> ''consulta''))', 'alteracao_' || tabela, tabela, tabela, tabela);
   end loop;
 end $$;
+
+commit;
