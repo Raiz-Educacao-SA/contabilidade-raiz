@@ -50,6 +50,7 @@ import LoanReconciliation from "@/app/loan-reconciliation";
 import CscAllocation from "@/app/csc-allocation";
 import IntercompanyAnalysis from "@/app/intercompany-analysis";
 import PayrollBatchReconciliation from "@/app/payroll-batch-reconciliation";
+import FixedAssetsPanel from "@/app/fixed-assets";
 import PendingAccountingLots from "@/app/pending-accounting-lots";
 import ExpenseAnalysis from "@/app/expense-analysis";
 import WarehousePostings from "@/app/warehouse-postings";
@@ -111,6 +112,7 @@ type Module =
   | "compras"
   | "folha"
   | "contabil"
+  | "ativo-fixo"
   | "book"
   | "cronograma";
 
@@ -237,6 +239,12 @@ const modules = {
       "Lançamentos, análises, integrações e conferências das rotinas contábeis.",
     icon: BookText,
   },
+  "ativo-fixo": {
+    title: "Ativo Fixo",
+    description:
+      "Aquisições, baixas, transferências, depreciação e confronto contábil.",
+    icon: Building2,
+  },
   book: {
     title: "Book Contábil",
     description:
@@ -262,6 +270,7 @@ const areas = {
   compras: { ...modules.compras, title: "Módulo Compras" },
   folha: { ...modules.folha, title: "Módulo Folha de Pagamento" },
   contabil: { ...modules.contabil, title: "Módulo Contábil" },
+  "ativo-fixo": { ...modules["ativo-fixo"], title: "Módulo Ativo Fixo" },
   book: { ...modules.book, title: "Módulo Book Contábil" },
   cronograma: { ...modules.cronograma, title: "Cronograma Fechamento" },
 } as const;
@@ -1287,6 +1296,14 @@ export default function Home() {
             accessToken={session.access_token}
           />
         )}
+        {selectedModule === "ativo-fixo" && (
+          <FixedAssetsPanel
+            companyCode={company?.empresas?.codcoligada ?? ""}
+            companyName={company?.empresas?.razao_social ?? ""}
+            competence={competence}
+            canWrite={canWrite}
+          />
+        )}
         {selectedModule === "contabil" && accountingTab === "pis-cofins" && (
           <PisCofinsAssessment
             companyCode={company?.empresas?.codcoligada ?? ""}
@@ -1459,6 +1476,7 @@ export default function Home() {
           selectedModule !== "emprestimos" &&
           selectedModule !== "folha" &&
           selectedModule !== "fiscal" &&
+          selectedModule !== "ativo-fixo" &&
           selectedModule !== "contabil" &&
           selectedModule !== "cronograma" && (
             <section className="panel module-workspace">
@@ -1649,17 +1667,21 @@ function AreaHub({
             );
           })}
 
-          <article className="module-card area-ativo-fixo module-card-coming-soon" aria-label="Ativo Fixo, em breve">
+          {allowedAreas.includes("ativo-fixo") ? <button className="module-card area-ativo-fixo" onClick={() => onSelect("ativo-fixo")}>
             <span className="module-card-top">
               <span className="module-icon"><Building2 /></span>
-              <span className="module-status module-status-soon">Em breve</span>
+              <span className="module-status">Em estruturação</span>
             </span>
             <span className="module-copy">
               <b>Ativo Fixo</b>
               <small>Aquisições, baixas, transferências, depreciação e confronto contábil.</small>
             </span>
-            <span className="module-enter">Módulo preparado para criação</span>
-          </article>
+            <span className="module-enter">Acessar módulo <ArrowLeftRight /></span>
+          </button> : <article className="module-card area-ativo-fixo module-card-coming-soon" aria-label="Ativo Fixo, sem acesso">
+            <span className="module-card-top"><span className="module-icon"><Building2 /></span><span className="module-status module-status-soon">Sem acesso</span></span>
+            <span className="module-copy"><b>Ativo Fixo</b><small>Aquisições, baixas, transferências, depreciação e confronto contábil.</small></span>
+            <span className="module-enter">Solicite acesso ao administrador</span>
+          </article>}
 
           <article className="module-card area-demonstracoes-financeiras module-card-coming-soon" aria-label="Demonstrações Financeiras, em breve">
             <span className="module-card-top">

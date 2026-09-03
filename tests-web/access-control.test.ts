@@ -10,9 +10,9 @@ test("usa permissões explícitas para novos membros", () => {
 
 test("mantém compatibilidade com perfis existentes e libera tudo ao administrador", () => {
   assert.deepEqual(resolveAllowedModules(["financeiro"], []), ["cronograma", "financeiro"]);
-  assert.deepEqual(resolveAllowedModules(["contábil"], []), ["cronograma", "contabil", "book"]);
+  assert.deepEqual(resolveAllowedModules(["contábil"], []), ["cronograma", "contabil", "ativo-fixo", "book"]);
   assert.deepEqual(resolveAllowedModules(["administrador"], ["folha"]), [
-    "financeiro", "fiscal", "compras", "folha", "contabil", "book", "cronograma",
+    "financeiro", "fiscal", "compras", "folha", "contabil", "ativo-fixo", "book", "cronograma",
   ]);
 });
 

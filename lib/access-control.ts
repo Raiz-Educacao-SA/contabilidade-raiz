@@ -4,6 +4,7 @@ export const ACCESS_MODULES = [
   "compras",
   "folha",
   "contabil",
+  "ativo-fixo",
   "book",
   "cronograma",
 ] as const;
@@ -16,6 +17,7 @@ export const ACCESS_MODULE_LABELS: Record<AccessModule, string> = {
   compras: "Módulo Compras",
   folha: "Módulo Folha de Pagamento",
   contabil: "Módulo Contábil",
+  "ativo-fixo": "Módulo Ativo Fixo",
   book: "Book Contábil",
   cronograma: "Cronograma de Fechamento",
 };
@@ -34,7 +36,7 @@ export function legacyProfilesToModules(profiles: string[]): AccessModule[] {
   if (normalized.has("compras")) modules.push("compras");
   if (normalized.has("folha") || normalized.has("folha de pagamento")) modules.push("folha");
   if (normalized.has("contabil") || normalized.has("contábil") || normalized.has("contabilidade")) {
-    modules.push("contabil", "book");
+    modules.push("contabil", "ativo-fixo", "book");
   }
   return [...new Set(modules)];
 }

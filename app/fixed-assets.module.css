@@ -1,0 +1,40 @@
+.workspace { display: grid; gap: 18px; }
+.tabs { display: flex; gap: 8px; overflow-x: auto; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.tabs button { flex: 0 0 auto; border: 0; border-radius: 10px; padding: 10px 14px; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.tabs button svg { width: 17px; height: 17px; }
+.tabs button:hover, .tabs button.active { color: #0f766e; background: #e7f8f6; }
+.statusBar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 18px; border: 1px solid #b8e2dd; border-radius: 14px; background: #f0fbf9; }
+.statusBar > div { display: flex; align-items: center; gap: 12px; }
+.statusBar svg { width: 24px; color: #0f766e; }
+.statusBar span { display: flex; flex-direction: column; }
+.statusBar small { color: var(--muted); margin-top: 3px; }
+.pending { display: inline-flex !important; padding: 7px 10px; border-radius: 999px; color: #92400e; background: #fff4d6; font-size: 11px; font-weight: 800; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpis article { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.kpis span, .kpis small { display: block; color: var(--muted); font-size: 12px; }
+.kpis b { display: block; margin: 8px 0 5px; font-size: 21px; }
+.grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+.card { padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.card header { display: flex; justify-content: space-between; align-items: flex-start; }
+.card header span, .empty > span { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.card h2 { margin: 5px 0 0; }
+.card header > svg { width: 34px; height: 34px; padding: 7px; border-radius: 10px; color: #fff; background: #0f766e; }
+.steps { margin: 22px 0 0; padding: 0; list-style: none; display: grid; gap: 15px; counter-reset: step; }
+.steps li { position: relative; padding-left: 36px; display: flex; flex-direction: column; counter-increment: step; }
+.steps li::before { content: counter(step); position: absolute; left: 0; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #667085; background: #eef1f5; font-size: 11px; font-weight: 800; }
+.steps li.done::before { content: "✓"; color: #fff; background: #0f766e; }
+.steps small, .flow small { margin-top: 3px; color: var(--muted); }
+.flow { margin-top: 20px; display: grid; gap: 10px; }
+.flow > div { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; }
+.flow svg { width: 22px; color: #0f766e; }
+.flow span { display: flex; flex-direction: column; }
+.empty { min-height: 350px; padding: 52px 28px; border: 1px solid var(--line); border-radius: 16px; background: #fff; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.empty > svg { width: 54px; height: 54px; padding: 13px; margin-bottom: 16px; border-radius: 16px; color: #fff; background: #0f766e; }
+.empty h2 { margin: 8px 0; }
+.empty p { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.6; }
+.empty button { margin-top: 24px; padding: 11px 16px; border: 0; border-radius: 10px; color: #fff; background: #0f766e; font-weight: 800; }
+.empty button:disabled { opacity: .45; cursor: not-allowed; }
+.empty > small { margin-top: 10px; color: var(--muted); }
+.context { color: var(--muted); font-size: 12px; text-align: right; }
+@media (max-width: 1050px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .statusBar { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } }
