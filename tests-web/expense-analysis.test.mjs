@@ -30,7 +30,7 @@ test("atualização consulta o período em lotes mensais paralelos", () => {
   assert.match(component, /periodStart/);
   assert.match(component, /periodEnd/);
   assert.match(component, /Exportar Excel/);
-  assert.match(component, /disabled=\{!analysis \|\| busy\}/);
+  assert.match(component, /disabled=\{!analysis \|\| busy \|\| Boolean\(zeevWarning\)\}/);
   assert.match(component, /AbortSignal\.timeout\(120_000\)/);
   assert.match(page, /accountingTab === "despesas"/);
 });
@@ -171,6 +171,18 @@ test("identifica documento cancelado no Zeev que permanece na PlanilhaNet 08", (
   assert.match(component, /document\.cancelled/);
   assert.match(component, /Lançamento Duplicado - Documento fiscal já contabilizado; validar estorno do IDMOV/);
   assert.match(component, /Documento cancelado ainda contabilizado/);
+});
+
+test("mantém a validação documental separada do valor e cobre o caso GIMBA confirmado", () => {
+  assert.match(zeevValueRoute, /CONFIRMED_ZEEV_DOCUMENTS/);
+  assert.match(zeevValueRoute, /"167874"/);
+  assert.match(zeevValueRoute, /"169601"/);
+  assert.match(zeevValueRoute, /35260554651716001150550000082380541684249462/);
+  assert.match(zeevValueRoute, /value > 0 \|\| Boolean\(invoiceNumber \|\| invoiceKey\)/);
+  assert.match(component, /if \(validatedValue > 0\) zeevValues\.set/);
+  assert.match(component, /if \(invoiceNumber \|\| invoiceKey\)/);
+  assert.match(component, /A exportação foi bloqueada para evitar uma conclusão incompleta/);
+  assert.match(component, /disabled=\{!analysis \|\| busy \|\| Boolean\(zeevWarning\)\}/);
 });
 
 test("confronta o valor contábil com o valor aprovado no Ticket Zeev", () => {
