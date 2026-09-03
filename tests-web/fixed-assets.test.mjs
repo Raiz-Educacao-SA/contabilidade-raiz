@@ -15,6 +15,9 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /data-testid="fixed-assets-module"/);
   assert.match(panel, /Resumo individual/);
   assert.match(panel, /Cadastro de bens/);
+  assert.match(panel, /Nova aquisição/);
+  assert.match(panel, /Pesquisar aquisições/);
+  assert.match(panel, /Confirmar e incluir no cadastro de bens/);
   assert.match(panel, /Nota explicativa/);
   assert.match(panel, /Buscar bem, conta, filial ou NF/);
   assert.match(panel, /Depreciação acumulada/);
@@ -36,6 +39,8 @@ test("Ativo Fixo consulta a carga real com autenticação e segregação por emp
   assert.match(route, /ativo_fixo_bens/);
   assert.match(route, /ativo_fixo_calculos/);
   assert.match(route, /ativo_fixo_nota_explicativa/);
+  assert.match(route, /tipo: "ADICAO"/);
+  assert.match(route, /codigo_patrimonial: patrimonialCode/);
 });
 
 test("migração do Ativo Fixo usa tabelas próprias, segregação por empresa e RLS", () => {

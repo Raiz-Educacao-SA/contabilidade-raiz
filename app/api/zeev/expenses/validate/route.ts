@@ -19,6 +19,11 @@ const FORM_FIELDS = [
   "descricaoDaNotaFiscal",
   "unidadeFilial",
   "unidadeFilial2",
+  "itensDaNotaFiscal",
+  "itensNotaFiscal",
+  "produtoServico",
+  "quantidade",
+  "valorUnitario",
 ];
 
 async function authenticated(request: NextRequest) {
@@ -76,6 +81,28 @@ function findFieldValue(value: unknown, names: string[]): unknown {
   return visit(value);
 }
 
+function invoiceItems(value: unknown) {
+  const result: Array<{ description: string; quantity: number; unitValue: number; total: number }> = [];
+  const visit = (current: unknown) => {
+    if (Array.isArray(current)) return current.forEach(visit);
+    if (!current || typeof current !== "object") return;
+    const record = current as Record<string, unknown>;
+    const description = findFieldValue(record, ["produtoServico", "descricaoItem", "descricaoProduto", "produto", "item"]);
+    const quantity = numeric(findFieldValue(record, ["quantidade", "qtd"]));
+    const unitValue = numeric(findFieldValue(record, ["valorUnitario", "precoUnitario"]));
+    const total = numeric(findFieldValue(record, ["valorTotalItem", "valorItem", "total"]));
+    if (description && (quantity || unitValue || total)) {
+      const candidate = { description: String(description), quantity: quantity || 1, unitValue, total: total || quantity * unitValue };
+      const key = JSON.stringify(candidate);
+      if (!result.some((item) => JSON.stringify(item) === key)) result.push(candidate);
+      return;
+    }
+    Object.values(record).forEach(visit);
+  };
+  visit(value);
+  return result.slice(0, 100);
+}
+
 async function consultTicket(baseUrl: string, token: string, ticket: string) {
   const query = new URLSearchParams({
     showPendingInstanceTasks: "true",
@@ -103,7 +130,10 @@ async function consultTicket(baseUrl: string, token: string, ticket: string) {
     invoiceNumber: String(findFieldValue(instance, ["numeroDaNF"]) || ""),
     invoiceKey: String(findFieldValue(instance, ["chaveDeAcesso"]) || ""),
     supplierTaxId: String(findFieldValue(instance, ["cPF"]) || ""),
+    supplier: String(findFieldValue(instance, ["fornecedor"]) || ""),
+    invoiceDescription: String(findFieldValue(instance, ["descricaoDaNotaFiscal"]) || ""),
     branch: String(findFieldValue(instance, ["unidadeFilial2", "unidadeFilial"]) || ""),
+    items: invoiceItems(instance),
     status,
     cancelled,
   };

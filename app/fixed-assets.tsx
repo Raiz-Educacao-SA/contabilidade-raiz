@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
   BookOpenCheck,
@@ -8,6 +8,10 @@ import {
   Calculator,
   FileBarChart,
   PackageCheck,
+  ReceiptText,
+  Search,
+  ExternalLink,
+  CheckCircle2,
   Scale,
 } from "lucide-react";
 import styles from "./fixed-assets.module.css";
@@ -20,7 +24,7 @@ type FixedAssetsProps = {
   accessToken: string;
 };
 
-type View = "resumo" | "cadastro" | "nota-explicativa" | "calculo" | "conciliacao";
+type View = "resumo" | "nova-aquisicao" | "cadastro" | "nota-explicativa" | "calculo" | "conciliacao";
 
 type Asset = {
   id: string; codigo_patrimonial: string; codfilial: string; descricao: string;
@@ -35,6 +39,16 @@ type FixedAssetsData = {
   summary: { assets: number; fullyDepreciated: number; cost: number; accumulatedDepreciation: number; bookValue: number } | null;
   summaryRows: SummaryRow[];
   noteDisclosure: NoteDisclosureRow[];
+  groups: AssetGroup[];
+};
+
+type AssetGroup = { id: string; codigo: string; descricao: string; vida_util_contabil_meses: number; vida_util_fiscal_meses: number | null; percentual_residual: number; depreciavel: boolean };
+type InvoiceItem = { description: string; quantity: number; unitValue: number; total: number };
+type Acquisition = {
+  CODFILIAL: string; IDMOV: string; NUMEROMOV: string; DATAEMISSAO: string; DATASAIDA: string;
+  TICKET: string; DEBITO: string; DESCRICAO: string; VALOR: number; CODCCUSTO: string;
+  NOMEFANTASIA: string; COMPLEMENTO: string;
+  zeev?: { found: boolean; invoiceNumber?: string; invoiceKey?: string; supplier?: string; invoiceDescription?: string; branch?: string; status?: string; cancelled?: boolean; items?: InvoiceItem[] };
 };
 
 type SummaryRow = {
@@ -56,6 +70,13 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 const wholeCurrency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const decimal = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const amount = (value: number) => Math.abs(value) < .005 ? "—" : decimal.format(value);
+const dateOnly = (value: string) => {
+  const raw = String(value || "").trim();
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return br ? `${br[3]}-${br[2]}-${br[1]}` : "";
+};
 
 export default function FixedAssetsPanel({
   companyCode,
@@ -69,19 +90,29 @@ export default function FixedAssetsPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [lot, setLot] = useState("");
+  const [acquisitions, setAcquisitions] = useState<Acquisition[]>([]);
+  const [selected, setSelected] = useState<Acquisition | null>(null);
+  const [selectedItem, setSelectedItem] = useState(0);
+  const [groupId, setGroupId] = useState("");
+  const [assetDescription, setAssetDescription] = useState("");
+  const [acquisitionBusy, setAcquisitionBusy] = useState(false);
+  const [acquisitionMessage, setAcquisitionMessage] = useState("");
+  const loadData = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(`/api/fixed-assets?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
+      headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar o Ativo Fixo.");
+    setData(payload);
+  }, [accessToken, companyCode, competence]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError("");
-    fetch(`/api/fixed-assets?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
-      headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal: controller.signal,
-    }).then(async (response) => {
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar o Ativo Fixo.");
-      setData(payload);
-    }).catch((reason) => { if (reason.name !== "AbortError") setError(reason.message); })
+    loadData(controller.signal).catch((reason) => { if (reason.name !== "AbortError") setError(reason.message); })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [accessToken, companyCode, competence]);
+  }, [loadData]);
 
   const summary = data?.summary;
   const reference = data?.importBatch?.competencia ?? competence;
@@ -93,11 +124,63 @@ export default function FixedAssetsPanel({
   }, [data?.assets, search]);
   const navigation = [
     { id: "resumo", label: "Resumo individual", icon: Boxes },
+    { id: "nova-aquisicao", label: "Nova aquisição", icon: ReceiptText },
     { id: "cadastro", label: "Cadastro de bens", icon: PackageCheck },
     { id: "nota-explicativa", label: "Nota explicativa", icon: FileBarChart },
     { id: "calculo", label: "Cálculo mensal", icon: Calculator },
     { id: "conciliacao", label: "Conciliação", icon: Scale },
   ] as const;
+
+  async function searchAcquisitions() {
+    setAcquisitionBusy(true); setAcquisitionMessage(""); setSelected(null);
+    try {
+      const [year, month] = competence.split("-").map(Number);
+      const end = `${competence}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+      const response = await fetch(`/api/totvs/expenses?company=${encodeURIComponent(companyCode)}&start=${competence}-01&end=${end}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Não foi possível pesquisar as aquisições.");
+      const term = lot.trim().toLowerCase();
+      const rows: Acquisition[] = (payload.rows ?? []).filter((row: Acquisition) => Number(row.VALOR) > 0 && String(row.DEBITO).startsWith("1.") && (!term || [row.IDMOV, row.NUMEROMOV, row.TICKET].some((value) => String(value).toLowerCase().includes(term))));
+      const tickets = [...new Set(rows.map((row) => String(row.TICKET || "").trim()).filter((ticket) => /^\d+$/.test(ticket)))];
+      let validations: Array<{ ticket: string } & NonNullable<Acquisition["zeev"]>> = [];
+      if (tickets.length) {
+        const zeev = await fetch("/api/zeev/expenses/validate", { method: "POST", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" }, body: JSON.stringify({ tickets }), cache: "no-store" });
+        if (zeev.ok) validations = (await zeev.json()).validations ?? [];
+      }
+      const byTicket = new Map(validations.map((item) => [String(item.ticket), item]));
+      setAcquisitions(rows.map((row) => ({ ...row, zeev: byTicket.get(String(row.TICKET)) })));
+      setAcquisitionMessage(rows.length ? `${rows.length} movimento(s) patrimonial(is) localizado(s).` : "Nenhuma aquisição patrimonial foi localizada para o filtro informado.");
+    } catch (cause) { setAcquisitionMessage(cause instanceof Error ? cause.message : "Falha na pesquisa."); }
+    finally { setAcquisitionBusy(false); }
+  }
+
+  function reviewAcquisition(row: Acquisition) {
+    const item = row.zeev?.items?.[0];
+    setSelected(row); setSelectedItem(0); setGroupId(data?.groups?.find((group) => group.codigo === row.DEBITO)?.id ?? "");
+    setAssetDescription(item?.description || row.zeev?.invoiceDescription || row.COMPLEMENTO || row.DESCRICAO || "");
+    setAcquisitionMessage("");
+  }
+
+  async function confirmAcquisition() {
+    if (!selected || !groupId) return setAcquisitionMessage("Selecione a classificação patrimonial antes de confirmar.");
+    const item = selected.zeev?.items?.[selectedItem];
+    setAcquisitionBusy(true); setAcquisitionMessage("");
+    try {
+      const response = await fetch("/api/fixed-assets", { method: "POST", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" }, body: JSON.stringify({
+        company: companyCode, competence, movementId: selected.IDMOV, groupId, itemIndex: selectedItem + 1,
+        description: assetDescription, cost: item?.total || Number(selected.VALOR), quantity: item?.quantity || 1,
+        unitValue: item?.unitValue || Number(selected.VALOR), acquisitionDate: dateOnly(selected.DATASAIDA || selected.DATAEMISSAO),
+        branch: selected.CODFILIAL, invoiceNumber: selected.zeev?.invoiceNumber || selected.NUMEROMOV,
+        invoiceKey: selected.zeev?.invoiceKey, ticket: selected.TICKET, supplier: selected.zeev?.supplier || selected.NOMEFANTASIA,
+        costCenter: selected.CODCCUSTO,
+      }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Não foi possível confirmar a aquisição.");
+      await loadData();
+      setAcquisitionMessage(payload.alreadyRegistered ? `O bem ${payload.asset.codigo_patrimonial} já estava cadastrado.` : `Bem ${payload.asset.codigo_patrimonial} confirmado e incluído no cadastro.`);
+    } catch (cause) { setAcquisitionMessage(cause instanceof Error ? cause.message : "Falha ao confirmar a aquisição."); }
+    finally { setAcquisitionBusy(false); }
+  }
 
   return (
     <section className={styles.workspace} data-testid="fixed-assets-module">
@@ -142,6 +225,21 @@ export default function FixedAssetsPanel({
           <div className={styles.tableWrap}><table><thead><tr><th>Código</th><th>Filial</th><th>Descrição</th><th>Conta</th><th className={styles.numeric}>Custo</th><th className={styles.numeric}>Depreciação acumulada</th><th className={styles.numeric}>Saldo contábil</th><th>Status</th></tr></thead>
             <tbody>{filteredAssets.map((asset) => <tr key={asset.id}><td>{asset.codigo_patrimonial}</td><td>{asset.codfilial}</td><td><b>{asset.descricao}</b><small>{asset.unidade || asset.numero_nf ? `${asset.unidade ?? ""}${asset.numero_nf ? ` · NF ${asset.numero_nf}` : ""}` : ""}</small></td><td>{asset.grupo?.codigo ?? "—"}</td><td className={styles.numeric}>{currency.format(Number(asset.valor_custo))}</td><td className={styles.numeric}>{currency.format(asset.accumulatedDepreciation)}</td><td className={styles.numeric}>{currency.format(asset.bookValue)}</td><td><span className={styles.assetStatus}>{asset.status}</span></td></tr>)}</tbody></table></div>
           {!loading && !filteredAssets.length && <p className={styles.noResults}>Nenhum bem encontrado.</p>}
+        </div>
+      )}
+      {view === "nova-aquisicao" && (
+        <div className={styles.acquisitionArea}>
+          <div className={styles.acquisitionHeader}><div><span>COMPRAS · TOTVS RM + ZEEV</span><h2>Nova aquisição</h2><small>Pesquise o período, valide a nota fiscal e confirme cada bem.</small></div><div className={styles.acquisitionSearch}><label>Competência<input value={competence} disabled /></label><label>Lote ou movimento<input value={lot} onChange={(event) => setLot(event.target.value)} placeholder="Opcional: IDMOV, nº movimento ou ticket" /></label><button onClick={() => void searchAcquisitions()} disabled={acquisitionBusy}><Search />{acquisitionBusy ? "Pesquisando…" : "Pesquisar aquisições"}</button></div></div>
+          {acquisitionMessage && <div className={styles.notice}>{acquisitionMessage}</div>}
+          <div className={styles.acquisitionGrid}>
+            <div className={styles.candidateList}><h3>Candidatas do período <span>{acquisitions.length}</span></h3>{acquisitions.map((row) => <button key={`${row.IDMOV}-${row.DEBITO}`} className={selected?.IDMOV === row.IDMOV ? styles.selectedCandidate : ""} onClick={() => reviewAcquisition(row)}><div><b>{row.NOMEFANTASIA || "Fornecedor não informado"}</b><small>Mov. {row.NUMEROMOV || row.IDMOV} · Filial {row.CODFILIAL} · Conta {row.DEBITO}</small></div><strong>{currency.format(Number(row.VALOR))}</strong><span className={row.zeev?.found && !row.zeev.cancelled ? styles.zeevOk : styles.zeevPending}>{row.zeev?.cancelled ? "Cancelada" : row.zeev?.found ? "NF localizada" : "Validar NF"}</span></button>)}{!acquisitions.length && <p>Faça a pesquisa para listar movimentos em contas patrimoniais.</p>}</div>
+              <div className={styles.reviewPanel}>{selected ? <><header><div><span>VALIDAÇÃO DA NOTA</span><h3>NF {selected.zeev?.invoiceNumber || selected.NUMEROMOV || "não identificada"}</h3><small>Zeev {selected.TICKET || "sem ticket"} · IDMOV {selected.IDMOV}</small></div>{selected.TICKET && <a href={`https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(selected.TICKET)}`} target="_blank" rel="noreferrer"><ExternalLink /> Abrir nota</a>}</header>
+              <div className={styles.invoiceMeta}><span><small>Fornecedor</small><b>{selected.zeev?.supplier || selected.NOMEFANTASIA}</b></span><span><small>Chave da NF</small><b>{selected.zeev?.invoiceKey || "Não informada"}</b></span><span><small>Valor do movimento</small><b>{currency.format(Number(selected.VALOR))}</b></span></div>
+              <h4>Itens da nota fiscal</h4><div className={styles.invoiceItems}>{(selected.zeev?.items?.length ? selected.zeev.items : [{ description: selected.zeev?.invoiceDescription || selected.COMPLEMENTO || selected.DESCRICAO, quantity: 1, unitValue: Number(selected.VALOR), total: Number(selected.VALOR) }]).map((item, index) => <button key={`${item.description}-${index}`} className={selectedItem === index ? styles.selectedItem : ""} onClick={() => { setSelectedItem(index); setAssetDescription(item.description); }}><span>{item.description || "Item conforme documento"}<small>{item.quantity} × {currency.format(item.unitValue || item.total)}</small></span><b>{currency.format(item.total || Number(selected.VALOR))}</b></button>)}</div>
+              <div className={styles.classification}><label>Descrição do bem<input value={assetDescription} onChange={(event) => setAssetDescription(event.target.value)} /></label><label>Classificação patrimonial<select value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Selecione ou altere a classificação</option>{(data?.groups ?? []).map((group) => <option key={group.id} value={group.id}>{group.codigo} — {group.descricao}</option>)}</select></label></div>
+              <button className={styles.confirmButton} disabled={!canWrite || acquisitionBusy || !groupId || !assetDescription.trim() || selected.zeev?.cancelled} onClick={() => void confirmAcquisition()}><CheckCircle2 />Confirmar e incluir no cadastro de bens</button>
+            </> : <div className={styles.reviewEmpty}><ReceiptText /><b>Selecione uma aquisição</b><span>A nota, os itens e a classificação aparecerão aqui para validação.</span></div>}</div>
+          </div>
         </div>
       )}
       {view === "nota-explicativa" && (

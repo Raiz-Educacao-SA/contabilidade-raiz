@@ -87,5 +87,50 @@
 .noteLegend { display: flex; justify-content: space-between; gap: 16px; padding: 14px 22px 18px; color: var(--muted); font-size: 11px; }
 .noteLegend span { display: flex; align-items: center; gap: 6px; }
 .legendOk { width: 8px; height: 8px; border-radius: 50%; background: #0f766e; }
+.acquisitionArea { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.acquisitionHeader { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.acquisitionHeader > div:first-child > span, .reviewPanel header span { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.acquisitionHeader h2, .reviewPanel h3 { margin: 5px 0 3px; }
+.acquisitionHeader small, .reviewPanel small { color: var(--muted); }
+.acquisitionSearch { display: flex; align-items: flex-end; gap: 9px; }
+.acquisitionSearch label, .classification label { display: grid; gap: 5px; color: #475467; font-size: 11px; font-weight: 700; }
+.acquisitionSearch input, .classification input, .classification select { min-height: 40px; padding: 9px 11px; border: 1px solid #d7dee7; border-radius: 9px; background: #fff; font: inherit; color: #101828; }
+.acquisitionSearch label:nth-child(2) input { width: 280px; }
+.acquisitionSearch button, .confirmButton { min-height: 40px; padding: 9px 13px; border: 0; border-radius: 9px; background: #0f766e; color: #fff; display: inline-flex; align-items: center; gap: 7px; font-weight: 800; }
+.acquisitionSearch button svg, .confirmButton svg { width: 16px; }
+.acquisitionSearch button:disabled, .confirmButton:disabled { opacity: .45; cursor: not-allowed; }
+.acquisitionArea > .notice { margin: 14px 22px 0; }
+.acquisitionGrid { display: grid; grid-template-columns: minmax(330px, .82fr) minmax(440px, 1.18fr); min-height: 470px; }
+.candidateList { padding: 18px; border-right: 1px solid var(--line); background: #f8fafb; }
+.candidateList h3 { margin: 0 0 12px; display: flex; justify-content: space-between; font-size: 14px; }
+.candidateList h3 span { padding: 2px 7px; border-radius: 999px; background: #e8f3f7; color: #126783; font-size: 11px; }
+.candidateList > button { width: 100%; margin-bottom: 8px; padding: 12px; border: 1px solid #dfe5ec; border-radius: 11px; background: #fff; color: inherit; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; }
+.candidateList > button:hover, .candidateList > button.selectedCandidate { border-color: #55aaa1; box-shadow: 0 0 0 2px #e2f5f1; }
+.candidateList button div { min-width: 0; display: grid; gap: 3px; }
+.candidateList button small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.candidateList button strong { white-space: nowrap; }
+.candidateList > p { padding: 36px 12px; color: var(--muted); text-align: center; }
+.zeevOk, .zeevPending { grid-column: 1 / -1; width: max-content; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+.zeevOk { color: #0f766e; background: #eaf7f4; }
+.zeevPending { color: #92400e; background: #fff4d6; }
+.reviewPanel { padding: 22px; }
+.reviewPanel header { display: flex; justify-content: space-between; gap: 16px; }
+.reviewPanel header a { height: max-content; padding: 8px 10px; border: 1px solid #d7dee7; border-radius: 8px; color: #126783; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 750; text-decoration: none; }
+.reviewPanel header a svg { width: 15px; }
+.invoiceMeta { margin: 18px 0; display: grid; grid-template-columns: 1.2fr 1.5fr .8fr; gap: 8px; }
+.invoiceMeta span { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; display: grid; gap: 3px; }
+.invoiceMeta b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.reviewPanel h4 { margin: 18px 0 8px; font-size: 13px; }
+.invoiceItems { max-height: 180px; overflow: auto; display: grid; gap: 6px; }
+.invoiceItems button { padding: 10px; border: 1px solid #dfe5ec; border-radius: 9px; background: #fff; color: inherit; display: flex; justify-content: space-between; gap: 12px; text-align: left; }
+.invoiceItems button.selectedItem { border-color: #55aaa1; background: #f0fbf9; }
+.invoiceItems span { display: grid; gap: 2px; }
+.classification { margin: 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirmButton { margin-left: auto; }
+.reviewEmpty { min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); text-align: center; }
+.reviewEmpty svg { width: 46px; height: 46px; padding: 11px; margin-bottom: 12px; border-radius: 14px; color: #0f766e; background: #eaf7f4; }
+.reviewEmpty b { color: #344054; }
+.reviewEmpty span { margin-top: 5px; font-size: 12px; }
 @media (max-width: 1050px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: 1fr; } }
-@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend, .summaryHeader { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } }
+@media (max-width: 900px) { .acquisitionHeader, .acquisitionSearch { align-items: stretch; flex-direction: column; } .acquisitionSearch label:nth-child(2) input { width: 100%; } .acquisitionGrid { grid-template-columns: 1fr; } .candidateList { border-right: 0; border-bottom: 1px solid var(--line); } }
+@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend, .summaryHeader { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } .invoiceMeta, .classification { grid-template-columns: 1fr; } }
