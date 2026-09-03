@@ -554,11 +554,10 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
     </div>
     <div className="expense-upload">
       <div><span className="eyebrow">PLANILHANET 08 · COMPRAS</span><h2>Análise de despesas</h2><p>Atualize diretamente pelo TOTVS RM ou importe o arquivo como alternativa.</p></div>
-      <div className="expense-actions"><button className="primary" disabled={busy || !accessToken} onClick={() => void refreshPlanilhaNet()}><RefreshCw className={busy ? "spin" : ""} />{busy ? "Atualizando..." : "Atualizar PlanilhaNet 08"}</button><button className="secondary" disabled={!analysis || busy} onClick={exportAnalysis}><Download />Exportar Excel</button><label className="expense-file secondary"><Upload />Importar arquivo<input type="file" accept=".xlsx,.xlsm,.xls" disabled={busy} onChange={(event) => void load(event.target.files?.[0])} /></label></div>
+      <div className="expense-actions"><button className="primary" disabled={busy || !accessToken} onClick={() => void refreshPlanilhaNet()}><RefreshCw className={busy ? "spin" : ""} />{busy ? "Atualizando..." : "Atualizar PlanilhaNet 08"}</button><button className="secondary" disabled={!analysis || busy} onClick={exportAnalysis}><Download />Exportar Excel</button><label className="expense-file secondary"><Upload />Importar arquivo<input type="file" accept=".xlsx,.xlsm,.xls" disabled={busy} onChange={(event) => void load(event.target.files?.[0])} /></label>{analysis && <button className="secondary" disabled={busy} onClick={() => setAnalysis(null)}><RefreshCw />Trocar arquivo</button>}</div>
     </div>
     {error && <div className="notice error"><AlertTriangle />{error}</div>}
     {!analysis ? <div className="expense-empty"><FileSpreadsheet /><b>Aguardando a PlanilhaNet 08</b><span>Coligada {companyCode} · período {periodStart.split("-").reverse().join("/")} a {periodEnd.split("-").reverse().join("/")} · somente contas a débito</span></div> : <>
-      <div className="expense-source"><span>{analysis.fileName}</span><small>{companyCode} — {companyName}</small><button onClick={() => setAnalysis(null)}><RefreshCw />Trocar arquivo</button></div>
       <div className="expense-kpis">
         <article className="target"><span>Despesas {targetLabel}</span><b>{money.format(analysis.targetTotal)}</b></article>
         <article><span>Total da retrospectiva</span><b>{money.format(analysis.periodTotal)}</b></article>
