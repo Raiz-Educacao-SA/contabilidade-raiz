@@ -5,6 +5,7 @@ import test from "node:test";
 const panel = readFileSync(new URL("../app/payroll-batch-reconciliation.tsx", import.meta.url), "utf8");
 const drive = readFileSync(new URL("../app/api/payroll/drive/route.ts", import.meta.url), "utf8");
 const documents = readFileSync(new URL("../app/api/payroll/documents/route.ts", import.meta.url), "utf8");
+const browserDocuments = readFileSync(new URL("../lib/browser-document-extraction.ts", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/payroll-overrides.css", import.meta.url), "utf8");
 const nextConfig = readFileSync(new URL("../next.config.mjs", import.meta.url), "utf8");
@@ -37,9 +38,11 @@ test("permite selecionar a pasta sincronizada sem depender das credenciais do Dr
   assert.match(panel, /Pasta local sincronizada/);
   assert.match(panel, /Chrome ou Microsoft Edge atualizado/);
   assert.match(panel, /CONFERENCIA\.\*LOTE\|ANALISE DE FOLHA/);
-  assert.match(panel, /fetch\("\/api\/payroll\/documents", \{[\s\S]*?authorization: `Bearer \$\{accessToken\}`/);
-  assert.match(panel, /for \(const file of visualFiles\)/);
-  assert.match(panel, /for \(let attempt = 1; attempt <= 2; attempt \+= 1\)/);
+  assert.match(panel, /extractVisualDocumentsInBrowser\(visualFiles, setAnalysisProgress\)/);
+  assert.doesNotMatch(panel, /fetch\("\/api\/payroll\/documents"/);
+  assert.match(browserDocuments, /document\.createElement\("canvas"\)/);
+  assert.match(browserDocuments, /createWorker\("por"\)/);
+  assert.match(browserDocuments, /Lendo \$\{fileIndex \+ 1\} de \$\{files\.length\}/);
 });
 
 test("prepara o runtime gráfico do Node antes de converter PDFs digitalizados", () => {

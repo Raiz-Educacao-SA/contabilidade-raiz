@@ -13,6 +13,7 @@ import {
   PayrollLotRow,
   reconcilePayroll,
 } from "@/lib/payroll-reconciliation";
+import { extractVisualDocumentsInBrowser } from "@/lib/browser-document-extraction";
 
 type Props = { companyCode: string; companyName: string; competence: string; accessToken: string };
 type TotvsLot = { lotCode: string; application: string; records: number; debit: number; credit: number; rows: PayrollLotRow[]; alternatives: string[] };
@@ -39,6 +40,7 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   const [driveMessage, setDriveMessage] = useState("Selecione a pasta da coligada e competência no Drive sincronizado.");
   const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
   const [message, setMessage] = useState("");
+  const [analysisProgress, setAnalysisProgress] = useState("");
   const [actionsHost, setActionsHost] = useState<HTMLElement | null>(null);
 
   const executiveRows = useMemo(() => analysis && lot ? buildExecutiveRows(analysis, lot) : [], [analysis, lot]);
@@ -97,38 +99,18 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
 
   async function runAnalysis() {
     if (!lot || !supportFiles.length) return setMessage("Faça primeiro a leitura do lote no TOTVS e selecione a pasta dos documentos.");
-    setBusy(true); setAnalysis(null); setMessage("");
+    setBusy(true); setAnalysis(null); setMessage(""); setAnalysisProgress("Preparando as planilhas da pasta...");
     try {
       const provisions = await parseProvisionFiles(supportFiles);
       const visualFiles = supportFiles.filter((file) => /\.(pdf|png|jpe?g|webp)$/i.test(file.name));
       let documents: ExtractedDocument[] = await parseSpreadsheetDocuments(supportFiles);
-      for (const file of visualFiles) {
-        const form = new FormData(); form.append("files", file);
-        let lastError: Error | null = null;
-        for (let attempt = 1; attempt <= 2; attempt += 1) {
-          try {
-            const response = await fetch("/api/payroll/documents", {
-              method: "POST",
-              headers: { authorization: `Bearer ${accessToken}` },
-              body: form,
-              cache: "no-store",
-            });
-            const payload = await response.json() as { documents?: ExtractedDocument[]; error?: string };
-            if (!response.ok) throw new Error(payload.error || "O servidor não conseguiu interpretar o documento.");
-            documents = [...documents, ...(payload.documents ?? [])];
-            lastError = null;
-            break;
-          } catch (error) {
-            lastError = error as Error;
-          }
-        }
-        if (lastError) throw new Error(`Não foi possível processar ${file.name}: ${lastError.message}`);
-      }
+      documents = [...documents, ...await extractVisualDocumentsInBrowser(visualFiles, setAnalysisProgress)];
+      setAnalysisProgress("Conferindo lote, encargos, líquidos e provisões...");
       const result = reconcilePayroll(lot.rows, lot.lotCode, documents, provisions, 1, competence);
       setAnalysis(result);
       setMessage(result.canIntegrate ? "Conferência da análise de lote da folha x documentos finalizada; pode integrar o lote." : "Conferência finalizada: pendências a verificar — não integrar o lote neste momento.");
     } catch (error) { setMessage((error as Error).message); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setAnalysisProgress(""); }
   }
 
   function reset() {
@@ -164,7 +146,7 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
     <div className="payroll-command-grid">
       <CommandCard icon={<Database />} title="Lote TOTVS" detail={lotMessage} ready={Boolean(lot)} loading={lotLoading} />
       <CommandCard icon={<FolderOpen />} title="Pasta da Folha" detail={driveMessage} ready={Boolean(drive)} loading={driveLoading} />
-      <CommandCard icon={<Play />} title="Análise da folha" detail={busy ? "Conciliando lote e documentos..." : analysis ? "Análise finalizada para a competência." : "Liberada após as duas leituras."} ready={Boolean(analysis)} loading={busy} />
+      <CommandCard icon={<Play />} title="Análise da folha" detail={busy ? analysisProgress || "Conciliando lote e documentos..." : analysis ? "Análise finalizada para a competência." : "Liberada após as duas leituras."} ready={Boolean(analysis)} loading={busy} />
     </div>
 
     <div className="payroll-command-footer">
