@@ -38,6 +38,8 @@ test("permite selecionar a pasta sincronizada sem depender das credenciais do Dr
   assert.match(panel, /Chrome ou Microsoft Edge atualizado/);
   assert.match(panel, /CONFERENCIA\.\*LOTE\|ANALISE DE FOLHA/);
   assert.match(panel, /fetch\("\/api\/payroll\/documents", \{[\s\S]*?authorization: `Bearer \$\{accessToken\}`/);
+  assert.match(panel, /for \(const file of visualFiles\)/);
+  assert.match(panel, /for \(let attempt = 1; attempt <= 2; attempt \+= 1\)/);
 });
 
 test("prepara o runtime gráfico do Node antes de converter PDFs digitalizados", () => {

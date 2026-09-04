@@ -102,16 +102,27 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
       const provisions = await parseProvisionFiles(supportFiles);
       const visualFiles = supportFiles.filter((file) => /\.(pdf|png|jpe?g|webp)$/i.test(file.name));
       let documents: ExtractedDocument[] = await parseSpreadsheetDocuments(supportFiles);
-      if (visualFiles.length) {
-        const form = new FormData(); visualFiles.forEach((file) => form.append("files", file));
-        const response = await fetch("/api/payroll/documents", {
-          method: "POST",
-          headers: { authorization: `Bearer ${accessToken}` },
-          body: form,
-        });
-        const payload = await response.json() as { documents?: ExtractedDocument[]; error?: string };
-        if (!response.ok) throw new Error(payload.error || "Não foi possível interpretar os documentos do DP.");
-        documents = [...documents, ...(payload.documents ?? [])];
+      for (const file of visualFiles) {
+        const form = new FormData(); form.append("files", file);
+        let lastError: Error | null = null;
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
+          try {
+            const response = await fetch("/api/payroll/documents", {
+              method: "POST",
+              headers: { authorization: `Bearer ${accessToken}` },
+              body: form,
+              cache: "no-store",
+            });
+            const payload = await response.json() as { documents?: ExtractedDocument[]; error?: string };
+            if (!response.ok) throw new Error(payload.error || "O servidor não conseguiu interpretar o documento.");
+            documents = [...documents, ...(payload.documents ?? [])];
+            lastError = null;
+            break;
+          } catch (error) {
+            lastError = error as Error;
+          }
+        }
+        if (lastError) throw new Error(`Não foi possível processar ${file.name}: ${lastError.message}`);
       }
       const result = reconcilePayroll(lot.rows, lot.lotCode, documents, provisions, 1, competence);
       setAnalysis(result);
