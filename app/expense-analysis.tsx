@@ -182,7 +182,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
   const targetMonth = periodEnd.slice(0, 7);
   const targetLabel = `${targetMonth.slice(5, 7)}/${targetMonth.slice(0, 4)}`;
   const divergences = useMemo(() => analysis?.rows.filter((row) => row.comment.includes("Divergência")).length ?? 0, [analysis]);
-  const assets = useMemo(() => analysis?.rows.filter((row) => ? "Ativo Imobilizado — Validar Capitalização").length ?? 0, [analysis]);
+  const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<string>(), cancelledMovementIds: new Set<string>() };
   const detailRecords = useMemo(() => {
     if (!analysis || !detail) return [];
     return analysis.records.filter((record) => {
@@ -289,7 +289,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         if (!movementId || !movementNumber) continue;
         const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
         const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), numberValue(record.VALOR).toFixed(2)].join("\u001f");
-        const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<stringrow.account.startsWith("1.2.3") && target > 0row.account.startsWith("1.2.3") && target > 0>(), cancelledMovementIds: new Set<string>() };
+        const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<stringrconst assets = useMemo(() => analysis?.rows.filter((row) => row.comment =: row.account.startsWit? "Ativo Imobilizado — Validar Capitalização"("1.2.3") && target > 0== "Ativo Imobilizado — Validar Capitalização").length ?? 0, [analysis]);ow.account.startsWith("1.2.3") && target > 0row.account.startsWith("1.2.3") && target > 0>(), cancelledMovementIds: new Set<string>() };
         candidate.movementIds.add(movementId);
         candidate.movementNumbers.add(normalized(movementNumber));
         if (document.cancelled) candidate.cancelledMovementIds.add(movementId);
