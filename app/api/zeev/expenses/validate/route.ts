@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { zeevTokenForUser } from "@/lib/server/zeev-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -30,11 +31,14 @@ async function authenticated(request: NextRequest) {
   const authorization = request.headers.get("authorization");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!authorization || !url || !key) return false;
-  return (await fetch(`${url}/auth/v1/user`, {
+  if (!authorization || !url || !key) return null;
+  const response = await fetch(`${url}/auth/v1/user`, {
     headers: { authorization, apikey: key },
     cache: "no-store",
-  })).ok;
+  });
+  if (!response.ok) return null;
+  const user = await response.json();
+  return String(user?.email || "").trim().toLowerCase() || null;
 }
 
 const normalized = (value: unknown) => String(value ?? "")
@@ -141,7 +145,8 @@ async function consultTicket(baseUrl: string, token: string, ticket: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!await authenticated(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
+    const email = await authenticated(request);
+    if (!email) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const body = await request.json();
     const tickets = [...new Set((Array.isArray(body?.tickets) ? body.tickets : [])
       .map((item: unknown) => String(item || "").trim())
@@ -149,7 +154,7 @@ export async function POST(request: NextRequest) {
     if (!tickets.length) return NextResponse.json({ validations: [] });
 
     const baseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
-    const token = process.env.ZEEV_INTEGRATION_TOKEN || process.env.ZEEV_API_TOKEN;
+    const token = await zeevTokenForUser(baseUrl, email);
     if (!token) return NextResponse.json({ error: "Integração técnica do Zeev não configurada." }, { status: 503 });
 
     const validations: Awaited<ReturnType<typeof consultTicket>>[] = [];

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseNfeOcr, parseNfeXml } from "@/lib/nfe-items";
 import { authenticatedCorporateUser } from "@/lib/server/supabase-access";
+import { zeevRequest, zeevTokenForUser } from "@/lib/server/zeev-auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -39,16 +40,17 @@ async function download(baseUrl: string, token: string, document: DocumentLink) 
 
 export async function GET(request: NextRequest) {
   try {
-    if (!await authenticatedCorporateUser(request)) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
+    const user = await authenticatedCorporateUser(request);
+    if (!user?.email) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const ticket = request.nextUrl.searchParams.get("ticket")?.trim() || "";
     const invoiceKey = digits(request.nextUrl.searchParams.get("invoiceKey") || "");
     const invoiceNumber = digits(request.nextUrl.searchParams.get("invoiceNumber") || "");
     if (!/^\d+$/.test(ticket)) return NextResponse.json({ error: "Ticket Zeev inválido." }, { status: 400 });
     const baseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
-    const token = process.env.ZEEV_INTEGRATION_TOKEN || process.env.ZEEV_API_TOKEN;
+    const token = await zeevTokenForUser(baseUrl, user.email);
     if (!token) return NextResponse.json({ error: "Integração técnica do Zeev não configurada." }, { status: 503 });
     const query = new URLSearchParams({ showPendingInstanceTasks: "true", showFinishedInstanceTasks: "true", allowOpenUrlsForFilesInForm: "true" });
-    const instanceResponse = await fetch(`${baseUrl}/api/2/instances/${encodeURIComponent(ticket)}?${query}`, { headers: { authorization: `Bearer ${token}`, accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(50_000) });
+    const instanceResponse = await zeevRequest(baseUrl, token, `/api/2/instances/${encodeURIComponent(ticket)}?${query}`);
     if (!instanceResponse.ok) throw new Error(`O Zeev recusou a consulta do ticket (${instanceResponse.status}).`);
     const documents = collectDocuments(await instanceResponse.json()).sort((a, b) => documentScore(b, invoiceKey, invoiceNumber) - documentScore(a, invoiceKey, invoiceNumber));
     for (const document of documents.slice(0, 12)) {

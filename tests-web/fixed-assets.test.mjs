@@ -21,6 +21,8 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /Descrição do produto\/serviço/);
   assert.match(panel, /CST\/CSOSN/);
   assert.match(panel, /\/api\/zeev\/invoice-items/);
+  assert.match(panel, /Nenhuma descrição provisória será usada/);
+  assert.doesNotMatch(panel, /description: selected\.zeev\?\.invoiceDescription \|\| selected\.COMPLEMENTO/);
   assert.match(panel, /Nota explicativa/);
   assert.match(panel, /Buscar bem, conta, filial ou NF/);
   assert.match(panel, /Depreciação acumulada/);
