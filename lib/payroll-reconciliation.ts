@@ -257,6 +257,10 @@ function lotEventValue(rows: PayrollLotRow[], codes: string[]) {
   return Math.max(debit, credit);
 }
 
+function accountEventValue(rows: PayrollLotRow[], account: string, codes: string[]) {
+  return lotEventValue(rows.filter((row) => row.account === account), codes);
+}
+
 function looseOcrNumber(value: string) {
   if (/[,\.]/.test(value)) return Math.abs(parseMoney(value));
   const digits = value.replace(/\D/g, "");
@@ -369,33 +373,28 @@ function check(group: PayrollCheck["group"], item: string, account: string, even
 export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documents: ExtractedDocument[], provisions: Map<string, number>, tolerance = 1, competence = ""): PayrollAnalysis {
   const folha = findDocument(documents, [/FOLHA.*ANALITICA/, /RESUMO.*FOLHA/]);
   const dctf = findDocument(documents, [/GUIA.*DCTF/, /DCTFWEB.*COL/]) ?? findDocument(documents, [/DCTF/]);
-  const currentIrrfLot = findIrrfLotDocument(documents, false);
   const previousIrrfLot = findIrrfLotDocument(documents, true);
   const fgtsDocs = documents.filter((document) => /FGTS/.test(normalized(`${document.name} ${document.text.slice(0, 800)}`)));
   const folhaText = folha?.text ?? "";
   const dctfText = dctf?.text ?? "";
   const liquidGeneral = valueAcrossMax(folhaText, [/\bLIQUIDO\b/]);
-  const rpaDocument = (() => {
-    const honorarium = eventValueMax(folhaText, ["0074"], ["HONORARIOS AUTONOMOS"]);
-    const individualInss = eventValueMax(folhaText, ["0085"], ["INSS CONTRIB INDIVIDUAL"]);
-    const autonomousIrrf = eventValueMax(folhaText, ["0084"], ["IRRF PRO.LABORE", "IRRF AUTONOMOS"]);
-    return honorarium === null ? null : roundMoney(honorarium - (individualInss ?? 0) - (autonomousIrrf ?? 0));
-  })();
-  const salaryDocument = liquidGeneral === null ? null : roundMoney(liquidGeneral - (rpaDocument ?? 0));
-  const terminationDocument = eventValueMax(folhaText, ["0150"], ["LIQUIDO.*RESCISAO"]);
-  const vacationDocument = eventValueMax(folhaText, ["0043"], ["LIQUIDO.*FERIAS"]) ?? (folha && /0 EMPREGADOS.*FERIAS/.test(normalized(folhaText)) ? 0 : null);
-  const salaryAdvanceLot = lotEventValue(rows, ["EV9130", "EV0034", "EV0020"]) ?? accountValue(rows, ACCOUNTS.salaryAdvance);
-  const salaryAdvanceDocument = eventValueMax(folhaText, ["9130", "0034", "0020"], ["ADIANTAMENTO SALARIAL", "ADIANTAMENTO SALDO DEVEDOR"]);
-  const thirteenthAdvanceLot = lotEventValue(rows, ["EV0009"]) ?? accountValue(rows, ACCOUNTS.thirteenthAdvance);
-  const thirteenthAdvanceDocument = eventValueMax(folhaText, ["0009"]) ?? (thirteenthAdvanceLot === 0 ? 0 : null);
-  const checks: PayrollCheck[] = [
-    check("Líquidos", "Líquido salarial", ACCOUNTS.salary, "EN0002", accountValue(rows, ACCOUNTS.salary), salaryDocument, tolerance, folha?.name ?? "Folha Analítica não identificada"),
-    check("Líquidos", "Líquido de RPA", ACCOUNTS.rpa, "EN0020", accountValue(rows, ACCOUNTS.rpa), rpaDocument, tolerance, folha?.name ?? "Folha Analítica não identificada"),
-    check("Líquidos", "Líquido de rescisão", ACCOUNTS.termination, "EV0150", accountValue(rows, ACCOUNTS.termination), terminationDocument, tolerance, folha?.name ?? "Folha Analítica não identificada"),
-    check("Líquidos", "Líquido de férias", ACCOUNTS.vacationLiquid, "EV0043", accountValue(rows, ACCOUNTS.vacationLiquid), vacationDocument ?? (accountValue(rows, ACCOUNTS.vacationLiquid) === 0 ? 0 : null), tolerance, folha?.name ?? "Folha Analítica não identificada"),
-    check("Líquidos", "Adiantamento salarial", ACCOUNTS.salaryAdvance, "EV9130/EV0034/EV0020", salaryAdvanceLot, salaryAdvanceDocument ?? (salaryAdvanceLot === 0 ? 0 : null), tolerance, folha?.name ?? "Folha Analítica não identificada"),
-    check("Líquidos", "Adiantamento de 13º salário", ACCOUNTS.thirteenthAdvance, "EV0009", thirteenthAdvanceLot, thirteenthAdvanceDocument, tolerance, folha?.name ?? "Folha Analítica não identificada"),
-  ];
+  const liquidLot = lotEventValue(rows, ["EN0002"]);
+  const liquidCheck = check(
+    "Líquidos",
+    "Líquido da folha",
+    ACCOUNTS.salary,
+    "EN0002",
+    liquidLot ?? 0,
+    liquidGeneral,
+    tolerance,
+    folha?.name ?? "Folha Analítica não identificada",
+    "O evento EN0002 do lote deve conferir com o total Líquido apresentado no TOTAL GERAL da Folha Analítica.",
+  );
+  if (liquidLot === null) {
+    liquidCheck.status = "PENDENTE";
+    liquidCheck.note = "Evento EN0002 não identificado no lote. " + liquidCheck.note;
+  }
+  const checks: PayrollCheck[] = [liquidCheck];
 
   const insured = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA SEGURADOS/]);
   const employer = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA PATRONAL/]);
@@ -408,14 +407,24 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   const inssLot = Math.abs(accountMovement(rows, ACCOUNTS.inss));
   checks.push(check("INSS", "INSS ajustado x lote", ACCOUNTS.inss, "DCTFWeb - EV0130 + EV0131", inssLot, adjustedGuide, tolerance, dctf?.name ?? "DCTFWeb não identificada", "Guia previdenciária sem o código 1162, menos o evento 130 e mais o evento 131 da Folha Analítica."));
   const fgtsDocument = fgtsDocs.length ? fgtsDocs.reduce((sum, document) => sum + (fgtsDocumentValue(document, competence) ?? 0), 0) : null;
-  checks.push(check("FGTS", "FGTS mensal e rescisório", ACCOUNTS.fgts, "Guias FGTS", Math.abs(accountMovement(rows, ACCOUNTS.fgts)), fgtsDocument, Math.max(tolerance, 40), fgtsDocs.map((doc) => doc.name).join(" + ") || "Guias FGTS não identificadas", "Tolerância específica do FGTS: até R$ 40,00."));
+  checks.push(check("FGTS", "FGTS a recolher — lote x guias", ACCOUNTS.fgts, "Guias FGTS", Math.abs(accountMovement(rows, ACCOUNTS.fgts)), fgtsDocument, Math.max(tolerance, 40), fgtsDocs.map((doc) => doc.name).join(" + ") || "Guias FGTS não identificadas", "Conta passiva de FGTS a recolher: 2.1.2.01.03.02. Tolerância específica: até R$ 40,00."));
+
+  const irrfEventCodes = ["EV0084", "EV0004", "EV0049", "EV0030"];
   const irrfLot = Math.abs(accountMovement(rows, ACCOUNTS.irrf));
-  const currentIrrf0561 = (() => {
-    const salaryIrrf = eventValueMax(folhaText, ["0004"], ["IRRF$"]);
-    const vacationIrrf = eventValueMax(folhaText, ["0030"], ["IRRF FERIAS"]);
-    return salaryIrrf === null && vacationIrrf === null ? spreadsheetCodeValue(currentIrrfLot?.text ?? "", "0561") : (salaryIrrf ?? 0) + (vacationIrrf ?? 0);
-  })();
-  checks.push(check("IRRF", "IRRF 0561 — lançamento do lote", ACCOUNTS.irrf, "0004 + 0030", irrfLot, currentIrrf0561, tolerance, folha?.name ?? currentIrrfLot?.name ?? "Composição atual do IRRF não identificada", "Confere o IRRF salarial e o IRRF de férias contabilizados na competência."));
+  const irrfEvents = accountEventValue(rows, ACCOUNTS.irrf, irrfEventCodes) ?? lotEventValue(rows, irrfEventCodes);
+  const irrfPostingCheck = check(
+    "IRRF",
+    "IRRF contabilizado x eventos do lote",
+    ACCOUNTS.irrf,
+    irrfEventCodes.join(" + "),
+    irrfLot,
+    irrfEvents,
+    tolerance,
+    "Lote contábil TOTVS",
+    "Composição: EV0084 — IRRF pró-labore/autônomos; EV0004 — IRRF; EV0049 — IRRF 13º salário; EV0030 — IRRF férias. A Folha Analítica não é a fonte desta conferência.",
+  );
+  if (irrfEvents === null) irrfPostingCheck.status = "PENDENTE";
+  checks.push(irrfPostingCheck);
 
   const dueIrrf0561 = spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0561");
   const guideIrrf0561 = eventValue(dctfText, ["0561"]);

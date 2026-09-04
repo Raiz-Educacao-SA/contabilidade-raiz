@@ -206,7 +206,7 @@ function buildExecutiveRows(analysis: PayrollAnalysis, lot: TotvsLot): Executive
   const checkRows = (group: PayrollCheck["group"]) => analysis.checks.filter((row) => row.group === group).map((row) => ({ item: row.item, lot: row.lot, document: row.document, tolerance: group === "FGTS" ? 40 : 1, status: row.status, impact: row.status === "INFORMATIVO" ? "Acompanhamento" : group === "Provisões" ? "Conforme movimento" : "Bloqueante", note: row.note || row.source }));
   return [
     { item: "Equilíbrio do lote", lot: lot.debit, document: lot.credit, tolerance: .01, status: Math.abs(lot.debit - lot.credit) <= .01 ? "OK" : "PENDENTE", impact: "Bloqueante", note: `Lote ${lot.lotCode}: débitos e créditos.` },
-    { item: "Líquidos da folha", lot: liquids.lot, document: liquids.document, tolerance: 1, status: liquids.status, impact: "Bloqueante", note: "Salários, férias, rescisões, RPA e adiantamentos." },
+    { item: "Líquido da folha — EN0002", lot: liquids.lot, document: liquids.document, tolerance: 1, status: liquids.status, impact: "Bloqueante", note: "Evento EN0002 do lote x total Líquido da Folha Analítica." },
     ...checkRows("INSS"), ...checkRows("FGTS"), ...checkRows("IRRF"),
     { item: "Provisões — movimentação do mês", lot: provisions.lot, document: provisions.document, tolerance: 1, status: provisions.status, impact: "Bloqueia somente divergência do movimento", note: "Férias e 13º: principal, FGTS e INSS." },
   ];

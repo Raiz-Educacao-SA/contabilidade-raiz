@@ -8,7 +8,8 @@ const row = (account, credit, event = "", complement = "") => ({ account, descri
 test("compõe o INSS sem 1162 e aplica os eventos 130 negativo e 131 positivo", () => {
   const rows = [
     row("2.1.2.01.03.01", 486321.35),
-    row("2.1.4.01.02.02", 29649.10),
+    row("2.1.4.01.02.02", 26478.72, "EV0004"),
+    row("2.1.4.01.02.02", 3170.38, "EV0030"),
   ];
   const documents = [
     { name: "FolhaAnalitica_08.pdf", text: [
@@ -41,9 +42,44 @@ test("compõe o INSS sem 1162 e aplica os eventos 130 negativo e 131 positivo", 
   assert.equal(irrf0588?.document, 0);
   assert.equal(irrf0588?.status, "PENDENTE");
 
-  const irrf0561Lot = analysis.checks.find((item) => item.item === "IRRF 0561 — lançamento do lote");
-  assert.ok(Math.abs((irrf0561Lot?.document ?? 0) - 29649.10) < 0.001);
-  assert.equal(irrf0561Lot?.status, "OK");
+  const irrfPosting = analysis.checks.find((item) => item.item === "IRRF contabilizado x eventos do lote");
+  assert.ok(Math.abs((irrfPosting?.document ?? 0) - 29649.10) < 0.001);
+  assert.equal(irrfPosting?.account, "2.1.4.01.02.02");
+  assert.equal(irrfPosting?.status, "OK");
+});
+
+test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo EN0002", () => {
+  const rows = [
+    row("2.1.2.01.01.01", 4331.20, "EN0002"),
+    row("2.1.2.01.03.02", 1500, ""),
+    row("2.1.4.01.02.02", 100, "EV0084"),
+    row("2.1.4.01.02.02", 200, "EV0004"),
+    row("2.1.4.01.02.02", 300, "EV0049"),
+    row("2.1.4.01.02.02", 400, "EV0030"),
+  ];
+  const documents = [
+    { name: "FolhaAnalitica.pdf", text: "TOTAL GERAL\n1.990,22 Líquido 4.331,20\n0004 IRRF 999.999,99" },
+    { name: "Guia FGTS.pdf", text: "VALOR A RECOLHER 1.500,00" },
+  ];
+
+  const analysis = reconcilePayroll(rows, "28082026", documents, new Map(), 1, "2026-08");
+  const liquid = analysis.checks.find((item) => item.item === "Líquido da folha");
+  assert.equal(liquid?.event, "EN0002");
+  assert.equal(liquid?.lot, 4331.20);
+  assert.equal(liquid?.document, 4331.20);
+  assert.equal(liquid?.status, "OK");
+
+  const fgts = analysis.checks.find((item) => item.item === "FGTS a recolher — lote x guias");
+  assert.equal(fgts?.account, "2.1.2.01.03.02");
+  assert.equal(fgts?.lot, 1500);
+  assert.equal(fgts?.document, 1500);
+  assert.equal(fgts?.status, "OK");
+
+  const irrf = analysis.checks.find((item) => item.item === "IRRF contabilizado x eventos do lote");
+  assert.equal(irrf?.lot, 1000);
+  assert.equal(irrf?.document, 1000);
+  assert.equal(irrf?.status, "OK");
+  assert.match(irrf?.event ?? "", /EV0084.*EV0004.*EV0049.*EV0030/);
 });
 
 test("mantém filtros de coligada e competência e exportação segregada", () => {
