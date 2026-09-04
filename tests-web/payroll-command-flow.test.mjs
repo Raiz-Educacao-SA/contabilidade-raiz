@@ -4,6 +4,7 @@ import test from "node:test";
 
 const panel = readFileSync(new URL("../app/payroll-batch-reconciliation.tsx", import.meta.url), "utf8");
 const drive = readFileSync(new URL("../app/api/payroll/drive/route.ts", import.meta.url), "utf8");
+const documents = readFileSync(new URL("../app/api/payroll/documents/route.ts", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/payroll-overrides.css", import.meta.url), "utf8");
 
@@ -36,6 +37,12 @@ test("permite selecionar a pasta sincronizada sem depender das credenciais do Dr
   assert.match(panel, /Chrome ou Microsoft Edge atualizado/);
   assert.match(panel, /CONFERENCIA\.\*LOTE\|ANALISE DE FOLHA/);
   assert.match(panel, /fetch\("\/api\/payroll\/documents", \{[\s\S]*?authorization: `Bearer \$\{accessToken\}`/);
+});
+
+test("prepara o runtime gráfico do Node antes de converter PDFs digitalizados", () => {
+  assert.match(documents, /import\("@napi-rs\/canvas"\)/);
+  assert.match(documents, /runtime\.DOMMatrix \?\?= canvas\.DOMMatrix/);
+  assert.ok(documents.indexOf("await preparePdfRuntime();") < documents.indexOf('await import("pdf-to-img")'));
 });
 
 test("o painel da Folha mantém ações e finalização na mesma linha e compacta os três cards", () => {

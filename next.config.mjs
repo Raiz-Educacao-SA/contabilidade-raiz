@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["pdf-to-img", "tesseract.js"],
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-to-img", "tesseract.js"],
 };
 
 export default nextConfig;

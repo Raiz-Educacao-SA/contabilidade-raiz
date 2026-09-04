@@ -6,7 +6,17 @@ export const maxDuration = 300;
 
 const accepted = /\.(pdf|png|jpe?g|webp)$/i;
 
+async function preparePdfRuntime() {
+  const runtime = globalThis as unknown as { DOMMatrix?: unknown; ImageData?: unknown; Path2D?: unknown };
+  if (runtime.DOMMatrix && runtime.ImageData && runtime.Path2D) return;
+  const canvas = await import("@napi-rs/canvas");
+  runtime.DOMMatrix ??= canvas.DOMMatrix;
+  runtime.ImageData ??= canvas.ImageData;
+  runtime.Path2D ??= canvas.Path2D;
+}
+
 async function extractPdfText(buffer: Buffer) {
+  await preparePdfRuntime();
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const document = await getDocument({ data: new Uint8Array(buffer), useSystemFonts: true, disableFontFace: true }).promise;
   const pages: string[] = [];
@@ -33,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (!files.length) return NextResponse.json({ documents: [] });
     if (files.length > 80) return NextResponse.json({ error: "Foram localizados mais de 80 documentos. Revise a pasta da competência no Drive." }, { status: 400 });
 
-    const [{ pdf }, { createWorker }] = await Promise.all([import("pdf-to-img"), import("tesseract.js")]);
+    const { createWorker } = await import("tesseract.js");
     let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
     const recognize = async (image: Buffer | Uint8Array) => {
       worker ??= await createWorker("por", 1, { cachePath: process.env.VERCEL ? "/tmp" : tmpdir() });
@@ -49,6 +59,8 @@ export async function POST(request: NextRequest) {
           const embeddedText = await extractPdfText(buffer);
           if (embeddedText.replace(/\s/g, "").length > 80) pages.push(embeddedText);
           else {
+            await preparePdfRuntime();
+            const { pdf } = await import("pdf-to-img");
             const document = await pdf(buffer, { scale: 2 });
             for await (const image of document) pages.push(await recognize(image));
           }
