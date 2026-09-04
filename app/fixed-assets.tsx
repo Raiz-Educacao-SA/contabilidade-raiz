@@ -43,7 +43,7 @@ type FixedAssetsData = {
 };
 
 type AssetGroup = { id: string; codigo: string; descricao: string; vida_util_contabil_meses: number; vida_util_fiscal_meses: number | null; percentual_residual: number; depreciavel: boolean };
-type InvoiceItem = { description: string; quantity: number; unitValue: number; total: number };
+type InvoiceItem = { code?: string; description: string; ncm?: string; cst?: string; cfop?: string; unit?: string; quantity: number; unitValue: number; total: number; icmsBase?: number; icmsValue?: number; ipiValue?: number; icmsRate?: number; ipiRate?: number };
 type Acquisition = {
   CODFILIAL: string; IDMOV: string; NUMEROMOV: string; DATAEMISSAO: string; DATASAIDA: string;
   TICKET: string; DEBITO: string; DESCRICAO: string; VALOR: number; CODCCUSTO: string;
@@ -98,6 +98,9 @@ export default function FixedAssetsPanel({
   const [assetDescription, setAssetDescription] = useState("");
   const [acquisitionBusy, setAcquisitionBusy] = useState(false);
   const [acquisitionMessage, setAcquisitionMessage] = useState("");
+  const [invoiceItemsBusy, setInvoiceItemsBusy] = useState(false);
+  const [invoiceItemsInfo, setInvoiceItemsInfo] = useState("");
+  const [invoiceItemsVerified, setInvoiceItemsVerified] = useState(false);
   const loadData = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch(`/api/fixed-assets?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
       headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
@@ -154,11 +157,26 @@ export default function FixedAssetsPanel({
     finally { setAcquisitionBusy(false); }
   }
 
-  function reviewAcquisition(row: Acquisition) {
+  async function reviewAcquisition(row: Acquisition) {
     const item = row.zeev?.items?.[0];
     setSelected(row); setSelectedItem(0); setGroupId(data?.groups?.find((group) => group.codigo === row.DEBITO)?.id ?? "");
     setAssetDescription(item?.description || row.zeev?.invoiceDescription || row.COMPLEMENTO || row.DESCRICAO || "");
-    setAcquisitionMessage("");
+    setAcquisitionMessage(""); setInvoiceItemsInfo(""); setInvoiceItemsVerified(false);
+    if (!row.TICKET) return setInvoiceItemsInfo("O movimento não possui ticket Zeev para leitura do documento.");
+    setInvoiceItemsBusy(true);
+    try {
+      const response = await fetch(`/api/zeev/invoice-items?ticket=${encodeURIComponent(row.TICKET)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Não foi possível ler os itens da NF.");
+      const detailedItems: InvoiceItem[] = payload.items ?? [];
+      if (detailedItems.length) {
+        setSelected({ ...row, zeev: { ...row.zeev, found: row.zeev?.found ?? true, items: detailedItems } });
+        setAssetDescription(detailedItems[0].description);
+        setInvoiceItemsVerified(true);
+      }
+      setInvoiceItemsInfo(`${payload.source || "Zeev"}${payload.documentName ? ` · ${payload.documentName}` : ""}${payload.warning ? ` — ${payload.warning}` : ""}`);
+    } catch (cause) { setInvoiceItemsInfo(cause instanceof Error ? cause.message : "Falha ao ler os itens da NF."); }
+    finally { setInvoiceItemsBusy(false); }
   }
 
   async function confirmAcquisition() {
@@ -232,12 +250,12 @@ export default function FixedAssetsPanel({
           <div className={styles.acquisitionHeader}><div><span>COMPRAS · TOTVS RM + ZEEV</span><h2>Nova aquisição</h2><small>Pesquise o período, valide a nota fiscal e confirme cada bem.</small></div><div className={styles.acquisitionSearch}><label>Competência<input value={competence} disabled /></label><label>Lote ou movimento<input value={lot} onChange={(event) => setLot(event.target.value)} placeholder="Opcional: IDMOV, nº movimento ou ticket" /></label><button onClick={() => void searchAcquisitions()} disabled={acquisitionBusy}><Search />{acquisitionBusy ? "Pesquisando…" : "Pesquisar aquisições"}</button></div></div>
           {acquisitionMessage && <div className={styles.notice}>{acquisitionMessage}</div>}
           <div className={styles.acquisitionGrid}>
-            <div className={styles.candidateList}><h3>Candidatas do período <span>{acquisitions.length}</span></h3>{acquisitions.map((row) => <button key={`${row.IDMOV}-${row.DEBITO}`} className={selected?.IDMOV === row.IDMOV ? styles.selectedCandidate : ""} onClick={() => reviewAcquisition(row)}><div><b>{row.NOMEFANTASIA || "Fornecedor não informado"}</b><small>Mov. {row.NUMEROMOV || row.IDMOV} · Filial {row.CODFILIAL} · Conta {row.DEBITO}</small></div><strong>{currency.format(Number(row.VALOR))}</strong><span className={row.zeev?.found && !row.zeev.cancelled ? styles.zeevOk : styles.zeevPending}>{row.zeev?.cancelled ? "Cancelada" : row.zeev?.found ? "NF localizada" : "Validar NF"}</span></button>)}{!acquisitions.length && <p>Faça a pesquisa para listar movimentos em contas patrimoniais.</p>}</div>
+            <div className={styles.candidateList}><h3>Candidatas do período <span>{acquisitions.length}</span></h3>{acquisitions.map((row) => <button key={`${row.IDMOV}-${row.DEBITO}`} className={selected?.IDMOV === row.IDMOV ? styles.selectedCandidate : ""} onClick={() => void reviewAcquisition(row)}><div><b>{row.NOMEFANTASIA || "Fornecedor não informado"}</b><small>Mov. {row.NUMEROMOV || row.IDMOV} · Filial {row.CODFILIAL} · Conta {row.DEBITO}</small></div><strong>{currency.format(Number(row.VALOR))}</strong><span className={row.zeev?.found && !row.zeev.cancelled ? styles.zeevOk : styles.zeevPending}>{row.zeev?.cancelled ? "Cancelada" : row.zeev?.found ? "NF localizada" : "Validar NF"}</span></button>)}{!acquisitions.length && <p>Faça a pesquisa para listar movimentos em contas patrimoniais.</p>}</div>
               <div className={styles.reviewPanel}>{selected ? <><header><div><span>VALIDAÇÃO DA NOTA</span><h3>NF {selected.zeev?.invoiceNumber || selected.NUMEROMOV || "não identificada"}</h3><small>Zeev {selected.TICKET || "sem ticket"} · IDMOV {selected.IDMOV}</small></div>{selected.TICKET && <a href={`https://raizeducacao.zeev.it/1.0/audit?c=${encodeURIComponent(selected.TICKET)}`} target="_blank" rel="noreferrer"><ExternalLink /> Abrir nota</a>}</header>
               <div className={styles.invoiceMeta}><span><small>Fornecedor</small><b>{selected.zeev?.supplier || selected.NOMEFANTASIA}</b></span><span><small>Chave da NF</small><b>{selected.zeev?.invoiceKey || "Não informada"}</b></span><span><small>Valor do movimento</small><b>{currency.format(Number(selected.VALOR))}</b></span></div>
-              <h4>Itens da nota fiscal</h4><div className={styles.invoiceItems}>{(selected.zeev?.items?.length ? selected.zeev.items : [{ description: selected.zeev?.invoiceDescription || selected.COMPLEMENTO || selected.DESCRICAO, quantity: 1, unitValue: Number(selected.VALOR), total: Number(selected.VALOR) }]).map((item, index) => <button key={`${item.description}-${index}`} className={selectedItem === index ? styles.selectedItem : ""} onClick={() => { setSelectedItem(index); setAssetDescription(item.description); }}><span>{item.description || "Item conforme documento"}<small>{item.quantity} × {currency.format(item.unitValue || item.total)}</small></span><b>{currency.format(item.total || Number(selected.VALOR))}</b></button>)}</div>
+              <div className={styles.itemsTitle}><h4>Itens da nota fiscal</h4><small>{invoiceItemsBusy ? "Lendo o documento no Zeev…" : invoiceItemsInfo}</small></div><div className={styles.invoiceItems}><table><thead><tr><th>Código</th><th>Descrição do produto/serviço</th><th>NCM</th><th>CST/CSOSN</th><th>CFOP</th><th>Unid.</th><th>Qtd.</th><th>Vlr. unit.</th><th>Vlr. total</th><th>BC ICMS</th><th>Vlr. ICMS</th><th>Vlr. IPI</th><th>Alíq. ICMS</th><th>Alíq. IPI</th></tr></thead><tbody>{(selected.zeev?.items?.length ? selected.zeev.items : [{ description: selected.zeev?.invoiceDescription || selected.COMPLEMENTO || selected.DESCRICAO, quantity: 1, unitValue: Number(selected.VALOR), total: Number(selected.VALOR) }]).map((item, index) => <tr key={`${item.code || item.description}-${index}`} className={selectedItem === index ? styles.selectedItem : ""} onClick={() => { setSelectedItem(index); setAssetDescription(item.description); }}><td>{item.code || "—"}</td><td><b>{item.description || "Item conforme documento"}</b></td><td>{item.ncm || "—"}</td><td>{item.cst || "—"}</td><td>{item.cfop || "—"}</td><td>{item.unit || "—"}</td><td className={styles.numeric}>{decimal.format(item.quantity)}</td><td className={styles.numeric}>{currency.format(item.unitValue || 0)}</td><td className={styles.numeric}>{currency.format(item.total || Number(selected.VALOR))}</td><td className={styles.numeric}>{amount(item.icmsBase || 0)}</td><td className={styles.numeric}>{amount(item.icmsValue || 0)}</td><td className={styles.numeric}>{amount(item.ipiValue || 0)}</td><td className={styles.numeric}>{item.icmsRate ? `${decimal.format(item.icmsRate)}%` : "—"}</td><td className={styles.numeric}>{item.ipiRate ? `${decimal.format(item.ipiRate)}%` : "—"}</td></tr>)}</tbody></table></div>
               <div className={styles.classification}><label>Descrição do bem<input value={assetDescription} onChange={(event) => setAssetDescription(event.target.value)} /></label><label>Classificação patrimonial<select value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Selecione ou altere a classificação</option>{(data?.groups ?? []).map((group) => <option key={group.id} value={group.id}>{group.codigo} — {group.descricao}</option>)}</select></label></div>
-              <button className={styles.confirmButton} disabled={!canWrite || acquisitionBusy || !groupId || !assetDescription.trim() || selected.zeev?.cancelled} onClick={() => void confirmAcquisition()}><CheckCircle2 />Confirmar e incluir no cadastro de bens</button>
+              <button className={styles.confirmButton} disabled={!canWrite || acquisitionBusy || invoiceItemsBusy || !invoiceItemsVerified || !groupId || !assetDescription.trim() || selected.zeev?.cancelled} onClick={() => void confirmAcquisition()}><CheckCircle2 />Confirmar e incluir no cadastro de bens</button>
             </> : <div className={styles.reviewEmpty}><ReceiptText /><b>Selecione uma aquisição</b><span>A nota, os itens e a classificação aparecerão aqui para validação.</span></div>}</div>
           </div>
         </div>

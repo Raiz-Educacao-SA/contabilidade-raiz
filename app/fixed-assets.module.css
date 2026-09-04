@@ -120,11 +120,16 @@
 .invoiceMeta { margin: 18px 0; display: grid; grid-template-columns: 1.2fr 1.5fr .8fr; gap: 8px; }
 .invoiceMeta span { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; display: grid; gap: 3px; }
 .invoiceMeta b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.reviewPanel h4 { margin: 18px 0 8px; font-size: 13px; }
-.invoiceItems { max-height: 180px; overflow: auto; display: grid; gap: 6px; }
-.invoiceItems button { padding: 10px; border: 1px solid #dfe5ec; border-radius: 9px; background: #fff; color: inherit; display: flex; justify-content: space-between; gap: 12px; text-align: left; }
-.invoiceItems button.selectedItem { border-color: #55aaa1; background: #f0fbf9; }
-.invoiceItems span { display: grid; gap: 2px; }
+.itemsTitle { margin: 18px 0 8px; display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.itemsTitle h4 { margin: 0; font-size: 13px; }
+.itemsTitle small { max-width: 65%; text-align: right; }
+.invoiceItems { max-height: 250px; overflow: auto; border: 1px solid #dfe5ec; border-radius: 9px; }
+.invoiceItems table { min-width: 1480px; width: 100%; border-collapse: collapse; font-size: 10px; }
+.invoiceItems th { position: sticky; top: 0; z-index: 1; padding: 8px; background: #203864; color: #fff; text-align: left; white-space: nowrap; }
+.invoiceItems td { padding: 8px; border-top: 1px solid #e5e9f2; white-space: nowrap; cursor: pointer; }
+.invoiceItems td:nth-child(2) { min-width: 280px; white-space: normal; }
+.invoiceItems tr:hover td { background: #f8fbfc; }
+.invoiceItems tr.selectedItem td { background: #e5f5f2; }
 .classification { margin: 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .confirmButton { margin-left: auto; }
 .reviewEmpty { min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); text-align: center; }
