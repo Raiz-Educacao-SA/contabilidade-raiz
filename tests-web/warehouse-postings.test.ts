@@ -4,6 +4,7 @@ import {
   buildWarehousePostingsCsv,
   parseWarehouseSheets,
   parseWarehouseSheetsForAllCompanies,
+  warehouseControlTotal,
 } from "../lib/warehouse-postings.ts";
 
 test("uma importação abre os lançamentos de todas as empresas com movimento", () => {
@@ -41,6 +42,39 @@ test("uma importação abre os lançamentos de todas as empresas com movimento",
     { branchCode: "3", amount: 75 },
   ]);
   assert.equal(result.postings.find((posting) => posting.companyCode === "9")?.amount, 200);
+});
+
+test("lê a base Financeiro com Unidade Filial e Marca/Coligada", () => {
+  const result = parseWarehouseSheetsForAllCompanies([{
+    name: "Lançamentos",
+    rows: [
+      ["Relatório Financeiro - Agosto de 2026"],
+      ["Última atualização", "03/09/2026"],
+      [],
+      ["Ano", "Mês", "Data de aplicação", "Pedido", "Material", "Quantidade", "Preço total", "Unidade Filial", "Marca/Coligada", "Observação"],
+      [2026, "Agosto", "03/08/2026", 1, "Item Raiz", 1, 100, "01 - RAIZ EDUCAÇÃO S.A.", "01 - RAIZ EDUCAÇÃO S.A.", ""],
+      [2026, "Agosto", "03/08/2026", 2, "Item QI", 1, 200, "02 - COLÉGIO QI TIJUCA", "02 - COLÉGIO QI", ""],
+      [2026, "Agosto", "03/08/2026", 3, "Item QI Met", 1, 300, "QI MET. LOPES DA CRUZ", "02 - COLÉGIO QI", ""],
+      [2026, "Agosto", "03/08/2026", 4, "Item Matriz", 1, 400, "13 - COLÉGIO E CURSO MATRIZ EDUCAÇÃO BANGU ANEXO", "08 - COLÉGIO E CURSO MATRIZ EDUCAÇÃO LTDA.", ""],
+      [2026, "Agosto", "03/08/2026", 5, "Item CD", 1, 27.95, "CD ROCHA MIRANDA", "CD ROCHA MIRANDA", ""],
+    ],
+  }], { companies: [], competence: "2026-08" });
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.sourceRows, 5);
+  assert.deepEqual(result.postings
+    .filter((posting) => posting.companyCode !== "1")
+    .map(({ companyCode, branchCode, amount }) => ({ companyCode, branchCode, amount })), [
+    { companyCode: "2", branchCode: "2", amount: 200 },
+    { companyCode: "6", branchCode: "1", amount: 300 },
+    { companyCode: "8", branchCode: "13", amount: 400 },
+  ]);
+  const rootOwn = result.postings.find((posting) => posting.companyCode === "1" && posting.destinationCode === "1");
+  assert.ok(rootOwn);
+  assert.equal(rootOwn.amount, 127.95);
+  assert.equal(rootOwn.debitAccount, "4.2.1.03.01.20");
+  assert.equal(rootOwn.creditAccount, "1.1.5.01.01.05");
+  assert.equal(warehouseControlTotal(result.postings), 1027.95);
 });
 
 test("segrega os lançamentos das coligadas por filial com as contas fixas", () => {
