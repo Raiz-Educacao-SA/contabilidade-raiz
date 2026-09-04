@@ -75,7 +75,7 @@ export const rootWarehouseDestinations: RootDestination[] = [
 ];
 
 const sourceDestinationRules: Array<{ code: string; aliases: string[] }> = [
-  { code: "6", aliases: ["qi metropolitano", "qi met jacinto", "qi jacinto", "colegio qi metropolitano jacinto", "sunny days", "creche e escola sunny days"] },
+  { code: "6", aliases: ["qi metropolitano", "qi met jacinto", "qi jacinto", "qi met lopes da cruz", "qi metropolitano lopes da cruz", "colegio qi metropolitano jacinto", "sunny days", "creche e escola sunny days"] },
   { code: "10", aliases: ["qi recreio", "sa pereira", "sap barrinha"] },
   { code: "16", aliases: ["gama"] },
   { code: "12", aliases: ["alfa", "beta"] },
@@ -109,7 +109,7 @@ const sourceBranchRules: Record<string, Array<{ branch: string; aliases: string[
   "6": [
     { branch: "2", aliases: ["qi met jacinto", "qi jacinto", "qi metropolitano jacinto", "colegio qi metropolitano jacinto"] },
     { branch: "3", aliases: ["sunny days", "creche e escola sunny days"] },
-    { branch: "1", aliases: ["qi metropolitano"] },
+    { branch: "1", aliases: ["qi metropolitano", "qi met lopes da cruz", "qi metropolitano lopes da cruz", "lopes da cruz"] },
   ],
   "8": [
     { branch: "1", aliases: ["matriz rocha miranda"] },
@@ -213,7 +213,7 @@ function destinationFor(value: unknown) {
 }
 
 function destinationFromSource(unitValue: unknown, brandValue: unknown) {
-  for (const value of [unitValue, brandValue]) {
+  for (const value of [unitValue]) {
     const normalized = normalizeText(value);
     if (!normalized) continue;
     const rule = sourceDestinationRules.find((candidate) =>
@@ -224,10 +224,35 @@ function destinationFromSource(unitValue: unknown, brandValue: unknown) {
     );
     if (rule) return rootWarehouseDestinations.find((destination) => destination.code === rule.code);
   }
+
+  const brandCode = normalizeCode(brandValue);
+  if (brandCode) {
+    const codedDestination = rootWarehouseDestinations.find((destination) => destination.code === brandCode);
+    if (codedDestination) return codedDestination;
+  }
+
+  const normalizedBrand = normalizeText(brandValue);
+  const brandRule = sourceDestinationRules.find((candidate) =>
+    candidate.aliases.some((alias) => {
+      const normalizedAlias = normalizeText(alias);
+      return normalizedBrand === normalizedAlias || normalizedBrand.includes(normalizedAlias);
+    }),
+  );
+  if (brandRule) return rootWarehouseDestinations.find((destination) => destination.code === brandRule.code);
   return undefined;
 }
 
+function sourceCompanyCodeFromSource(unitValue: unknown, brandValue: unknown, destination?: RootDestination) {
+  if (destination) return destination.code;
+  const brandCode = normalizeCode(brandValue);
+  if (brandCode) return brandCode;
+  const source = normalizeText(`${String(unitValue ?? "")} ${String(brandValue ?? "")}`);
+  return source.includes("raiz educacao") || source.includes("cd rocha miranda") ? ROOT_COMPANY_CODE : "";
+}
+
 function branchFromSource(companyCode: string, unitValue: unknown) {
+  const explicitBranch = normalizeCode(unitValue);
+  if (explicitBranch) return explicitBranch;
   const normalized = normalizeText(unitValue);
   const rule = sourceBranchRules[companyCode]?.find((candidate) =>
     candidate.aliases.some((alias) => {
@@ -316,9 +341,10 @@ export function parseWarehouseSheets(sheets: WarehouseSheet[], options: Warehous
       const sourceUnit = unitIndex >= 0 ? row[unitIndex] : "";
       const sourceBrand = brandIndex >= 0 ? row[brandIndex] : "";
       const sourceDestination = isMaterialsModel ? destinationFromSource(sourceUnit, sourceBrand) : undefined;
+      const sourceCompanyCode = isMaterialsModel ? sourceCompanyCodeFromSource(sourceUnit, sourceBrand, sourceDestination) : "";
 
       if (!isRoot) {
-        if (isMaterialsModel && sourceDestination?.code !== selectedCode) return;
+        if (isMaterialsModel && sourceCompanyCode !== selectedCode) return;
         const companyReference = explicitCompany || namedCompany;
         if (!isMaterialsModel && companyReference && !companyValueMatches(companyReference, selectedCode, options.selectedCompanyName)) return;
         const branchCode = branchIndex >= 0 ? normalizeBranch(row[branchIndex]) : branchFromSource(selectedCode, sourceUnit);
@@ -337,6 +363,26 @@ export function parseWarehouseSheets(sheets: WarehouseSheet[], options: Warehous
           debitReduced: GENERAL_DEBIT_REDUCED,
           creditAccount: GENERAL_CREDIT_ACCOUNT,
           creditReduced: GENERAL_CREDIT_REDUCED,
+          document: DOCUMENT,
+          amount: Math.abs(amount),
+          history: GENERAL_HISTORY,
+        });
+        return;
+      }
+
+      if (isMaterialsModel && sourceCompanyCode === ROOT_COMPANY_CODE) {
+        const branchCode = branchFromSource(ROOT_COMPANY_CODE, sourceUnit) || "1";
+        sourceRows += 1;
+        pushOrSum(postings, `${ROOT_COMPANY_CODE}:own:${branchCode}`, {
+          companyCode: ROOT_COMPANY_CODE,
+          companyName: options.selectedCompanyName,
+          branchCode,
+          destinationCode: ROOT_COMPANY_CODE,
+          destinationName: options.selectedCompanyName,
+          debitAccount: GENERAL_DEBIT_ACCOUNT,
+          debitReduced: GENERAL_DEBIT_REDUCED,
+          creditAccount: ROOT_CREDIT_ACCOUNT,
+          creditReduced: ROOT_CREDIT_REDUCED,
           document: DOCUMENT,
           amount: Math.abs(amount),
           history: GENERAL_HISTORY,
@@ -418,6 +464,16 @@ export function parseWarehouseSheetsForAllCompanies(
     sourceRows: Math.max(0, ...results.map((result) => result.sourceRows)),
     errors: [...new Set(results.flatMap((result) => result.errors))],
   };
+}
+
+export function warehouseControlTotal(postings: WarehousePosting[]) {
+  const nonRoot = postings.filter((posting) => String(Number(posting.companyCode)) !== ROOT_COMPANY_CODE);
+  const rootOwn = postings.filter((posting) =>
+    String(Number(posting.companyCode)) === ROOT_COMPANY_CODE &&
+    String(Number(posting.destinationCode)) === ROOT_COMPANY_CODE
+  );
+  const base = nonRoot.length ? [...nonRoot, ...rootOwn] : postings;
+  return Math.round((base.reduce((sum, posting) => sum + posting.amount, 0) + Number.EPSILON) * 100) / 100;
 }
 
 function postingDate(competence: string) {

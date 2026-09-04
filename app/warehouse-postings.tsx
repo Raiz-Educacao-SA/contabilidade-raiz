@@ -7,6 +7,7 @@ import {
   buildWarehousePostingsCsv,
   encodeWarehouseCsv,
   parseWarehouseSheetsForAllCompanies,
+  warehouseControlTotal,
   type WarehouseImportResult,
   type WarehousePosting,
 } from "@/lib/warehouse-postings";
@@ -90,11 +91,7 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
     return [...grouped.values()].sort((left, right) => Number(left.code) - Number(right.code));
   }, [companies, result.postings]);
 
-  const controlTotal = useMemo(() => {
-    const nonRoot = result.postings.filter((posting) => String(Number(posting.companyCode)) !== "1");
-    const base = nonRoot.length ? nonRoot : result.postings;
-    return base.reduce((sum, posting) => sum + posting.amount, 0);
-  }, [result.postings]);
+  const controlTotal = useMemo(() => warehouseControlTotal(result.postings), [result.postings]);
 
   async function importFile(file?: File) {
     if (!file) return;
