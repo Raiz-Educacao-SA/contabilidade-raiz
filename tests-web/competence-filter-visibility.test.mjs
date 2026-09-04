@@ -13,6 +13,13 @@ test("mantém o mês e o ano selecionados identificados nos filtros", () => {
   assert.match(page, /title=\{`Ano selecionado: \$\{year\}`\}/);
 });
 
+test("abre o cronograma com a competência selecionada na tela inicial", () => {
+  assert.match(
+    page,
+    /if \(area === "cronograma"\) \{\s+const \[selectedYear, selectedMonth\] = closingDate\.split\("-"\)\.map\(Number\);\s+if \(selectedYear >= 2000 && selectedYear <= 2100\) setYear\(selectedYear\);\s+if \(selectedMonth >= 1 && selectedMonth <= 12\) setMonth\(selectedMonth\);\s+\}/s,
+  );
+});
+
 test("reserva espaço para exibir os valores da competência em todos os módulos", () => {
   assert.match(modulesCss, /\.competence-control select \{[^}]*min-width: 62px;[^}]*padding-right: 20px;/s);
   assert.match(modulesCss, /\.tax-content \.competence-control \{[^}]*grid-template-columns: 112px 118px;/s);

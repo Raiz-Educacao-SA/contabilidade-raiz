@@ -852,6 +852,11 @@ export default function Home() {
         isAdministrator={isAdministrator}
         onManageAccess={() => setManagingAccess(true)}
         onSelect={(area) => {
+          if (area === "cronograma") {
+            const [selectedYear, selectedMonth] = closingDate.split("-").map(Number);
+            if (selectedYear >= 2000 && selectedYear <= 2100) setYear(selectedYear);
+            if (selectedMonth >= 1 && selectedMonth <= 12) setMonth(selectedMonth);
+          }
           setSelectedArea(area);
           setSelectedModule(area === "financeiro" ? null : area);
         }}
