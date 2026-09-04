@@ -53,7 +53,12 @@ export function parseNfeOcr(text: string): NfeItem[] {
   const section = clean.split(/DADOS DO PRODUTO\/?SERVI[CÇ]O/i)[1] ?? clean;
   const lines = section.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
   const items: NfeItem[] = [];
+  const groups: string[] = [];
   for (const line of lines) {
+    if (/^\d{2,20}\s+/.test(line)) groups.push(line);
+    else if (groups.length && !/^(C[ÓO]DIGO|DESCRI[CÇ][AÃ]O|NCM|CST|CFOP|C[ÁA]LCULO|DADOS ADICIONAIS)/i.test(line)) groups[groups.length - 1] += ` ${line}`;
+  }
+  for (const line of groups) {
     const match = line.match(/^(\d{2,20})\s+(.+?)\s+(\d{8})\s+(\d{3,4})\s+(\d{4})\s+([A-Z]{1,6})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i);
     if (!match) continue;
     items.push({ code: match[1], description: match[2], ncm: match[3], cst: match[4], cfop: match[5], unit: match[6], quantity: num(match[7]), unitValue: num(match[8]), total: num(match[9]), icmsBase: 0, icmsValue: 0, ipiValue: 0, icmsRate: 0, ipiRate: 0 });

@@ -165,7 +165,10 @@ export default function FixedAssetsPanel({
     if (!row.TICKET) return setInvoiceItemsInfo("O movimento não possui ticket Zeev para leitura do documento.");
     setInvoiceItemsBusy(true);
     try {
-      const response = await fetch(`/api/zeev/invoice-items?ticket=${encodeURIComponent(row.TICKET)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const invoiceParams = new URLSearchParams({ ticket: row.TICKET });
+      if (row.zeev?.invoiceKey) invoiceParams.set("invoiceKey", row.zeev.invoiceKey);
+      if (row.zeev?.invoiceNumber || row.NUMEROMOV) invoiceParams.set("invoiceNumber", row.zeev?.invoiceNumber || row.NUMEROMOV);
+      const response = await fetch(`/api/zeev/invoice-items?${invoiceParams}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Não foi possível ler os itens da NF.");
       const detailedItems: InvoiceItem[] = payload.items ?? [];
