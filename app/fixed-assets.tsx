@@ -50,6 +50,7 @@ type Acquisition = {
   NOMEFANTASIA: string; COMPLEMENTO: string;
   zeev?: { found: boolean; invoiceNumber?: string; invoiceKey?: string; supplier?: string; invoiceDescription?: string; branch?: string; status?: string; cancelled?: boolean; items?: InvoiceItem[] };
 };
+type MonthlyCalculation = { rows: Array<{ id: string; code: string; branch: string; description: string; account: string; group: string; cost: number; base: number; opening: number; standardQuota: number; monthDepreciation: number; accumulated: number; bookValue: number; status: string }>; totals: { cost: number; base: number; opening: number; monthDepreciation: number; accumulated: number; bookValue: number }; calculated: number; pending: number };
 
 type SummaryRow = {
   accountCode: string; accountDescription: string; fiscalLife: number | null;
@@ -101,6 +102,9 @@ export default function FixedAssetsPanel({
   const [invoiceItemsBusy, setInvoiceItemsBusy] = useState(false);
   const [invoiceItemsInfo, setInvoiceItemsInfo] = useState("");
   const [invoiceItemsVerified, setInvoiceItemsVerified] = useState(false);
+  const [monthly, setMonthly] = useState<MonthlyCalculation | null>(null);
+  const [monthlyBusy, setMonthlyBusy] = useState(false);
+  const [monthlyError, setMonthlyError] = useState("");
   const fetchData = useCallback(async (signal?: AbortSignal): Promise<FixedAssetsData> => {
     const response = await fetch(`/api/fixed-assets?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
       headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
@@ -203,6 +207,17 @@ export default function FixedAssetsPanel({
     finally { setAcquisitionBusy(false); }
   }
 
+  async function calculateMonth() {
+    setMonthlyBusy(true); setMonthlyError("");
+    try {
+      const response = await fetch(`/api/fixed-assets/monthly-calculation?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Não foi possível calcular a competência.");
+      setMonthly(payload);
+    } catch (cause) { setMonthlyError(cause instanceof Error ? cause.message : "Falha no cálculo mensal."); }
+    finally { setMonthlyBusy(false); }
+  }
+
   return (
     <section className={styles.workspace} data-testid="fixed-assets-module">
       <nav className={styles.tabs} aria-label="Áreas do Ativo Fixo">
@@ -277,7 +292,7 @@ export default function FixedAssetsPanel({
           <div className={styles.noteLegend}><span><i className={styles.legendOk} /> Diferença de arredondamento dentro da tolerância da planilha</span><span>Saldo final = saldo inicial + adições + transferências + AFAC + baixas + depreciação</span></div>
         </div>
       )}
-      {view === "calculo" && <EmptyView icon={Calculator} title="Cálculo mensal" description="O fechamento calculará depreciação linear por bem, baixas, transferências e ajustes com memória de cálculo versionada." action="Abrir prévia do cálculo" canWrite={canWrite} />}
+      {view === "calculo" && <div className={styles.calculationArea}><div className={styles.calculationHeader}><div><span>MEMÓRIA DE CÁLCULO</span><h2>Depreciação mensal · {competence.split("-").reverse().join("/")}</h2><small>Saldo oficial anterior + movimentações e regras de vida útil de cada bem.</small></div><button onClick={() => void calculateMonth()} disabled={monthlyBusy}><Calculator />{monthlyBusy ? "Calculando…" : "Gerar prévia"}</button></div>{monthlyError && <div className={styles.error}>{monthlyError}</div>}{monthly && <><div className={styles.calculationKpis}><article><span>Bens com quota</span><b>{monthly.calculated}</b></article><article><span>Base depreciável</span><b>{currency.format(monthly.totals.base)}</b></article><article><span>Depreciação do mês</span><b>{currency.format(monthly.totals.monthDepreciation)}</b></article><article><span>Saldo contábil final</span><b>{currency.format(monthly.totals.bookValue)}</b></article></div><div className={styles.tableWrap}><table className={styles.calculationTable}><thead><tr><th>Código</th><th>Filial</th><th>Descrição do bem</th><th>Conta</th><th className={styles.numeric}>Custo</th><th className={styles.numeric}>Base depreciável</th><th className={styles.numeric}>Deprec. anterior</th><th className={styles.numeric}>Quota padrão</th><th className={styles.numeric}>Deprec. do mês</th><th className={styles.numeric}>Deprec. acumulada</th><th className={styles.numeric}>Saldo final</th><th>Status</th></tr></thead><tbody>{monthly.rows.map((row) => <tr key={row.id}><td>{row.code}</td><td>{row.branch}</td><td><b>{row.description}</b><small>{row.group}</small></td><td>{row.account || "—"}</td><td className={styles.numeric}>{amount(row.cost)}</td><td className={styles.numeric}>{amount(row.base)}</td><td className={styles.numeric}>{amount(row.opening)}</td><td className={styles.numeric}>{amount(row.standardQuota)}</td><td className={styles.numeric}>{amount(row.monthDepreciation)}</td><td className={styles.numeric}>{amount(row.accumulated)}</td><td className={styles.numeric}>{amount(row.bookValue)}</td><td><span className={row.status === "CALCULADO" ? styles.checkOk : styles.assetStatus}>{row.status.replaceAll("_", " ")}</span></td></tr>)}</tbody><tfoot><tr><td colSpan={4}>Total</td><td className={styles.numeric}>{amount(monthly.totals.cost)}</td><td className={styles.numeric}>{amount(monthly.totals.base)}</td><td className={styles.numeric}>{amount(monthly.totals.opening)}</td><td></td><td className={styles.numeric}>{amount(monthly.totals.monthDepreciation)}</td><td className={styles.numeric}>{amount(monthly.totals.accumulated)}</td><td className={styles.numeric}>{amount(monthly.totals.bookValue)}</td><td>PRÉVIA</td></tr></tfoot></table></div></>}</div>}
       {view === "conciliacao" && <EmptyView icon={BookOpenCheck} title="Controle x razão x balancete" description="O quadro exibirá saldo inicial, adições, baixas, depreciação, ajustes, saldo final e diferenças por conta e filial." action="Consultar relatórios contábeis" canWrite={canWrite} />}
 
       <footer className={styles.context}>Empresa: <b>{companyCode} — {companyName}</b> · Competência: <b>{competence}</b></footer>
