@@ -18,7 +18,7 @@ test("Módulo Contábil renderiza a análise no item Despesas", () => {
 test("análise aplica as regras aprovadas para agosto e ativos", () => {
   assert.match(component, /Divergência em comparação a meses anteriores/);
   assert.match(component, /Ativo Imobilizado/);
-  assert.match(component, /LEFT|startsWith\("1\."\)/);
+  assert.match(component, /startsWith\("1\.2\.3"\)/);
   assert.match(component, /DATASAIDA/);
   assert.match(component, /CODCOLIGADA/);
   assert.match(component, /DEBITO/);
@@ -195,8 +195,8 @@ test("congela a primeira linha de Lançamentos Contábeis", () => {
 });
 
 test("mantém compacto o título e os botões da análise de despesas", () => {
-  assert.match(css, /\.expense-upload \.eyebrow\{font-size:10px\}/);
-  assert.match(css, /\.expense-upload h2\{margin:4px 0;font-size:18px\}/);
-  assert.match(css, /\.expense-upload p\{margin:0;color:var\(--muted\);font-size:11px\}/);
-  assert.match(css, /\.expense-actions button,\.expense-actions label\{min-height:40px;padding:7px 12px;font-size:12px\}/);
+  assert.match(css, /\.expense-upload \.eyebrow\{font-size:8px\}/);
+  assert.match(css, /\.expense-upload h2\{margin:3px 0;font-size:14px\}/);
+  assert.match(css, /\.expense-upload p\{margin:0;color:var\(--muted\);font-size:9px\}/);
+  assert.match(css, /\.expense-actions button,\.expense-actions label\{height:30px;min-height:30px;padding:0 9px[^}]*font-size:9px[^}]*\}/);
 });
