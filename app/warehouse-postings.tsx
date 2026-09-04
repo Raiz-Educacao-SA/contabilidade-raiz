@@ -11,9 +11,11 @@ import {
   type WarehouseImportResult,
   type WarehousePosting,
 } from "@/lib/warehouse-postings";
+import { supabase } from "@/lib/supabase";
 
 type WarehouseCompany = { code: string; name: string };
 type WarehouseCompanyGroup = WarehouseCompany & { postings: WarehousePosting[]; total: number };
+type WarehouseStoredSnapshot = { fileName?: string; result?: WarehouseImportResult };
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -23,7 +25,9 @@ function normalizeStoredResult(result?: WarehouseImportResult): WarehouseImportR
   if (!result) return emptyResult;
   return {
     ...result,
-    errors: result.errors.filter((error) => !/^O arquivo não possui valores para a coligada/i.test(error)),
+    postings: Array.isArray(result.postings) ? result.postings : [],
+    sourceRows: Number(result.sourceRows || 0),
+    errors: (result.errors || []).filter((error) => !/^O arquivo não possui valores para a coligada/i.test(error)),
   };
 }
 
@@ -45,33 +49,80 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
   const [fileName, setFileName] = useState("");
   const [result, setResult] = useState<WarehouseImportResult>(emptyResult);
   const [loading, setLoading] = useState(false);
+  const [sharingError, setSharingError] = useState("");
   const cacheKey = `contabilidade-raiz:almoxarifado:todas:${competence}`;
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve().then(() => {
-      if (!active) return;
+
+    function readLocalSnapshot() {
       try {
         const cached = window.localStorage.getItem(cacheKey);
-        if (!cached) {
-          setFileName("");
-          setResult(emptyResult);
-          return;
-        }
-        const parsed = JSON.parse(cached) as { fileName?: string; result?: WarehouseImportResult };
-        setFileName(parsed.fileName || "");
-        setResult(normalizeStoredResult(parsed.result));
+        return cached ? JSON.parse(cached) as WarehouseStoredSnapshot : null;
       } catch {
+        return null;
+      }
+    }
+
+    async function loadSharedSnapshot(useLocalFallback: boolean) {
+      const { data, error } = await supabase
+        .from("almoxarifado_lotes")
+        .select("arquivo_nome, resultado")
+        .eq("competencia", competence)
+        .maybeSingle();
+      if (!active) return;
+
+      if (error) {
+        setSharingError("Não foi possível acessar o lote compartilhado. Tente novamente.");
+        if (!useLocalFallback) return;
+      } else if (data) {
+        setFileName(String(data.arquivo_nome || ""));
+        setResult(normalizeStoredResult(data.resultado as WarehouseImportResult));
+        setSharingError("");
+        return;
+      }
+
+      if (!useLocalFallback) {
         setFileName("");
         setResult(emptyResult);
+        setSharingError("");
+        return;
       }
-    });
-    return () => { active = false; };
-  }, [cacheKey]);
+
+      const cached = readLocalSnapshot();
+      const cachedFileName = cached?.fileName || "";
+      const cachedResult = normalizeStoredResult(cached?.result);
+      setFileName(cachedFileName);
+      setResult(cachedResult);
+
+      if (!error && cachedFileName && cachedResult.errors.length === 0) {
+        const { error: migrationError } = await supabase.from("almoxarifado_lotes").upsert({
+          competencia: competence,
+          arquivo_nome: cachedFileName,
+          resultado: cachedResult,
+          atualizado_em: new Date().toISOString(),
+        }, { onConflict: "competencia" });
+        if (active) {
+          setSharingError(migrationError ? "Não foi possível compartilhar o lote com os demais usuários." : "");
+        }
+      }
+    }
+
+    void loadSharedSnapshot(true);
+    const channel = supabase
+      .channel(`almoxarifado-lote-${competence}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "almoxarifado_lotes", filter: `competencia=eq.${competence}` }, () => void loadSharedSnapshot(false))
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [cacheKey, competence, isFinalized]);
 
   useEffect(() => {
-    onReadyChange(Boolean(fileName && result.errors.length === 0));
-  }, [fileName, onReadyChange, result.errors.length]);
+    onReadyChange(Boolean(fileName && result.errors.length === 0 && !sharingError));
+  }, [fileName, onReadyChange, result.errors.length, sharingError]);
 
   const companyGroups = useMemo<WarehouseCompanyGroup[]>(() => {
     const grouped = new Map<string, WarehouseCompanyGroup>();
@@ -111,11 +162,22 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
       );
       setFileName(file.name);
       setResult(parsed);
+      setSharingError("");
       window.localStorage.setItem(cacheKey, JSON.stringify({ fileName: file.name, result: parsed }));
+      if (parsed.errors.length === 0) {
+        const { error } = await supabase.from("almoxarifado_lotes").upsert({
+          competencia: competence,
+          arquivo_nome: file.name,
+          resultado: parsed,
+          atualizado_em: new Date().toISOString(),
+        }, { onConflict: "competencia" });
+        if (error) setSharingError("Não foi possível compartilhar o lote com os demais usuários.");
+      }
     } catch {
       const failed = { ...emptyResult, errors: ["Não foi possível ler o arquivo. Confirme se ele está em formato Excel válido."] };
       setFileName(file.name);
       setResult(failed);
+      setSharingError("");
       window.localStorage.setItem(cacheKey, JSON.stringify({ fileName: file.name, result: failed }));
     } finally {
       setLoading(false);
@@ -123,9 +185,15 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
     }
   }
 
-  function clearImport() {
+  async function clearImport() {
+    const { error } = await supabase.from("almoxarifado_lotes").delete().eq("competencia", competence);
+    if (error) {
+      setSharingError("Não foi possível limpar o lote compartilhado. Tente novamente.");
+      return;
+    }
     setFileName("");
     setResult(emptyResult);
+    setSharingError("");
     window.localStorage.removeItem(cacheKey);
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -168,7 +236,7 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
               <CheckCircle2 /> Sem lançamentos
             </span>
           )}
-          <button type="button" className="secondary warehouse-clear" disabled={!fileName || loading || isFinalized} onClick={clearImport} title={isFinalized ? "Reabra a tarefa para limpar o arquivo" : undefined}>
+          <button type="button" className="secondary warehouse-clear" disabled={!fileName || loading || isFinalized} onClick={() => void clearImport()} title={isFinalized ? "Reabra a tarefa para limpar o arquivo" : undefined}>
             <Trash2 /> Limpar
           </button>
         </div>
@@ -188,6 +256,16 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
           <div>
             <b>O arquivo precisa de ajustes antes de gerar os lançamentos</b>
             {result.errors.map((error) => <span key={error}>{error}</span>)}
+          </div>
+        </div>
+      )}
+
+      {sharingError && (
+        <div className="warehouse-errors" role="alert">
+          <AlertTriangle />
+          <div>
+            <b>O lote ainda não está disponível para todos os usuários</b>
+            <span>{sharingError}</span>
           </div>
         </div>
       )}
@@ -225,9 +303,9 @@ export default function WarehousePostings({ companies, competence, isFinalized, 
                     className="primary warehouse-company-export"
                     disabled={result.errors.length > 0}
                     onClick={() => exportCompanyPostings(group)}
-                    title={result.errors.length ? "Corrija os itens indicados antes de gerar o CSV" : `Gerar lançamentos da coligada ${group.code.padStart(2, "0")}`}
+                    title={result.errors.length ? "Corrija os itens indicados antes de gerar o CSV" : `${isFinalized ? "Extrair lote" : "Gerar lançamentos"} da coligada ${group.code.padStart(2, "0")}`}
                   >
-                    <ReceiptText /> Lançamentos
+                    <ReceiptText /> {isFinalized ? "Extrair lote" : "Lançamentos"}
                   </button>
                 </header>
                 <div className="table-wrap warehouse-table">
