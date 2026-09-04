@@ -481,19 +481,6 @@ export default function Home() {
     return () => { active = false; };
   }, [homologationMode, session, filterStorageReady, competence, year, month]);
 
-  async function updateClosingDate(value: string) {
-    setClosingDate(value);
-    if (homologationMode || !session || !value) return;
-    const { error } = await supabase.from("cronograma_configuracoes").upsert({
-      competencia: competence,
-      data_fechamento: value,
-      atualizado_por: session.user.id,
-      atualizado_email: session.user.email ?? "",
-      atualizado_em: new Date().toISOString(),
-    }, { onConflict: "competencia" });
-    if (error) setNotice("A data foi alterada nesta tela, mas não pôde ser compartilhada com os demais setores.");
-  }
-
   useEffect(() => {
     let active = true;
     const applyAuthorizedSession = (current: Session | null) => {
@@ -845,18 +832,15 @@ export default function Home() {
     return (
       <AreaHub
         email={session.user.email ?? ""}
-        closingDate={closingDate}
-        onClosingDateChange={(date) => void updateClosingDate(date)}
+        year={year}
+        month={month}
+        onYearChange={setYear}
+        onMonthChange={setMonth}
         allowedAreas={allowedAreas}
         companyCodes={companies.flatMap((item) => item.empresas ? [item.empresas.codcoligada] : [])}
         isAdministrator={isAdministrator}
         onManageAccess={() => setManagingAccess(true)}
         onSelect={(area) => {
-          if (area === "cronograma") {
-            const [selectedYear, selectedMonth] = closingDate.split("-").map(Number);
-            if (selectedYear >= 2000 && selectedYear <= 2100) setYear(selectedYear);
-            if (selectedMonth >= 1 && selectedMonth <= 12) setMonth(selectedMonth);
-          }
           setSelectedArea(area);
           setSelectedModule(area === "financeiro" ? null : area);
         }}
@@ -1518,8 +1502,10 @@ export default function Home() {
 
 function AreaHub({
   email,
-  closingDate,
-  onClosingDateChange,
+  year,
+  month,
+  onYearChange,
+  onMonthChange,
   allowedAreas,
   companyCodes,
   isAdministrator,
@@ -1528,8 +1514,10 @@ function AreaHub({
   onLogout,
 }: {
   email: string;
-  closingDate: string;
-  onClosingDateChange: (date: string) => void;
+  year: number;
+  month: number;
+  onYearChange: (year: number) => void;
+  onMonthChange: (month: number) => void;
   allowedAreas: Area[];
   companyCodes: string[];
   isAdministrator: boolean;
@@ -1541,9 +1529,7 @@ function AreaHub({
   const [completionRecords, setCompletionRecords] = useState<ClosingScheduleRecord[]>([]);
   const ScheduleIcon = areas.cronograma.icon;
   const BookIcon = areas.book.icon;
-  const closingMonth = closingDate.slice(5, 7);
-  const closingYear = closingDate.slice(0, 4);
-  const scheduleCompetence = `${closingYear}-${closingMonth}`;
+  const scheduleCompetence = `${year}-${String(month).padStart(2, "0")}`;
   const closingYears = Array.from({ length: 5 }, (_, index) => today.getFullYear() - 1 + index);
   const scheduleProgress = calculateClosingScheduleProgress(completionRecords, companyCodes);
 
@@ -1598,7 +1584,7 @@ function AreaHub({
         <div className="workflow-overview">
           <div className="workflow-overview-copy">
             <span>FECHAMENTO EM ANDAMENTO</span>
-            <b>{months[Number(closingMonth) - 1]} de {closingYear}</b>
+            <b>{months[month - 1]} de {year}</b>
             <small>{scheduleProgress.completedModulesCount}/{scheduleProgress.totalModules} módulos concluídos</small>
           </div>
           <div className="workflow-overview-progress">
@@ -1612,17 +1598,17 @@ function AreaHub({
             <div className="workflow-date-fields">
               <select
                 aria-label="Mês do fechamento"
-                value={closingMonth}
-                onChange={(event) => onClosingDateChange(`${closingYear}-${event.target.value}-10`)}
+                value={month}
+                onChange={(event) => onMonthChange(Number(event.target.value))}
               >
                 {months.map((name, index) => (
-                  <option key={name} value={String(index + 1).padStart(2, "0")}>{name}</option>
+                  <option key={name} value={index + 1}>{name}</option>
                 ))}
               </select>
               <select
                 aria-label="Ano do fechamento"
-                value={closingYear}
-                onChange={(event) => onClosingDateChange(`${event.target.value}-${closingMonth}-10`)}
+                value={year}
+                onChange={(event) => onYearChange(Number(event.target.value))}
               >
                 {closingYears.map((value) => <option key={value} value={value}>{value}</option>)}
               </select>

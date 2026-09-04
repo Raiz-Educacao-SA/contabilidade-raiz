@@ -16,8 +16,10 @@ test("mantém o mês e o ano selecionados identificados nos filtros", () => {
 test("abre o cronograma com a competência selecionada na tela inicial", () => {
   assert.match(
     page,
-    /if \(area === "cronograma"\) \{\s+const \[selectedYear, selectedMonth\] = closingDate\.split\("-"\)\.map\(Number\);\s+if \(selectedYear >= 2000 && selectedYear <= 2100\) setYear\(selectedYear\);\s+if \(selectedMonth >= 1 && selectedMonth <= 12\) setMonth\(selectedMonth\);\s+\}/s,
+    /<AreaHub[\s\S]*?year=\{year\}[\s\S]*?month=\{month\}[\s\S]*?onYearChange=\{setYear\}[\s\S]*?onMonthChange=\{setMonth\}/,
   );
+  assert.match(page, /const scheduleCompetence = `\$\{year\}-\$\{String\(month\)\.padStart\(2, "0"\)\}`/);
+  assert.doesNotMatch(page, /closingDate\.split\("-"\)\.map\(Number\)/);
 });
 
 test("reserva espaço para exibir os valores da competência em todos os módulos", () => {
