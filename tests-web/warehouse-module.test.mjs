@@ -7,6 +7,7 @@ const panel = readFileSync(new URL("../app/warehouse-postings.tsx", import.meta.
 const styles = readFileSync(new URL("../app/modules.css", import.meta.url), "utf8");
 const completion = readFileSync(new URL("../lib/schedule-completion.ts", import.meta.url), "utf8");
 const scheduleProgress = readFileSync(new URL("../lib/closing-schedule-progress.ts", import.meta.url), "utf8");
+const sharedLotsMigration = readFileSync(new URL("../Supabase/20260904_almoxarifado_lotes.sql", import.meta.url), "utf8");
 
 test("Almoxarifado fica abaixo de Rateio CSC e acima de Intercompany", () => {
   const menuStart = page.indexOf('<nav className="accounting-nav">');
@@ -20,7 +21,7 @@ test("painel importa Excel, separa todas as empresas e gera um CSV por empresa",
   assert.match(panel, /accept="\.xlsx,\.xls,\.xlsm"/);
   assert.match(panel, /parseWarehouseSheetsForAllCompanies/);
   assert.match(panel, /Selecionar Excel/);
-  assert.match(panel, /> Lançamentos/);
+  assert.match(panel, /isFinalized \? "Extrair lote" : "Lançamentos"/);
   assert.match(panel, /companyGroups\.map/);
   assert.match(panel, /exportCompanyPostings\(group\)/);
   assert.match(panel, /coligada\$\{group\.code\.padStart\(2, "0"\)\}-almoxarifado\.csv/);
@@ -41,9 +42,13 @@ test("arquivo fica fixado após o fechamento, mantendo a extração por empresa"
   assert.match(panel, /disabled=\{loading \|\| isFinalized\}/);
   assert.match(panel, /disabled=\{!fileName \|\| loading \|\| isFinalized\}/);
   assert.match(panel, /className="primary warehouse-company-export"/);
+  assert.match(panel, /from\("almoxarifado_lotes"\)\.upsert/);
+  assert.match(panel, /from\("almoxarifado_lotes"\)\s*\.select\("arquivo_nome, resultado"\)/);
+  assert.match(sharedLotsMigration, /lotes almoxarifado leitura autenticada/);
+  assert.match(sharedLotsMigration, /to authenticated\s+using \(true\)/);
   assert.match(page, /onStatusChange=\{selectedModule === "contabil" && accountingTab === "almoxarifado" \? setWarehouseFinalized : undefined\}/);
   assert.match(page, /Importe e valide o controle do Almoxarifado antes de finalizar/);
-  assert.match(panel, /onReadyChange\(Boolean\(fileName && result\.errors\.length === 0\)\)/);
+  assert.match(panel, /onReadyChange\(Boolean\(fileName && result\.errors\.length === 0 && !sharingError\)\)/);
 });
 
 test("Almoxarifado alimenta o Cronograma por empresa", () => {
