@@ -182,7 +182,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
   const targetMonth = periodEnd.slice(0, 7);
   const targetLabel = `${targetMonth.slice(5, 7)}/${targetMonth.slice(0, 4)}`;
   const divergences = useMemo(() => analysis?.rows.filter((row) => row.comment.includes("Divergência")).length ?? 0, [analysis]);
-  const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<string>(), cancelledMovementIds: new Set<string>() };
+  const assets = useMemo(() => analysis?.rows.filter((row) => row.comment === "Ativo Imobilizado — Validar Capitalização").length ?? 0, [analysis]);
   const detailRecords = useMemo(() => {
     if (!analysis || !detail) return [];
     return analysis.records.filter((record) => {
@@ -289,7 +289,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
         if (!movementId || !movementNumber) continue;
         const supplierIdentity = document.supplierTaxId || String(record.CGCCFO || "").replace(/\D/g, "") || normalized(supplier);
         const duplicateKey = [supplierIdentity, normalized(document.invoiceKey || document.invoiceNumber), numberValue(record.VALOR).toFixed(2)].join("\u001f");
-        const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<stringrconst assets = useMemo(() => analysis?.rows.filter((row) => row.comment =: row.account.startsWit? "Ativo Imobilizado — Validar Capitalização"("1.2.3") && target > 0== "Ativo Imobilizado — Validar Capitalização").length ?? 0, [analysis]);ow.account.startsWith("1.2.3") && target > 0row.account.startsWith("1.2.3") && target > 0>(), cancelledMovementIds: new Set<string>() };
+        const candidate = duplicateCandidates.get(duplicateKey) || { movementIds: new Set<string>(), movementNumbers: new Set<string>(), cancelledMovementIds: new Set<string>() };
         candidate.movementIds.add(movementId);
         candidate.movementNumbers.add(normalized(movementNumber));
         if (document.cancelled) candidate.cancelledMovementIds.add(movementId);
@@ -360,8 +360,8 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
               ? row.duplicateComment
             : String(Number(companyCode)) === "1" && row.account.startsWith("4.1")
               ? "Custo Operacional Inadequado - Classificação Incorreta"
-            : row.comment === "Ativo Imobilizado — Validar Capitalização"
-            ["Ativo Imobilizado — Validar Capitalização", "Conta iniciada por 1.2.3 com movimento no último mês do período analisado"]
+            : row.account.startsWith("1.2.3") && target > 0
+            ? "Ativo Imobilizado — Validar Capitalização"
             : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
               ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
               : (supplierAccounts.get(row.supplier)?.size ?? 0) > 1 && target > 0 && prior === 0
@@ -518,7 +518,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
       ["Possível lançamento duplicado", "Após consulta obrigatória ao Zeev: mesmo fornecedor/CNPJ, chave de acesso (ou número da nota) e valor, com IDMOVs e NUMEROMOVs diferentes"],
       ["Documento cancelado ainda contabilizado", "Quando um dos tickets duplicados está cancelado no Zeev, mas seu IDMOV permanece na PlanilhaNet 08, sinalizar Lançamento Duplicado e solicitar validação do estorno do movimento cancelado"],
       ["Custo operacional inadequado", "Somente na coligada 01 — Raiz Educação: conta iniciada por 4.1 indica classificação incorreta, pois a empresa não apresenta receita"],
-      ["Ativo Imobilizado", "Conta do ativo iniciada por 1. com movimento no mês final"],
+      ["Ativo Imobilizado — Validar Capitalização", "Conta iniciada por 1.2.3 com movimento no último mês do período analisado"],
       ["Sublocação", "Não considerada"],
       ["Tickets Zeev", "No Excel, clique no valor mensal para acessar os lançamentos; depois clique no ticket para abrir a nota fiscal no Zeev"],
       ["Fonte", "TOTVS RM — PlanilhaNet 08 / FORNECEDOR X MOVIMENTOS"],
