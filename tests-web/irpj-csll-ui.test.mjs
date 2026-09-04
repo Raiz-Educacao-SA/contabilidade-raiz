@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = process.cwd();
-const component = readFileSync(resolve(root, "app/irpj-csll-assessment.tsx"), "utf8");
+const component = readFileSync(resolve(root, "app/irpj-csll-assessment.tsx"), "utf8").replace(/\r\n/g, "\n");
 const page = readFileSync(resolve(root, "app/page.tsx"), "utf8");
 const css = readFileSync(resolve(root, "app/modules.css"), "utf8");
 

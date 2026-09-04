@@ -101,21 +101,20 @@ export default function FixedAssetsPanel({
   const [invoiceItemsBusy, setInvoiceItemsBusy] = useState(false);
   const [invoiceItemsInfo, setInvoiceItemsInfo] = useState("");
   const [invoiceItemsVerified, setInvoiceItemsVerified] = useState(false);
-  const loadData = useCallback(async (signal?: AbortSignal) => {
+  const fetchData = useCallback(async (signal?: AbortSignal): Promise<FixedAssetsData> => {
     const response = await fetch(`/api/fixed-assets?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`, {
       headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store", signal,
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error ?? "Não foi possível carregar o Ativo Fixo.");
-    setData(payload);
+    return payload;
   }, [accessToken, companyCode, competence]);
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError("");
-    loadData(controller.signal).catch((reason) => { if (reason.name !== "AbortError") setError(reason.message); })
+    fetchData(controller.signal).then(setData).catch((reason) => { if (reason.name !== "AbortError") setError(reason.message); })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [loadData]);
+  }, [fetchData]);
 
   const summary = data?.summary;
   const reference = data?.importBatch?.competencia ?? competence;
@@ -198,7 +197,7 @@ export default function FixedAssetsPanel({
       }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Não foi possível confirmar a aquisição.");
-      await loadData();
+      setData(await fetchData());
       setAcquisitionMessage(payload.alreadyRegistered ? `O bem ${payload.asset.codigo_patrimonial} já estava cadastrado.` : `Bem ${payload.asset.codigo_patrimonial} confirmado e incluído no cadastro.`);
     } catch (cause) { setAcquisitionMessage(cause instanceof Error ? cause.message : "Falha ao confirmar a aquisição."); }
     finally { setAcquisitionBusy(false); }

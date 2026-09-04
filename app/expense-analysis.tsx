@@ -361,7 +361,7 @@ export default function ExpenseAnalysis({ companyCode, companyName, competence, 
             : String(Number(companyCode)) === "1" && row.account.startsWith("4.1")
               ? "Custo Operacional Inadequado - Classificação Incorreta"
             : row.account.startsWith("1.2.3") && target > 0
-            ? "Ativo Imobilizado — Validar Capitalização"
+              ? "Ativo Imobilizado — Validar Capitalização"
             : target > 0 && (supplierPriorTotal.get(row.supplier) ?? 0) === 0
               ? "Nova Operação Compra/Serviço - Definir Conta Contábil"
               : (supplierAccounts.get(row.supplier)?.size ?? 0) > 1 && target > 0 && prior === 0
