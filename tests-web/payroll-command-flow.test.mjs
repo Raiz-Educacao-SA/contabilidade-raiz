@@ -10,7 +10,7 @@ const css = readFileSync(new URL("../app/payroll-overrides.css", import.meta.url
 test("a Conciliação Folha de Pagamento possui os três comandos operacionais", () => {
   assert.match(page, /Conciliação Folha de Pagamento/);
   assert.match(panel, /Atualizar TOTVS/);
-  assert.match(panel, /Atualizar Drive/);
+  assert.match(panel, /Selecionar pasta/);
   assert.match(panel, /payroll-action-button is-primary[\s\S]*?Analisar/);
   assert.match(panel, /CONFERÊNCIA DO LOTE DA FOLHA/);
   assert.match(panel, /Documento \/ contraparte/);
@@ -29,11 +29,19 @@ test("a leitura do Drive filtra coligada, competência e arquivos de análise an
   assert.doesNotMatch(drive, /name contains/);
 });
 
+test("permite selecionar a pasta sincronizada sem depender das credenciais do Drive na Vercel", () => {
+  assert.match(panel, /showDirectoryPicker/);
+  assert.match(panel, /collectLocalFiles/);
+  assert.match(panel, /Pasta local sincronizada/);
+  assert.match(panel, /Chrome ou Microsoft Edge atualizado/);
+  assert.match(panel, /CONFERENCIA\.\*LOTE\|ANALISE DE FOLHA/);
+});
+
 test("o painel da Folha mantém ações e finalização na mesma linha e compacta os três cards", () => {
   assert.match(css, /\.payroll-top-context \{[^}]*grid-template-columns: 210px minmax\(360px, 1fr\) auto auto;/s);
   assert.match(css, /\.payroll-top-context \.module-completion-control \{[^}]*margin-left: 0;[^}]*flex-wrap: nowrap;[^}]*justify-content: flex-end;/s);
   assert.match(css, /\.payroll-command-card \{[^}]*min-height: 68px;[^}]*padding: 8px 10px;/s);
   assert.match(panel, /title="Lote TOTVS"/);
-  assert.match(panel, /title="Documentos no Drive"/);
+  assert.match(panel, /title="Pasta da Folha"/);
   assert.match(panel, /title="Análise da folha"/);
 });

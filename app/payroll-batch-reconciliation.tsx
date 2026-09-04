@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CloudDownload, Database, Download, FileCheck2, LoaderCircle, Play, RotateCcw } from "lucide-react";
+import { AlertTriangle, Database, Download, FileCheck2, FolderOpen, LoaderCircle, Play, RotateCcw } from "lucide-react";
 import {
   ExtractedDocument,
   exportPayrollAnalysis,
@@ -19,6 +19,11 @@ type TotvsLot = { lotCode: string; application: string; records: number; debit: 
 type DriveFile = { id: string; name: string; path: string; mimeType: string; size?: string };
 type DriveRead = { companyFolder: string; folderPath: string; competence: string; files: DriveFile[] };
 type ExecutiveRow = { item: string; lot: number; document: number | null; tolerance: number; status: PayrollCheck["status"]; impact: string; note: string };
+type LocalFileHandle = { kind: "file"; name: string; getFile: () => Promise<File> };
+type LocalDirectoryHandle = { kind: "directory"; name: string; values: () => AsyncIterableIterator<LocalFileHandle | LocalDirectoryHandle> };
+
+const acceptedSupportFile = /\.(pdf|png|jpe?g|webp|xlsx|xls|xlsm)$/i;
+const previousAnalysisFile = /CONFERENCIA.*LOTE|ANALISE DE FOLHA/i;
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const number = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -31,7 +36,7 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   const [driveLoading, setDriveLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lotMessage, setLotMessage] = useState("Clique para consultar o lote pendente no TOTVS.");
-  const [driveMessage, setDriveMessage] = useState("Clique para localizar os documentos oficiais da competência.");
+  const [driveMessage, setDriveMessage] = useState("Selecione a pasta da coligada e competência no Drive sincronizado.");
   const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
   const [message, setMessage] = useState("");
   const [actionsHost, setActionsHost] = useState<HTMLElement | null>(null);
@@ -62,28 +67,36 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
     } finally { setLotLoading(false); }
   }
 
-  async function loadDrive() {
+  async function selectLocalFolder() {
     setDriveLoading(true); setDrive(null); setSupportFiles([]); setAnalysis(null); setMessage("");
     try {
-      const params = new URLSearchParams({ company: companyCode, competence });
-      const response = await fetch(`/api/payroll/drive?${params}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
-      const payload = await response.json() as DriveRead & { error?: string };
-      if (!response.ok) throw new Error(payload.error || "Não foi possível localizar os documentos no Drive.");
-      setDriveMessage(`${payload.files.length} documento(s) localizado(s). Baixando as bases para análise...`);
-      const downloaded = await Promise.all(payload.files.map(async (item) => {
-        const fileResponse = await fetch(`/api/payroll/drive?fileId=${encodeURIComponent(item.id)}&company=${encodeURIComponent(companyCode)}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
-        if (!fileResponse.ok) throw new Error(`Não foi possível ler ${item.name}.`);
-        return new File([await fileResponse.blob()], item.name, { type: item.mimeType || "application/octet-stream" });
-      }));
-      setDrive(payload); setSupportFiles(downloaded);
-      setDriveMessage(`${downloaded.length} documento(s) prontos · ${payload.folderPath}.`);
+      const picker = (window as Window & { showDirectoryPicker?: (options?: { mode?: "read" }) => Promise<LocalDirectoryHandle> }).showDirectoryPicker;
+      if (!picker) throw new Error("Este navegador não permite selecionar pastas. Utilize o Google Chrome ou Microsoft Edge atualizado.");
+      const folder = await picker({ mode: "read" });
+      setDriveMessage(`Lendo os documentos de ${folder.name}...`);
+      const located = await collectLocalFiles(folder);
+      if (!located.length) throw new Error("Nenhum PDF, imagem ou Excel válido foi encontrado na pasta selecionada.");
+      if (located.length > 80) throw new Error("Foram encontrados mais de 80 documentos. Selecione somente a pasta da coligada e competência escolhidas.");
+      const files = located.map((item) => item.file);
+      const payload: DriveRead = {
+        companyFolder: folder.name,
+        folderPath: `Pasta local sincronizada/${folder.name}`,
+        competence,
+        files: located.map((item, index) => ({ id: `local-${index}`, name: item.file.name, path: item.path, mimeType: item.file.type || "application/octet-stream", size: String(item.file.size) })),
+      };
+      setDrive(payload); setSupportFiles(files);
+      setDriveMessage(`${files.length} documento(s) prontos · ${folder.name}.`);
     } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        setDriveMessage("Seleção cancelada. Escolha a pasta da coligada quando desejar continuar.");
+        return;
+      }
       setDriveMessage((error as Error).message);
     } finally { setDriveLoading(false); }
   }
 
   async function runAnalysis() {
-    if (!lot || !supportFiles.length) return setMessage("Faça primeiro a leitura do lote no TOTVS e dos documentos no Drive.");
+    if (!lot || !supportFiles.length) return setMessage("Faça primeiro a leitura do lote no TOTVS e selecione a pasta dos documentos.");
     setBusy(true); setAnalysis(null); setMessage("");
     try {
       const provisions = await parseProvisionFiles(supportFiles);
@@ -106,7 +119,7 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
   function reset() {
     setLot(null); setDrive(null); setSupportFiles([]); setAnalysis(null); setMessage("");
     setLotMessage("Clique para consultar o lote pendente no TOTVS.");
-    setDriveMessage("Clique para localizar os documentos oficiais da competência.");
+    setDriveMessage("Selecione a pasta da coligada e competência no Drive sincronizado.");
   }
 
   const actionButtons = <div className="payroll-command-actions">
@@ -114,9 +127,9 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
       {lotLoading ? <LoaderCircle className="spinning" /> : <Database />}
       Atualizar TOTVS
     </button>
-    <button type="button" className={`payroll-action-button ${drive ? "is-ready" : ""}`} disabled={driveLoading || busy} onClick={() => void loadDrive()}>
-      {driveLoading ? <LoaderCircle className="spinning" /> : <CloudDownload />}
-      Atualizar Drive
+    <button type="button" className={`payroll-action-button ${drive ? "is-ready" : ""}`} disabled={driveLoading || busy} onClick={() => void selectLocalFolder()}>
+      {driveLoading ? <LoaderCircle className="spinning" /> : <FolderOpen />}
+      Selecionar pasta
     </button>
     <button type="button" className={`payroll-action-button is-primary ${analysis ? "is-ready" : ""}`} disabled={!lot || !drive || lotLoading || driveLoading || busy} onClick={() => void runAnalysis()}>
       {busy ? <LoaderCircle className="spinning" /> : <Play />}
@@ -135,7 +148,7 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
 
     <div className="payroll-command-grid">
       <CommandCard icon={<Database />} title="Lote TOTVS" detail={lotMessage} ready={Boolean(lot)} loading={lotLoading} />
-      <CommandCard icon={<CloudDownload />} title="Documentos no Drive" detail={driveMessage} ready={Boolean(drive)} loading={driveLoading} />
+      <CommandCard icon={<FolderOpen />} title="Pasta da Folha" detail={driveMessage} ready={Boolean(drive)} loading={driveLoading} />
       <CommandCard icon={<Play />} title="Análise da folha" detail={busy ? "Conciliando lote e documentos..." : analysis ? "Análise finalizada para a competência." : "Liberada após as duas leituras."} ready={Boolean(analysis)} loading={busy} />
     </div>
 
@@ -148,7 +161,7 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
     {analysis && <section className="panel payroll-executive">
       <header className="payroll-executive-title">
         <h2>CONFERÊNCIA DO LOTE DA FOLHA — COLIGADA {companyCode}</h2>
-        <p>Competência {competence.split("-").reverse().join("/")} | {companyName.replace(/^\s*\d+\s*[—-]\s*/, "")} | Fontes: TOTVS Labore e Google Drive</p>
+        <p>Competência {competence.split("-").reverse().join("/")} | {companyName.replace(/^\s*\d+\s*[—-]\s*/, "")} | Fontes: TOTVS Labore e pasta local sincronizada</p>
       </header>
       <div className="table-wrap"><table><thead><tr><th>Verificação</th><th>Lote / referência</th><th>Documento / contraparte</th><th>Diferença</th><th>Tolerância</th><th>Status</th><th>Impacto</th><th>Observação</th></tr></thead>
         <tbody>{executiveRows.map((row) => <tr key={row.item}><td><b>{row.item}</b></td><td>{number.format(row.lot)}</td><td>{row.document === null ? "Não identificado" : number.format(row.document)}</td><td className={row.status === "PENDENTE" ? "difference-pending" : ""}>{row.document === null ? "—" : number.format(row.lot - row.document)}</td><td>{number.format(row.tolerance)}</td><td><span className={`payroll-status ${row.status.toLowerCase()}`}>{row.status}</span></td><td>{row.impact}</td><td>{row.note}</td></tr>)}</tbody>
@@ -158,6 +171,22 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
       <div className="payroll-export-action"><span>{message}</span><button className="primary" onClick={() => exportPayrollAnalysis(analysis, companyCode, companyName, competence)}><Download /> Exportar documentação da análise</button></div>
     </section>}
   </section>;
+}
+
+async function collectLocalFiles(folder: LocalDirectoryHandle, prefix = folder.name, depth = 0): Promise<Array<{ file: File; path: string }>> {
+  if (depth > 5) return [];
+  const located: Array<{ file: File; path: string }> = [];
+  for await (const entry of folder.values()) {
+    const path = `${prefix}/${entry.name}`;
+    if (entry.kind === "directory") {
+      if (!/^00\s*[-_. ]*ANTERIORES$/i.test(entry.name)) located.push(...await collectLocalFiles(entry, path, depth + 1));
+      continue;
+    }
+    if (entry.name.startsWith("~$") || !acceptedSupportFile.test(entry.name) || previousAnalysisFile.test(path)) continue;
+    located.push({ file: await entry.getFile(), path });
+    if (located.length > 80) return located;
+  }
+  return located;
 }
 
 function CommandCard({ icon, title, detail, ready, loading }: { icon: React.ReactNode; title: string; detail: string; ready: boolean; loading: boolean }) {
