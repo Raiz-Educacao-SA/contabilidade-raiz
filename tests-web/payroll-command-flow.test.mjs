@@ -19,12 +19,12 @@ test("a Conciliação Folha de Pagamento possui os três comandos operacionais",
 
 test("a leitura do Drive filtra coligada, competência e arquivos de análise anteriores", () => {
   assert.match(drive, /authorizedCompanies/);
-  assert.match(drive, /GOOGLE_DRIVE_FOLHA_FOLDER_ID/);
   assert.match(drive, /00 - ANTERIORES/);
   assert.match(drive, /CONFERENCIA\.\*LOTE\|ANALISE DE FOLHA/);
   assert.match(drive, /application\/vnd\.google-apps\.folder/);
   assert.match(drive, /DEFAULT_FOLHA_ROOT_ID = "1A41TkfKUG3jsNu7Z8Eyq8tvu7qPo7GE7"/);
-  assert.match(drive, /EXPECTED_ROOT_SEGMENTS = \["4\. CONTABIL", "2\. ROTINA", "2026", "02\. DOC_SUPORTE", "11\. FOLHA"\]/);
+  assert.match(drive, /normalized\(folhaRoot\.name\) !== "11\. FOLHA"/);
+  assert.match(drive, /conta técnica do sistema ainda não possui acesso à pasta 11\. FOLHA/);
   assert.match(drive, /normalized\(folder\.name\) === `\$\{monthPrefix\} \$\{monthNames\[month - 1\]\}`/);
   assert.doesNotMatch(drive, /name contains/);
 });

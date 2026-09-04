@@ -7,7 +7,6 @@ export const maxDuration = 300;
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const SUPPORTED = /\.(pdf|png|jpe?g|webp|xlsx|xls|xlsm)$/i;
 const DEFAULT_FOLHA_ROOT_ID = "1A41TkfKUG3jsNu7Z8Eyq8tvu7qPo7GE7";
-const EXPECTED_ROOT_SEGMENTS = ["4. CONTABIL", "2. ROTINA", "2026", "02. DOC_SUPORTE", "11. FOLHA"];
 type DriveItem = { id: string; name: string; mimeType: string; parents?: string[]; modifiedTime?: string; size?: string };
 type LocatedFile = DriveItem & { path: string };
 let tokenCache: { token: string; expiresAt: number } | null = null;
@@ -73,38 +72,15 @@ async function itemMetadata(id: string) {
   return response.ok ? await response.json() as DriveItem : null;
 }
 
-async function parentPath(item: DriveItem) {
-  const names = [item.name];
-  let parentId = item.parents?.[0];
-  for (let depth = 0; parentId && depth < 8; depth += 1) {
-    const parent = await itemMetadata(parentId);
-    if (!parent) break;
-    names.unshift(parent.name); parentId = parent.parents?.[0];
-  }
-  return names.join("/");
-}
-
 async function locateCompanyFolder(company: string, competence: string) {
   const [, monthText] = competence.split("-");
   const month = Number(monthText);
   const code = company.replace(/^0+/, "");
-  const configuredRootId = process.env.GOOGLE_DRIVE_FOLHA_FOLDER_ID;
-  const rootIds = [...new Set([configuredRootId, DEFAULT_FOLHA_ROOT_ID].filter((id): id is string => Boolean(id)))];
-  let folhaRoot: DriveItem | null = null;
-  let rootPath = "";
-
-  for (const rootId of rootIds) {
-    const candidate = await itemMetadata(rootId);
-    if (!candidate || candidate.mimeType !== FOLDER_MIME) continue;
-    const path = await parentPath(candidate);
-    const normalizedPath = normalized(path);
-    if (EXPECTED_ROOT_SEGMENTS.every((segment) => normalizedPath.includes(segment))) {
-      folhaRoot = candidate;
-      rootPath = path;
-      break;
-    }
+  const folhaRoot = await itemMetadata(DEFAULT_FOLHA_ROOT_ID);
+  if (!folhaRoot) throw new Error("A conta técnica do sistema ainda não possui acesso à pasta 11. FOLHA no Google Drive.");
+  if (folhaRoot.mimeType !== FOLDER_MIME || normalized(folhaRoot.name) !== "11. FOLHA") {
+    throw new Error("O identificador autorizado para a Folha não corresponde à pasta 11. FOLHA.");
   }
-  if (!folhaRoot) throw new Error("A raiz configurada para a Folha no Google Drive não corresponde ao caminho contábil autorizado.");
 
   const monthPrefix = String(month).padStart(2, "0");
   const monthFolder = (await driveList(`'${escapeQuery(folhaRoot.id)}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`))
@@ -116,7 +92,7 @@ async function locateCompanyFolder(company: string, competence: string) {
     const folderCode = normalized(folder.name).match(/^\s*0*(\d+)(?:\s*[-_. ]|$)/)?.[1]?.replace(/^0+/, "");
     return folderCode === code;
   });
-  return companyFolder ? { folder: companyFolder, path: `${rootPath}/${monthFolder.name}/${companyFolder.name}` } : null;
+  return companyFolder ? { folder: companyFolder, path: `11. FOLHA/${monthFolder.name}/${companyFolder.name}` } : null;
 }
 
 async function collectFiles(folder: DriveItem, path: string, depth = 0): Promise<LocatedFile[]> {
