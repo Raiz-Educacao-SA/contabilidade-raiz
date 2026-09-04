@@ -6,6 +6,8 @@ export const maxDuration = 300;
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const SUPPORTED = /\.(pdf|png|jpe?g|webp|xlsx|xls|xlsm)$/i;
+const DEFAULT_FOLHA_ROOT_ID = "1A41TkfKUG3jsNu7Z8Eyq8tvu7qPo7GE7";
+const EXPECTED_ROOT_SEGMENTS = ["4. CONTABIL", "2. ROTINA", "2026", "02. DOC_SUPORTE", "11. FOLHA"];
 type DriveItem = { id: string; name: string; mimeType: string; parents?: string[]; modifiedTime?: string; size?: string };
 type LocatedFile = DriveItem & { path: string };
 let tokenCache: { token: string; expiresAt: number } | null = null;
@@ -83,29 +85,38 @@ async function parentPath(item: DriveItem) {
 }
 
 async function locateCompanyFolder(company: string, competence: string) {
-  const [year, monthText] = competence.split("-");
+  const [, monthText] = competence.split("-");
   const month = Number(monthText);
   const code = company.replace(/^0+/, "");
-  const rootId = process.env.GOOGLE_DRIVE_FOLHA_FOLDER_ID;
-  const q = rootId
-    ? `'${escapeQuery(rootId)}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`
-    : `mimeType = '${FOLDER_MIME}' and name contains '${escapeQuery(code.padStart(2, "0"))}' and trashed = false`;
-  const folders = await driveList(q);
-  const candidates = [] as Array<{ folder: DriveItem; path: string; score: number }>;
-  for (const folder of folders) {
-    const name = normalized(folder.name);
-    const folderCode = name.match(/^\s*(\d+)/)?.[1]?.replace(/^0+/, "");
-    if (folderCode !== code) continue;
-    const path = await parentPath(folder);
+  const configuredRootId = process.env.GOOGLE_DRIVE_FOLHA_FOLDER_ID;
+  const rootIds = [...new Set([configuredRootId, DEFAULT_FOLHA_ROOT_ID].filter((id): id is string => Boolean(id)))];
+  let folhaRoot: DriveItem | null = null;
+  let rootPath = "";
+
+  for (const rootId of rootIds) {
+    const candidate = await itemMetadata(rootId);
+    if (!candidate || candidate.mimeType !== FOLDER_MIME) continue;
+    const path = await parentPath(candidate);
     const normalizedPath = normalized(path);
-    const score = 100
-      + (normalizedPath.includes(year) ? 20 : 0)
-      + (normalizedPath.includes(monthNames[month - 1]) ? 20 : 0)
-      + (normalizedPath.includes("FOLHA") ? 10 : 0)
-      + (normalizedPath.includes("DOC_SUPORTE") ? 5 : 0);
-    candidates.push({ folder, path, score });
+    if (EXPECTED_ROOT_SEGMENTS.every((segment) => normalizedPath.includes(segment))) {
+      folhaRoot = candidate;
+      rootPath = path;
+      break;
+    }
   }
-  return candidates.sort((a, b) => b.score - a.score)[0] ?? null;
+  if (!folhaRoot) throw new Error("A raiz configurada para a Folha no Google Drive não corresponde ao caminho contábil autorizado.");
+
+  const monthPrefix = String(month).padStart(2, "0");
+  const monthFolder = (await driveList(`'${escapeQuery(folhaRoot.id)}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`))
+    .find((folder) => normalized(folder.name) === `${monthPrefix} ${monthNames[month - 1]}`);
+  if (!monthFolder) return null;
+
+  const companyFolders = await driveList(`'${escapeQuery(monthFolder.id)}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`);
+  const companyFolder = companyFolders.find((folder) => {
+    const folderCode = normalized(folder.name).match(/^\s*0*(\d+)(?:\s*[-_. ]|$)/)?.[1]?.replace(/^0+/, "");
+    return folderCode === code;
+  });
+  return companyFolder ? { folder: companyFolder, path: `${rootPath}/${monthFolder.name}/${companyFolder.name}` } : null;
 }
 
 async function collectFiles(folder: DriveItem, path: string, depth = 0): Promise<LocatedFile[]> {
