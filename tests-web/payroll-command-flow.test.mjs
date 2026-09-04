@@ -35,6 +35,7 @@ test("permite selecionar a pasta sincronizada sem depender das credenciais do Dr
   assert.match(panel, /Pasta local sincronizada/);
   assert.match(panel, /Chrome ou Microsoft Edge atualizado/);
   assert.match(panel, /CONFERENCIA\.\*LOTE\|ANALISE DE FOLHA/);
+  assert.match(panel, /fetch\("\/api\/payroll\/documents", \{[\s\S]*?authorization: `Bearer \$\{accessToken\}`/);
 });
 
 test("o painel da Folha mantém ações e finalização na mesma linha e compacta os três cards", () => {

@@ -104,7 +104,11 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
       let documents: ExtractedDocument[] = await parseSpreadsheetDocuments(supportFiles);
       if (visualFiles.length) {
         const form = new FormData(); visualFiles.forEach((file) => form.append("files", file));
-        const response = await fetch("/api/payroll/documents", { method: "POST", body: form });
+        const response = await fetch("/api/payroll/documents", {
+          method: "POST",
+          headers: { authorization: `Bearer ${accessToken}` },
+          body: form,
+        });
         const payload = await response.json() as { documents?: ExtractedDocument[]; error?: string };
         if (!response.ok) throw new Error(payload.error || "Não foi possível interpretar os documentos do DP.");
         documents = [...documents, ...(payload.documents ?? [])];
