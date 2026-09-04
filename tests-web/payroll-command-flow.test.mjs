@@ -7,6 +7,7 @@ const drive = readFileSync(new URL("../app/api/payroll/drive/route.ts", import.m
 const documents = readFileSync(new URL("../app/api/payroll/documents/route.ts", import.meta.url), "utf8");
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/payroll-overrides.css", import.meta.url), "utf8");
+const nextConfig = readFileSync(new URL("../next.config.mjs", import.meta.url), "utf8");
 
 test("a Conciliação Folha de Pagamento possui os três comandos operacionais", () => {
   assert.match(page, /Conciliação Folha de Pagamento/);
@@ -43,6 +44,9 @@ test("prepara o runtime gráfico do Node antes de converter PDFs digitalizados",
   assert.match(documents, /import\("@napi-rs\/canvas"\)/);
   assert.match(documents, /runtime\.DOMMatrix \?\?= canvas\.DOMMatrix/);
   assert.ok(documents.indexOf("await preparePdfRuntime();") < documents.indexOf('await import("pdf-to-img")'));
+  assert.match(nextConfig, /serverExternalPackages: \[[^\]]*"pdfjs-dist"/);
+  assert.match(nextConfig, /pdfjs-dist\/legacy\/build\/pdf\.worker\.mjs/);
+  assert.match(nextConfig, /pdfjs-dist\/standard_fonts\/\*\*\/\*/);
 });
 
 test("o painel da Folha mantém ações e finalização na mesma linha e compacta os três cards", () => {
