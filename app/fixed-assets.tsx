@@ -165,6 +165,8 @@ export default function FixedAssetsPanel({
     setInvoiceItemsBusy(true);
     try {
       const invoiceParams = new URLSearchParams({ ticket: row.TICKET });
+      invoiceParams.set("company", companyCode);
+      invoiceParams.set("movementId", row.IDMOV);
       if (row.zeev?.invoiceKey) invoiceParams.set("invoiceKey", row.zeev.invoiceKey);
       if (row.zeev?.invoiceNumber || row.NUMEROMOV) invoiceParams.set("invoiceNumber", row.zeev?.invoiceNumber || row.NUMEROMOV);
       const response = await fetch(`/api/zeev/invoice-items?${invoiceParams}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });

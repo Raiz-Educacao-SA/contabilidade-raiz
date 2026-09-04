@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseNfeOcr, parseNfeXml } from "@/lib/nfe-items";
 import { authenticatedCorporateUser } from "@/lib/server/supabase-access";
 import { zeevRequest, zeevTokenForUser } from "@/lib/server/zeev-auth";
+import { decodedTag, readDataServerView } from "@/lib/totvs-dataengine";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -29,6 +30,40 @@ const documentScore = (document: DocumentLink, invoiceKey: string, invoiceNumber
   const label = `${document.name} ${document.url}`.toLowerCase();
   return (/xml/.test(label) ? 50 : 0) + (/danfe|nf-?e|nota.?fiscal/.test(label) ? 30 : 0) + (invoiceKey && digits(label).includes(invoiceKey) ? 100 : 0) + (invoiceNumber && digits(label).includes(invoiceNumber) ? 20 : 0) - (/boleto|pedido|comprovante/.test(label) ? 60 : 0);
 };
+const numeric = (value: string) => {
+  const direct = Number(value);
+  if (Number.isFinite(direct)) return direct;
+  const parsed = Number(value.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+async function totvsMovementItems(company: string, movementId: string) {
+  let lastError = "";
+  for (const dataServerName of ["MovMovimentoTBCData", "MovMovimentoData"]) {
+    try {
+      const dataSet = await readDataServerView({
+        dataServerName,
+        filter: `TMOV.CODCOLIGADA=${Number(company)} AND TMOV.IDMOV=${Number(movementId)}`,
+        context: `CODSISTEMA=T,CODCOLIGADA=${Number(company)}`,
+        timeoutMs: 90_000,
+        errorMessage: "O TOTVS não conseguiu consultar os itens do movimento.",
+      });
+      const records = Array.from(dataSet.matchAll(/<TITMMOV(?:_TPRD)?>([\s\S]*?)<\/TITMMOV(?:_TPRD)?>/gi), (match) => match[1]);
+      const items = records.map((record) => ({
+        code: decodedTag(record, "CODIGOPRD", "CODPRD", "IDPRD"),
+        description: decodedTag(record, "NOMEFANTASIA", "DESCRICAOITEM", "DESCRICAO", "NOME"),
+        ncm: decodedTag(record, "NCM", "CODNCM"), cst: decodedTag(record, "CST", "CSOSN"), cfop: decodedTag(record, "CFOP", "CODNAT"),
+        unit: decodedTag(record, "CODUND", "UNIDADE"), quantity: numeric(decodedTag(record, "QUANTIDADE")),
+        unitValue: numeric(decodedTag(record, "PRECOUNITARIO", "PRECOUNITARIOSEMDESC")),
+        total: numeric(decodedTag(record, "VALORBRUTOITEM", "VALORTOTALITEM", "VALORLIQUIDO")),
+        icmsBase: numeric(decodedTag(record, "BASEICMS")), icmsValue: numeric(decodedTag(record, "VALORICMS")), ipiValue: numeric(decodedTag(record, "VALORIPI")),
+        icmsRate: numeric(decodedTag(record, "ALIQUOTAICMS")), ipiRate: numeric(decodedTag(record, "ALIQUOTAIPI")),
+      })).filter((item) => item.description && item.quantity > 0);
+      if (items.length) return items;
+    } catch (cause) { lastError = (cause as Error).message; }
+  }
+  throw new Error(lastError || "O movimento não retornou itens no TOTVS.");
+}
 
 async function download(baseUrl: string, token: string, document: DocumentLink) {
   const target = new URL(document.url, `${baseUrl}/`);
@@ -45,13 +80,21 @@ export async function GET(request: NextRequest) {
     const ticket = request.nextUrl.searchParams.get("ticket")?.trim() || "";
     const invoiceKey = digits(request.nextUrl.searchParams.get("invoiceKey") || "");
     const invoiceNumber = digits(request.nextUrl.searchParams.get("invoiceNumber") || "");
+    const company = digits(request.nextUrl.searchParams.get("company") || "");
+    const movementId = digits(request.nextUrl.searchParams.get("movementId") || "");
     if (!/^\d+$/.test(ticket)) return NextResponse.json({ error: "Ticket Zeev inválido." }, { status: 400 });
     const baseUrl = (process.env.ZEEV_BASE_URL || "https://raizeducacao.zeev.it").replace(/\/$/, "");
     const token = await zeevTokenForUser(baseUrl, user.email);
     if (!token) return NextResponse.json({ error: "Integração técnica do Zeev não configurada." }, { status: 503 });
     const query = new URLSearchParams({ showPendingInstanceTasks: "true", showFinishedInstanceTasks: "true", allowOpenUrlsForFilesInForm: "true" });
     const instanceResponse = await zeevRequest(baseUrl, token, `/api/2/instances/${encodeURIComponent(ticket)}?${query}`);
-    if (!instanceResponse.ok) throw new Error(`O Zeev recusou a consulta do ticket (${instanceResponse.status}).`);
+    if (!instanceResponse.ok) {
+      if (company && movementId) {
+        const items = await totvsMovementItems(company, movementId);
+        return NextResponse.json({ items, source: "Itens do movimento/NF · TOTVS RM", warning: `O Zeev não detalhou o ticket; os itens foram obtidos pelo IDMOV ${movementId}.` });
+      }
+      throw new Error(`O Zeev recusou a consulta do ticket (${instanceResponse.status}).`);
+    }
     const documents = collectDocuments(await instanceResponse.json()).sort((a, b) => documentScore(b, invoiceKey, invoiceNumber) - documentScore(a, invoiceKey, invoiceNumber));
     for (const document of documents.slice(0, 12)) {
       if (!/xml/i.test(`${document.name} ${document.url}`)) continue;
@@ -62,7 +105,10 @@ export async function GET(request: NextRequest) {
       if (items.length) return NextResponse.json({ items, source: "Dados do produto/serviço · XML da NF-e", documentName: document.name });
     }
     const visualDocument = documents.find((item) => /\.(pdf|png|jpe?g)(?:[?#]|$)/i.test(`${item.name} ${item.url}`) && !/boleto|pedido|comprovante/i.test(item.name));
-    if (!visualDocument) return NextResponse.json({ items: [], source: "Zeev", warning: "O ticket não possui XML, PDF ou imagem da nota fiscal acessível." });
+    if (!visualDocument) {
+      if (company && movementId) return NextResponse.json({ items: await totvsMovementItems(company, movementId), source: "Itens do movimento/NF · TOTVS RM", warning: "O Zeev não disponibilizou o anexo; os itens foram obtidos pelo IDMOV." });
+      return NextResponse.json({ items: [], source: "Zeev", warning: "O ticket não possui XML, PDF ou imagem da nota fiscal acessível." });
+    }
     const file = await download(baseUrl, token, visualDocument);
     const [{ createWorker }, { pdf }] = await Promise.all([import("tesseract.js"), import("pdf-to-img")]);
     const worker = await createWorker("por");
@@ -77,6 +123,7 @@ export async function GET(request: NextRequest) {
       } else texts.push((await worker.recognize(file.buffer)).data.text);
     } finally { await worker.terminate(); }
     const items = parseNfeOcr(texts.join("\n"));
+    if (!items.length && company && movementId) return NextResponse.json({ items: await totvsMovementItems(company, movementId), source: "Itens do movimento/NF · TOTVS RM", warning: "A DANFE não pôde ser separada; os itens foram obtidos pelo IDMOV." });
     return NextResponse.json({ items, source: "Dados do produto/serviço · DANFE", documentName: visualDocument.name, warning: items.length ? null : "A tabela Dados do produto/serviço não pôde ser separada. Consulte a DANFE antes de confirmar." });
   } catch (cause) {
     return NextResponse.json({ error: (cause as Error).message || "Falha ao ler os itens da nota fiscal." }, { status: 503 });
