@@ -1298,6 +1298,7 @@ export default function Home() {
         )}
         {selectedModule === "ativo-fixo" && (
           <FixedAssetsPanel
+            key={`${companyId}-${competence}`}
             companyCode={company?.empresas?.codcoligada ?? ""}
             companyName={company?.empresas?.razao_social ?? ""}
             competence={competence}
