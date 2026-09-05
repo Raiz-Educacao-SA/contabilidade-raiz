@@ -140,6 +140,7 @@ type MonthlyCalculation = {
     account: string;
     group: string;
     noteCode: string;
+    creditAccount: string;
     residual: number;
     cost: number;
     base: number;
@@ -169,6 +170,13 @@ type MonthlyCalculation = {
   postingErrors: string[];
   calculated: number;
   pending: number;
+};
+
+type ReconciliationRow = {
+  account: string; groups: string; branches: string; controlOpening: number;
+  controlMovement: number; controlClosing: number; ledgerMovement: number;
+  trialOpening: number; trialMovement: number; trialClosing: number;
+  movementDifference: number; closingDifference: number; status: string;
 };
 
 type SummaryRow = {
@@ -261,6 +269,9 @@ export default function FixedAssetsPanel({
   const [monthly, setMonthly] = useState<MonthlyCalculation | null>(null);
   const [monthlyBusy, setMonthlyBusy] = useState(false);
   const [monthlyError, setMonthlyError] = useState("");
+  const [reconciliation, setReconciliation] = useState<ReconciliationRow[]>([]);
+  const [reconciliationBusy, setReconciliationBusy] = useState(false);
+  const [reconciliationError, setReconciliationError] = useState("");
   const fetchData = useCallback(
     async (signal?: AbortSignal): Promise<FixedAssetsData> => {
       const response = await fetch(
@@ -567,6 +578,7 @@ export default function FixedAssetsPanel({
   async function calculateMonth() {
     setMonthlyBusy(true);
     setMonthlyError("");
+    setReconciliation([]);
     try {
       const response = await fetch(
         `/api/fixed-assets/monthly-calculation?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}`,
@@ -595,6 +607,47 @@ export default function FixedAssetsPanel({
     // O cálculo é somente leitura e acompanha a empresa e a competência selecionadas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, companyCode, competence]);
+
+  async function runReconciliation() {
+    if (!monthly) return;
+    setReconciliationBusy(true); setReconciliationError("");
+    try {
+      const response = await fetch(`/api/totvs/trial-balance?company=${encodeURIComponent(companyCode)}&competence=${encodeURIComponent(competence)}&byBranch=1&scope=fixed-assets`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Não foi possível consultar razão e balancete.");
+      const trialByAccount = new Map<string, { opening: number; movement: number; closing: number }>();
+      for (const row of payload.rows ?? []) trialByAccount.set(String(row.account).trim(), { opening: Math.abs(Number(row.openingBalance || 0)), movement: Math.abs(Number(row.movement || 0)), closing: Math.abs(Number(row.closingBalance || 0)) });
+      const ledgerByAccount = new Map<string, number>();
+      const branchesByAccount = new Map<string, Set<string>>();
+      for (const row of payload.branchAccounts ?? []) {
+        const account = String(row.account).trim();
+        ledgerByAccount.set(account, (ledgerByAccount.get(account) || 0) + Math.abs(Number(row.movement || 0)));
+        const branches = branchesByAccount.get(account) ?? new Set<string>(); branches.add(String(row.branch)); branchesByAccount.set(account, branches);
+      }
+      const grouped = new Map<string, { groups: Set<string>; controlOpening: number; controlMovement: number; controlClosing: number }>();
+      for (const row of monthly.rows) {
+        const account = row.creditAccount;
+        if (!account) continue;
+        const current = grouped.get(account) ?? { groups: new Set<string>(), controlOpening: 0, controlMovement: 0, controlClosing: 0 };
+        current.groups.add(`${row.account} — ${row.group}`); current.controlOpening += row.opening;
+        current.controlMovement += row.monthDepreciation; current.controlClosing += row.accumulated; grouped.set(account, current);
+      }
+      const rows = [...grouped.entries()].map(([account, control]) => {
+        const trial = trialByAccount.get(account) ?? { opening: 0, movement: 0, closing: 0 };
+        const ledgerMovement = ledgerByAccount.get(account) || 0;
+        const movementDifference = Math.round((ledgerMovement - control.controlMovement) * 100) / 100;
+        const closingDifference = Math.round((trial.closing - control.controlClosing) * 100) / 100;
+        return { account, groups: [...control.groups].join("; "), branches: [...(branchesByAccount.get(account) ?? [])].sort((a, b) => Number(a) - Number(b)).join(", ") || "—", controlOpening: control.controlOpening, controlMovement: control.controlMovement, controlClosing: control.controlClosing, ledgerMovement, trialOpening: trial.opening, trialMovement: trial.movement, trialClosing: trial.closing, movementDifference, closingDifference, status: Math.abs(movementDifference) <= .01 && Math.abs(closingDifference) <= .01 ? "Conciliado" : "Divergente" };
+      }).sort((left, right) => left.account.localeCompare(right.account, "pt-BR", { numeric: true }));
+      setReconciliation(rows);
+    } catch (cause) { setReconciliationError(cause instanceof Error ? cause.message : "Falha na conciliação."); }
+    finally { setReconciliationBusy(false); }
+  }
+
+  useEffect(() => {
+    if (view === "conciliacao" && monthly && !reconciliationBusy && !reconciliation.length) void runReconciliation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, monthly]);
 
   function exportAccountingEntries() {
     if (!monthly?.postings.length || monthly.postingErrors.length) return;
@@ -657,6 +710,7 @@ export default function FixedAssetsPanel({
     addSheet("Nota explicativa", "Quadro de movimentações", ["Seção", "NE", "Grupo patrimonial", "Taxa anual", "Saldo inicial", "Adições", "Transferências", "AFAC", "Baixas", "Depreciação", "Saldo final", "Balancete", "Conciliação"], effectiveNoteDisclosure.map((row) => [row.secao, row.codigo_ne, row.descricao, Number(row.taxa_anual), Number(row.saldo_inicial), Number(row.adicoes), Number(row.transferencias), Number(row.afac), Number(row.baixas), Number(row.depreciacao), Number(row.saldo_final), row.reconciliationStatus ? null : Number(row.saldo_balancete), row.reconciliationStatus || (Math.abs(Number(row.diferenca)) <= 1 ? "Ok" : "Divergente")]), [16, 10, 36, 12, 16, 16, 16, 14, 14, 16, 16, 16, 22]);
     addSheet("Cálculo mensal", "Memória de cálculo mensal", ["Código", "Filial", "Grupo", "Descrição", "Aquisição", "Custo", "Valor residual", "Base depreciável", "Depreciação anterior", "Quota padrão", "Depreciação do mês", "Depreciação acumulada", "Saldo final", "Status"], monthly.rows.map((row) => [row.code, row.branch, row.account, row.description, row.acquisitionDate, row.cost, row.residual, row.base, row.opening, row.standardQuota, row.monthDepreciation, row.accumulated, row.bookValue, row.status]), [20, 9, 18, 45, 13, 16, 16, 17, 20, 16, 19, 20, 17, 16]);
     addSheet("Lançamentos contábeis", "Lançamentos contábeis por grupo e filial", ["Filial", "Grupo", "Descrição do grupo", "Conta débito", "Conta crédito", "Valor", "Histórico"], monthly.postings.map((posting) => [posting.branchCode, posting.groupCode, posting.groupName, posting.debitAccount, posting.creditAccount, posting.amount, `DEPRECIAÇÃO ${posting.groupCode} - ${posting.groupName} - N/MÊS`]), [9, 18, 36, 20, 20, 16, 55]);
+    if (reconciliation.length) addSheet("Conciliação", "Controle x razão x balancete", ["Conta redutora", "Grupos patrimoniais", "Filiais no razão", "Controle inicial", "Depreciação do mês", "Controle final", "Razão do mês", "Balancete inicial", "Movimento balancete", "Balancete final", "Diferença movimento", "Diferença saldo", "Status"], reconciliation.map((row) => [row.account, row.groups, row.branches, row.controlOpening, row.controlMovement, row.controlClosing, row.ledgerMovement, row.trialOpening, row.trialMovement, row.trialClosing, row.movementDifference, row.closingDifference, row.status]), [20, 50, 16, 17, 19, 17, 17, 17, 19, 17, 18, 18, 14]);
     XLSX.writeFile(workbook, `Ativo_Fixo_${companyCode}_${competence}.xlsx`, { compression: true });
   }
 
@@ -1548,13 +1602,12 @@ export default function FixedAssetsPanel({
         </div>
       )}
       {view === "conciliacao" && (
-        <EmptyView
-          icon={BookOpenCheck}
-          title="Controle x razão x balancete"
-          description="O quadro exibirá saldo inicial, adições, baixas, depreciação, ajustes, saldo final e diferenças por conta e filial."
-          action="Consultar relatórios contábeis"
-          canWrite={canWrite}
-        />
+        <div className={styles.calculationArea}>
+          <div className={styles.calculationHeader}><div><span>CONFERÊNCIA CONTÁBIL</span><h2>Controle x razão x balancete · {competence}</h2><small>Movimento do mês e saldo acumulado por conta redutora de depreciação.</small></div><div className={styles.calculationActions}><button onClick={() => void runReconciliation()} disabled={reconciliationBusy || !monthly}><BookOpenCheck />{reconciliationBusy ? "Consultando TOTVS…" : "Executar conciliação"}</button></div></div>
+          {reconciliationError && <div className={styles.error}>{reconciliationError}</div>}
+          {!reconciliationBusy && !reconciliationError && !reconciliation.length && <div className={styles.notice}>Aguardando consulta ao razão e ao balancete da competência.</div>}
+          {reconciliation.length ? <div className={styles.tableWrap}><table className={styles.reconciliationTable}><thead><tr><th>Conta redutora</th><th>Grupo patrimonial</th><th>Filiais no razão</th><th className={styles.numeric}>Controle inicial</th><th className={styles.numeric}>Deprec. do mês</th><th className={styles.numeric}>Controle final</th><th className={styles.numeric}>Razão do mês</th><th className={styles.numeric}>Balancete inicial</th><th className={styles.numeric}>Mov. balancete</th><th className={styles.numeric}>Balancete final</th><th className={styles.numeric}>Dif. movimento</th><th className={styles.numeric}>Dif. saldo</th><th>Status</th></tr></thead><tbody>{reconciliation.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.groups}</td><td>{row.branches}</td><td className={styles.numeric}>{amount(row.controlOpening)}</td><td className={styles.numeric}>{amount(row.controlMovement)}</td><td className={styles.numeric}>{amount(row.controlClosing)}</td><td className={styles.numeric}>{amount(row.ledgerMovement)}</td><td className={styles.numeric}>{amount(row.trialOpening)}</td><td className={styles.numeric}>{amount(row.trialMovement)}</td><td className={styles.numeric}>{amount(row.trialClosing)}</td><td className={styles.numeric}>{amount(row.movementDifference)}</td><td className={styles.numeric}>{amount(row.closingDifference)}</td><td><span className={row.status === "Conciliado" ? styles.checkOk : styles.checkError}>{row.status}</span></td></tr>)}</tbody></table></div> : null}
+        </div>
       )}
 
       <footer className={styles.context}>

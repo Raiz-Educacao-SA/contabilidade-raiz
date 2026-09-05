@@ -149,6 +149,7 @@
 .calculationKpis span { display: block; color: var(--muted); font-size: 11px; }
 .calculationKpis b { display: block; margin-top: 5px; font-size: 17px; }
 .calculationTable { min-width: 1550px; }
+.reconciliationTable { min-width: 1850px; }
 .calculationTable tfoot td { background: #eaf0f5; font-weight: 800; }
 .classification { margin: 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .confirmButton { margin-left: auto; }

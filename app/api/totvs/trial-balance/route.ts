@@ -16,7 +16,7 @@ async function authorized(request: NextRequest) {
   return (await fetch(`${url}/auth/v1/user`, { headers: { authorization, apikey: key }, cache: "no-store" })).ok;
 }
 
-async function branchRevenue(baseUrl: string, user: string, password: string, company: string, firstDay: string, lastDay: string) {
+async function branchRevenue(baseUrl: string, user: string, password: string, company: string, firstDay: string, lastDay: string, accountPrefix = "3") {
   const parameters = `PLN_B7_S=3;PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`;
   const envelope = `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA0909</codSentenca><codColigada>0</codColigada><codSistema>C</codSistema><parameters>${xmlEscape(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${baseUrl}/wsConsultaSQL/IwsConsultaSQL`, {
@@ -41,7 +41,7 @@ async function branchRevenue(baseUrl: string, user: string, password: string, co
   Array.from(resultXml.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi)).forEach((match) => {
     const record = match[1];
     const account = tag(record, "CODCONTA").trim();
-    if (!isRevenueAccount(account)) return;
+    if (accountPrefix === "3" ? !isRevenueAccount(account) : !account.startsWith(accountPrefix)) return;
     const branch = tag(record, "CODFILIAL").trim() || "0";
     const value = number(tag(record, "VALOR"));
     const key = [branch, tag(record, "IDLANCAMENTO"), account, value].join("|");
@@ -115,7 +115,8 @@ export async function GET(request: NextRequest) {
     let branches: Array<{ branch: string; movement: number; revenue: number }> = [];
     let branchAccounts: Array<{ branch: string; account: string; description: string; movement: number }> = [];
     if (request.nextUrl.searchParams.get("byBranch") === "1") {
-      const detail = await branchRevenue(baseUrl, user, password, company, firstDay, lastDay);
+      const accountPrefix = request.nextUrl.searchParams.get("scope") === "fixed-assets" ? "1.2.3" : "3";
+      const detail = await branchRevenue(baseUrl, user, password, company, firstDay, lastDay, accountPrefix);
       branches = detail.branches;
       const descriptions = new Map(rows.map((row) => [row.account.trim(), row.description]));
       branchAccounts = detail.branchAccounts.map((item) => ({

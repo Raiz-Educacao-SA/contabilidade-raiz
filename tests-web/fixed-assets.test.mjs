@@ -34,6 +34,10 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /QUADRO DE MOVIMENTAÇÕES/);
   assert.match(panel, /Saldo final = saldo inicial/);
   assert.match(panel, /Controle x razão x balancete/);
+  assert.match(panel, /Executar conciliação/);
+  assert.match(panel, /Dif\. movimento/);
+  assert.match(panel, /Dif\. saldo/);
+  assert.match(panel, /scope=fixed-assets/);
   assert.match(panel, /Exportar lançamento contábil/);
   assert.match(panel, /Exportar memória Excel/);
   assert.match(panel, /Ativo_Fixo_/);
