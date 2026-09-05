@@ -100,9 +100,16 @@ test("não soma provisões no FGTS e ignora histórico de IRRF fora da competên
   const rows = [row("2.1.2.01.03.02", 505.71)];
   const documents = [
     { name: "Guia FGTS - col 28.pdf", text: "GFD - Guia do FGTS Digital\nValor a recolher 505,71" },
+    { name: "Guia DCTFWEB - col 28.pdf", text: "Período de Apuração: 08/2026\nTotal de débitos apurados 2.245,78\nNão há IRRF 0561 ou 0588 nesta guia" },
     { name: "Excel Férias.xlsx", text: "FGTS_MES,FGTS_BX\n900,100" },
     { name: "Excel 13º.xlsx", text: "FGTS_MES,FGTS_BX\n700,200" },
     { name: "Planilha IRRF - MENSAL.xlsx", text: [
+      "0561 - Salarios",
+      "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
+      ",,,,,,,,6300,Giovanna,11,2025,12/5/25,84,119.73,1",
+      ",,,,,,,,6294,Marina,11,2025,12/5/25,84,11.81,6",
+    ].join("\n") },
+    { name: "Planilha IRRF - Mensal_07.2026.xlsx", text: [
       "0561 - Salarios",
       "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
       ",,,,,,,,6300,Giovanna,11,2025,12/5/25,84,119.73,1",
@@ -122,6 +129,14 @@ test("não soma provisões no FGTS e ignora histórico de IRRF fora da competên
   assert.equal(provision0588?.lot, 0);
   assert.equal(provision0588?.document, 0);
   assert.equal(provision0588?.status, "OK");
+  const guide0561 = analysis.checks.find((item) => item.item === "IRRF 0561 — recolhimento");
+  const guide0588 = analysis.checks.find((item) => item.item === "IRRF 0588 — recolhimento");
+  assert.equal(guide0561?.lot, 0);
+  assert.equal(guide0561?.document, 0);
+  assert.equal(guide0561?.status, "OK");
+  assert.equal(guide0588?.lot, 0);
+  assert.equal(guide0588?.document, 0);
+  assert.equal(guide0588?.status, "OK");
 });
 
 test("mantém filtros de coligada e competência e exportação segregada", () => {

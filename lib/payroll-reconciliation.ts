@@ -533,9 +533,9 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
 
   const previousMonthlyTotals = previousIrrfMonthly ? irrfMonthlyTotals(previousIrrfMonthly.text, previousCompetenceOf(competence), competence) : null;
   const dueIrrf0561 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0561 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0561");
-  const guideIrrf0561 = eventValue(dctfText, ["0561"]);
+  const guideIrrf0561 = eventValue(dctfText, ["0561"]) ?? (dctf ? 0 : null);
   const guide0561Check = check("IRRF", "IRRF 0561 — recolhimento", "DCTFWeb", "0561", dueIrrf0561 ?? 0, guideIrrf0561, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "Considera somente valores da competência anterior pagos no mês da guia.");
-  guide0561Check.status = dueIrrf0561 === null || guideIrrf0561 === null ? "PENDENTE" : "INFORMATIVO";
+  if (dueIrrf0561 === null || guideIrrf0561 === null) guide0561Check.status = "PENDENTE";
   checks.push(guide0561Check);
 
   const dueIrrf0588 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0588 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0588");
