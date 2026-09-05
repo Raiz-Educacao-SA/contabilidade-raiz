@@ -7,6 +7,9 @@ const monthIndex = (value: string) => {
   return year * 12 + month - 1;
 };
 const depreciationExpenseAccount = "4.2.1.09.01.01";
+const depreciationExpenseAccounts: Record<string, string> = {
+  "1.2.3.02.20": "4.2.1.09.01.04",
+};
 const accumulatedDepreciationAccounts: Record<string, string> = {
   "1.2.3.02.01": "1.2.3.02.01.99",
   "1.2.3.02.02": "1.2.3.02.02.99",
@@ -62,7 +65,7 @@ export async function GET(request: Request) {
     const monthDepreciation = cents(Math.max(0, Math.min(standardQuota, base - opening)));
     const accumulated = cents(opening + monthDepreciation); const bookValue = cents(cost - accumulated);
     const groupCode = group?.codigo || "";
-    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, acquisitionDate: asset.data_aquisicao, account: groupCode, group: group?.descricao || "Sem classificação", noteCode: group?.nota_explicativa_codigo || "", debitAccount: group?.conta_despesa_depreciacao || depreciationExpenseAccount, creditAccount: group?.conta_depreciacao_acumulada || accumulatedDepreciationAccounts[groupCode] || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
+    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, acquisitionDate: asset.data_aquisicao, account: groupCode, group: group?.descricao || "Sem classificação", noteCode: group?.nota_explicativa_codigo || "", debitAccount: group?.conta_despesa_depreciacao || depreciationExpenseAccounts[groupCode] || depreciationExpenseAccount, creditAccount: group?.conta_depreciacao_acumulada || accumulatedDepreciationAccounts[groupCode] || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
   });
   const totals = rows.reduce((sum, row) => ({ cost: sum.cost + row.cost, base: sum.base + row.base, opening: sum.opening + row.opening, monthDepreciation: sum.monthDepreciation + row.monthDepreciation, accumulated: sum.accumulated + row.accumulated, bookValue: sum.bookValue + row.bookValue }), { cost: 0, base: 0, opening: 0, monthDepreciation: 0, accumulated: 0, bookValue: 0 });
   const postingErrors = [...new Set(rows.filter((row) => row.monthDepreciation > 0 && (!row.debitAccount || !row.creditAccount)).map((row) => `${row.account || "Sem código"} — ${row.group}`))];
