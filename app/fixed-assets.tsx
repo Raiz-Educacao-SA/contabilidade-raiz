@@ -235,6 +235,7 @@ const decimal = new Intl.NumberFormat("pt-BR", {
 });
 const amount = (value: number) =>
   Math.abs(value) < 0.005 ? "—" : decimal.format(value);
+const reconciliationTolerance = 5;
 const dateOnly = (value: string) => {
   const raw = String(value || "").trim();
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -637,7 +638,7 @@ export default function FixedAssetsPanel({
         const ledgerMovement = ledgerByAccount.get(account) || 0;
         const movementDifference = Math.round((ledgerMovement - control.controlMovement) * 100) / 100;
         const closingDifference = Math.round((trial.closing - control.controlClosing) * 100) / 100;
-        return { account, groups: [...control.groups].join("; "), branches: [...(branchesByAccount.get(account) ?? [])].sort((a, b) => Number(a) - Number(b)).join(", ") || "—", controlOpening: control.controlOpening, controlMovement: control.controlMovement, controlClosing: control.controlClosing, ledgerMovement, trialOpening: trial.opening, trialMovement: trial.movement, trialClosing: trial.closing, movementDifference, closingDifference, status: Math.abs(movementDifference) <= .01 && Math.abs(closingDifference) <= .01 ? "Conciliado" : "Divergente" };
+        return { account, groups: [...control.groups].join("; "), branches: [...(branchesByAccount.get(account) ?? [])].sort((a, b) => Number(a) - Number(b)).join(", ") || "—", controlOpening: control.controlOpening, controlMovement: control.controlMovement, controlClosing: control.controlClosing, ledgerMovement, trialOpening: trial.opening, trialMovement: trial.movement, trialClosing: trial.closing, movementDifference, closingDifference, status: Math.abs(movementDifference) <= reconciliationTolerance && Math.abs(closingDifference) <= reconciliationTolerance ? "Conciliado" : "Divergente" };
       }).sort((left, right) => left.account.localeCompare(right.account, "pt-BR", { numeric: true }));
       setReconciliation(rows);
     } catch (cause) { setReconciliationError(cause instanceof Error ? cause.message : "Falha na conciliação."); }
@@ -1603,7 +1604,7 @@ export default function FixedAssetsPanel({
       )}
       {view === "conciliacao" && (
         <div className={styles.calculationArea}>
-          <div className={styles.calculationHeader}><div><span>CONFERÊNCIA CONTÁBIL</span><h2>Controle x razão x balancete · {competence}</h2><small>Movimento do mês e saldo acumulado por conta redutora de depreciação.</small></div><div className={styles.calculationActions}><button onClick={() => void runReconciliation()} disabled={reconciliationBusy || !monthly}><BookOpenCheck />{reconciliationBusy ? "Consultando TOTVS…" : "Executar conciliação"}</button></div></div>
+          <div className={styles.calculationHeader}><div><span>CONFERÊNCIA CONTÁBIL</span><h2>Controle x razão x balancete · {competence}</h2><small>Movimento do mês e saldo acumulado por conta redutora. Tolerância: R$ 5,00.</small></div><div className={styles.calculationActions}><button onClick={() => void runReconciliation()} disabled={reconciliationBusy || !monthly}><BookOpenCheck />{reconciliationBusy ? "Consultando TOTVS…" : "Executar conciliação"}</button></div></div>
           {reconciliationError && <div className={styles.error}>{reconciliationError}</div>}
           {!reconciliationBusy && !reconciliationError && !reconciliation.length && <div className={styles.notice}>Aguardando consulta ao razão e ao balancete da competência.</div>}
           {reconciliation.length ? <div className={styles.tableWrap}><table className={styles.reconciliationTable}><thead><tr><th>Conta redutora</th><th>Grupo patrimonial</th><th>Filiais no razão</th><th className={styles.numeric}>Controle inicial</th><th className={styles.numeric}>Deprec. do mês</th><th className={styles.numeric}>Controle final</th><th className={styles.numeric}>Razão do mês</th><th className={styles.numeric}>Balancete inicial</th><th className={styles.numeric}>Mov. balancete</th><th className={styles.numeric}>Balancete final</th><th className={styles.numeric}>Dif. movimento</th><th className={styles.numeric}>Dif. saldo</th><th>Status</th></tr></thead><tbody>{reconciliation.map((row) => <tr key={row.account}><td><b>{row.account}</b></td><td>{row.groups}</td><td>{row.branches}</td><td className={styles.numeric}>{amount(row.controlOpening)}</td><td className={styles.numeric}>{amount(row.controlMovement)}</td><td className={styles.numeric}>{amount(row.controlClosing)}</td><td className={styles.numeric}>{amount(row.ledgerMovement)}</td><td className={styles.numeric}>{amount(row.trialOpening)}</td><td className={styles.numeric}>{amount(row.trialMovement)}</td><td className={styles.numeric}>{amount(row.trialClosing)}</td><td className={styles.numeric}>{amount(row.movementDifference)}</td><td className={styles.numeric}>{amount(row.closingDifference)}</td><td><span className={row.status === "Conciliado" ? styles.checkOk : styles.checkError}>{row.status}</span></td></tr>)}</tbody></table></div> : null}

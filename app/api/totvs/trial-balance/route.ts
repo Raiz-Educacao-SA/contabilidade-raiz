@@ -17,7 +17,7 @@ async function authorized(request: NextRequest) {
 }
 
 async function branchRevenue(baseUrl: string, user: string, password: string, company: string, firstDay: string, lastDay: string, accountPrefix = "3") {
-  const parameters = `PLN_B7_S=3;PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`;
+  const parameters = `PLN_B7_S=${accountPrefix};PLN_B5_D=${firstDay};PLN_B6_D=${lastDay};PLN_B3_S=${company};PLN_B4_S=${company}`;
   const envelope = `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>METTA0909</codSentenca><codColigada>0</codColigada><codSistema>C</codSistema><parameters>${xmlEscape(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
   const response = await fetch(`${baseUrl}/wsConsultaSQL/IwsConsultaSQL`, {
     method: "POST",

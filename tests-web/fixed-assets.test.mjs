@@ -8,6 +8,7 @@ const panel = readFileSync(new URL("../app/fixed-assets.tsx", import.meta.url), 
 const migration = readFileSync(new URL("../Supabase/20260903_ativo_fixo.sql", import.meta.url), "utf8");
 const route = readFileSync(new URL("../app/api/fixed-assets/route.ts", import.meta.url), "utf8");
 const monthlyRoute = readFileSync(new URL("../app/api/fixed-assets/monthly-calculation/route.ts", import.meta.url), "utf8");
+const trialBalanceRoute = readFileSync(new URL("../app/api/totvs/trial-balance/route.ts", import.meta.url), "utf8");
 
 test("Ativo Fixo fica isolado em componente próprio e acessível pela navegação", () => {
   assert.match(page, /FixedAssetsPanel/);
@@ -38,6 +39,9 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /Dif\. movimento/);
   assert.match(panel, /Dif\. saldo/);
   assert.match(panel, /scope=fixed-assets/);
+  assert.match(panel, /reconciliationTolerance = 5/);
+  assert.match(panel, /Tolerância: R\$ 5,00/);
+  assert.match(trialBalanceRoute, /PLN_B7_S=\$\{accountPrefix\}/);
   assert.match(panel, /Exportar lançamento contábil/);
   assert.match(panel, /Exportar memória Excel/);
   assert.match(panel, /Ativo_Fixo_/);
