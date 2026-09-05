@@ -57,6 +57,7 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(monthlyRoute, /nota_explicativa_codigo/);
   assert.match(monthlyRoute, /4\.2\.1\.09\.01\.01/);
   assert.match(monthlyRoute, /1\.2\.3\.02\.08\.02/);
+  assert.match(monthlyRoute, /"1\.2\.3\.02\.20": "1\.2\.3\.02\.20\.02"/);
   assert.match(monthlyRoute, /conta_despesa_depreciacao \|\| depreciationExpenseAccount/);
 });
 
