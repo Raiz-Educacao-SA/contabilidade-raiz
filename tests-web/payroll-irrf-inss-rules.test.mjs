@@ -59,7 +59,7 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido por 
     row("2.1.4.01.02.02", 400, "EV0030"),
   ];
   const documents = [
-    { name: "FolhaAnalitica.pdf", text: "Página 1\nLíquido 9.999,99\n\f\nTOTAL GERAL\n1.990,22 Líquido 4.431,20\n0004 IRRF 999.999,99" },
+    { name: "FolhaAnalitica.pdf", text: "Página 1\nLíquido 9.999,99\n\f\nPágina 2\nTotal de funcionários 1\n\f\nTOTAL GERAL\n1.990,22 Líquido 4.431,20\n0004 IRRF 999.999,99\n\f\nPágina 4\nTotal de funcionários 1" },
     { name: "Guia FGTS.pdf", text: "VALOR A RECOLHER 1.500,00" },
     { name: "Planilha IRRF - MENSAL.xlsx", text: [
       "0561 - Salarios",
@@ -95,6 +95,25 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido por 
   assert.equal(irrf0588?.status, "OK");
   assert.equal(analysis.checks.find((item) => item.item === "IRRF 0561 — provisão x planilha mensal")?.document, 900);
   assert.equal(analysis.checks.find((item) => item.item === "IRRF 0588 — provisão x planilha mensal")?.document, 100);
+});
+
+test("reconhece os totais previdenciários quando o OCR da DCTF perde partes dos títulos", () => {
+  const rows = [row("2.1.2.01.03.01", 30531.03)];
+  const documents = [
+    { name: "FolhaAnalitica.pdf", text: "TOTAL GERAL\nProventos 94.022,70 Descontos 11.183,76 Líquido 82.838,94" },
+    { name: "Guia DCTFWEB - mensal.pdf", text: [
+      "de Rapos UIÇÃO PREVIDENCIÁRIA 8.093,1 6 67,54 8.025,62",
+      "ESCASSO N DA |O PREVIDENCIÁRIA 18.576,66 - 18.576,66",
+      "ENTIDADES FUNDOS 3.928,71 - 3.928,71",
+    ].join("\n") },
+  ];
+
+  const analysis = reconcilePayroll(rows, "30082026", documents, new Map(), 1, "2026-08");
+  assert.equal(analysis.inssMemory.insured, 8025.62);
+  assert.equal(analysis.inssMemory.employer, 18576.66);
+  assert.equal(analysis.inssMemory.otherEntities, 3928.71);
+  assert.equal(analysis.inssMemory.adjustedGuide, 30530.99);
+  assert.equal(analysis.checks.find((item) => item.item === "INSS ajustado x lote")?.status, "OK");
 });
 
 test("não soma provisões no FGTS e ignora histórico de IRRF fora da competência", () => {

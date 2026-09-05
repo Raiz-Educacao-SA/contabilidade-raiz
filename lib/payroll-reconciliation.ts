@@ -222,9 +222,35 @@ function valueAcrossMax(text: string, patterns: RegExp[]) {
   return values.length ? Math.max(...values) : null;
 }
 
-function lastPageText(text: string) {
+function folhaSummaryText(text: string) {
   const pages = text.split(/\f/).map((page) => page.trim()).filter(Boolean);
-  return pages.at(-1) ?? text;
+  const totalGeneral = pages.findLast((page) => /TOTAL GERAL/.test(normalized(page)) && /\bLIQUIDO\b/.test(normalized(page)));
+  if (totalGeneral) return totalGeneral;
+  const payrollTotals = pages.findLast((page) => /PROVENTOS/.test(normalized(page)) && /DESCONTOS/.test(normalized(page)) && /\bLIQUIDO\b/.test(normalized(page)));
+  return payrollTotals ?? text;
+}
+
+function lastMoneyOnLinesContaining(text: string, requiredTokens: string[]) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    const lineNormalized = normalized(line);
+    if (!requiredTokens.every((token) => lineNormalized.includes(token))) continue;
+    const values = moneyValues(line);
+    if (values.length) return values.at(-1)!;
+  }
+  return null;
+}
+
+function previdenciariaTotals(text: string) {
+  const values = text.split(/\r?\n/).flatMap((line) => {
+    if (!normalized(line).includes("PREVIDENCIARIA")) return [];
+    const amounts = moneyValues(line);
+    return amounts.length ? [amounts.at(-1)!] : [];
+  });
+  return {
+    insured: values[0] ?? null,
+    employer: values[1] ?? null,
+  };
 }
 
 function findDocument(documents: ExtractedDocument[], patterns: RegExp[]) {
@@ -470,9 +496,9 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
     return /GUIA.*FGTS|FGTS.*GUIA/.test(name) || /GFD.*GUIA DO FGTS|GUIA DO FGTS DIGITAL/.test(heading);
   });
   const folhaText = folha?.text ?? "";
-  const folhaLastPageText = lastPageText(folhaText);
+  const folhaTotalsText = folhaSummaryText(folhaText);
   const dctfText = dctf?.text ?? "";
-  const liquidGeneral = valueAcrossMax(folhaLastPageText, [/\bLIQUIDO\b/]);
+  const liquidGeneral = valueAcrossMax(folhaTotalsText, [/\bLIQUIDO\b/]);
   const liquidLot = lotEventValue(rows, ["EN0002", "EN0020"]);
   const liquidCheck = check(
     "Líquidos",
@@ -483,7 +509,7 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
     liquidGeneral,
     tolerance,
     folha?.name ?? "Folha Analítica não identificada",
-    "A soma dos eventos EN0002 e EN0020 do lote deve conferir com o total Líquido apresentado na última página da Folha Analítica.",
+    "A soma dos eventos EN0002 e EN0020 do lote deve conferir com o total Líquido apresentado na página de TOTAL GERAL da Folha Analítica.",
   );
   if (liquidLot === null) {
     liquidCheck.status = "PENDENTE";
@@ -491,9 +517,10 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   }
   const checks: PayrollCheck[] = [liquidCheck];
 
-  const insured = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA SEGURADOS/]);
-  const employer = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA PATRONAL/]);
-  const otherEntities = valueNear(dctfText, [/TOTAL CONTRIBUICAO PARA OUTRAS ENTIDADES E FUNDOS/]);
+  const previdenciariaFallback = previdenciariaTotals(dctfText);
+  const insured = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA SEGURADOS/]) ?? previdenciariaFallback.insured;
+  const employer = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA PATRONAL/]) ?? previdenciariaFallback.employer;
+  const otherEntities = valueNear(dctfText, [/TOTAL CONTRIBUICAO PARA OUTRAS ENTIDADES E FUNDOS/]) ?? lastMoneyOnLinesContaining(dctfText, ["ENTIDADES", "FUNDOS"]);
   const retained1162 = eventValue(dctfText, ["1162"]) ?? 0;
   const payrollGuide = insured === null || employer === null || otherEntities === null ? null : roundMoney(insured + employer + otherEntities - retained1162);
   const event130 = eventValueMax(folhaText, ["0130"], ["INSS FERIAS REF.*PROXIMO MES"]) ?? lotEventValue(rows, ["EV0130", "EN0130"]) ?? 0;
