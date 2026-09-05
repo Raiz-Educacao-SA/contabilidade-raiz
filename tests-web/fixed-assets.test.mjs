@@ -43,6 +43,7 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /Tolerância: R\$ 5,00/);
   assert.match(trialBalanceRoute, /PLN_B7_S=\$\{accountPrefix\}/);
   assert.match(panel, /Exportar lançamento contábil/);
+  assert.match(panel, /<th>Grupo patrimonial<\/th>/);
   assert.match(panel, /Exportar memória Excel/);
   assert.match(panel, /Ativo_Fixo_/);
   assert.match(panel, /Resumo individual do ativo fixo/);

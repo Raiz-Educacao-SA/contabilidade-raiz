@@ -1519,7 +1519,7 @@ export default function FixedAssetsPanel({
                       <th>Código</th>
                       <th>Filial</th>
                       <th>Descrição do bem</th>
-                      <th>Conta</th>
+                      <th>Grupo patrimonial</th>
                       <th className={styles.numeric}>Custo</th>
                       <th className={styles.numeric}>Base depreciável</th>
                       <th className={styles.numeric}>Deprec. anterior</th>
@@ -1537,9 +1537,11 @@ export default function FixedAssetsPanel({
                         <td>{row.branch}</td>
                         <td>
                           <b>{row.description}</b>
+                        </td>
+                        <td>
+                          <b>{row.account || "—"}</b>
                           <small>{row.group}</small>
                         </td>
-                        <td>{row.account || "—"}</td>
                         <td className={styles.numeric}>{amount(row.cost)}</td>
                         <td className={styles.numeric}>{amount(row.base)}</td>
                         <td className={styles.numeric}>
