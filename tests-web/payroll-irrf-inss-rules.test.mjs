@@ -42,7 +42,7 @@ test("compõe o INSS sem 1162 e aplica os eventos 130 negativo e 131 positivo", 
   assert.equal(irrf0588?.document, 0);
   assert.equal(irrf0588?.status, "PENDENTE");
 
-  const irrfPosting = analysis.checks.find((item) => item.item === "IRRF contabilizado x eventos do lote");
+  const irrfPosting = analysis.checks.find((item) => item.item === "IRRF 0561 contabilizado x eventos do lote");
   assert.ok(Math.abs((irrfPosting?.document ?? 0) - 29649.10) < 0.001);
   assert.equal(irrfPosting?.account, "2.1.4.01.02.02");
   assert.equal(irrfPosting?.status, "OK");
@@ -52,7 +52,7 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo
   const rows = [
     row("2.1.2.01.01.01", 4331.20, "EN0002"),
     row("2.1.2.01.03.02", 1500, ""),
-    row("2.1.4.01.02.02", 100, "EV0084"),
+    row("2.1.4.01.02.03", 100, "EV0084"),
     row("2.1.4.01.02.02", 200, "EV0004"),
     row("2.1.4.01.02.02", 300, "EV0049"),
     row("2.1.4.01.02.02", 400, "EV0030"),
@@ -60,6 +60,13 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo
   const documents = [
     { name: "FolhaAnalitica.pdf", text: "TOTAL GERAL\n1.990,22 Líquido 4.331,20\n0004 IRRF 999.999,99" },
     { name: "Guia FGTS.pdf", text: "VALOR A RECOLHER 1.500,00" },
+    { name: "Planilha IRRF - MENSAL.xlsx", text: [
+      "0561 - Salarios",
+      "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
+      "1,A,8,2026,9/1/26,4,200,1,,,,,,,,",
+      "2,B,8,2026,9/1/26,49,300,1,,,,,,,,",
+      "3,C,8,2026,9/1/26,30,400,1,4,D,8,2026,9/1/26,84,100,1",
+    ].join("\n") },
   ];
 
   const analysis = reconcilePayroll(rows, "28082026", documents, new Map(), 1, "2026-08");
@@ -75,11 +82,46 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo
   assert.equal(fgts?.document, 1500);
   assert.equal(fgts?.status, "OK");
 
-  const irrf = analysis.checks.find((item) => item.item === "IRRF contabilizado x eventos do lote");
-  assert.equal(irrf?.lot, 1000);
-  assert.equal(irrf?.document, 1000);
-  assert.equal(irrf?.status, "OK");
-  assert.match(irrf?.event ?? "", /EV0084.*EV0004.*EV0049.*EV0030/);
+  const irrf0561 = analysis.checks.find((item) => item.item === "IRRF 0561 contabilizado x eventos do lote");
+  assert.equal(irrf0561?.lot, 900);
+  assert.equal(irrf0561?.document, 900);
+  assert.equal(irrf0561?.status, "OK");
+  assert.match(irrf0561?.event ?? "", /EV0004.*EV0049.*EV0030/);
+  const irrf0588 = analysis.checks.find((item) => item.item === "IRRF 0588 contabilizado x evento do lote");
+  assert.equal(irrf0588?.account, "2.1.4.01.02.03");
+  assert.equal(irrf0588?.lot, 100);
+  assert.equal(irrf0588?.document, 100);
+  assert.equal(irrf0588?.status, "OK");
+  assert.equal(analysis.checks.find((item) => item.item === "IRRF 0561 — provisão x planilha mensal")?.document, 900);
+  assert.equal(analysis.checks.find((item) => item.item === "IRRF 0588 — provisão x planilha mensal")?.document, 100);
+});
+
+test("não soma provisões no FGTS e ignora histórico de IRRF fora da competência", () => {
+  const rows = [row("2.1.2.01.03.02", 505.71)];
+  const documents = [
+    { name: "Guia FGTS - col 28.pdf", text: "GFD - Guia do FGTS Digital\nValor a recolher 505,71" },
+    { name: "Excel Férias.xlsx", text: "FGTS_MES,FGTS_BX\n900,100" },
+    { name: "Excel 13º.xlsx", text: "FGTS_MES,FGTS_BX\n700,200" },
+    { name: "Planilha IRRF - MENSAL.xlsx", text: [
+      "0561 - Salarios",
+      "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
+      ",,,,,,,,6300,Giovanna,11,2025,12/5/25,84,119.73,1",
+      ",,,,,,,,6294,Marina,11,2025,12/5/25,84,11.81,6",
+    ].join("\n") },
+  ];
+  const analysis = reconcilePayroll(rows, "28082026", documents, new Map(), 1, "2026-08");
+  const fgts = analysis.checks.find((item) => item.item === "FGTS a recolher — lote x guias");
+  assert.equal(fgts?.lot, 505.71);
+  assert.equal(fgts?.document, 505.71);
+  assert.equal(fgts?.status, "OK");
+  const provision0561 = analysis.checks.find((item) => item.item === "IRRF 0561 — provisão x planilha mensal");
+  const provision0588 = analysis.checks.find((item) => item.item === "IRRF 0588 — provisão x planilha mensal");
+  assert.equal(provision0561?.lot, 0);
+  assert.equal(provision0561?.document, 0);
+  assert.equal(provision0561?.status, "OK");
+  assert.equal(provision0588?.lot, 0);
+  assert.equal(provision0588?.document, 0);
+  assert.equal(provision0588?.status, "OK");
 });
 
 test("mantém filtros de coligada e competência e exportação segregada", () => {

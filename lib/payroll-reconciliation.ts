@@ -59,7 +59,8 @@ const ACCOUNTS = {
   thirteenthAdvance: "1.1.3.01.02.04",
   inss: "2.1.2.01.03.01",
   fgts: "2.1.2.01.03.02",
-  irrf: "2.1.4.01.02.02",
+  irrf0561: "2.1.4.01.02.02",
+  irrf0588: "2.1.4.01.02.03",
   vacation: "2.1.2.01.04.01",
   vacationInss: "2.1.2.01.04.08",
   vacationFgts: "2.1.2.01.04.02",
@@ -257,6 +258,88 @@ function lotEventValue(rows: PayrollLotRow[], codes: string[]) {
   return Math.max(debit, credit);
 }
 
+function previousCompetenceOf(competence: string) {
+  const match = competence.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return "";
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 2, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function competenceDigits(competence: string) {
+  const match = competence.match(/^(\d{4})-(\d{2})$/);
+  return match ? `${match[2]}${match[1]}` : "";
+}
+
+function findIrrfMonthlyDocument(documents: ExtractedDocument[], competence: string, previous: boolean) {
+  const target = competenceDigits(previous ? previousCompetenceOf(competence) : competence);
+  const candidates = documents.filter((document) => /IRRF.*MENSAL/.test(normalized(document.name)) && !/DCTF/.test(normalized(document.name)));
+  const matching = candidates.find((document) => normalized(document.name).replace(/\D/g, "").includes(target));
+  if (matching) return matching;
+  if (previous) return undefined;
+  return candidates.find((document) => !/(?:0[1-9]|1[0-2])20\d{2}/.test(normalized(document.name).replace(/\D/g, "")));
+}
+
+type IrrfMonthlyTotals = { recognized: boolean; code0561: number; code0588: number };
+
+function csvCells(line: string) {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '"') {
+      if (quoted && line[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else quoted = !quoted;
+    } else if (character === "," && !quoted) {
+      cells.push(cell);
+      cell = "";
+    } else cell += character;
+  }
+  cells.push(cell);
+  return cells;
+}
+
+function spreadsheetDateMonthYear(value: unknown) {
+  const text = String(value ?? "").trim();
+  const iso = text.match(/^(\d{4})-(\d{2})-\d{2}/);
+  if (iso) return { month: Number(iso[2]), year: Number(iso[1]) };
+  const slash = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (!slash) return null;
+  const year = Number(slash[3]) < 100 ? 2000 + Number(slash[3]) : Number(slash[3]);
+  return { month: Number(slash[1]), year };
+}
+
+function irrfMonthlyTotals(text: string, competence: string, paymentCompetence = ""): IrrfMonthlyTotals {
+  const lines = text.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => /^CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL/i.test(normalized(line)));
+  if (headerIndex < 0) return { recognized: false, code0561: 0, code0588: 0 };
+  const matrix = lines.slice(headerIndex).map(csvCells);
+  const target = competence.match(/^(\d{4})-(\d{2})$/);
+  if (!target) return { recognized: true, code0561: 0, code0588: 0 };
+  const targetYear = Number(target[1]);
+  const targetMonth = Number(target[2]);
+  let code0561 = 0;
+  let code0588 = 0;
+  for (const row of matrix.slice(1)) {
+    for (const offset of [0, 8]) {
+      const month = Number(row[offset + 2]);
+      const year = Number(row[offset + 3]);
+      if (month !== targetMonth || year !== targetYear) continue;
+      if (paymentCompetence) {
+        const payment = spreadsheetDateMonthYear(row[offset + 4]);
+        const expected = paymentCompetence.match(/^(\d{4})-(\d{2})$/);
+        if (!payment || !expected || payment.month !== Number(expected[2]) || payment.year !== Number(expected[1])) continue;
+      }
+      const value = Math.abs(parseMoney(row[offset + 6]));
+      if (offset === 0) code0561 += value;
+      else code0588 += value;
+    }
+  }
+  return { recognized: true, code0561: roundMoney(code0561), code0588: roundMoney(code0588) };
+}
+
 function accountEventValue(rows: PayrollLotRow[], account: string, codes: string[]) {
   return lotEventValue(rows.filter((row) => row.account === account), codes);
 }
@@ -373,8 +456,14 @@ function check(group: PayrollCheck["group"], item: string, account: string, even
 export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documents: ExtractedDocument[], provisions: Map<string, number>, tolerance = 1, competence = ""): PayrollAnalysis {
   const folha = findDocument(documents, [/FOLHA.*ANALITICA/, /RESUMO.*FOLHA/]);
   const dctf = findDocument(documents, [/GUIA.*DCTF/, /DCTFWEB.*COL/]) ?? findDocument(documents, [/DCTF/]);
-  const previousIrrfLot = findIrrfLotDocument(documents, true);
-  const fgtsDocs = documents.filter((document) => /FGTS/.test(normalized(`${document.name} ${document.text.slice(0, 800)}`)));
+  const currentIrrfMonthly = findIrrfMonthlyDocument(documents, competence, false);
+  const previousIrrfMonthly = findIrrfMonthlyDocument(documents, competence, true);
+  const previousIrrfLot = previousIrrfMonthly ?? findIrrfLotDocument(documents, true);
+  const fgtsDocs = documents.filter((document) => {
+    const name = normalized(document.name);
+    const heading = normalized(document.text.slice(0, 1200));
+    return /GUIA.*FGTS|FGTS.*GUIA/.test(name) || /GFD.*GUIA DO FGTS|GUIA DO FGTS DIGITAL/.test(heading);
+  });
   const folhaText = folha?.text ?? "";
   const dctfText = dctf?.text ?? "";
   const liquidGeneral = valueAcrossMax(folhaText, [/\bLIQUIDO\b/]);
@@ -409,30 +498,47 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   const fgtsDocument = fgtsDocs.length ? fgtsDocs.reduce((sum, document) => sum + (fgtsDocumentValue(document, competence) ?? 0), 0) : null;
   checks.push(check("FGTS", "FGTS a recolher — lote x guias", ACCOUNTS.fgts, "Guias FGTS", Math.abs(accountMovement(rows, ACCOUNTS.fgts)), fgtsDocument, Math.max(tolerance, 40), fgtsDocs.map((doc) => doc.name).join(" + ") || "Guias FGTS não identificadas", "Conta passiva de FGTS a recolher: 2.1.2.01.03.02. Tolerância específica: até R$ 40,00."));
 
-  const irrfEventCodes = ["EV0084", "EV0004", "EV0049", "EV0030"];
-  const irrfLot = Math.abs(accountMovement(rows, ACCOUNTS.irrf));
-  const irrfEvents = accountEventValue(rows, ACCOUNTS.irrf, irrfEventCodes) ?? lotEventValue(rows, irrfEventCodes);
-  const irrfPostingCheck = check(
+  const irrf0561EventCodes = ["EV0004", "EV0049", "EV0030"];
+  const irrf0588EventCodes = ["EV0084"];
+  const irrf0561Lot = Math.abs(accountMovement(rows, ACCOUNTS.irrf0561));
+  const irrf0588Lot = Math.abs(accountMovement(rows, ACCOUNTS.irrf0588));
+  const irrf0561Events = accountEventValue(rows, ACCOUNTS.irrf0561, irrf0561EventCodes) ?? lotEventValue(rows, irrf0561EventCodes) ?? 0;
+  const irrf0588Events = accountEventValue(rows, ACCOUNTS.irrf0588, irrf0588EventCodes) ?? lotEventValue(rows, irrf0588EventCodes) ?? 0;
+  checks.push(check(
     "IRRF",
-    "IRRF contabilizado x eventos do lote",
-    ACCOUNTS.irrf,
-    irrfEventCodes.join(" + "),
-    irrfLot,
-    irrfEvents,
+    "IRRF 0561 contabilizado x eventos do lote",
+    ACCOUNTS.irrf0561,
+    irrf0561EventCodes.join(" + "),
+    irrf0561Lot,
+    irrf0561Events,
     tolerance,
     "Lote contábil TOTVS",
-    "Composição: EV0084 — IRRF pró-labore/autônomos; EV0004 — IRRF; EV0049 — IRRF 13º salário; EV0030 — IRRF férias. A Folha Analítica não é a fonte desta conferência.",
-  );
-  if (irrfEvents === null) irrfPostingCheck.status = "PENDENTE";
-  checks.push(irrfPostingCheck);
+    "Composição 0561: EV0004 — IRRF; EV0049 — IRRF 13º salário; EV0030 — IRRF férias.",
+  ));
+  checks.push(check(
+    "IRRF",
+    "IRRF 0588 contabilizado x evento do lote",
+    ACCOUNTS.irrf0588,
+    irrf0588EventCodes.join(" + "),
+    irrf0588Lot,
+    irrf0588Events,
+    tolerance,
+    "Lote contábil TOTVS",
+    "Composição 0588: EV0084 — IRRF pró-labore/autônomos.",
+  ));
 
-  const dueIrrf0561 = spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0561");
+  const currentMonthlyTotals = currentIrrfMonthly ? irrfMonthlyTotals(currentIrrfMonthly.text, competence) : null;
+  checks.push(check("IRRF", "IRRF 0561 — provisão x planilha mensal", ACCOUNTS.irrf0561, irrf0561EventCodes.join(" + "), irrf0561Events, currentMonthlyTotals?.recognized ? currentMonthlyTotals.code0561 : null, tolerance, currentIrrfMonthly?.name ?? "Planilha mensal de IRRF da competência não identificada", "Considera somente registros cuja competência corresponda ao mês analisado; históricos de outras competências são desconsiderados."));
+  checks.push(check("IRRF", "IRRF 0588 — provisão x planilha mensal", ACCOUNTS.irrf0588, "EV0084", irrf0588Events, currentMonthlyTotals?.recognized ? currentMonthlyTotals.code0588 : null, tolerance, currentIrrfMonthly?.name ?? "Planilha mensal de IRRF da competência não identificada", "Considera somente registros cuja competência corresponda ao mês analisado; históricos de outras competências são desconsiderados."));
+
+  const previousMonthlyTotals = previousIrrfMonthly ? irrfMonthlyTotals(previousIrrfMonthly.text, previousCompetenceOf(competence), competence) : null;
+  const dueIrrf0561 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0561 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0561");
   const guideIrrf0561 = eventValue(dctfText, ["0561"]);
   const guide0561Check = check("IRRF", "IRRF 0561 — recolhimento", "DCTFWeb", "0561", dueIrrf0561 ?? 0, guideIrrf0561, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "Considera somente valores da competência anterior pagos no mês da guia.");
   guide0561Check.status = dueIrrf0561 === null || guideIrrf0561 === null ? "PENDENTE" : "INFORMATIVO";
   checks.push(guide0561Check);
 
-  const dueIrrf0588 = spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0588");
+  const dueIrrf0588 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0588 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0588");
   const guideIrrf0588 = eventValue(dctfText, ["0588"]) ?? (dctf ? 0 : null);
   const guide0588Check = check("IRRF", "IRRF 0588 — recolhimento", "DCTFWeb", "0588", dueIrrf0588 ?? 0, guideIrrf0588, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "O 0588 descontado na competência anterior e pago no mês atual deve constar na guia.");
   if (dueIrrf0588 === null) guide0588Check.status = "PENDENTE";
