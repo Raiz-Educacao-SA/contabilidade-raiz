@@ -236,6 +236,10 @@ const decimal = new Intl.NumberFormat("pt-BR", {
 const amount = (value: number) =>
   Math.abs(value) < 0.005 ? "—" : decimal.format(value);
 const reconciliationTolerance = 5;
+const fixedAssetPostingHistory = (groupCode: string, groupName: string) =>
+  groupCode === "1.2.3.02.20"
+    ? "AMORTIZAÇÃO DO FUNDO DE COMÉRCIO - N/MÊS"
+    : `DEPRECIAÇÃO ${groupCode} - ${groupName} - N/MÊS`;
 const dateOnly = (value: string) => {
   const raw = String(value || "").trim();
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -664,7 +668,7 @@ export default function FixedAssetsPanel({
       creditReduced: "",
       document: "DEPRECIAÇÃO",
       amount: posting.amount,
-      history: `DEPRECIAÇÃO ${posting.groupCode} - ${posting.groupName} - N/MÊS`,
+      history: fixedAssetPostingHistory(posting.groupCode, posting.groupName),
     }));
     const csv = buildWarehousePostingsCsv(postings, competence);
     const url = URL.createObjectURL(
@@ -710,7 +714,7 @@ export default function FixedAssetsPanel({
     addSheet("Cadastro de bens", "Cadastro de bens atualizado", ["Código patrimonial", "Filial", "Grupo", "Descrição", "NF", "Fornecedor", "Aquisição", "Baixa", "Quantidade", "Custo", "Depreciação acumulada", "Saldo contábil", "Status"], effectiveAssets.map((asset) => [asset.codigo_patrimonial, asset.codfilial, asset.grupo?.codigo || "", asset.descricao, asset.numero_nf, asset.fornecedor || "", asset.data_aquisicao || "", asset.data_baixa || "", Number(asset.quantidade || 0), Number(asset.valor_custo), asset.accumulatedDepreciation, asset.bookValue, asset.status]), [20, 9, 18, 45, 16, 32, 13, 13, 12, 16, 20, 17, 14]);
     addSheet("Nota explicativa", "Quadro de movimentações", ["Seção", "NE", "Grupo patrimonial", "Taxa anual", "Saldo inicial", "Adições", "Transferências", "AFAC", "Baixas", "Depreciação", "Saldo final", "Balancete", "Conciliação"], effectiveNoteDisclosure.map((row) => [row.secao, row.codigo_ne, row.descricao, Number(row.taxa_anual), Number(row.saldo_inicial), Number(row.adicoes), Number(row.transferencias), Number(row.afac), Number(row.baixas), Number(row.depreciacao), Number(row.saldo_final), row.reconciliationStatus ? null : Number(row.saldo_balancete), row.reconciliationStatus || (Math.abs(Number(row.diferenca)) <= 1 ? "Ok" : "Divergente")]), [16, 10, 36, 12, 16, 16, 16, 14, 14, 16, 16, 16, 22]);
     addSheet("Cálculo mensal", "Memória de cálculo mensal", ["Código", "Filial", "Grupo", "Descrição", "Aquisição", "Custo", "Valor residual", "Base depreciável", "Depreciação anterior", "Quota padrão", "Depreciação do mês", "Depreciação acumulada", "Saldo final", "Status"], monthly.rows.map((row) => [row.code, row.branch, row.account, row.description, row.acquisitionDate, row.cost, row.residual, row.base, row.opening, row.standardQuota, row.monthDepreciation, row.accumulated, row.bookValue, row.status]), [20, 9, 18, 45, 13, 16, 16, 17, 20, 16, 19, 20, 17, 16]);
-    addSheet("Lançamentos contábeis", "Lançamentos contábeis por grupo e filial", ["Filial", "Grupo", "Descrição do grupo", "Conta débito", "Conta crédito", "Valor", "Histórico"], monthly.postings.map((posting) => [posting.branchCode, posting.groupCode, posting.groupName, posting.debitAccount, posting.creditAccount, posting.amount, `DEPRECIAÇÃO ${posting.groupCode} - ${posting.groupName} - N/MÊS`]), [9, 18, 36, 20, 20, 16, 55]);
+    addSheet("Lançamentos contábeis", "Lançamentos contábeis por grupo e filial", ["Filial", "Grupo", "Descrição do grupo", "Conta débito", "Conta crédito", "Valor", "Histórico"], monthly.postings.map((posting) => [posting.branchCode, posting.groupCode, posting.groupName, posting.debitAccount, posting.creditAccount, posting.amount, fixedAssetPostingHistory(posting.groupCode, posting.groupName)]), [9, 18, 36, 20, 20, 16, 55]);
     if (reconciliation.length) addSheet("Conciliação", "Controle x razão x balancete", ["Conta redutora", "Grupos patrimoniais", "Filiais no razão", "Controle inicial", "Depreciação do mês", "Controle final", "Razão do mês", "Balancete inicial", "Movimento balancete", "Balancete final", "Diferença movimento", "Diferença saldo", "Status"], reconciliation.map((row) => [row.account, row.groups, row.branches, row.controlOpening, row.controlMovement, row.controlClosing, row.ledgerMovement, row.trialOpening, row.trialMovement, row.trialClosing, row.movementDifference, row.closingDifference, row.status]), [20, 50, 16, 17, 19, 17, 17, 17, 19, 17, 18, 18, 14]);
     XLSX.writeFile(workbook, `Ativo_Fixo_${companyCode}_${competence}.xlsx`, { compression: true });
   }

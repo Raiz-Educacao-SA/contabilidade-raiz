@@ -41,6 +41,7 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /scope=fixed-assets/);
   assert.match(panel, /reconciliationTolerance = 5/);
   assert.match(panel, /Tolerância: R\$ 5,00/);
+  assert.match(panel, /AMORTIZAÇÃO DO FUNDO DE COMÉRCIO - N\/MÊS/);
   assert.match(trialBalanceRoute, /PLN_B7_S=\$\{accountPrefix\}/);
   assert.match(panel, /Exportar lançamento contábil/);
   assert.match(panel, /<th>Grupo patrimonial<\/th>/);
