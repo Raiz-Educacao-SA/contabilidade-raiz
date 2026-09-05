@@ -21,4 +21,7 @@ test("a API filtra coligada, competência e aplicação P do Labore", () => {
   assert.match(route, /authorizedCompanies/);
   assert.match(route, /startsWith\(competence\)/);
   assert.match(route, /endsWith\(dates\.suffix\)/);
+  assert.match(route, /CUBO\.CTB\.002/);
+  assert.match(route, /provisionBalances/);
+  assert.match(route, /VR_SALDOANT/);
 });

@@ -6,7 +6,7 @@ import { AlertTriangle, Database, Download, FileCheck2, FolderOpen, LoaderCircle
 import {
   ExtractedDocument,
   exportPayrollAnalysis,
-  parseProvisionFiles,
+  parseProvisionData,
   parseSpreadsheetDocuments,
   PayrollAnalysis,
   PayrollCheck,
@@ -16,7 +16,7 @@ import {
 import { extractVisualDocumentsInBrowser } from "@/lib/browser-document-extraction";
 
 type Props = { companyCode: string; companyName: string; competence: string; accessToken: string };
-type TotvsLot = { lotCode: string; application: string; records: number; debit: number; credit: number; rows: PayrollLotRow[]; alternatives: string[] };
+type TotvsLot = { lotCode: string; application: string; records: number; debit: number; credit: number; rows: PayrollLotRow[]; alternatives: string[]; provisionBalances?: Array<{ account: string; description: string; balance: number }>; provisionBalanceWarning?: string };
 type DriveFile = { id: string; name: string; path: string; mimeType: string; size?: string };
 type DriveRead = { companyFolder: string; folderPath: string; competence: string; files: DriveFile[] };
 type ExecutiveRow = { item: string; lot: number; document: number | null; tolerance: number; status: PayrollCheck["status"]; impact: string; note: string };
@@ -101,12 +101,13 @@ export default function PayrollBatchReconciliation({ companyCode, companyName, c
     if (!lot || !supportFiles.length) return setMessage("Faça primeiro a leitura do lote no TOTVS e selecione a pasta dos documentos.");
     setBusy(true); setAnalysis(null); setMessage(""); setAnalysisProgress("Preparando as planilhas da pasta...");
     try {
-      const provisions = await parseProvisionFiles(supportFiles);
+      const provisionData = await parseProvisionData(supportFiles);
       const visualFiles = supportFiles.filter((file) => /\.(pdf|png|jpe?g|webp)$/i.test(file.name));
       let documents: ExtractedDocument[] = await parseSpreadsheetDocuments(supportFiles);
       documents = [...documents, ...await extractVisualDocumentsInBrowser(visualFiles, setAnalysisProgress)];
       setAnalysisProgress("Conferindo lote, encargos, líquidos e provisões...");
-      const result = reconcilePayroll(lot.rows, lot.lotCode, documents, provisions, 1, competence);
+      const trialBalanceBeforeLot = new Map((lot.provisionBalances ?? []).map((item) => [item.account, item.balance]));
+      const result = reconcilePayroll(lot.rows, lot.lotCode, documents, provisionData.movements, 1, competence, provisionData.balances, trialBalanceBeforeLot);
       setAnalysis(result);
       setMessage(result.canIntegrate ? "Conferência da análise de lote da folha x documentos finalizada; pode integrar o lote." : "Conferência finalizada: pendências a verificar — não integrar o lote neste momento.");
     } catch (error) { setMessage((error as Error).message); }
@@ -201,14 +202,14 @@ function aggregate(checks: PayrollCheck[]) {
 }
 
 function buildExecutiveRows(analysis: PayrollAnalysis, lot: TotvsLot): ExecutiveRow[] {
-  const liquids = aggregate(analysis.checks.filter((row) => row.group === "Líquidos"));
   const provisions = aggregate(analysis.checks.filter((row) => row.group === "Provisões"));
-  const checkRows = (group: PayrollCheck["group"]) => analysis.checks.filter((row) => row.group === group).map((row) => ({ item: row.item, lot: row.lot, document: row.document, tolerance: group === "FGTS" ? 40 : 1, status: row.status, impact: row.status === "INFORMATIVO" ? "Acompanhamento" : group === "Provisões" ? "Conforme movimento" : "Bloqueante", note: row.note || row.source }));
+  const checkRows = (group: PayrollCheck["group"]) => analysis.checks.filter((row) => row.group === group).map((row) => ({ item: row.item, lot: row.lot, document: row.document, tolerance: group === "FGTS" ? 40 : 1, status: row.status, impact: group === "Saldos das provisões" ? "Alerta não bloqueante" : row.status === "INFORMATIVO" ? "Acompanhamento" : group === "Provisões" ? "Conforme movimento" : "Bloqueante", note: row.note || row.source }));
   return [
     { item: "Equilíbrio do lote", lot: lot.debit, document: lot.credit, tolerance: .01, status: Math.abs(lot.debit - lot.credit) <= .01 ? "OK" : "PENDENTE", impact: "Bloqueante", note: `Lote ${lot.lotCode}: débitos e créditos.` },
-    { item: "Líquido da folha — EN0002 + EN0020", lot: liquids.lot, document: liquids.document, tolerance: 1, status: liquids.status, impact: "Bloqueante", note: "Eventos EN0002 e EN0020 do lote x total Líquido da última página da Folha Analítica." },
+    ...checkRows("Líquidos"),
     ...checkRows("INSS"), ...checkRows("FGTS"), ...checkRows("IRRF"),
     { item: "Provisões — movimentação do mês", lot: provisions.lot, document: provisions.document, tolerance: 1, status: provisions.status, impact: "Bloqueia somente divergência do movimento", note: "Férias e 13º: principal, FGTS e INSS." },
+    ...checkRows("Saldos das provisões"),
   ];
 }
 

@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const LABORE_APPLICATION = "P";
+const PROVISION_ACCOUNTS = new Set(["2.1.2.01.04.01", "2.1.2.01.04.02", "2.1.2.01.04.08", "2.1.2.01.04.03", "2.1.2.01.04.04", "2.1.2.01.04.09"]);
 const escapeXml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const decodeXml = (value: string) => value.replace(/&#xD;|&#13;/gi, "\r").replace(/&#xA;|&#10;/gi, "\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 const tag = (xml: string, ...names: string[]) => names.map((name) => decodeXml(xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i"))?.[1]?.trim() || "")).find(Boolean) || "";
@@ -50,6 +51,24 @@ async function queryPendingLaboreLot(company: string, firstDay: string, lastDay:
   return Array.from(result.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) => match[1]);
 }
 
+async function queryProvisionBalances(company: string, firstDay: string, lastDay: string) {
+  const base = (process.env.TOTVS_WS_PRD_BASE_URL || "https://raizeducacao160286.rm.cloudtotvs.com.br:8051").replace(/\/$/, "");
+  const user = process.env.TOTVS_WS_PRD_USER;
+  const password = process.env.TOTVS_WS_PRD_PASSWORD;
+  if (!user || !password) throw new Error("Credenciais técnicas do TOTVS não configuradas.");
+  const parameters = `COLIGDADA_I=${company};DATA_INICIAL_D=${firstDay};DATA_FINAL_D=${lastDay};CONTA_S=2.1.2.01.04%;CONSIDERAFECHAMENTO_S=N`;
+  const envelope = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><RealizarConsultaSQL xmlns="http://www.totvs.com/"><codSentenca>CUBO.CTB.002</codSentenca><codColigada>0</codColigada><codSistema>C</codSistema><parameters>${escapeXml(parameters)}</parameters></RealizarConsultaSQL></soap:Body></soap:Envelope>`;
+  const response = await fetch(`${base}/wsConsultaSQL/IwsConsultaSQL`, { method: "POST", headers: { authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`, "content-type": "text/xml; charset=utf-8", soapaction: "http://www.totvs.com/IwsConsultaSQL/RealizarConsultaSQL" }, body: envelope, cache: "no-store", signal: AbortSignal.timeout(290_000) });
+  const soap = await response.text();
+  if (!response.ok || soap.includes(":Fault>")) throw new Error(tag(soap, "faultstring") || "O TOTVS não conseguiu consultar o balancete das provisões.");
+  const result = decodeXml(tag(soap, "RealizarConsultaSQLResult"));
+  return Array.from(result.matchAll(/<Resultado>([\s\S]*?)<\/Resultado>/gi), (match) => {
+    const record = match[1];
+    const account = tag(record, "Conta_x0020_Contábil", "Conta_x0020_Contabil", "Conta", "CODCONTA").trim();
+    return { account, description: tag(record, "Descrição_x0020_Conta", "Descricao_x0020_Conta", "Descrição", "Descricao"), balance: number(tag(record, "VR_SALDOANT")) };
+  }).filter((row) => PROVISION_ACCOUNTS.has(row.account));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const company = request.nextUrl.searchParams.get("company")?.trim() || "";
@@ -60,7 +79,11 @@ export async function GET(request: NextRequest) {
     if (!allowed) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     if (!allowed.has(company)) return NextResponse.json({ error: "Esta coligada não está liberada para o usuário." }, { status: 403 });
 
-    const records = (await queryPendingLaboreLot(company, dates.firstDay, dates.lastDay)).filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company) && tag(record, "INTEGRAAPLICACAO") === LABORE_APPLICATION && tag(record, "DATA").startsWith(competence));
+    const [lotRecords, balanceResult] = await Promise.all([
+      queryPendingLaboreLot(company, dates.firstDay, dates.lastDay),
+      queryProvisionBalances(company, dates.firstDay, dates.lastDay).then((rows) => ({ rows, warning: "" })).catch((error: Error) => ({ rows: [], warning: error.message })),
+    ]);
+    const records = lotRecords.filter((record) => Number(tag(record, "CODCOLIGADA")) === Number(company) && tag(record, "INTEGRAAPLICACAO") === LABORE_APPLICATION && tag(record, "DATA").startsWith(competence));
     const byLot = new Map<string, typeof records>();
     records.forEach((record) => {
       const lot = tag(record, "CODLOTE");
@@ -80,7 +103,7 @@ export async function GET(request: NextRequest) {
     const selected = candidates[0];
     const debit = selected.rows.reduce((sum, row) => sum + row.debit, 0);
     const credit = selected.rows.reduce((sum, row) => sum + row.credit, 0);
-    return NextResponse.json({ source: "TOTVS RM — RAZAOSEMLOTE0 — aplicação P (Labore)", company, competence, application: LABORE_APPLICATION, lotCode: selected.lotCode, records: selected.rows.length, debit, credit, rows: selected.rows, alternatives: candidates.slice(1).map((candidate) => candidate.lotCode) }, { headers: { "cache-control": "private, no-store" } });
+    return NextResponse.json({ source: "TOTVS RM — RAZAOSEMLOTE0 — aplicação P (Labore) + CUBO.CTB.002", company, competence, application: LABORE_APPLICATION, lotCode: selected.lotCode, records: selected.rows.length, debit, credit, rows: selected.rows, alternatives: candidates.slice(1).map((candidate) => candidate.lotCode), provisionBalances: balanceResult.rows, provisionBalanceWarning: balanceResult.warning }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 503 });
   }

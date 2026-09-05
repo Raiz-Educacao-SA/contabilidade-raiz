@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx-js-style";
+import XLSX from "xlsx-js-style";
 import { applyRaizWorkbookStyle } from "./export-workbook-style.ts";
 
 export type PayrollLotRow = {
@@ -11,7 +11,7 @@ export type PayrollLotRow = {
 };
 
 export type PayrollCheck = {
-  group: "Líquidos" | "INSS" | "FGTS" | "IRRF" | "Provisões";
+  group: "Líquidos" | "INSS" | "FGTS" | "IRRF" | "Provisões" | "Saldos das provisões";
   item: string;
   account: string;
   event: string;
@@ -21,6 +21,27 @@ export type PayrollCheck = {
   status: "OK" | "PENDENTE" | "INFORMATIVO";
   source: string;
   note: string;
+};
+
+export type ProvisionBalanceMemory = {
+  group: "Férias" | "13º salário";
+  account: string;
+  description: string;
+  trialBalanceBeforeLot: number | null;
+  dpPrevious: number | null;
+  previousDifference: number | null;
+  lotMovement: number;
+  dpMovement: number | null;
+  movementDifference: number | null;
+  projectedFinal: number | null;
+  dpFinal: number | null;
+  finalDifference: number | null;
+  status: "OK" | "PENDENTE" | "INFORMATIVO";
+};
+
+export type ProvisionData = {
+  movements: Map<string, number>;
+  balances: Map<string, { previous: number; final: number }>;
 };
 
 export type InssMemory = {
@@ -44,6 +65,7 @@ export type PayrollAnalysis = {
   difference: number;
   checks: PayrollCheck[];
   inssMemory: InssMemory;
+  provisionBalanceMemory: ProvisionBalanceMemory[];
   missingDocuments: string[];
   canIntegrate: boolean;
 };
@@ -448,6 +470,7 @@ function fgtsDocumentValue(document: ExtractedDocument, competence: string) {
 function provisionRows(buffer: ArrayBuffer, fileName: string) {
   const workbook = XLSX.read(buffer, { type: "array" });
   const result = new Map<string, number>();
+  const balances = new Map<string, { previous: number; final: number }>();
   const isThirteenth = /13|DECIMO/i.test(normalized(fileName));
   for (const sheet of workbook.SheetNames) {
     const matrix = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheet], { header: 1, raw: false, defval: "" });
@@ -464,10 +487,16 @@ function provisionRows(buffer: ArrayBuffer, fileName: string) {
           result.set(ACCOUNTS.thirteenth, at(["BAIXA_PROV"]) - at(["PROV_MES"]));
           result.set(ACCOUNTS.thirteenthFgts, at(["DT_FGTS_BX"]) - at(["FGTS_MES"]));
           result.set(ACCOUNTS.thirteenthInss, at(["DT_INSS_BX"]) - at(["INSS_MES"]));
+          balances.set(ACCOUNTS.thirteenth, { previous: at(["DT_PROV_ACM_ANT"]), final: at(["DT_PROV_ACM"]) });
+          balances.set(ACCOUNTS.thirteenthFgts, { previous: at(["DT_FGTS_ACM_ANT"]), final: at(["DT_FGTS_ACM"]) });
+          balances.set(ACCOUNTS.thirteenthInss, { previous: at(["DT_INSS_ACM_ANT"]), final: at(["DT_INSS_ACM"]) });
         } else {
           result.set(ACCOUNTS.vacation, at(["FERIAS_PROV_BX"]) - at(["FERIAS_PROV"]));
           result.set(ACCOUNTS.vacationFgts, at(["FERIAS_FGTS_BX"]) + at(["FERIAS_FGTS_EST"]) - at(["FERIAS_FGTS"]));
           result.set(ACCOUNTS.vacationInss, at(["FERIAS_INSS_BX"]) + at(["FERIAS_INSS_EST"]) - at(["FERIAS_INSS"]));
+          balances.set(ACCOUNTS.vacation, { previous: at(["FERIAS_PROV_ACM_ANT"]), final: at(["FERIAS_PROV_ACM"]) });
+          balances.set(ACCOUNTS.vacationFgts, { previous: at(["FERIAS_FGTS_ACM_ANT"]), final: at(["FERIAS_FGTS_ACM"]) });
+          balances.set(ACCOUNTS.vacationInss, { previous: at(["FERIAS_INSS_ACM_ANT"]), final: at(["FERIAS_INSS_ACM"]) });
         }
         continue;
       }
@@ -488,15 +517,22 @@ function provisionRows(buffer: ArrayBuffer, fileName: string) {
       result.set(key, (result.get(key) ?? 0) + expected);
     }
   }
-  return result;
+  return { movements: result, balances };
 }
 
 export async function parseProvisionFiles(files: File[]) {
-  const values = new Map<string, number>();
+  return (await parseProvisionData(files)).movements;
+}
+
+export async function parseProvisionData(files: File[]): Promise<ProvisionData> {
+  const movements = new Map<string, number>();
+  const balances = new Map<string, { previous: number; final: number }>();
   for (const file of files.filter((item) => /\.(xlsx|xls|xlsm)$/i.test(item.name) && /(FERIAS|FÉRIAS|13|DECIMO)/i.test(normalized(item.name)))) {
-    for (const [account, value] of provisionRows(await file.arrayBuffer(), file.name)) values.set(account, value);
+    const parsed = provisionRows(await file.arrayBuffer(), file.name);
+    for (const [account, value] of parsed.movements) movements.set(account, value);
+    for (const [account, value] of parsed.balances) balances.set(account, value);
   }
-  return values;
+  return { movements, balances };
 }
 
 export async function parseSpreadsheetDocuments(files: File[]) {
@@ -515,7 +551,16 @@ function check(group: PayrollCheck["group"], item: string, account: string, even
   return { group, item, account, event, lot, document, difference, status, source, note };
 }
 
-export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documents: ExtractedDocument[], provisions: Map<string, number>, tolerance = 1, competence = ""): PayrollAnalysis {
+export function reconcilePayroll(
+  rows: PayrollLotRow[],
+  lotCode: string,
+  documents: ExtractedDocument[],
+  provisions: Map<string, number>,
+  tolerance = 1,
+  competence = "",
+  provisionBalances = new Map<string, { previous: number; final: number }>(),
+  trialBalanceBeforeLot = new Map<string, number>(),
+): PayrollAnalysis {
   const folha = findDocument(documents, [/FOLHA.*ANALITICA/, /RESUMO.*FOLHA/]);
   const dctf = findDocument(documents, [/GUIA.*DCTF/, /DCTFWEB.*COL/]) ?? findDocument(documents, [/DCTF/]);
   const currentIrrfMonthly = findIrrfMonthlyDocument(documents, competence, false);
@@ -530,24 +575,36 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   const folhaText = folha?.text ?? "";
   const folhaTotalsText = folhaSummaryText(folhaText);
   const dctfText = dctf?.text ?? "";
-  const liquidGeneral = valueAfterLabelMax(folhaTotalsText, "LIQUIDO");
-  const liquidLot = lotEventValue(rows, ["EN0002", "EN0020"]);
-  const liquidCheck = check(
+  const liquidSalaryDocument = valueAfterLabelMax(folhaTotalsText, "LIQUIDO");
+  const liquidSalaryLot = lotEventValue(rows, ["EN0002", "EN0020"]);
+  const liquidSalaryCheck = check(
     "Líquidos",
-    "Líquido da folha",
+    "Líquido salarial",
     ACCOUNTS.salary,
     "EN0002 + EN0020",
-    liquidLot ?? 0,
-    liquidGeneral,
+    liquidSalaryLot ?? 0,
+    liquidSalaryDocument,
     tolerance,
     folha?.name ?? "Folha Analítica não identificada",
     "A soma dos eventos EN0002 e EN0020 do lote deve conferir com o total Líquido apresentado na página de TOTAL GERAL da Folha Analítica.",
   );
-  if (liquidLot === null) {
-    liquidCheck.status = "PENDENTE";
-    liquidCheck.note = "Eventos EN0002 e EN0020 não identificados no lote. " + liquidCheck.note;
+  if (liquidSalaryLot === null) {
+    liquidSalaryCheck.status = "PENDENTE";
+    liquidSalaryCheck.note = "Eventos EN0002 e EN0020 não identificados no lote. " + liquidSalaryCheck.note;
   }
-  const checks: PayrollCheck[] = [liquidCheck];
+  const checks: PayrollCheck[] = [liquidSalaryCheck];
+  const liquidDefinitions = [
+    { item: "Líquido de rescisão", account: ACCOUNTS.termination, lotCodes: ["EV0150", "EN0150"], documentCodes: ["0150"], labels: ["LIQUIDO DE RESCISAO"] },
+    { item: "Líquido de férias", account: ACCOUNTS.vacationLiquid, lotCodes: ["EV0043", "EN0043"], documentCodes: ["0043"], labels: ["LIQUIDO DE FERIAS"] },
+    { item: "Adiantamento de 13º salário", account: ACCOUNTS.thirteenthAdvance, lotCodes: ["EV0009", "EN0009"], documentCodes: ["0009"], labels: ["ADIANTAMENTO.*13"] },
+    { item: "Adiantamento de saldo devedor", account: ACCOUNTS.salaryAdvance, lotCodes: ["EV0020"], documentCodes: ["0020"], labels: ["ADIANTAMENTO.*SALDO DEVEDOR"] },
+  ];
+  for (const definition of liquidDefinitions) {
+    const lotValue = lotEventValue(rows, definition.lotCodes);
+    const documentValue = eventValueMax(folhaTotalsText, definition.documentCodes, definition.labels);
+    if (lotValue === null && documentValue === null) continue;
+    checks.push(check("Líquidos", definition.item, definition.account, definition.lotCodes.join(" + "), lotValue ?? 0, documentValue, tolerance, folha?.name ?? "Folha Analítica não identificada", `${definition.lotCodes.join("/")} do lote x respectivo líquido da página de TOTAL GERAL da Folha Analítica.`));
+  }
 
   const previdenciariaFallback = previdenciariaTotals(dctfText);
   const insured = valueNear(dctfText, [/TOTAL CONTRIBUICAO PREVIDENCIARIA SEGURADOS/]) ?? previdenciariaFallback.insured;
@@ -613,18 +670,40 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   if (dueIrrf0588 === null) guide0588Check.status = "PENDENTE";
   checks.push(guide0588Check);
 
-  const provisionDefinitions: Array<[string, string]> = [
-    [ACCOUNTS.vacation, "Provisão de férias"], [ACCOUNTS.vacationInss, "INSS sobre férias"], [ACCOUNTS.vacationFgts, "FGTS sobre férias"],
-    [ACCOUNTS.thirteenth, "Provisão de 13º salário"], [ACCOUNTS.thirteenthInss, "INSS sobre 13º salário"], [ACCOUNTS.thirteenthFgts, "FGTS sobre 13º salário"],
+  const provisionDefinitions: Array<[string, string, ProvisionBalanceMemory["group"]]> = [
+    [ACCOUNTS.vacation, "Provisão de férias", "Férias"], [ACCOUNTS.vacationInss, "INSS sobre férias", "Férias"], [ACCOUNTS.vacationFgts, "FGTS sobre férias", "Férias"],
+    [ACCOUNTS.thirteenth, "Provisão de 13º salário", "13º salário"], [ACCOUNTS.thirteenthInss, "INSS sobre 13º salário", "13º salário"], [ACCOUNTS.thirteenthFgts, "FGTS sobre 13º salário", "13º salário"],
   ];
   for (const [account, item] of provisionDefinitions) checks.push(check("Provisões", item, account, "Movimento mensal", accountMovement(rows, account), provisions.get(account) ?? null, tolerance, provisions.has(account) ? "Planilha de provisão do DP" : "Planilha de provisão não reconhecida"));
+
+  const provisionBalanceMemory = provisionDefinitions.map(([account, description, group]): ProvisionBalanceMemory => {
+    const trial = trialBalanceBeforeLot.get(account) ?? null;
+    const dp = provisionBalances.get(account);
+    const lotMovement = roundMoney(-accountMovement(rows, account));
+    const dpMovementRaw = provisions.get(account);
+    const dpMovement = dpMovementRaw === undefined ? null : roundMoney(-dpMovementRaw);
+    const previousDifference = trial === null || !dp ? null : roundMoney(trial - dp.previous);
+    const movementDifference = dpMovement === null ? null : roundMoney(lotMovement - dpMovement);
+    const projectedFinal = trial === null ? null : roundMoney(trial + lotMovement);
+    const finalDifference = projectedFinal === null || !dp ? null : roundMoney(projectedFinal - dp.final);
+    const movementOk = movementDifference !== null && Math.abs(movementDifference) <= tolerance;
+    const balanceOk = previousDifference !== null && finalDifference !== null && Math.abs(previousDifference) <= tolerance && Math.abs(finalDifference) <= tolerance;
+    return { group, account, description, trialBalanceBeforeLot: trial, dpPrevious: dp?.previous ?? null, previousDifference, lotMovement, dpMovement, movementDifference, projectedFinal, dpFinal: dp?.final ?? null, finalDifference, status: movementOk ? (balanceOk ? "OK" : "INFORMATIVO") : "PENDENTE" };
+  });
+  for (const memory of provisionBalanceMemory) {
+    const previous = check("Saldos das provisões", `Saldo anterior — ${memory.description}`, memory.account, "Balancete pré-lote x DP anterior", memory.trialBalanceBeforeLot ?? 0, memory.dpPrevious, tolerance, "TOTVS CUBO.CTB.002 x planilha de provisão do DP", "Diferença de saldo anterior é histórica e não bloqueia quando a movimentação mensal confere.");
+    const final = check("Saldos das provisões", `Saldo final projetado — ${memory.description}`, memory.account, "Saldo pré-lote + movimento x DP final", memory.projectedFinal ?? 0, memory.dpFinal, tolerance, "TOTVS CUBO.CTB.002 + lote x planilha de provisão do DP", "Saldo final projetado; divergência herdada do saldo anterior permanece como alerta não bloqueante.");
+    if (previous.status === "PENDENTE") previous.status = "INFORMATIVO";
+    if (final.status === "PENDENTE") final.status = "INFORMATIVO";
+    checks.push(previous, final);
+  }
 
   const debit = rows.reduce((sum, row) => sum + row.debit, 0);
   const credit = rows.reduce((sum, row) => sum + row.credit, 0);
   const blocking = checks.filter((item) => item.status === "PENDENTE");
   const missingDocuments = [...new Set(blocking.map((item) => item.source))];
   const inssMemory: InssMemory = { insured, employer, otherEntities, retained1162, payrollGuide, event130, event131, adjustedGuide, lot: inssLot, difference: adjustedGuide === null ? null : roundMoney(inssLot - adjustedGuide) };
-  return { lotCode, rows, debit: roundMoney(debit), credit: roundMoney(credit), difference: roundMoney(debit - credit), checks, inssMemory, missingDocuments, canIntegrate: Math.abs(debit - credit) <= 0.01 && blocking.length === 0 };
+  return { lotCode, rows, debit: roundMoney(debit), credit: roundMoney(credit), difference: roundMoney(debit - credit), checks, inssMemory, provisionBalanceMemory, missingDocuments, canIntegrate: Math.abs(debit - credit) <= 0.01 && blocking.length === 0 };
 }
 
 export function buildPayrollAnalysisWorkbook(analysis: PayrollAnalysis, companyCode: string, companyName: string, competence: string) {
@@ -652,6 +731,37 @@ export function buildPayrollAnalysisWorkbook(analysis: PayrollAnalysis, companyC
     const rows = analysis.checks.filter((item) => item.group === group).map((item) => ({ Item: item.item, Conta: item.account, Evento: item.event, Lote: item.lot, Documento: item.document, Diferença: item.difference, Status: item.status, Fonte: item.source, Observação: item.note }));
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), group);
   }
+  const provisionBalanceRows = analysis.provisionBalanceMemory.map((item) => ({
+    Grupo: item.group,
+    Conta: item.account,
+    Descrição: item.description,
+    "Balancete pré-lote": item.trialBalanceBeforeLot,
+    "DP anterior": item.dpPrevious,
+    "Diferença anterior": item.previousDifference,
+    "Movimento do lote (C-D)": item.lotMovement,
+    "Movimento do DP": item.dpMovement,
+    "Diferença do movimento": item.movementDifference,
+    "Saldo projetado após o lote": item.projectedFinal,
+    "DP final": item.dpFinal,
+    "Diferença final": item.finalDifference,
+    Status: item.status,
+    Impacto: item.status === "PENDENTE" ? "Bloqueia por divergência do movimento" : item.status === "INFORMATIVO" ? "Alerta histórico não bloqueante" : "Sem divergência",
+  }));
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(provisionBalanceRows), "Provisões Balancete");
+  const criteria = [
+    { Tema: "Fonte do lote", Regra: "Consulta direta no TOTVS RM, aplicação P (Labore).", Tolerância: "Obrigatório", Impacto: "Bloqueante" },
+    { Tema: "Líquido salarial", Regra: "EN0002 + EN0020 do lote x total Líquido da página TOTAL GERAL da Folha Analítica.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
+    { Tema: "Demais líquidos", Regra: "Rescisão EV0150, férias EV0043, adiantamento de 13º EV0009 e adiantamento de saldo devedor EV0020 x Folha Analítica.", Tolerância: "R$ 1,00", Impacto: "Bloqueante quando houver o evento" },
+    { Tema: "INSS", Regra: "Segurados líquidos + patronal + outras entidades, sem 1162; menos EV0130 e mais EV0131.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
+    { Tema: "FGTS", Regra: "Conta 2.1.2.01.03.02 x guias da competência; excluir históricos, encargos e consignado.", Tolerância: "R$ 40,00", Impacto: "Bloqueante" },
+    { Tema: "IRRF contabilizado", Regra: "0561: EV0004 + EV0049 + EV0030. 0588: EV0084.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
+    { Tema: "IRRF recolhimento", Regra: "Planilha do mês anterior + registros da planilha mensal pagos no mês analisado x códigos 0561 e 0588 da DCTF Web.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
+    { Tema: "Provisões", Regra: "Movimentação mensal de principal, FGTS e INSS de férias e 13º x documentos do DP.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
+    { Tema: "Saldo anterior das provisões", Regra: "Balancete pré-lote x saldo anterior do DP, por conta.", Tolerância: "R$ 1,00", Impacto: "Alerta não bloqueante se o movimento conferir" },
+    { Tema: "Saldo final das provisões", Regra: "Balancete pré-lote + movimento do lote (crédito menos débito) x saldo final do DP.", Tolerância: "R$ 1,00", Impacto: "Alerta não bloqueante se repetir diferença histórica" },
+    { Tema: "Decisão", Regra: "Pode integrar quando todos os itens bloqueantes estiverem dentro da tolerância; alertas históricos permanecem documentados.", Tolerância: "Conforme tema", Impacto: "Conclusão da análise" },
+  ];
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(criteria), "Critérios");
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.rows.map((row) => ({ Conta: row.account, Descrição: row.description, Evento: row.event, Complemento: row.complement, Débito: row.debit, Crédito: row.credit }))), "Lote");
   return workbook;
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { reconcilePayroll } from "../lib/payroll-reconciliation.ts";
+import { buildPayrollAnalysisWorkbook, reconcilePayroll } from "../lib/payroll-reconciliation.ts";
 
 const row = (account, credit, event = "", complement = "") => ({ account, description: "", event, complement, debit: 0, credit });
 
@@ -71,7 +71,7 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido por 
   ];
 
   const analysis = reconcilePayroll(rows, "28082026", documents, new Map(), 1, "2026-08");
-  const liquid = analysis.checks.find((item) => item.item === "Líquido da folha");
+  const liquid = analysis.checks.find((item) => item.item === "Líquido salarial");
   assert.equal(liquid?.event, "EN0002 + EN0020");
   assert.equal(liquid?.lot, 4431.20);
   assert.equal(liquid?.document, 4431.20);
@@ -95,6 +95,48 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido por 
   assert.equal(irrf0588?.status, "OK");
   assert.equal(analysis.checks.find((item) => item.item === "IRRF 0561 — provisão x planilha mensal")?.document, 900);
   assert.equal(analysis.checks.find((item) => item.item === "IRRF 0588 — provisão x planilha mensal")?.document, 100);
+});
+
+test("confere todos os líquidos presentes na Folha Analítica", () => {
+  const rows = [
+    row("2.1.2.01.01.01", 1000, "EN0002"),
+    row("2.1.2.01.01.01", 50, "EN0020"),
+    row("2.1.2.01.01.03", 200, "EV0150"),
+    row("1.1.3.01.02.02", 300, "EV0043"),
+    row("1.1.3.01.02.04", 400, "EV0009"),
+    row("1.1.3.01.02.01", 500, "EV0020"),
+  ];
+  const documents = [{ name: "FolhaAnalitica.pdf", text: [
+    "TOTAL GERAL",
+    "Proventos 2.650,00 Descontos 1.600,00 Líquido 1.050,00",
+    "0150 LIQUIDO DE RESCISAO 1 0,00 200,00",
+    "0043 LIQUIDO DE FERIAS 1 0,00 300,00",
+    "0009 ADIANTAMENTO 13 SALARIO 1 0,00 400,00",
+    "0020 ADIANTAMENTO SALDO DEVEDOR 1 0,00 500,00",
+  ].join("\n") }];
+
+  const analysis = reconcilePayroll(rows, "12082026", documents, new Map(), 1, "2026-08");
+  const liquids = analysis.checks.filter((item) => item.group === "Líquidos");
+  assert.deepEqual(liquids.map((item) => item.item), ["Líquido salarial", "Líquido de rescisão", "Líquido de férias", "Adiantamento de 13º salário", "Adiantamento de saldo devedor"]);
+  assert.ok(liquids.every((item) => item.status === "OK"));
+});
+
+test("mantém divergência histórica das provisões como alerta quando o movimento confere", () => {
+  const rows = [row("2.1.2.01.04.01", 94528.74)];
+  const movements = new Map([["2.1.2.01.04.01", -94528.74]]);
+  const balances = new Map([["2.1.2.01.04.01", { previous: 907643.25, final: 1002171.99 }]]);
+  const trial = new Map([["2.1.2.01.04.01", 907453.98]]);
+  const analysis = reconcilePayroll(rows, "12072026", [], movements, 1, "2026-07", balances, trial);
+  const memory = analysis.provisionBalanceMemory.find((item) => item.account === "2.1.2.01.04.01");
+  assert.equal(memory?.movementDifference, 0);
+  assert.equal(memory?.previousDifference, -189.27);
+  assert.equal(memory?.finalDifference, -189.27);
+  assert.equal(memory?.status, "INFORMATIVO");
+  assert.ok(analysis.checks.filter((item) => item.group === "Saldos das provisões").every((item) => item.status !== "PENDENTE"));
+  const workbook = buildPayrollAnalysisWorkbook(analysis, "12", "CLV", "2026-07");
+  assert.ok(workbook.SheetNames.includes("Provisões Balancete"));
+  assert.ok(workbook.SheetNames.includes("Critérios"));
+  assert.match(workbook.Sheets["Critérios"].B2.v, /TOTVS RM/);
 });
 
 test("reconhece os totais previdenciários quando o OCR da DCTF perde partes dos títulos", () => {
