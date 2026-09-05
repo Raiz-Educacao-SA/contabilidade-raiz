@@ -40,6 +40,9 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(monthlyRoute, /conta_depreciacao_acumulada/);
   assert.match(monthlyRoute, /groupCode/);
   assert.match(monthlyRoute, /postingErrors/);
+  assert.match(monthlyRoute, /4\.2\.1\.09\.01\.01/);
+  assert.match(monthlyRoute, /1\.2\.3\.02\.08\.02/);
+  assert.match(monthlyRoute, /conta_despesa_depreciacao \|\| depreciationExpenseAccount/);
 });
 
 test("Ativo Fixo consulta a carga real com autenticação e segregação por empresa", () => {

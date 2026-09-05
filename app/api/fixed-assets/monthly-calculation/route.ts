@@ -2,6 +2,25 @@ import { NextResponse } from "next/server";
 import { authenticatedCorporateUser, createAdminServerSupabase } from "@/lib/server/supabase-access";
 
 const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const depreciationExpenseAccount = "4.2.1.09.01.01";
+const accumulatedDepreciationAccounts: Record<string, string> = {
+  "1.2.3.02.01": "1.2.3.02.01.99",
+  "1.2.3.02.02": "1.2.3.02.02.99",
+  "1.2.3.02.03": "1.2.3.02.03.02",
+  "1.2.3.02.04": "1.2.3.02.04.02",
+  "1.2.3.02.05": "1.2.3.02.05.02",
+  "1.2.3.02.06": "1.2.3.02.06.02",
+  "1.2.3.02.07": "1.2.3.02.07.02",
+  "1.2.3.02.08": "1.2.3.02.08.02",
+  "1.2.3.02.09": "1.2.3.02.09.02",
+  "1.2.3.02.10": "1.2.3.02.11.01",
+  "1.2.3.02.12": "1.2.3.02.12.02",
+  "1.2.3.02.14": "1.2.3.02.14.02",
+  "1.2.3.02.16": "1.2.3.02.16.02",
+  "1.2.3.02.18": "1.2.3.02.19.01",
+  "1.2.3.02.20": "1.2.3.02.19.01",
+  "1.2.3.02.21": "1.2.3.02.21.02",
+};
 
 export async function GET(request: Request) {
   const user = await authenticatedCorporateUser(request);
@@ -31,7 +50,8 @@ export async function GET(request: Request) {
     const standardQuota = eligible ? cents(base / Number(asset.vida_util_contabil_meses)) : 0;
     const monthDepreciation = cents(Math.max(0, Math.min(standardQuota, base - opening)));
     const accumulated = cents(opening + monthDepreciation); const bookValue = cents(cost - accumulated);
-    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, account: group?.codigo || "", group: group?.descricao || "Sem classificação", debitAccount: group?.conta_despesa_depreciacao || "", creditAccount: group?.conta_depreciacao_acumulada || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
+    const groupCode = group?.codigo || "";
+    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, account: groupCode, group: group?.descricao || "Sem classificação", debitAccount: group?.conta_despesa_depreciacao || depreciationExpenseAccount, creditAccount: group?.conta_depreciacao_acumulada || accumulatedDepreciationAccounts[groupCode] || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
   });
   const totals = rows.reduce((sum, row) => ({ cost: sum.cost + row.cost, base: sum.base + row.base, opening: sum.opening + row.opening, monthDepreciation: sum.monthDepreciation + row.monthDepreciation, accumulated: sum.accumulated + row.accumulated, bookValue: sum.bookValue + row.bookValue }), { cost: 0, base: 0, opening: 0, monthDepreciation: 0, accumulated: 0, bookValue: 0 });
   const postingErrors = [...new Set(rows.filter((row) => row.monthDepreciation > 0 && (!row.debitAccount || !row.creditAccount)).map((row) => `${row.account || "Sem código"} — ${row.group}`))];
