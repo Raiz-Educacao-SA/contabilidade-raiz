@@ -48,9 +48,10 @@ test("compõe o INSS sem 1162 e aplica os eventos 130 negativo e 131 positivo", 
   assert.equal(irrfPosting?.status, "OK");
 });
 
-test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo EN0002", () => {
+test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido por EN0002 mais EN0020", () => {
   const rows = [
     row("2.1.2.01.01.01", 4331.20, "EN0002"),
+    row("2.1.2.01.01.02", 100, "EN0020"),
     row("2.1.2.01.03.02", 1500, ""),
     row("2.1.4.01.02.03", 100, "EV0084"),
     row("2.1.4.01.02.02", 200, "EV0004"),
@@ -58,7 +59,7 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo
     row("2.1.4.01.02.02", 400, "EV0030"),
   ];
   const documents = [
-    { name: "FolhaAnalitica.pdf", text: "TOTAL GERAL\n1.990,22 Líquido 4.331,20\n0004 IRRF 999.999,99" },
+    { name: "FolhaAnalitica.pdf", text: "Página 1\nLíquido 9.999,99\n\f\nTOTAL GERAL\n1.990,22 Líquido 4.431,20\n0004 IRRF 999.999,99" },
     { name: "Guia FGTS.pdf", text: "VALOR A RECOLHER 1.500,00" },
     { name: "Planilha IRRF - MENSAL.xlsx", text: [
       "0561 - Salarios",
@@ -71,9 +72,9 @@ test("confere FGTS pela conta passiva, IRRF pelos quatro eventos e líquido pelo
 
   const analysis = reconcilePayroll(rows, "28082026", documents, new Map(), 1, "2026-08");
   const liquid = analysis.checks.find((item) => item.item === "Líquido da folha");
-  assert.equal(liquid?.event, "EN0002");
-  assert.equal(liquid?.lot, 4331.20);
-  assert.equal(liquid?.document, 4331.20);
+  assert.equal(liquid?.event, "EN0002 + EN0020");
+  assert.equal(liquid?.lot, 4431.20);
+  assert.equal(liquid?.document, 4431.20);
   assert.equal(liquid?.status, "OK");
 
   const fgts = analysis.checks.find((item) => item.item === "FGTS a recolher — lote x guias");

@@ -46,7 +46,7 @@ export async function extractVisualDocumentsInBrowser(files: File[], onProgress:
         const content = await page.getTextContent();
         pages.push({ page, text: textFromItems(content.items as Array<{ str?: string; transform?: number[] }>) });
       }
-      const embeddedText = pages.map((page) => page.text).join("\n");
+      const embeddedText = pages.map((page) => page.text).join("\n\f\n");
       if (embeddedText.replace(/\s/g, "").length > 80) {
         documents.push({ name: file.name, text: embeddedText });
         continue;
@@ -65,7 +65,7 @@ export async function extractVisualDocumentsInBrowser(files: File[], onProgress:
         canvas.width = 0;
         canvas.height = 0;
       }
-      documents.push({ name: file.name, text: recognizedPages.join("\n") });
+      documents.push({ name: file.name, text: recognizedPages.join("\n\f\n") });
     }
     return documents;
   } finally {

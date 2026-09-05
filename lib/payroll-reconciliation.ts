@@ -222,6 +222,11 @@ function valueAcrossMax(text: string, patterns: RegExp[]) {
   return values.length ? Math.max(...values) : null;
 }
 
+function lastPageText(text: string) {
+  const pages = text.split(/\f/).map((page) => page.trim()).filter(Boolean);
+  return pages.at(-1) ?? text;
+}
+
 function findDocument(documents: ExtractedDocument[], patterns: RegExp[]) {
   return documents.find((document) => patterns.some((pattern) => pattern.test(normalized(`${document.name} ${document.text.slice(0, 1200)}`))));
 }
@@ -465,23 +470,24 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
     return /GUIA.*FGTS|FGTS.*GUIA/.test(name) || /GFD.*GUIA DO FGTS|GUIA DO FGTS DIGITAL/.test(heading);
   });
   const folhaText = folha?.text ?? "";
+  const folhaLastPageText = lastPageText(folhaText);
   const dctfText = dctf?.text ?? "";
-  const liquidGeneral = valueAcrossMax(folhaText, [/\bLIQUIDO\b/]);
-  const liquidLot = lotEventValue(rows, ["EN0002"]);
+  const liquidGeneral = valueAcrossMax(folhaLastPageText, [/\bLIQUIDO\b/]);
+  const liquidLot = lotEventValue(rows, ["EN0002", "EN0020"]);
   const liquidCheck = check(
     "Líquidos",
     "Líquido da folha",
     ACCOUNTS.salary,
-    "EN0002",
+    "EN0002 + EN0020",
     liquidLot ?? 0,
     liquidGeneral,
     tolerance,
     folha?.name ?? "Folha Analítica não identificada",
-    "O evento EN0002 do lote deve conferir com o total Líquido apresentado no TOTAL GERAL da Folha Analítica.",
+    "A soma dos eventos EN0002 e EN0020 do lote deve conferir com o total Líquido apresentado na última página da Folha Analítica.",
   );
   if (liquidLot === null) {
     liquidCheck.status = "PENDENTE";
-    liquidCheck.note = "Evento EN0002 não identificado no lote. " + liquidCheck.note;
+    liquidCheck.note = "Eventos EN0002 e EN0020 não identificados no lote. " + liquidCheck.note;
   }
   const checks: PayrollCheck[] = [liquidCheck];
 
