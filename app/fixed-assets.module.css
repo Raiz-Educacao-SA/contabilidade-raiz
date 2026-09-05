@@ -139,6 +139,8 @@
 .calculationHeader button { padding: 10px 14px; border: 0; border-radius: 9px; background: #0f766e; color: #fff; display: flex; align-items: center; gap: 7px; font-weight: 800; }
 .calculationHeader button svg { width: 17px; }
 .calculationHeader button:disabled { opacity: .5; }
+.calculationActions { display: flex; align-items: center; gap: 9px; }
+.calculationActions button:last-child { background: #126783; }
 .calculationArea > .error { margin: 14px 22px; }
 .calculationKpis { padding: 16px 22px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #f8fafb; }
 .calculationKpis article { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
@@ -154,4 +156,4 @@
 .reviewEmpty span { margin-top: 5px; font-size: 12px; }
 @media (max-width: 1050px) { .kpis { grid-template-columns: repeat(2, 1fr); } .grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .acquisitionHeader, .acquisitionSearch { align-items: stretch; flex-direction: column; } .acquisitionSearch label:nth-child(2) input { width: 100%; } .acquisitionGrid { grid-template-columns: 1fr; } .candidateList { border-right: 0; border-bottom: 1px solid var(--line); } }
-@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend, .summaryHeader { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } .invoiceMeta, .classification { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .statusBar, .assetsHeader, .noteHeader, .noteLegend, .summaryHeader, .calculationHeader, .calculationActions { align-items: flex-start; flex-direction: column; } .kpis { grid-template-columns: 1fr; } .context { text-align: left; } .assetsHeader input { width: 100%; } .invoiceMeta, .classification { grid-template-columns: 1fr; } }

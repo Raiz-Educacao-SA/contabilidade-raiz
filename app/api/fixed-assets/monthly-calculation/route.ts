@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   if (!access.data?.length) return NextResponse.json({ error: "Acesso não autorizado para esta empresa." }, { status: 403 });
   const [year, month] = competence.split("-").map(Number);
   const monthEnd = `${competence}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-  const assetsResult = await admin.from("ativo_fixo_bens").select("id,codigo_patrimonial,codfilial,descricao,data_aquisicao,data_baixa,valor_custo,valor_residual,vida_util_contabil_meses,status,grupo:ativo_fixo_grupos(codigo,descricao,depreciavel,inicio_depreciacao)").eq("empresa_id", company.data.id).lte("data_aquisicao", monthEnd).order("codigo_patrimonial");
+  const assetsResult = await admin.from("ativo_fixo_bens").select("id,codigo_patrimonial,codfilial,descricao,data_aquisicao,data_baixa,valor_custo,valor_residual,vida_util_contabil_meses,status,grupo:ativo_fixo_grupos(codigo,descricao,depreciavel,inicio_depreciacao,conta_depreciacao_acumulada,conta_despesa_depreciacao)").eq("empresa_id", company.data.id).lte("data_aquisicao", monthEnd).order("codigo_patrimonial");
   if (assetsResult.error) return NextResponse.json({ error: "Não foi possível consultar os bens para cálculo." }, { status: 500 });
   const previousResult = await admin.from("ativo_fixo_calculos").select("bem_id,competencia,depreciacao_acumulada_contabil").eq("empresa_id", company.data.id).lt("competencia", competence).neq("status", "CANCELADO").order("competencia", { ascending: false });
   const previous = new Map<string, number>();
@@ -31,8 +31,18 @@ export async function GET(request: Request) {
     const standardQuota = eligible ? cents(base / Number(asset.vida_util_contabil_meses)) : 0;
     const monthDepreciation = cents(Math.max(0, Math.min(standardQuota, base - opening)));
     const accumulated = cents(opening + monthDepreciation); const bookValue = cents(cost - accumulated);
-    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, account: group?.codigo || "", group: group?.descricao || "Sem classificação", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
+    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, account: group?.codigo || "", group: group?.descricao || "Sem classificação", debitAccount: group?.conta_despesa_depreciacao || "", creditAccount: group?.conta_depreciacao_acumulada || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
   });
   const totals = rows.reduce((sum, row) => ({ cost: sum.cost + row.cost, base: sum.base + row.base, opening: sum.opening + row.opening, monthDepreciation: sum.monthDepreciation + row.monthDepreciation, accumulated: sum.accumulated + row.accumulated, bookValue: sum.bookValue + row.bookValue }), { cost: 0, base: 0, opening: 0, monthDepreciation: 0, accumulated: 0, bookValue: 0 });
-  return NextResponse.json({ competence, rows, totals, calculated: rows.filter((row) => row.status === "CALCULADO").length, pending: rows.filter((row) => row.status === "SEM_CLASSIFICACAO").length }, { headers: { "cache-control": "private, no-store" } });
+  const postingErrors = [...new Set(rows.filter((row) => row.monthDepreciation > 0 && (!row.debitAccount || !row.creditAccount)).map((row) => `${row.account || "Sem código"} — ${row.group}`))];
+  const groupedPostings = new Map<string, { branchCode: string; groupCode: string; groupName: string; debitAccount: string; creditAccount: string; amount: number }>();
+  for (const row of rows) {
+    if (row.monthDepreciation <= 0 || !row.debitAccount || !row.creditAccount) continue;
+    const key = [row.branch, row.account, row.debitAccount, row.creditAccount].join("|");
+    const current = groupedPostings.get(key) ?? { branchCode: row.branch, groupCode: row.account, groupName: row.group, debitAccount: row.debitAccount, creditAccount: row.creditAccount, amount: 0 };
+    current.amount = cents(current.amount + row.monthDepreciation);
+    groupedPostings.set(key, current);
+  }
+  const postings = [...groupedPostings.values()].sort((left, right) => Number(left.branchCode) - Number(right.branchCode) || left.groupCode.localeCompare(right.groupCode));
+  return NextResponse.json({ competence, rows, totals, postings, postingErrors, calculated: rows.filter((row) => row.status === "CALCULADO").length, pending: rows.filter((row) => row.status === "SEM_CLASSIFICACAO").length }, { headers: { "cache-control": "private, no-store" } });
 }

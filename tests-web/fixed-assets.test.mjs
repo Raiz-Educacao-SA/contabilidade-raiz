@@ -7,6 +7,7 @@ const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../app/fixed-assets.tsx", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../Supabase/20260903_ativo_fixo.sql", import.meta.url), "utf8");
 const route = readFileSync(new URL("../app/api/fixed-assets/route.ts", import.meta.url), "utf8");
+const monthlyRoute = readFileSync(new URL("../app/api/fixed-assets/monthly-calculation/route.ts", import.meta.url), "utf8");
 
 test("Ativo Fixo fica isolado em componente próprio e acessível pela navegação", () => {
   assert.match(page, /FixedAssetsPanel/);
@@ -33,6 +34,12 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /QUADRO DE MOVIMENTAÇÕES/);
   assert.match(panel, /Saldo final = saldo inicial/);
   assert.match(panel, /Controle x razão x balancete/);
+  assert.match(panel, /Exportar lançamento contábil/);
+  assert.match(panel, /buildWarehousePostingsCsv/);
+  assert.match(monthlyRoute, /conta_despesa_depreciacao/);
+  assert.match(monthlyRoute, /conta_depreciacao_acumulada/);
+  assert.match(monthlyRoute, /groupCode/);
+  assert.match(monthlyRoute, /postingErrors/);
 });
 
 test("Ativo Fixo consulta a carga real com autenticação e segregação por empresa", () => {
