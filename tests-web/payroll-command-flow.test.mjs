@@ -41,6 +41,7 @@ test("permite selecionar a pasta sincronizada sem depender das credenciais do Dr
   assert.match(panel, /extractVisualDocumentsInBrowser\(visualFiles, setAnalysisProgress\)/);
   assert.match(panel, /parseProvisionData/);
   assert.match(panel, /Saldos das provisões/);
+  assert.doesNotMatch(panel, /\.\.\.checkRows\("Saldos das provisões"\)/);
   assert.doesNotMatch(panel, /fetch\("\/api\/payroll\/documents"/);
   assert.match(browserDocuments, /document\.createElement\("canvas"\)/);
   assert.match(browserDocuments, /createWorker\("por"\)/);

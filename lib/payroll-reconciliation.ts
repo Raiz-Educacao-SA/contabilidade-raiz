@@ -44,6 +44,12 @@ export type ProvisionData = {
   balances: Map<string, { previous: number; final: number }>;
 };
 
+export type FgtsGuideMemory = {
+  file: string;
+  competence: string;
+  amount: number;
+};
+
 export type InssMemory = {
   insured: number | null;
   employer: number | null;
@@ -65,6 +71,7 @@ export type PayrollAnalysis = {
   difference: number;
   checks: PayrollCheck[];
   inssMemory: InssMemory;
+  fgtsGuideMemory: FgtsGuideMemory[];
   provisionBalanceMemory: ProvisionBalanceMemory[];
   missingDocuments: string[];
   canIntegrate: boolean;
@@ -443,7 +450,7 @@ function fgtsDocumentValue(document: ExtractedDocument, competence: string) {
   const text = normalized(document.text);
   const label = competenceLabel(competence);
   if (label) {
-    const competenceLines = document.text.split(/\r?\n/).filter((line) => normalized(line).startsWith(label));
+    const competenceLines = document.text.split(/\r?\n/).filter((line) => new RegExp(`^\\D*${label.replace("/", "\\/")}\\b`).test(normalized(line)));
     const values = competenceLines.map((line) => {
       const amounts = moneyValues(line);
       if (!amounts.length) return null;
@@ -452,6 +459,8 @@ function fgtsDocumentValue(document: ExtractedDocument, competence: string) {
       return roundMoney(total - charges);
     }).filter((value): value is number => value !== null);
     if (values.length) return roundMoney(values.reduce((sum, value) => sum + value, 0));
+    const hasCompetenceTable = document.text.split(/\r?\n/).some((line) => /^\D*(?:0[1-9]|1[0-2])\/20\d{2}\b/.test(normalized(line)));
+    if (hasCompetenceTable) return null;
   }
   if (text.includes("COMPENSATORIA") && text.includes("FGTS RESCISORIO")) {
     const line = document.text.split(/\r?\n/).find((item) => /^\s*\d{2}\/\d{4}\s+\d+/.test(item));
@@ -570,7 +579,7 @@ export function reconcilePayroll(
   const fgtsDocs = documents.filter((document) => {
     const name = normalized(document.name);
     const heading = normalized(document.text.slice(0, 1200));
-    return /GUIA.*FGTS|FGTS.*GUIA/.test(name) || /GFD.*GUIA DO FGTS|GUIA DO FGTS DIGITAL/.test(heading);
+    return (/\bFGTS\b/.test(name) && !/PROVISAO|SINTETICO|ANALISE|CONFERENCIA/.test(name)) || /GFD.*GUIA DO FGTS|GUIA DO FGTS DIGITAL/.test(heading);
   });
   const folhaText = folha?.text ?? "";
   const folhaTotalsText = folhaSummaryText(folhaText);
@@ -602,7 +611,7 @@ export function reconcilePayroll(
   for (const definition of liquidDefinitions) {
     const lotValue = lotEventValue(rows, definition.lotCodes);
     const documentValue = eventValueMax(folhaTotalsText, definition.documentCodes, definition.labels);
-    if (lotValue === null && documentValue === null) continue;
+    if (documentValue === null) continue;
     checks.push(check("Líquidos", definition.item, definition.account, definition.lotCodes.join(" + "), lotValue ?? 0, documentValue, tolerance, folha?.name ?? "Folha Analítica não identificada", `${definition.lotCodes.join("/")} do lote x respectivo líquido da página de TOTAL GERAL da Folha Analítica.`));
   }
 
@@ -617,7 +626,11 @@ export function reconcilePayroll(
   const adjustedGuide = payrollGuide === null ? null : roundMoney(payrollGuide - event130 + event131);
   const inssLot = Math.abs(accountMovement(rows, ACCOUNTS.inss));
   checks.push(check("INSS", "INSS ajustado x lote", ACCOUNTS.inss, "DCTFWeb - EV0130 + EV0131", inssLot, adjustedGuide, tolerance, dctf?.name ?? "DCTFWeb não identificada", "Guia previdenciária sem o código 1162, menos o evento 130 e mais o evento 131 da Folha Analítica."));
-  const fgtsDocument = fgtsDocs.length ? fgtsDocs.reduce((sum, document) => sum + (fgtsDocumentValue(document, competence) ?? 0), 0) : null;
+  const fgtsGuideMemory = fgtsDocs.flatMap((document): FgtsGuideMemory[] => {
+    const amount = fgtsDocumentValue(document, competence);
+    return amount === null ? [] : [{ file: document.name, competence: competenceLabel(competence), amount }];
+  });
+  const fgtsDocument = fgtsGuideMemory.length ? roundMoney(fgtsGuideMemory.reduce((sum, guide) => sum + guide.amount, 0)) : null;
   checks.push(check("FGTS", "FGTS a recolher — lote x guias", ACCOUNTS.fgts, "Guias FGTS", Math.abs(accountMovement(rows, ACCOUNTS.fgts)), fgtsDocument, Math.max(tolerance, 40), fgtsDocs.map((doc) => doc.name).join(" + ") || "Guias FGTS não identificadas", "Conta passiva de FGTS a recolher: 2.1.2.01.03.02. Tolerância específica: até R$ 40,00."));
 
   const irrf0561EventCodes = ["EV0004", "EV0049", "EV0030"];
@@ -703,7 +716,7 @@ export function reconcilePayroll(
   const blocking = checks.filter((item) => item.status === "PENDENTE");
   const missingDocuments = [...new Set(blocking.map((item) => item.source))];
   const inssMemory: InssMemory = { insured, employer, otherEntities, retained1162, payrollGuide, event130, event131, adjustedGuide, lot: inssLot, difference: adjustedGuide === null ? null : roundMoney(inssLot - adjustedGuide) };
-  return { lotCode, rows, debit: roundMoney(debit), credit: roundMoney(credit), difference: roundMoney(debit - credit), checks, inssMemory, provisionBalanceMemory, missingDocuments, canIntegrate: Math.abs(debit - credit) <= 0.01 && blocking.length === 0 };
+  return { lotCode, rows, debit: roundMoney(debit), credit: roundMoney(credit), difference: roundMoney(debit - credit), checks, inssMemory, fgtsGuideMemory, provisionBalanceMemory, missingDocuments, canIntegrate: Math.abs(debit - credit) <= 0.01 && blocking.length === 0 };
 }
 
 export function buildPayrollAnalysisWorkbook(analysis: PayrollAnalysis, companyCode: string, companyName: string, competence: string) {
@@ -731,6 +744,7 @@ export function buildPayrollAnalysisWorkbook(analysis: PayrollAnalysis, companyC
     const rows = analysis.checks.filter((item) => item.group === group).map((item) => ({ Item: item.item, Conta: item.account, Evento: item.event, Lote: item.lot, Documento: item.document, Diferença: item.difference, Status: item.status, Fonte: item.source, Observação: item.note }));
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), group);
   }
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(analysis.fgtsGuideMemory.map((item) => ({ Arquivo: item.file, Competência: item.competence, "Valor da competência sem encargos": item.amount }))), "FGTS por guia");
   const provisionBalanceRows = analysis.provisionBalanceMemory.map((item) => ({
     Grupo: item.group,
     Conta: item.account,
@@ -751,7 +765,7 @@ export function buildPayrollAnalysisWorkbook(analysis: PayrollAnalysis, companyC
   const criteria = [
     { Tema: "Fonte do lote", Regra: "Consulta direta no TOTVS RM, aplicação P (Labore).", Tolerância: "Obrigatório", Impacto: "Bloqueante" },
     { Tema: "Líquido salarial", Regra: "EN0002 + EN0020 do lote x total Líquido da página TOTAL GERAL da Folha Analítica.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
-    { Tema: "Demais líquidos", Regra: "Rescisão EV0150, férias EV0043, adiantamento de 13º EV0009 e adiantamento de saldo devedor EV0020 x Folha Analítica.", Tolerância: "R$ 1,00", Impacto: "Bloqueante quando houver o evento" },
+    { Tema: "Demais líquidos", Regra: "Conferir no lote os líquidos identificados na Folha Analítica: rescisão EV0150, férias EV0043, adiantamento de 13º EV0009 e adiantamento de saldo devedor EV0020.", Tolerância: "R$ 1,00", Impacto: "Bloqueante quando constar na Folha Analítica" },
     { Tema: "INSS", Regra: "Segurados líquidos + patronal + outras entidades, sem 1162; menos EV0130 e mais EV0131.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },
     { Tema: "FGTS", Regra: "Conta 2.1.2.01.03.02 x guias da competência; excluir históricos, encargos e consignado.", Tolerância: "R$ 40,00", Impacto: "Bloqueante" },
     { Tema: "IRRF contabilizado", Regra: "0561: EV0004 + EV0049 + EV0030. 0588: EV0084.", Tolerância: "R$ 1,00", Impacto: "Bloqueante" },

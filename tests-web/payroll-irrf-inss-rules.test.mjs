@@ -121,6 +121,27 @@ test("confere todos os líquidos presentes na Folha Analítica", () => {
   assert.ok(liquids.every((item) => item.status === "OK"));
 });
 
+test("não cria líquido adicional apenas por encontrar código no lote", () => {
+  const rows = [row("2.1.2.01.01.01", 1000, "EN0002"), row("1.1.3.01.02.04", 23894.78, "EV0009")];
+  const documents = [{ name: "FolhaAnalitica.pdf", text: "TOTAL GERAL\nProventos 1.500,00 Descontos 500,00 Líquido 1.000,00" }];
+  const analysis = reconcilePayroll(rows, "6082026", documents, new Map(), 1, "2026-08");
+  assert.deepEqual(analysis.checks.filter((item) => item.group === "Líquidos").map((item) => item.item), ["Líquido salarial"]);
+});
+
+test("soma o valor da competência em todas as guias de FGTS", () => {
+  const rows = [row("2.1.2.01.01.01", 1000, "EN0002"), row("2.1.2.01.03.02", 24697.84)];
+  const guides = [23896.09, 484.85, 47.21, 96.11, 173.58].map((value, index) => ({
+    name: index === 0 ? "FGTS MENSAL 0826.png" : `FGTS FUNCIONARIO ${index}.pdf`,
+    text: index === 0 ? `Total da Guia\n${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : `08/2026 1 0,00 0,00 0,00 0,00 ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+  }));
+  const analysis = reconcilePayroll(rows, "6082026", [{ name: "FolhaAnalitica.pdf", text: "TOTAL GERAL\nLíquido 1.000,00" }, ...guides], new Map(), 1, "2026-08");
+  const fgts = analysis.checks.find((item) => item.group === "FGTS");
+  assert.equal(fgts?.document, 24697.84);
+  assert.equal(fgts?.status, "OK");
+  assert.equal(analysis.fgtsGuideMemory.length, 5);
+  assert.ok(buildPayrollAnalysisWorkbook(analysis, "6", "Metropolitano", "2026-08").SheetNames.includes("FGTS por guia"));
+});
+
 test("mantém divergência histórica das provisões como alerta quando o movimento confere", () => {
   const rows = [row("2.1.2.01.04.01", 94528.74)];
   const movements = new Map([["2.1.2.01.04.01", -94528.74]]);

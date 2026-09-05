@@ -209,7 +209,6 @@ function buildExecutiveRows(analysis: PayrollAnalysis, lot: TotvsLot): Executive
     ...checkRows("Líquidos"),
     ...checkRows("INSS"), ...checkRows("FGTS"), ...checkRows("IRRF"),
     { item: "Provisões — movimentação do mês", lot: provisions.lot, document: provisions.document, tolerance: 1, status: provisions.status, impact: "Bloqueia somente divergência do movimento", note: "Férias e 13º: principal, FGTS e INSS." },
-    ...checkRows("Saldos das provisões"),
   ];
 }
 
