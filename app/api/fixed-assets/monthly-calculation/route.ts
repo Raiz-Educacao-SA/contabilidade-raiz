@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { authenticatedCorporateUser, createAdminServerSupabase } from "@/lib/server/supabase-access";
 
 const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const monthIndex = (value: string) => {
+  const [year, month] = value.slice(0, 7).split("-").map(Number);
+  return year * 12 + month - 1;
+};
 const depreciationExpenseAccount = "4.2.1.09.01.01";
 const accumulatedDepreciationAccounts: Record<string, string> = {
   "1.2.3.02.01": "1.2.3.02.01.99",
@@ -36,22 +40,29 @@ export async function GET(request: Request) {
   if (!access.data?.length) return NextResponse.json({ error: "Acesso não autorizado para esta empresa." }, { status: 403 });
   const [year, month] = competence.split("-").map(Number);
   const monthEnd = `${competence}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
-  const assetsResult = await admin.from("ativo_fixo_bens").select("id,codigo_patrimonial,codfilial,descricao,data_aquisicao,data_baixa,valor_custo,valor_residual,vida_util_contabil_meses,status,grupo:ativo_fixo_grupos(codigo,descricao,depreciavel,inicio_depreciacao,conta_depreciacao_acumulada,conta_despesa_depreciacao)").eq("empresa_id", company.data.id).lte("data_aquisicao", monthEnd).order("codigo_patrimonial");
+  const assetsResult = await admin.from("ativo_fixo_bens").select("id,codigo_patrimonial,codfilial,descricao,data_aquisicao,data_baixa,valor_custo,valor_residual,vida_util_contabil_meses,status,grupo:ativo_fixo_grupos(codigo,descricao,depreciavel,inicio_depreciacao,conta_depreciacao_acumulada,conta_despesa_depreciacao,nota_explicativa_codigo)").eq("empresa_id", company.data.id).lte("data_aquisicao", monthEnd).order("codigo_patrimonial");
   if (assetsResult.error) return NextResponse.json({ error: "Não foi possível consultar os bens para cálculo." }, { status: 500 });
   const previousResult = await admin.from("ativo_fixo_calculos").select("bem_id,competencia,depreciacao_acumulada_contabil").eq("empresa_id", company.data.id).lt("competencia", competence).neq("status", "CANCELADO").order("competencia", { ascending: false });
-  const previous = new Map<string, number>();
-  for (const item of previousResult.data ?? []) if (!previous.has(item.bem_id)) previous.set(item.bem_id, Number(item.depreciacao_acumulada_contabil));
+  const previous = new Map<string, { competence: string; accumulated: number }>();
+  for (const item of previousResult.data ?? []) if (!previous.has(item.bem_id)) previous.set(item.bem_id, { competence: item.competencia, accumulated: Number(item.depreciacao_acumulada_contabil) });
   const rows = (assetsResult.data ?? []).map((asset) => {
     const group = Array.isArray(asset.grupo) ? asset.grupo[0] : asset.grupo;
     const cost = Number(asset.valor_custo || 0); const residual = Number(asset.valor_residual || 0);
-    const base = Math.max(0, cents(cost - residual)); const opening = Math.max(0, Number(previous.get(asset.id) || 0));
+    const base = Math.max(0, cents(cost - residual));
     const acquiredMonth = String(asset.data_aquisicao).slice(0, 7);
-    const eligible = group?.depreciavel && Number(asset.vida_util_contabil_meses) > 0 && (!asset.data_baixa || String(asset.data_baixa) >= `${competence}-01`) && (group.inicio_depreciacao === "MES_AQUISICAO" ? acquiredMonth <= competence : acquiredMonth < competence);
-    const standardQuota = eligible ? cents(base / Number(asset.vida_util_contabil_meses)) : 0;
+    const startIndex = monthIndex(acquiredMonth) + (group?.inicio_depreciacao === "MES_AQUISICAO" ? 0 : 1);
+    const currentIndex = monthIndex(competence);
+    const prior = previous.get(asset.id);
+    const firstUncalculatedIndex = prior ? monthIndex(prior.competence) + 1 : startIndex;
+    const priorUncalculatedMonths = Math.max(0, currentIndex - Math.max(startIndex, firstUncalculatedIndex));
+    const depreciable = Boolean(group?.depreciavel && Number(asset.vida_util_contabil_meses) > 0);
+    const standardQuota = depreciable ? cents(base / Number(asset.vida_util_contabil_meses)) : 0;
+    const opening = cents(Math.min(base, Math.max(0, Number(prior?.accumulated || 0)) + standardQuota * priorUncalculatedMonths));
+    const eligible = depreciable && currentIndex >= startIndex && (!asset.data_baixa || String(asset.data_baixa) >= `${competence}-01`);
     const monthDepreciation = cents(Math.max(0, Math.min(standardQuota, base - opening)));
     const accumulated = cents(opening + monthDepreciation); const bookValue = cents(cost - accumulated);
     const groupCode = group?.codigo || "";
-    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, account: groupCode, group: group?.descricao || "Sem classificação", debitAccount: group?.conta_despesa_depreciacao || depreciationExpenseAccount, creditAccount: group?.conta_depreciacao_acumulada || accumulatedDepreciationAccounts[groupCode] || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
+    return { id: asset.id, code: asset.codigo_patrimonial, branch: asset.codfilial, description: asset.descricao, acquisitionDate: asset.data_aquisicao, account: groupCode, group: group?.descricao || "Sem classificação", noteCode: group?.nota_explicativa_codigo || "", debitAccount: group?.conta_despesa_depreciacao || depreciationExpenseAccount, creditAccount: group?.conta_depreciacao_acumulada || accumulatedDepreciationAccounts[groupCode] || "", cost, residual, base, opening, standardQuota, monthDepreciation, accumulated, bookValue, status: !group ? "SEM_CLASSIFICACAO" : !group.depreciavel ? "NAO_DEPRECIAVEL" : monthDepreciation ? "CALCULADO" : "SEM_QUOTA" };
   });
   const totals = rows.reduce((sum, row) => ({ cost: sum.cost + row.cost, base: sum.base + row.base, opening: sum.opening + row.opening, monthDepreciation: sum.monthDepreciation + row.monthDepreciation, accumulated: sum.accumulated + row.accumulated, bookValue: sum.bookValue + row.bookValue }), { cost: 0, base: 0, opening: 0, monthDepreciation: 0, accumulated: 0, bookValue: 0 });
   const postingErrors = [...new Set(rows.filter((row) => row.monthDepreciation > 0 && (!row.debitAccount || !row.creditAccount)).map((row) => `${row.account || "Sem código"} — ${row.group}`))];

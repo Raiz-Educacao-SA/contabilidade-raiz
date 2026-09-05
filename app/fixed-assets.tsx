@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx-js-style";
 import {
   BadgeCheck,
   BookOpenCheck,
@@ -13,6 +14,7 @@ import {
   ExternalLink,
   CheckCircle2,
   Download,
+  FileSpreadsheet,
   Scale,
 } from "lucide-react";
 import styles from "./fixed-assets.module.css";
@@ -45,6 +47,12 @@ type Asset = {
   descricao: string;
   numero_nf: string | null;
   unidade: string | null;
+  centro_custo?: string | null;
+  fornecedor?: string | null;
+  data_aquisicao?: string;
+  data_baixa?: string | null;
+  quantidade?: number;
+  valor_residual?: number;
   valor_custo: number;
   status: string;
   accumulatedDepreciation: number;
@@ -128,8 +136,11 @@ type MonthlyCalculation = {
     code: string;
     branch: string;
     description: string;
+    acquisitionDate: string;
     account: string;
     group: string;
+    noteCode: string;
+    residual: number;
     cost: number;
     base: number;
     opening: number;
@@ -198,6 +209,7 @@ type NoteDisclosureRow = {
   saldo_final: number;
   saldo_balancete: number;
   diferenca: number;
+  reconciliationStatus?: string;
 };
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -279,12 +291,66 @@ export default function FixedAssetsPanel({
     return () => controller.abort();
   }, [fetchData]);
 
-  const summary = data?.summary;
   const reference = data?.importBatch?.competencia ?? competence;
+  const effectiveAssets = useMemo(() => {
+    if (!monthly) return data?.assets ?? [];
+    const calculated = new Map(monthly.rows.map((row) => [row.id, row]));
+    return (data?.assets ?? []).map((asset) => {
+      const row = calculated.get(asset.id);
+      return row ? { ...asset, accumulatedDepreciation: row.accumulated, bookValue: row.bookValue } : asset;
+    });
+  }, [data?.assets, monthly]);
+  const summary = useMemo(() => {
+    if (!monthly) return data?.summary;
+    return {
+      assets: monthly.rows.length,
+      fullyDepreciated: monthly.rows.filter((row) => row.bookValue <= 0.01).length,
+      cost: monthly.totals.cost,
+      accumulatedDepreciation: monthly.totals.accumulated,
+      bookValue: monthly.totals.bookValue,
+    };
+  }, [data?.summary, monthly]);
+  const effectiveSummaryRows = useMemo(() => {
+    if (!monthly) return data?.summaryRows ?? [];
+    const totals = new Map<string, { items: number; cost: number; residual: number; depreciable: number; quota: number; accumulated: number; book: number }>();
+    for (const row of monthly.rows) {
+      const total = totals.get(row.account) ?? { items: 0, cost: 0, residual: 0, depreciable: 0, quota: 0, accumulated: 0, book: 0 };
+      total.items += 1; total.cost += row.cost; total.residual += row.residual; total.depreciable += row.base;
+      total.quota += row.monthDepreciation; total.accumulated += row.accumulated; total.book += row.bookValue;
+      totals.set(row.account, total);
+    }
+    return (data?.summaryRows ?? []).map((row) => {
+      const total = totals.get(row.accountCode) ?? { items: 0, cost: 0, residual: 0, depreciable: 0, quota: 0, accumulated: 0, book: 0 };
+      const currentReference = competence === reference;
+      const trialBalance = currentReference ? row.trialBalance : 0;
+      const check = currentReference ? Math.round(trialBalance - total.book) : 0;
+      return { ...row, ...total, trialBalance, check, status: currentReference ? (Math.abs(check) <= 1 ? "Ok" : "Divergente") : "Pendente de conciliação" };
+    });
+  }, [competence, data?.summaryRows, monthly, reference]);
+  const effectiveNoteDisclosure = useMemo(() => {
+    if (!monthly || competence === reference) return data?.noteDisclosure ?? [];
+    const noteByAccount = new Map((data?.summaryRows ?? []).map((row) => [row.accountCode, row.noteCode || ""]));
+    const totals = new Map<string, { opening: number; additions: number; depreciation: number; final: number }>();
+    for (const row of monthly.rows) {
+      const noteCode = row.noteCode || noteByAccount.get(row.account) || "";
+      if (!noteCode) continue;
+      const total = totals.get(noteCode) ?? { opening: 0, additions: 0, depreciation: 0, final: 0 };
+      const isCurrentAcquisition = row.acquisitionDate.slice(0, 7) === competence;
+      total.opening += isCurrentAcquisition ? 0 : row.cost - row.opening;
+      total.additions += isCurrentAcquisition ? row.cost : 0;
+      total.depreciation -= row.monthDepreciation;
+      total.final += row.bookValue;
+      totals.set(noteCode, total);
+    }
+    return (data?.noteDisclosure ?? []).map((row) => {
+      const total = totals.get(String(row.codigo_ne)) ?? { opening: 0, additions: 0, depreciation: 0, final: 0 };
+      return { ...row, saldo_inicial: total.opening, adicoes: total.additions, transferencias: 0, afac: 0, baixas: 0, depreciacao: total.depreciation, saldo_final: total.final, saldo_balancete: 0, diferenca: 0, reconciliationStatus: "Pendente de conciliação" };
+    });
+  }, [competence, data?.noteDisclosure, data?.summaryRows, monthly, reference]);
   const filteredAssets = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
-    if (!term) return data?.assets ?? [];
-    return (data?.assets ?? []).filter((asset) =>
+    if (!term) return effectiveAssets;
+    return effectiveAssets.filter((asset) =>
       [
         asset.codigo_patrimonial,
         asset.descricao,
@@ -298,7 +364,7 @@ export default function FixedAssetsPanel({
           .includes(term),
       ),
     );
-  }, [data?.assets, search]);
+  }, [effectiveAssets, search]);
   const navigation = [
     { id: "resumo", label: "Resumo individual", icon: Boxes },
     { id: "nova-aquisicao", label: "Nova aquisição", icon: ReceiptText },
@@ -524,6 +590,12 @@ export default function FixedAssetsPanel({
     }
   }
 
+  useEffect(() => {
+    void calculateMonth();
+    // O cálculo é somente leitura e acompanha a empresa e a competência selecionadas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, companyCode, competence]);
+
   function exportAccountingEntries() {
     if (!monthly?.postings.length || monthly.postingErrors.length) return;
     const postings: WarehousePosting[] = monthly.postings.map((posting) => ({
@@ -555,6 +627,39 @@ export default function FixedAssetsPanel({
     URL.revokeObjectURL(url);
   }
 
+  function exportFixedAssetsWorkbook() {
+    if (!data || !monthly || !summary) return;
+    const workbook = XLSX.utils.book_new();
+    const headerStyle = { fill: { fgColor: { rgb: "1F4E78" } }, font: { bold: true, color: { rgb: "FFFFFF" } }, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
+    const titleStyle = { font: { bold: true, color: { rgb: "12304A" }, sz: 14 } };
+    const moneyFormat = "#,##0.00;[Red]-#,##0.00";
+    const addSheet = (name: string, title: string, headers: string[], rows: Array<Array<string | number | null>>, widths: number[]) => {
+      const values: Array<Array<string | number | null>> = [[title], [`Empresa: ${companyCode} — ${companyName}`], [`Competência: ${competence}`], [], headers, ...rows];
+      const sheet = XLSX.utils.aoa_to_sheet(values);
+      sheet["!cols"] = widths.map((wch) => ({ wch }));
+      sheet["!autofilter"] = { ref: `A5:${XLSX.utils.encode_col(headers.length - 1)}${values.length}` };
+      sheet["!freeze"] = { xSplit: 0, ySplit: 5, topLeftCell: "A6", activePane: "bottomLeft", state: "frozen" };
+      if (sheet.A1) sheet.A1.s = titleStyle;
+      for (let column = 0; column < headers.length; column += 1) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: 4, c: column })];
+        if (cell) cell.s = headerStyle;
+      }
+      const range = XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
+      for (let row = 5; row <= range.e.r; row += 1) for (let column = 0; column <= range.e.c; column += 1) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })];
+        if (cell?.t === "n") cell.z = moneyFormat;
+      }
+      XLSX.utils.book_append_sheet(workbook, sheet, name);
+    };
+
+    addSheet("Resumo individual", "Resumo individual do ativo fixo", ["Conta", "Descrição", "Vida útil contábil", "Itens", "Custo", "Valor residual", "Base depreciável", "Depreciação do mês", "Depreciação acumulada", "Saldo contábil", "Status"], effectiveSummaryRows.map((row) => [row.accountCode, row.accountDescription, row.accountingLife, row.items, row.cost, row.residual, row.depreciable, row.quota, row.accumulated, row.book, row.status]), [18, 34, 18, 10, 16, 16, 17, 18, 20, 17, 22]);
+    addSheet("Cadastro de bens", "Cadastro de bens atualizado", ["Código patrimonial", "Filial", "Grupo", "Descrição", "NF", "Fornecedor", "Aquisição", "Baixa", "Quantidade", "Custo", "Depreciação acumulada", "Saldo contábil", "Status"], effectiveAssets.map((asset) => [asset.codigo_patrimonial, asset.codfilial, asset.grupo?.codigo || "", asset.descricao, asset.numero_nf, asset.fornecedor || "", asset.data_aquisicao || "", asset.data_baixa || "", Number(asset.quantidade || 0), Number(asset.valor_custo), asset.accumulatedDepreciation, asset.bookValue, asset.status]), [20, 9, 18, 45, 16, 32, 13, 13, 12, 16, 20, 17, 14]);
+    addSheet("Nota explicativa", "Quadro de movimentações", ["Seção", "NE", "Grupo patrimonial", "Taxa anual", "Saldo inicial", "Adições", "Transferências", "AFAC", "Baixas", "Depreciação", "Saldo final", "Balancete", "Conciliação"], effectiveNoteDisclosure.map((row) => [row.secao, row.codigo_ne, row.descricao, Number(row.taxa_anual), Number(row.saldo_inicial), Number(row.adicoes), Number(row.transferencias), Number(row.afac), Number(row.baixas), Number(row.depreciacao), Number(row.saldo_final), row.reconciliationStatus ? null : Number(row.saldo_balancete), row.reconciliationStatus || (Math.abs(Number(row.diferenca)) <= 1 ? "Ok" : "Divergente")]), [16, 10, 36, 12, 16, 16, 16, 14, 14, 16, 16, 16, 22]);
+    addSheet("Cálculo mensal", "Memória de cálculo mensal", ["Código", "Filial", "Grupo", "Descrição", "Aquisição", "Custo", "Valor residual", "Base depreciável", "Depreciação anterior", "Quota padrão", "Depreciação do mês", "Depreciação acumulada", "Saldo final", "Status"], monthly.rows.map((row) => [row.code, row.branch, row.account, row.description, row.acquisitionDate, row.cost, row.residual, row.base, row.opening, row.standardQuota, row.monthDepreciation, row.accumulated, row.bookValue, row.status]), [20, 9, 18, 45, 13, 16, 16, 17, 20, 16, 19, 20, 17, 16]);
+    addSheet("Lançamentos contábeis", "Lançamentos contábeis por grupo e filial", ["Filial", "Grupo", "Descrição do grupo", "Conta débito", "Conta crédito", "Valor", "Histórico"], monthly.postings.map((posting) => [posting.branchCode, posting.groupCode, posting.groupName, posting.debitAccount, posting.creditAccount, posting.amount, `DEPRECIAÇÃO ${posting.groupCode} - ${posting.groupName} - N/MÊS`]), [9, 18, 36, 20, 20, 16, 55]);
+    XLSX.writeFile(workbook, `Ativo_Fixo_${companyCode}_${competence}.xlsx`, { compression: true });
+  }
+
   return (
     <section className={styles.workspace} data-testid="fixed-assets-module">
       <nav className={styles.tabs} aria-label="Áreas do Ativo Fixo">
@@ -567,6 +672,9 @@ export default function FixedAssetsPanel({
             <Icon /> {label}
           </button>
         ))}
+        <button className={styles.exportWorkbook} onClick={exportFixedAssetsWorkbook} disabled={!data || !monthly}>
+          <FileSpreadsheet /> Exportar memória Excel
+        </button>
       </nav>
 
       {view === "resumo" && (
@@ -591,7 +699,7 @@ export default function FixedAssetsPanel({
                     <b>Base de origem carregada</b>
                     <small>
                       Posição patrimonial em{" "}
-                      {reference.split("-").reverse().join("/")}
+                      {competence.split("-").reverse().join("/")}
                     </small>
                   </span>
                 </div>
@@ -631,7 +739,7 @@ export default function FixedAssetsPanel({
                     <span>RESUMO INDIVIDUAL</span>
                     <h2>Posição patrimonial por conta</h2>
                     <small>
-                      Modelo e amarrações da planilha · competência {reference}
+                      Modelo e amarrações da planilha · competência {competence}
                     </small>
                   </div>
                   <span className={styles.sourceBadge}>22 contas</span>
@@ -664,7 +772,7 @@ export default function FixedAssetsPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {(data?.summaryRows ?? []).map((row) => (
+                      {effectiveSummaryRows.map((row) => (
                         <tr key={row.accountCode}>
                           <td>{row.accountCode}</td>
                           <td>
@@ -730,7 +838,7 @@ export default function FixedAssetsPanel({
                         </td>
                         <td className={styles.numeric}>
                           {amount(
-                            (data?.summaryRows ?? []).reduce(
+                            effectiveSummaryRows.reduce(
                               (sum, row) => sum + row.residual,
                               0,
                             ),
@@ -738,7 +846,7 @@ export default function FixedAssetsPanel({
                         </td>
                         <td className={styles.numeric}>
                           {amount(
-                            (data?.summaryRows ?? []).reduce(
+                            effectiveSummaryRows.reduce(
                               (sum, row) => sum + row.depreciable,
                               0,
                             ),
@@ -746,7 +854,7 @@ export default function FixedAssetsPanel({
                         </td>
                         <td className={styles.numeric}>
                           {amount(
-                            (data?.summaryRows ?? []).reduce(
+                            effectiveSummaryRows.reduce(
                               (sum, row) => sum + row.quota,
                               0,
                             ),
@@ -761,14 +869,14 @@ export default function FixedAssetsPanel({
                         <td>Ok</td>
                         <td className={styles.numeric}>
                           {amount(
-                            (data?.summaryRows ?? []).reduce(
+                            effectiveSummaryRows.reduce(
                               (sum, row) => sum + row.trialBalance,
                               0,
                             ),
                           )}
                         </td>
                         <td className={styles.numeric}>
-                          {(data?.summaryRows ?? []).reduce(
+                          {effectiveSummaryRows.reduce(
                             (sum, row) => sum + row.check,
                             0,
                           )}
@@ -791,7 +899,7 @@ export default function FixedAssetsPanel({
               <h2>Cadastro de bens</h2>
               <small>
                 {data?.assets.length ?? 0} bens carregados · competência{" "}
-                {reference}
+                {competence}
               </small>
             </div>
             <input
@@ -1124,7 +1232,7 @@ export default function FixedAssetsPanel({
           <div className={styles.noteHeader}>
             <div>
               <span>QUADRO DE MOVIMENTAÇÕES</span>
-              <h2>Nota explicativa · {reference}</h2>
+              <h2>Nota explicativa · {competence}</h2>
               <small>
                 Valores em reais, seguindo as amarrações da planilha de origem.
               </small>
@@ -1132,7 +1240,7 @@ export default function FixedAssetsPanel({
             <span className={styles.sourceBadge}>Carga inicial</span>
           </div>
           {(["IMOBILIZADO", "INTANGIVEL"] as const).map((section) => {
-            const rows = (data?.noteDisclosure ?? []).filter(
+            const rows = effectiveNoteDisclosure.filter(
               (row) => row.secao === section,
             );
             const totals = rows.reduce(
@@ -1180,7 +1288,7 @@ export default function FixedAssetsPanel({
                         <th className={styles.numeric}>Depreciação</th>
                         <th className={styles.numeric}>Saldo final</th>
                         <th className={styles.numeric}>Balancete</th>
-                        <th className={styles.numeric}>Check</th>
+                        <th className={styles.numeric}>Conciliação</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1219,10 +1327,10 @@ export default function FixedAssetsPanel({
                             {wholeCurrency.format(Number(row.saldo_final))}
                           </td>
                           <td className={styles.numeric}>
-                            {wholeCurrency.format(Number(row.saldo_balancete))}
+                            {row.reconciliationStatus ? "—" : wholeCurrency.format(Number(row.saldo_balancete))}
                           </td>
                           <td className={styles.numeric}>
-                            <span
+                            {row.reconciliationStatus ? <span className={styles.assetStatus}>{row.reconciliationStatus}</span> : <span
                               className={
                                 Math.abs(Math.round(Number(row.diferenca))) <= 1
                                   ? styles.checkOk
@@ -1232,7 +1340,7 @@ export default function FixedAssetsPanel({
                               {Math.round(Number(row.diferenca)).toLocaleString(
                                 "pt-BR",
                               )}
-                            </span>
+                            </span>}
                           </td>
                         </tr>
                       ))}
@@ -1267,10 +1375,10 @@ export default function FixedAssetsPanel({
                           {wholeCurrency.format(totals.saldo_final)}
                         </td>
                         <td className={styles.numeric}>
-                          {wholeCurrency.format(totals.saldo_balancete)}
+                          {rows.some((row) => row.reconciliationStatus) ? "—" : wholeCurrency.format(totals.saldo_balancete)}
                         </td>
                         <td className={styles.numeric}>
-                          {Math.round(totals.diferenca).toLocaleString("pt-BR")}
+                          {rows.some((row) => row.reconciliationStatus) ? "Pendente" : Math.round(totals.diferenca).toLocaleString("pt-BR")}
                         </td>
                       </tr>
                     </tfoot>
@@ -1279,7 +1387,7 @@ export default function FixedAssetsPanel({
               </section>
             );
           })}
-          {!loading && !data?.noteDisclosure?.length && (
+          {!loading && !effectiveNoteDisclosure.length && (
             <p className={styles.noResults}>
               O quadro ainda não foi carregado para esta competência.
             </p>

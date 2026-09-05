@@ -4,6 +4,8 @@
 .tabs button svg { width: 16px; height: 16px; stroke-width: 2; }
 .tabs button:hover { color: #36566a; background: #f3f7f9; }
 .tabs button.active { color: #126783; background: #e8f3f7; font-weight: 750; }
+.tabs button.exportWorkbook { margin-left: auto; color: #fff; background: #126783; }
+.tabs button.exportWorkbook:disabled { opacity: .45; cursor: not-allowed; }
 .statusBar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 18px; border: 1px solid #b8e2dd; border-radius: 14px; background: #f0fbf9; }
 .statusBar > div { display: flex; align-items: center; gap: 12px; }
 .statusBar svg { width: 24px; color: #0f766e; }

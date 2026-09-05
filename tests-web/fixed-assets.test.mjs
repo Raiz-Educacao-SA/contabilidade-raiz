@@ -35,11 +35,17 @@ test("Ativo Fixo fica isolado em componente próprio e acessível pela navegaç�
   assert.match(panel, /Saldo final = saldo inicial/);
   assert.match(panel, /Controle x razão x balancete/);
   assert.match(panel, /Exportar lançamento contábil/);
+  assert.match(panel, /Exportar memória Excel/);
+  assert.match(panel, /Ativo_Fixo_/);
+  assert.match(panel, /Resumo individual do ativo fixo/);
+  assert.match(panel, /Lançamentos contábeis por grupo e filial/);
   assert.match(panel, /buildWarehousePostingsCsv/);
   assert.match(monthlyRoute, /conta_despesa_depreciacao/);
   assert.match(monthlyRoute, /conta_depreciacao_acumulada/);
   assert.match(monthlyRoute, /groupCode/);
   assert.match(monthlyRoute, /postingErrors/);
+  assert.match(monthlyRoute, /priorUncalculatedMonths/);
+  assert.match(monthlyRoute, /nota_explicativa_codigo/);
   assert.match(monthlyRoute, /4\.2\.1\.09\.01\.01/);
   assert.match(monthlyRoute, /1\.2\.3\.02\.08\.02/);
   assert.match(monthlyRoute, /conta_despesa_depreciacao \|\| depreciationExpenseAccount/);
