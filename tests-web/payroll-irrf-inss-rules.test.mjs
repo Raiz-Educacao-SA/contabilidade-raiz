@@ -105,6 +105,21 @@ test("reconhece os totais previdenciários quando o OCR da DCTF perde partes dos
       "de Rapos UIÇÃO PREVIDENCIÁRIA 8.093,1 6 67,54 8.025,62",
       "ESCASSO N DA |O PREVIDENCIÁRIA 18.576,66 - 18.576,66",
       "ENTIDADES FUNDOS 3.928,71 - 3.928,71",
+      "Total IRRF 2.769,12 - 2.769,12",
+    ].join("\n") },
+    { name: "Planilha IRRF - Mensal_07.2026.xlsx", text: [
+      "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
+      "1,A,7,2026,8/6/26,0004,2500,1,2,B,7,2026,8/6/26,84,100,1",
+    ].join("\n") },
+    { name: "Planilha IRRF - MENSAL.xlsx", text: [
+      "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
+      "3,C,8,2026,8/17/26,0030,169.12,1,,,,,,,,",
+      "4,D,8,2026,9/4/26,0004,999,1,,,,,,,,",
+    ].join("\n") },
+    { name: "Planilha IRRF - DCTFWEB.xlsx", text: [
+      "CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL,CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL",
+      "1,A,7,2026,8/6/26,0004,2500,1,2,B,7,2026,8/6/26,84,100,1",
+      "3,C,8,2026,8/17/26,0030,169.12,1,,,,,,,,",
     ].join("\n") },
   ];
 
@@ -114,6 +129,14 @@ test("reconhece os totais previdenciários quando o OCR da DCTF perde partes dos
   assert.equal(analysis.inssMemory.otherEntities, 3928.71);
   assert.equal(analysis.inssMemory.adjustedGuide, 30530.99);
   assert.equal(analysis.checks.find((item) => item.item === "INSS ajustado x lote")?.status, "OK");
+  const irrf0561 = analysis.checks.find((item) => item.item === "IRRF 0561 — recolhimento");
+  const irrf0588 = analysis.checks.find((item) => item.item === "IRRF 0588 — recolhimento");
+  assert.equal(irrf0561?.lot, 2669.12);
+  assert.equal(irrf0561?.document, 2669.12);
+  assert.equal(irrf0561?.status, "OK");
+  assert.equal(irrf0588?.lot, 100);
+  assert.equal(irrf0588?.document, 100);
+  assert.equal(irrf0588?.status, "OK");
 });
 
 test("não soma provisões no FGTS e ignora histórico de IRRF fora da competência", () => {

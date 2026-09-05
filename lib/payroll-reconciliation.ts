@@ -222,6 +222,17 @@ function valueAcrossMax(text: string, patterns: RegExp[]) {
   return values.length ? Math.max(...values) : null;
 }
 
+function valueAfterLabelMax(text: string, label: string) {
+  const values = text.split(/\r?\n/).flatMap((line) => {
+    const lineNormalized = normalized(line);
+    const labelIndex = lineNormalized.indexOf(label);
+    if (labelIndex < 0) return [];
+    const amounts = moneyValues(line.slice(labelIndex + label.length));
+    return amounts.length ? [Math.abs(amounts[0])] : [];
+  });
+  return values.length ? Math.max(...values) : null;
+}
+
 function folhaSummaryText(text: string) {
   const pages = text.split(/\f/).map((page) => page.trim()).filter(Boolean);
   const totalGeneral = pages.findLast((page) => /TOTAL GERAL/.test(normalized(page)) && /\bLIQUIDO\b/.test(normalized(page)));
@@ -371,6 +382,26 @@ function irrfMonthlyTotals(text: string, competence: string, paymentCompetence =
   return { recognized: true, code0561: roundMoney(code0561), code0588: roundMoney(code0588) };
 }
 
+function irrfPaymentTotals(text: string, paymentCompetence: string): IrrfMonthlyTotals {
+  const lines = text.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => /^CHAPA,NOME,MESCOMP,ANOCOMP,DTPAGTO,CODEVENTO,VALOR,CODFILIAL/i.test(normalized(line)));
+  if (headerIndex < 0) return { recognized: false, code0561: 0, code0588: 0 };
+  const expected = paymentCompetence.match(/^(\d{4})-(\d{2})$/);
+  if (!expected) return { recognized: true, code0561: 0, code0588: 0 };
+  let code0561 = 0;
+  let code0588 = 0;
+  for (const row of lines.slice(headerIndex + 1).map(csvCells)) {
+    for (const offset of [0, 8]) {
+      const payment = spreadsheetDateMonthYear(row[offset + 4]);
+      if (!payment || payment.month !== Number(expected[2]) || payment.year !== Number(expected[1])) continue;
+      const value = Math.abs(parseMoney(row[offset + 6]));
+      if (offset === 0) code0561 += value;
+      else code0588 += value;
+    }
+  }
+  return { recognized: true, code0561: roundMoney(code0561), code0588: roundMoney(code0588) };
+}
+
 function accountEventValue(rows: PayrollLotRow[], account: string, codes: string[]) {
   return lotEventValue(rows.filter((row) => row.account === account), codes);
 }
@@ -490,6 +521,7 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   const currentIrrfMonthly = findIrrfMonthlyDocument(documents, competence, false);
   const previousIrrfMonthly = findIrrfMonthlyDocument(documents, competence, true);
   const previousIrrfLot = previousIrrfMonthly ?? findIrrfLotDocument(documents, true);
+  const dctfIrrfComposition = documents.find((document) => /IRRF.*DCTFWEB/.test(normalized(document.name)) && !/\.PDF$/i.test(document.name));
   const fgtsDocs = documents.filter((document) => {
     const name = normalized(document.name);
     const heading = normalized(document.text.slice(0, 1200));
@@ -498,7 +530,7 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   const folhaText = folha?.text ?? "";
   const folhaTotalsText = folhaSummaryText(folhaText);
   const dctfText = dctf?.text ?? "";
-  const liquidGeneral = valueAcrossMax(folhaTotalsText, [/\bLIQUIDO\b/]);
+  const liquidGeneral = valueAfterLabelMax(folhaTotalsText, "LIQUIDO");
   const liquidLot = lotEventValue(rows, ["EN0002", "EN0020"]);
   const liquidCheck = check(
     "Líquidos",
@@ -565,15 +597,19 @@ export function reconcilePayroll(rows: PayrollLotRow[], lotCode: string, documen
   checks.push(check("IRRF", "IRRF 0588 — provisão x planilha mensal", ACCOUNTS.irrf0588, "EV0084", irrf0588Events, currentMonthlyTotals?.recognized ? currentMonthlyTotals.code0588 : null, tolerance, currentIrrfMonthly?.name ?? "Planilha mensal de IRRF da competência não identificada", "Considera somente registros cuja competência corresponda ao mês analisado; históricos de outras competências são desconsiderados."));
 
   const previousMonthlyTotals = previousIrrfMonthly ? irrfMonthlyTotals(previousIrrfMonthly.text, previousCompetenceOf(competence), competence) : null;
-  const dueIrrf0561 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0561 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0561");
-  const guideIrrf0561 = eventValue(dctfText, ["0561"]) ?? (dctf ? 0 : null);
-  const guide0561Check = check("IRRF", "IRRF 0561 — recolhimento", "DCTFWeb", "0561", dueIrrf0561 ?? 0, guideIrrf0561, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "Considera somente valores da competência anterior pagos no mês da guia.");
+  const currentPaidTotals = currentIrrfMonthly ? irrfPaymentTotals(currentIrrfMonthly.text, competence) : null;
+  const dctfCompositionTotals = dctfIrrfComposition ? irrfPaymentTotals(dctfIrrfComposition.text, competence) : null;
+  const previous0561 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0561 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0561");
+  const previous0588 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0588 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0588");
+  const dueIrrf0561 = previous0561 === null && !currentPaidTotals?.recognized ? null : roundMoney((previous0561 ?? 0) + (currentPaidTotals?.recognized ? currentPaidTotals.code0561 : 0));
+  const guideIrrf0561 = eventValue(dctfText, ["0561"]) ?? (dctfCompositionTotals?.recognized ? dctfCompositionTotals.code0561 : (dctf ? 0 : null));
+  const guide0561Check = check("IRRF", "IRRF 0561 — recolhimento", "DCTFWeb", "0561", dueIrrf0561 ?? 0, guideIrrf0561, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} + ${currentIrrfMonthly?.name ?? "Planilha mensal não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "Soma a planilha do mês anterior aos registros da planilha mensal cuja data de pagamento esteja no mês analisado e compara o resultado com a DCTF Web.");
   if (dueIrrf0561 === null || guideIrrf0561 === null) guide0561Check.status = "PENDENTE";
   checks.push(guide0561Check);
 
-  const dueIrrf0588 = previousMonthlyTotals?.recognized ? previousMonthlyTotals.code0588 : spreadsheetCodeValue(previousIrrfLot?.text ?? "", "0588");
-  const guideIrrf0588 = eventValue(dctfText, ["0588"]) ?? (dctf ? 0 : null);
-  const guide0588Check = check("IRRF", "IRRF 0588 — recolhimento", "DCTFWeb", "0588", dueIrrf0588 ?? 0, guideIrrf0588, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "O 0588 descontado na competência anterior e pago no mês atual deve constar na guia.");
+  const dueIrrf0588 = previous0588 === null && !currentPaidTotals?.recognized ? null : roundMoney((previous0588 ?? 0) + (currentPaidTotals?.recognized ? currentPaidTotals.code0588 : 0));
+  const guideIrrf0588 = eventValue(dctfText, ["0588"]) ?? (dctfCompositionTotals?.recognized ? dctfCompositionTotals.code0588 : (dctf ? 0 : null));
+  const guide0588Check = check("IRRF", "IRRF 0588 — recolhimento", "DCTFWeb", "0588", dueIrrf0588 ?? 0, guideIrrf0588, tolerance, `${previousIrrfLot?.name ?? "Composição do mês anterior não identificada"} + ${currentIrrfMonthly?.name ?? "Planilha mensal não identificada"} x ${dctf?.name ?? "DCTFWeb não identificada"}`, "Soma o 0588 do mês anterior aos registros da planilha mensal pagos no mês analisado e compara o resultado com a DCTF Web.");
   if (dueIrrf0588 === null) guide0588Check.status = "PENDENTE";
   checks.push(guide0588Check);
 
